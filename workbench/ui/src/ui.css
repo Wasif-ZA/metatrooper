@@ -539,11 +539,6 @@ html { font-size: 16px; }
   .ou-ide-status-needs { color: var(--wait); }
 
   .ou-ide-tabs { height: 35px; background: var(--canvas-deep); }
-  .ou-ide-tabs [role="tablist"] { height: 35px; gap: 0; }
-  .ou-ide-tabs [role="tab"] { box-sizing: border-box; height: 35px; margin: 0; padding: 0 10px; border-radius: 0 !important; border: none; border-right: 1px solid var(--hairline); border-top: 1px solid transparent; background: var(--canvas-deep); color: var(--mute); box-shadow: none !important; display: inline-flex; align-items: center; gap: 6px; }
-  .ou-ide-tabs [role="tab"]::before, .ou-ide-tabs [role="tab"]::after { display: none !important; }
-  .ou-ide-tabs [role="tab"]:hover { background: var(--canvas); color: var(--body-strong); }
-  .ou-ide-tabs [role="tab"][aria-selected="true"], .ou-ide-tabs [role="tab"][data-state="active"], .ou-ide-tabs [role="tab"].is-selected { background: var(--pane); color: var(--ink); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--pane); box-shadow: none !important; }
 
   .ou-ide-crumb { height: 22px; background: transparent; padding: 0 8px 0 12px; }
   .ou-ide-crumb button { height: 18px; min-height: 18px; padding: 0 4px; font-size: 11px; }

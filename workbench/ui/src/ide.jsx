@@ -20,6 +20,7 @@ import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
 import { paletteView } from './palette.jsx';
+import './ide-side.css';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -325,6 +326,25 @@ function startNew(st, dir, isFolder) {
 }
 
 const focusRow = (path) => setTimeout(() => document.querySelector(`#ide-tree-menu [data-tree-id="${CSS.escape(path)}"]`)?.focus(), 0);
+
+// TreeList keeps user toggles in internal state, so a reveal remounts it with the open folders as props
+async function reveal(st, path) {
+  const open = [...document.querySelectorAll('#ide-tree-menu [data-tree-id][aria-expanded="true"]')].map((e) => e.dataset.treeId);
+  const parts = path.split('/');
+  const up = parts.slice(1).map((_, i) => parts.slice(0, i + 1).join('/'));
+  st.open = new Set([...open, ...up]);
+  st.treeKey = (st.treeKey || 0) + 1;
+  Object.assign(st, { side: 'files', rootOpen: true, q: '', hits: [], findOpen: false });
+  bump();
+  for (const rel of up) await loadDir(st, rel);
+  focusRow(path);
+}
+
+function collapseAll(st) {
+  st.open = new Set();
+  st.treeKey = (st.treeKey || 0) + 1;
+  bump();
+}
 
 function endRename(st, path) {
   if (st.renaming !== path) return;
@@ -680,22 +700,34 @@ function rowTarget(st, el) {
   return { path, dir: id !== path || Boolean((st.dirs.get(folder(path)) || []).find((e) => e.name === base(path))?.dir) };
 }
 
-function treeItems(st, rel, changed) {
+function gitDirs(st) {
+  const out = new Set();
+  for (const f of (st.git && st.git.files) || []) {
+    const parts = slashed(f.path).split('/');
+    for (let i = 1; i < parts.length; i++) out.add(parts.slice(0, i).join('/'));
+  }
+  return out;
+}
+
+function treeItems(st, rel, changed, dirty = gitDirs(st)) {
   return (st.dirs.get(rel) || []).map((e) => {
     const path = rel ? `${rel}/${e.name}` : e.name;
     if (st.renaming === path) {
-      const children = e.dir ? (st.dirs.get(path)?.length ? treeItems(st, path, changed) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }]) : undefined;
+      const children = e.dir ? (st.dirs.get(path)?.length ? treeItems(st, path, changed, dirty) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }]) : undefined;
       return { id: path, label: <RenameInput st={st} path={path} />, children, startContent: <FileIcon path={path} isDir={e.dir} /> };
     }
     if (e.dir) {
       const kids = st.dirs.get(path);
       const children = !kids ? [{ id: `${path}//loading`, label: <LoadDir st={st} rel={path} />, isDisabled: true }]
-        : kids.length ? treeItems(st, path, changed) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }];
-      return { id: path, label: e.name, children, startContent: <FileIcon isDir /> };
+        : kids.length ? treeItems(st, path, changed, dirty) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }];
+      const has = dirty.has(path);
+      return { id: path, label: e.name, children, isExpanded: Boolean(st.open && st.open.has(path)), className: has ? 'ou-ide-row-dirty' : undefined, startContent: <FileIcon isDir />, endContent: has ? <span className="ou-ide-folderdot" title="Contains changes" /> : undefined };
     }
+    const letter = gitStatusOf(st, path);
     return {
       id: path,
       label: e.name,
+      className: letter ? `ou-ide-row-${letter.toLowerCase()}` : undefined,
       isSelected: st.active === path,
       onClick: () => void openFile(st, path),
       startContent: <FileIcon path={path} />,
@@ -753,7 +785,7 @@ function Files({ st, changed }) {
           <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
             onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
             onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
-            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span aria-hidden="true">{st.rootOpen ? '\u25be' : '\u25b8'}</span><span aria-hidden="true"><FileIcon isDir /></span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
+            <TreeList key={`${ui.projectId}:${st.treeKey || 0}`} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span aria-hidden="true">{st.rootOpen ? '\u25be' : '\u25b8'}</span><span aria-hidden="true"><FileIcon isDir /></span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
               onKeyDown={(e) => {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
                 if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
@@ -786,10 +818,14 @@ function Search({ st }) {
       <div className="ou-ide-tree">
         {st.searching ? <p className="ou-ide-muted">Searching.</p> : st.sres ? (groups.size ? (
           <>
+            <p className="ou-ide-muted ou-ide-ssum">{`${st.sres.hits.length} ${st.sres.hits.length === 1 ? 'result' : 'results'} in ${groups.size} ${groups.size === 1 ? 'file' : 'files'}`}</p>
             {[...groups].map(([path, hits]) => (
               <div key={path}>
-                <div className="ou-ide-sfile" title={path}><FileIcon path={path} /><span className="ou-ide-name">{base(path)}</span><span className="ou-ide-dir">{folder(path)}</span><span className="ou-ide-count">{hits.length}</span></div>
-                {hits.map((h, i) => (
+                <button type="button" className="ou-ide-sfile" title={path} aria-expanded={!st.sfold?.has(path)}
+                  onClick={() => { st.sfold = st.sfold || new Set(); if (!st.sfold.delete(path)) st.sfold.add(path); bump(); }}>
+                  <span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><FileIcon path={path} /><span className="ou-ide-name">{base(path)}</span><span className="ou-ide-dir">{folder(path)}</span><span className="ou-ide-count">{hits.length}</span>
+                </button>
+                {st.sfold?.has(path) ? null : hits.map((h, i) => (
                   <button key={i} className="ou-ide-match" onClick={() => void openFile(st, path, { line: h.line })}>
                     <span className="ou-ide-ln">{h.line}</span><span className="ou-ide-mtext"><Marked text={String(h.text).trim()} q={st.sres.q} /></span>
                   </button>
@@ -814,12 +850,13 @@ function ScRow({ st, file, staged }) {
           void openGitDiff(st, file.path, staged);
         }
       }}>
-      <span className="ou-ide-scletter">{file.letter}</span>
-      <span className="ou-ide-name">{base(file.path)}</span>
+      <FileIcon path={file.path} />
+      <span className={`ou-ide-name ou-ide-scname-${file.letter.toLowerCase()}`}>{base(file.path)}</span>
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={staged ? <Sc.MinusIcon size={12} /> : <Ic.PlusIcon size={12} />}
         onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path, file.from].filter(Boolean)) : gitStage(st, [file.path])); }} />
+      <span className={`ou-ide-scletter ou-ide-git-${file.letter.toLowerCase()}`}>{file.letter}</span>
     </div>
   );
 }
@@ -834,6 +871,8 @@ function SourceControl({ st }) {
 
   const { staged, unstaged } = gitFiles(st);
   const canCommit = st.commitMsg.trim().length > 0 && staged.length > 0;
+  const fold = st.scFold || (st.scFold = {});
+  const toggle = (k) => { fold[k] = !fold[k]; bump(); };
 
   return (
     <>
@@ -842,25 +881,30 @@ function SourceControl({ st }) {
           onChange={(e) => { st.commitMsg = e.target.value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" label="Commit" isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
+          <Button size="sm" label="Commit" icon={<Ic.CommitIcon size={14} />} isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
           <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} />
         </div>
       </div>
       <div className="ou-ide-tree">
         {!st.git ? <p className="ou-ide-muted">Loading.</p> : (
           <>
+            {staged.length ? (
+              <>
+                <div className="ou-ide-schead">
+                  <button type="button" className="ou-ide-scfold" aria-expanded={!fold.staged} onClick={() => toggle('staged')}><span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><span>Staged Changes</span></button>
+                  <span className="ou-ide-count">{staged.length}</span>
+                </div>
+                {fold.staged ? null : staged.map((f) => <ScRow key={`s:${f.path}`} st={st} file={f} staged />)}
+              </>
+            ) : null}
             <div className="ou-ide-schead">
-              <span>Staged</span><span className="ou-ide-count">{staged.length}</span>
-            </div>
-            {staged.map((f) => <ScRow key={`s:${f.path}`} st={st} file={f} staged />)}
-            {!staged.length ? <p className="ou-ide-muted">No staged files.</p> : null}
-            <div className="ou-ide-schead">
-              <span>Changes</span><span className="ou-ide-count">{unstaged.length}</span>
+              <button type="button" className="ou-ide-scfold" aria-expanded={!fold.changes} onClick={() => toggle('changes')}><span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><span>Changes</span></button>
               {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={<Ic.PlusIcon size={12} />}
                 onClick={() => void gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
+              <span className="ou-ide-count">{unstaged.length}</span>
             </div>
-            {unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
-            {!unstaged.length ? <p className="ou-ide-muted">No changes.</p> : null}
+            {fold.changes ? null : unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
+            {!unstaged.length && !staged.length ? <p className="ou-ide-muted">No changes.</p> : null}
           </>
         )}
       </div>
@@ -917,7 +961,14 @@ function Crumb({ st, tab, changed }) {
   const ok = canWrite();
   return (
     <div className="ou-ide-crumb">
-      <span className="ou-ide-path">{parts.map((x, i) => <span key={i}>{i ? ' › ' : ''}{i === parts.length - 1 ? <b>{x}</b> : x}</span>)}</span>
+      <nav className="ou-ide-path" aria-label="Breadcrumb">{parts.map((x, i) => (
+        <span key={i} className="ou-ide-segw">
+          {i ? <span className="ou-ide-sep" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span> : null}
+          <button type="button" className="ou-ide-seg" title={`Reveal ${parts.slice(0, i + 1).join('/')} in Files`} onClick={() => void reveal(st, parts.slice(0, i + 1).join('/'))}>
+            {i === parts.length - 1 ? <><FileIcon path={tab.path} /><b>{x}</b></> : x}
+          </button>
+        </span>
+      ))}</nav>
       <span className="ou-ide-crumbr">
         {mode === 'changes' ? <><span className="ou-ide-add">+{lines.filter((l) => l.kind === 'add').length}</span><span className="ou-ide-del">-{lines.filter((l) => l.kind === 'del').length}</span></> : null}
         {isChanged || md ? (
@@ -1133,16 +1184,29 @@ export function Ide() {
   return (
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
-        <div className="ou-ide-head">
-          <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
-          <span className="ou-ide-head-actions">
-            <IconButton size="sm" variant="ghost" label="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={14} />} onClick={() => { st.side = 'files'; bump(); }} />
-            <IconButton size="sm" variant="ghost" label="Search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={14} />} onClick={() => { st.side = 'search'; bump(); }} />
-            <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} aria-pressed={st.side === 'changes'} icon={<Ic.Branch size={14} />} onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
-            <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} />
-          </span>
+        <nav className="ou-ide-rail" aria-label="Side views">
+          <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={22} />} onClick={() => { st.side = 'files'; bump(); }} />
+          <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" aria-pressed={st.side === 'search'} icon={<Ic.Search size={22} />} onClick={() => { st.side = 'search'; bump(); }} />
+          <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" aria-pressed={st.side === 'changes'}
+            icon={<span className="ou-ide-railicon"><Ic.Branch size={22} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
+            onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
+        </nav>
+        <div className="ou-ide-pane">
+          <div className="ou-ide-head">
+            <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
+            <span className="ou-ide-head-actions">
+              {st.side === 'files' ? (
+                <>
+                  <IconButton size="sm" variant="ghost" label="New file" tooltip="New file" icon={<Ic.PlusIcon size={14} />} onClick={() => startNew(st, '', false)} />
+                  <IconButton size="sm" variant="ghost" label="New folder" tooltip="New folder" icon={<Ic.FolderAddIcon size={14} />} onClick={() => startNew(st, '', true)} />
+                  <IconButton size="sm" variant="ghost" label="Collapse folders" tooltip="Collapse folders" icon={<Sc.MinusIcon size={14} />} onClick={() => collapseAll(st)} />
+                </>
+              ) : null}
+              <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} />
+            </span>
+          </div>
+          {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
         </div>
-        {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
       </aside>
       <section className={panel ? 'ou-ide-main' : 'ou-ide-main ou-ide-folded'}>
         <div className="ou-ide-tabs">
@@ -1150,7 +1214,7 @@ export function Ide() {
             <TabList size="sm" layout="hug" hasDivider overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v; bump(); }}>
               {st.tabs.map((t) => (
                 <Tab key={t.path} value={t.path} label={base(t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
-                  <span className="ou-ide-tabend">
+                  <span className={t.dirty ? 'ou-ide-tabend ou-ide-tabdirty' : 'ou-ide-tabend'}>
                     {t.dirty ? <span className="ou-ide-dirty" title="Unsaved" /> : changed.has(t.path) ? <Ring /> : null}
                     <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={<Sc.CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); closeTab(st, t.path); }} />
                   </span>
