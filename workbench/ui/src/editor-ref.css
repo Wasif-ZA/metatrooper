@@ -48,3 +48,11 @@
 .ou-ip-tabcount { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; margin-left: 4px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; font: 600 10px/16px 'Geist', 'Segoe UI', sans-serif; color: var(--ink); background: var(--canvas-soft); }
 #rail-slot > button span:has(> svg), #rail-slot .ou-ide-railicon { flex: none; width: 24px; min-width: 24px; height: 24px; }
 #rail-slot > button svg { flex: none; width: 24px; min-width: 24px; height: 24px; }
+
+/* Editor view: the rail's own items use the same 48px cells and 24px icons; agent rings sit apart from the views */
+:root[data-view="ide"] #frame :is(.ftog, .fnew button, .ffoot button) { width: 48px; height: 48px; min-width: 48px; margin: 0; padding: 0; border-radius: 0; display: grid; place-items: center; }
+:root[data-view="ide"] #frame :is(.ftog, .fnew, .ffoot) svg { width: 24px; height: 24px; }
+:root[data-view="ide"] #frame :is(.fnew, .ffoot) { padding: 0; gap: 0; }
+:root[data-view="ide"] #frame .fhead { padding: 0 0 4px; gap: 0; }
+:root[data-view="ide"] #rail-slot { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+.ou-ide .monaco-editor .view-overlays .current-line { border-width: 1px; }
