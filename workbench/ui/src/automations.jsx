@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
 
@@ -128,7 +128,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const start = presetOf(initial?.cron);
   const [form, setForm] = useState({
     icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
-    prompt: initial?.prompt || '', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
+    prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
   const [picking, setPicking] = useState(false);
@@ -152,7 +152,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
     if (!ready) return;
     const r = await rpc('automation.set', {
       ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), cron, every_min: 1440,
-      labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(),
+      labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(), approval: form.approval,
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
     if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); return; }
@@ -187,7 +187,13 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           attach: (paths) => set('prompt')(atRefs(form.prompt, paths, (s.projects || []).find((p) => p.id === form.project_id)?.path)),
           engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: e.id })), onChange: set('engine_id') },
           send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
-          context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> }],
+          context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" placement="above" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
+            { key: 'machine', icon: <LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
+            form.project_id === ui.projectId && ui.git && ui.git.project === ui.projectId && ui.git.branch ? { key: 'branch', icon: <Branch size={14} />, text: ui.git.branch } : null,
+            { key: 'gap', gap: true },
+            { key: 'access', accent: true, node: <Selector size="sm" variant="ghost" placement="above" label="Approval for each run" isLabelHidden value={form.approval} onChange={set('approval')}
+              options={[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }]} /> },
+          ],
         })}
         <label className="ou-ae-label">Labels</label>
         <div className="ou-hm-chips">

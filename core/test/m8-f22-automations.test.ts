@@ -47,7 +47,7 @@ async function fixture(t: TestContext, result: CheckResult = { code: 0 }) {
     },
     launch: async a => {
       launches++;
-      assert.deepEqual(a, { project_id: 'p1', engine_id: 'codex', prompt: 'Check the project' });
+      assert.deepEqual(a, { project_id: 'p1', engine_id: 'codex', prompt: 'Check the project', approval: 'ask' });
       return { session_id: 's1' };
     },
   };

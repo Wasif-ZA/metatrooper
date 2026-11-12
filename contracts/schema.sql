@@ -495,7 +495,8 @@ CREATE TABLE automation (
   next_due TEXT NOT NULL,          -- ISO time (nowIso)
   created_at TEXT NOT NULL,
   icon TEXT,                       -- one emoji
-  cron TEXT                        -- 5-field local-time cron; NULL runs every every_min minutes
+  cron TEXT,                       -- 5-field local-time cron; NULL runs every every_min minutes
+  approval TEXT                    -- ask, edits or contained for the woken agent; NULL means ask
 );
 CREATE TABLE automation_run (
   id TEXT PRIMARY KEY,

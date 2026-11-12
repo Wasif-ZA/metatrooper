@@ -23,7 +23,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 ```text
   core.ping               {}  (stable)
   settings.set            {key, value}
-  automation.set          {project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], id?}
+  automation.set          {project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"|"edits"|"contained", id?}
   automation.enable       {id, enabled}
   automation.delete       {id}
   automation.list         {project_id?}

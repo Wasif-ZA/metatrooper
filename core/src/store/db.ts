@@ -67,7 +67,7 @@ export function openCoreDb(): DatabaseSync {
   });
   migrate(db);
   tx(db, () => {
-    for (const column of ['icon', 'cron']) {
+    for (const column of ['icon', 'cron', 'approval']) {
       if (!(db.prepare('PRAGMA table_info(automation)').all() as Array<{ name: string }>).some((c) => c.name === column)) db.exec(`ALTER TABLE automation ADD COLUMN ${column} TEXT`);
     }
     ensureLabels(db);

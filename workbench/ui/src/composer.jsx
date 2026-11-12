@@ -38,7 +38,9 @@ export function composer({ field, opts, plus, attach, engine, send, context, rin
         {opts}
         <div className="ou-cmp-bar ou-hm-cbar">
           {items ? <DropdownMenu size="sm" menuWidth={200} items={items} renderTrigger={(p) => <IconButton {...p} size="sm" variant="ghost" icon={plusIcon} label="Add" />} /> : null}
-          {engine ? (
+          {engine?.readOnly ? (
+            <span className="ou-cmp-engine ou-cmp-ro" title={`Answering ${engineName(engine.id)}`}><EngineMark id={engine.id} size={16} /><b>{engineName(engine.id)}</b></span>
+          ) : engine ? (
             <span className="ou-cmp-engine">
               <Selector label="Agent" isLabelHidden size="sm" variant="ghost" placement="above" options={engine.options} value={engine.id} onChange={engine.onChange}
                 startIcon={<EngineMark id={engine.id} size={16} />}
@@ -54,7 +56,13 @@ export function composer({ field, opts, plus, attach, engine, send, context, rin
           {context.filter(Boolean).map((c) => (c.gap ? <span key={c.key} className="ou-hm-cgap" /> : (
             <span key={c.key} className={`ou-cmp-item${c.plain ? ' ou-cmp-plain' : ''}${c.accent ? ' ou-cmp-accent' : ''}`} title={c.title}>{c.icon}{c.node || <span className="ou-cmp-text">{c.text}</span>}</span>
           )))}
-          {ring ? <span className={`ou-cmp-ring${ring.spinning ? ' ou-cmp-spin' : ''}`} role="status" aria-label={ring.label} title={ring.label} /> : null}
+          {ring ? (
+            <svg className="ou-cmp-ring" data-state={ring.state} viewBox="0 0 16 16" width="16" height="16" role="status" aria-label={ring.label}>
+              <title>{ring.label}</title>
+              <circle className="ou-cmp-track" cx="8" cy="8" r="7" />
+              {ring.state === 'idle' ? null : <path className="ou-cmp-arc" d={ring.state === 'waiting' ? 'M8 1a7 7 0 0 1 0 14' : 'M8 1a7 7 0 0 1 7 7'} />}
+            </svg>
+          ) : null}
         </div>
       ) : null}
     </div>

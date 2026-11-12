@@ -153,7 +153,7 @@ async function main(): Promise<void> {
   every(2000, () => notifyTick(db));
   every(1000, () => watcher.tick());
   const autoDeps = {
-    ...realDeps((a) => methods.get('session.launch')!.handler({ ...a, approval: 'ask' }, { ui: false, origin: 'automation' }) as { session_id: string }),
+    ...realDeps((a) => methods.get('session.launch')!.handler(a, { ui: false, origin: 'automation' }) as { session_id: string }),
     send: (session_id: string, text: string) => { methods.get('session.send')!.handler({ session_id, text }, { ui: false, origin: 'automation' }); },
     followUp: (a: { project_id: string; engine_id: string; cwd: string | null; parent_id: string; prompt: string }) => {
       const project = db.prepare('SELECT path, name FROM project WHERE id = ?').get(a.project_id) as { path: string; name: string };

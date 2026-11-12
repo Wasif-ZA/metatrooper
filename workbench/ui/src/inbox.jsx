@@ -6,6 +6,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextInput } from '@astryxdesign/core/TextInput';
+import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
 import * as Ic from './icons/index.js';
@@ -297,6 +298,8 @@ function RunLedger({ sessionId }) {
   );
 }
 
+const AnswerArea = ({ onEnter, ...props }) => <TextArea {...props} />;
+
 function DetailAsk({ x }) {
   const [answer, setAnswer] = useState('');
   const here = !x.project_id || x.project_id === ui.projectId;
@@ -318,13 +321,17 @@ function DetailAsk({ x }) {
     <div className="ou-ny-composer ou-ipane-answer">
       {composer({
         filled: Boolean(here && answer.trim()),
-        field: <TextInput label="Answer" isLabelHidden placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />,
+        onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing && e.target?.tagName === 'TEXTAREA') { e.preventDefault(); void send(); } },
+        field: <AnswerArea label="Answer" isLabelHidden rows={2} placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} isDisabled={!here} />,
+        engine: x.engine_id ? { id: x.engine_id, readOnly: true } : undefined,
+        ring: { state: x.state === 'waiting_for_you' ? 'waiting' : ['working', 'starting', 'unknown'].includes(x.state) ? 'active' : 'idle', label: x.state === 'waiting_for_you' ? `${x.engine_id || 'The agent'} is waiting for you` : `${x.engine_id || 'The agent'} is ${x.state || 'idle'}` },
         attach: here ? (paths) => setAnswer(atRefs(answer, paths, ui.snap?.projects?.find((p) => p.id === (x.project_id || ui.projectId))?.path)) : undefined,
         send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
         context: [
-          x.engine_id ? { key: 'engine', icon: <Ic.EngineMark id={x.engine_id} size={14} />, text: x.engine_id } : null,
           { key: 'project', icon: <Ic.FolderIcon size={16} />, text: here ? ui.snap?.projects?.find((p) => p.id === ui.projectId)?.name || 'This project' : projectName },
+          { key: 'machine', icon: <Ic.LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
           branch ? { key: 'branch', icon: <Ic.Branch size={14} />, text: branch } : null,
+          { key: 'gap', gap: true },
         ],
       })}
       {!here ? <span className="ou-ipane-muted">{`In ${projectName}. Open it on the Wall to answer.`}</span> : null}
