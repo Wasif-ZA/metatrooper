@@ -174,7 +174,7 @@ const sid = (id) => String(id || '').slice(0, 8);
 const nameOf = (x) => ((x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x));
 const TONES = ['run', 'ok', 'wait', 'bad', 'review'];
 const toneOf = (text) => TONES[[...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
-const labelColour = (text, colour) => colour || (toneOf(text) === 'review' ? PROJECT_COLOURS.gray : null);
+const labelColour = (text, colour) => (colour === PROJECT_COLOURS.gray || (!colour && toneOf(text) === 'review') ? 'var(--hairline-strong)' : colour || null);
 const labelPill = (text, onRemove, colour) => (
     <span key={text} className={`ou-ny-label${labelColour(text, colour) ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={labelColour(text, colour) ? { '--lc': labelColour(text, colour) } : undefined}>
       <span>{text}</span>
@@ -892,7 +892,7 @@ export function Inbox() {
                   {chip('assignee', engine ? <><Avatar name={engine} /><span>{engine}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
                   {chip('priority', <><PriorityIcon level={priority} /><span>{priority === 'none' ? 'No priority' : PRIORITIES.find(([v]) => v === priority)[1]}</span></>, priority === 'none' ? 'ou-ny-chip-quiet' : '')}
                   {projectName ? chip('project', <><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span></>) : null}
-                  {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className={`ou-ny-dot${labelColour(lbl) ? '' : ` ou-ny-tone-${toneOf(lbl)}`}`} style={labelColour(lbl) ? { background: labelColour(lbl) } : undefined} /><span>{lbl}</span></>)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
+                  {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className={`ou-ny-dot${labelColour(lbl) ? '' : ` ou-ny-tone-${toneOf(lbl)}`}`} style={labelColour(lbl) ? { background: labelColour(lbl) === 'var(--hairline-strong)' ? 'var(--mute)' : labelColour(lbl) } : undefined} /><span>{lbl}</span></>)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
                 </div>
                 <h2 className="ou-ny-doc-title ou-ipane-task">{title}</h2>
                 {sessionObj?.prompt && sessionObj.prompt !== title ? <p className="ou-ny-doc-task">{sessionObj.prompt}</p> : null}

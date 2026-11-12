@@ -150,3 +150,9 @@
 .ou-inbox .ou-ny-search input { height: calc(var(--ny-ctl) - 2px); }
 .ou-inbox .ou-ny-meta .ou-ny-dot[class*="ou-ny-tone-"] { background: var(--lc); }
 .ou-inbox h2.ou-ny-doc-title { font-weight: 500; }
+
+/* 9.5 round 3: one 24px height for chips and controls; meta row never clips descenders */
+.ou-inbox .ou-ny-chip, .ou-inbox .ou-ny-pill, .ou-inbox .ou-ny-label, .ou-inbox .ou-ny-addpill, .ou-inbox .ou-ny-addpick [role="combobox"] { height: var(--ny-ctl); line-height: 22px; }
+.ou-inbox .ou-ny-meta, .ou-inbox .ou-ny-meta .ou-ny-chip, .ou-inbox .ou-ny-meta .ou-ny-chip > span { overflow: visible; line-height: 20px; }
+.ou-inbox .ou-ny-meta { min-height: var(--ny-ctl); align-items: center; }
+.ou-inbox h2.ou-ny-doc-title { font-family: 'Geist', 'Segoe UI', sans-serif; }
