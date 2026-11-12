@@ -876,6 +876,13 @@ test('chat box access label names the level from Settings', () => {
   assert.equal(h.one(label('Approval')).props.renderValue(), 'Edits allowed');
   g.ui.settingsLook = { themes: [] };
 });
+test('Home task title skips a terminal title that is a program path', () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  g.ui.snap.live = [{ id: 's1', project_id: 'p1', engine_id: 'codex', state: 'working', started_at: '2026-01-01T00:00:00Z', title: 'C:\\Program Files\\nodejs\\node.exe', prompt: 'Fix the login' }];
+  const html = harness(Home).html();
+  g.ui.snap.live = [];
+  assert.match(html, /<h1 class="ou-hm-tasktitle">Fix the login<\/h1>/);
+});
 test('chat box project selector switches the real project', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; const switched: string[] = []; g.switchProject = (id: string) => switched.push(id);
   const h = harness(Home); h.draw(); h.one(label('Project')).props.onChange('p2'); h.one(label('Project')).props.onChange('p1');

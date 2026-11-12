@@ -7,7 +7,7 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
-import { composer } from './composer.jsx';
+import { composer, atRefs } from './composer.jsx';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 
@@ -302,7 +302,7 @@ function DetailAsk({ x }) {
       {composer({
         filled: Boolean(here && answer.trim()),
         field: <TextInput label="Answer" isLabelHidden placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />,
-        attach: here ? (paths) => setAnswer(`${answer}${answer && !/\s$/.test(answer) ? ' ' : ''}${paths.map((p) => `@${p}`).join(' ')} `) : undefined,
+        attach: here ? (paths) => setAnswer(atRefs(answer, paths, ui.snap?.projects?.find((p) => p.id === (x.project_id || ui.projectId))?.path)) : undefined,
         send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
         context: [
           x.engine_id ? { key: 'engine', icon: <Ic.EngineMark id={x.engine_id} size={14} />, text: x.engine_id } : null,

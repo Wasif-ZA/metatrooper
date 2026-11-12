@@ -15,6 +15,16 @@ const expand = (e) => {
   box.querySelector('textarea, input')?.focus();
 };
 
+export function atRefs(text, paths, root) {
+  const base = String(root || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const refs = paths.map((p) => {
+    const f = p.replace(/\\/g, '/');
+    const rel = base && f.toLowerCase().startsWith(`${base.toLowerCase()}/`) ? f.slice(base.length + 1) : f;
+    return `@${/\s/.test(rel) ? `"${rel}"` : rel}`;
+  });
+  return refs.length ? `${text}${text && !/\s$/.test(text) ? ' ' : ''}${refs.join(' ')} ` : text;
+}
+
 // A render function, not a component: callers keep their own labelled fields and the test harnesses see every control.
 export function composer({ field, opts, plus, attach, engine, send, context, ring, filled, className = '', onKeyDown }) {
   const key = className.split(' ')[0] || 'cmp';

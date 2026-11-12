@@ -1211,3 +1211,4 @@ html { font-size: 16px; }
 .ou-cmp-ring { margin-left: -12px; }
 .ou-cmp-engine .astryx-selector { gap: 6px; padding-right: 0 !important; }
 .ou-cmp-engine .astryx-selector button { padding-right: 0; }
+.ou-cmp-item.ou-cmp-accent .astryx-icon, .ou-cmp-item.ou-cmp-accent .astryx-icon * { color: var(--mute) !important; font-weight: 400 !important; }

@@ -8,7 +8,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
-import { composer } from './composer.jsx';
+import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
@@ -59,7 +59,7 @@ const filesIcon = <Changes size={16} />;
 const prIcon = <PullRequest size={16} />;
 
 const projectOf = (x) => (ui.snap?.projects || []).find((p) => p.id === (x?.project_id || ui.projectId)) || null;
-const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
+const nameOf = (x) => (x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
 
@@ -138,9 +138,7 @@ function StartBox({ ready }) {
     } },
     send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, onClick: start },
     attach: (paths) => {
-      const root = String(proj?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
-      const refs = paths.map((p) => { const f = p.replace(/\\/g, '/'); const rel = root && f.toLowerCase().startsWith(root.toLowerCase() + '/') ? f.slice(root.length + 1) : f; return `@${/\s/.test(rel) ? `"${rel}"` : rel}`; });
-      if (refs.length) edit(`${task}${task && !/\s$/.test(task) ? ' ' : ''}${refs.join(' ')} `);
+      edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
     },
     ring: { spinning: starting || working > 0, label: starting ? 'Starting' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agent working' },
