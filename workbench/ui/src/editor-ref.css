@@ -56,3 +56,4 @@
 :root[data-view="ide"] #frame .fhead { padding: 0 0 4px; gap: 0; }
 :root[data-view="ide"] #rail-slot { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--hairline); }
 .ou-ide .monaco-editor .view-overlays .current-line { border-width: 1px; }
+:root[data-view="ide"] #frame .ffoot { padding-bottom: 8px; }
