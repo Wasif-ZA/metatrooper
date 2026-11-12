@@ -340,15 +340,17 @@ function startNew(st, dir, isFolder) {
 
 // Files / Search / Git join cc's app rail under the Editor icon; without the frame they stay in the side
 function railHost() {
-  const ide = globalThis.document?.querySelector?.('#frame .fnav [data-view="ide"]');
-  if (!ide) return null;
-  let host = ide.nextElementSibling;
-  if (!host?.classList.contains('ou-ide-railviews')) {
+  const frame = globalThis.document?.querySelector?.('#frame');
+  if (!frame) return null;
+  let host = frame.querySelector('#rail-slot');
+  if (!host) {
     host = document.createElement('div');
+    host.id = 'rail-slot';
     host.className = 'ou-ide-railviews';
     host.setAttribute('role', 'group');
     host.setAttribute('aria-label', 'Editor views');
-    ide.after(host);
+    const anchor = frame.querySelector('.fnew') || frame.querySelector('.fhead');
+    anchor ? anchor.after(host) : frame.prepend(host);
   }
   return host;
 }
@@ -820,7 +822,7 @@ function Files({ st, changed }) {
             <TreeList key={`${ui.projectId}:${st.treeKey || 0}`} density="compact" aria-label={`${p.name} files`} header={<div className="ou-ide-rootrow"><button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span className="ou-ide-chev" aria-hidden="true"><Icon icon="chevronRight" size="sm" color="inherit" /></span>{p.name}</button><span className="ou-ide-root-actions">
               <IconButton size="sm" variant="ghost" label="New file" tooltip="New file" icon={<Ic.PlusIcon size={14} />} onClick={() => startNew(st, '', false)} />
               <IconButton size="sm" variant="ghost" label="New folder" tooltip="New folder" icon={<Ic.FolderAddIcon size={14} />} onClick={() => startNew(st, '', true)} />
-              <IconButton size="sm" variant="ghost" label="Collapse folders" tooltip="Collapse folders" icon={<Sc.MinusIcon size={14} />} onClick={() => collapseAll(st)} />
+              <IconButton size="sm" variant="ghost" label="Collapse folders" tooltip="Collapse Folders in Explorer" icon={<Sc.CollapseAllIcon size={14} />} onClick={() => collapseAll(st)} />
             </span></div>} items={st.rootOpen ? treeItems(st, '', changed) : []}
               onKeyDown={(e) => {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
@@ -1381,10 +1383,10 @@ export function Ide() {
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
   const views = (
     <>
-      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" data-ide-side="files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={16} />} onClick={() => { st.side = 'files'; bump(); }} />
-      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" data-ide-side="search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={16} />} onClick={() => { st.side = 'search'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" data-ide-side="files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={24} />} onClick={() => { st.side = 'files'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" data-ide-side="search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={24} />} onClick={() => { st.side = 'search'; bump(); }} />
       <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" data-ide-side="changes" aria-pressed={st.side === 'changes'}
-        icon={<span className="ou-ide-railicon"><Ic.Branch size={16} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
+        icon={<span className="ou-ide-railicon"><Ic.Branch size={24} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
         onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
     </>
   );
@@ -1406,7 +1408,7 @@ export function Ide() {
   return (
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
-        {rail ? createPortal(<>{views}<span className="ou-ide-raildiv" aria-hidden="true" /></>, rail) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
+        {rail ? createPortal(views, rail) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
         <div className="ou-ide-pane">
           <div className="ou-ide-head">
             <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? 'SOURCE CONTROL' : 'Explorer'}</span>
