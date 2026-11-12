@@ -10,6 +10,8 @@ import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
+import './needsyou-ref.css';
+import { PROJECT_COLOURS } from './icons/shapes.js';
 
 export const inboxStore = createStore({ tick: 0, filter: 'all', collapsed: [], selectedId: null, props: true });
 
@@ -162,7 +164,22 @@ const I = {
   plus: <Ic.NewSubTask size={14} />,
   chev: <Ic.ChevronRightIcon size={12} className="ou-ny-gchev" />,
   branch: <Ic.Branch size={12} />,
+  arrow: <Sc.ExternalLinkIcon size={12} />,
+  folder: <Ic.Workspace size={12} />,
+  search: <Ic.Search size={14} />,
+  label: <Ic.Label size={14} />,
 };
+
+const sid = (id) => String(id || '').slice(0, 8);
+const nameOf = (x) => ((x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x));
+const TONES = ['run', 'ok', 'wait', 'bad', 'review'];
+const toneOf = (text) => TONES[[...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
+const labelPill = (text, onRemove, colour) => (
+    <span key={text} className={`ou-ny-label${colour ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={colour ? { '--lc': colour } : undefined}>
+      <span>{text}</span>
+      {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove label ${text}`} onClick={(e) => { e?.stopPropagation?.(); onRemove(); }}>{I.close}</button> : null}
+    </span>
+);
 
 const RING = { needs: [Ic.NeedsYou, 'Needs you'], working: [Ic.Working, 'Working'], review: [Ic.InReview, 'In review'], blocked: [Ic.Blocked, 'Blocked'], failed: [Ic.Failed, 'Failed'] };
 function StatusRing({ status, size = 14 }) {
@@ -176,8 +193,8 @@ function PriorityIcon({ level }) {
   return <Pri size={14} className={`ou-ny-pri ou-ny-pri-${level || 'none'}`} title={PRIORITIES.find(([v]) => v === (level || 'none'))[1]} />;
 }
 
-function Avatar({ name }) {
-  return <span className="ou-ny-avatar" aria-hidden="true">{(name || '?')[0].toUpperCase()}</span>;
+function Avatar({ name, big }) {
+  return <span className={`ou-ny-avatar${big ? ' ou-ny-avatar-big' : ''}`} aria-hidden="true">{(name || '?').slice(0, big ? 2 : 1).toUpperCase()}</span>;
 }
 
 function NoteActions({ n }) {
@@ -336,6 +353,11 @@ const openNotice = (n) => {
   void openNeedsYou(n.id);
 };
 
+const openProjectHome = (projectId) => {
+  homeView.set('home');
+  if (projectId && projectId !== ui.projectId) switchProject(projectId);
+};
+
 const openOnWall = (x) => {
   homeView.set('wall');
   if (x.project_id && x.project_id !== ui.projectId) {
@@ -392,6 +414,10 @@ export function Inbox() {
   const { text: sessionText, error: sessionTextError } = useSessionText(ui.view === 'inbox' ? targetSession?.id : null, targetSession?.last_line || null);
   const handoff = useRpcResult('session.handoff', { session_id: targetSession?.id }, ui.view === 'inbox' ? targetSession?.id : null, (res) => ({ value: res && res.result ? res.result.handoff || null : null, error: false })).value;
 
+  const autoProject = targetSession?.project_id || null;
+  const listedAutos = useRpcResult('automation.list', { project_id: autoProject }, ui.view === 'inbox' && autoProject ? autoProject : null, (res) => ({ value: res && res.result ? res.result.automations || null : null, error: false })).value;
+  const automations = listedAutos || s.automations || [];
+
   if (ui.view !== 'inbox') return null;
 
   const kindOf = (n) => (n.kind === 'failed' ? 'failed' : n.kind === 'done' ? 'done' : isInfo(n) ? 'info' : 'needs');
@@ -444,13 +470,16 @@ export function Inbox() {
   let engine = null;
   let projectName = null;
   let branch = null;
+  let projectColour = null;
   if (activeRow) {
     item = activeRow.item;
     sessionObj = sessionOf(item, activeRow.isSession);
     status = statusOf(item, activeRow.isSession, activeRow.group.status);
     engine = sessionObj?.engine_id || null;
     const pid = sessionObj?.project_id || (!activeRow.isSession ? item.project_id : null);
-    projectName = pid ? (s.projects || []).find((p) => p.id === pid)?.name || pid : null;
+    const projectRow = pid ? (s.projects || []).find((p) => p.id === pid) : null;
+    projectName = pid ? projectRow?.name || pid : null;
+    projectColour = PROJECT_COLOURS[projectRow?.icon?.colour] || null;
     branch = sessionObj ? sessionObj.branch || sessions.find((y) => y.id === sessionObj.id)?.branch || null : null;
   }
   const title = activeRow ? (activeRow.isSession ? taskOf(item) : item.text) : '';
@@ -469,7 +498,7 @@ export function Inbox() {
   const subDone = children.filter((x) => DONE_STATES.includes(x.state)).length;
   const subBlocked = children.filter((x) => blockedNow(x)).length;
   const subActive = children.filter((x) => !DONE_STATES.includes(x.state) && !blockedNow(x)).length;
-  const subShown = children.filter((x) => !subQuery.trim() || taskOf(x).toLowerCase().includes(subQuery.trim().toLowerCase()));
+  const subShown = children.filter((x) => !subQuery.trim() || nameOf(x).toLowerCase().includes(subQuery.trim().toLowerCase()));
   const peers = sessionObj ? everyone.filter((x) => x.id !== sessionObj.id && (!sessionObj.project_id || x.project_id === sessionObj.project_id)) : [];
   const handEngines = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== engine);
   const handOptions = [{ value: '', label: 'Hand over' }, ...handEngines.map((e) => ({ value: e.id, label: e.id }))];
@@ -512,7 +541,7 @@ export function Inbox() {
   };
   const setMonitor = (automationId) => {
     const before = sessionObj.monitor;
-    const a = (s.automations || []).find((x) => x.id === automationId);
+    const a = automations.find((x) => x.id === automationId);
     return write('session.monitor-set', { session_id: sessionObj.id, automation_id: automationId || null }, () => { sessionObj.monitor = automationId ? { automation_id: automationId, name: a?.name || automationId, last_outcome: null } : null; }, () => { sessionObj.monitor = before; }, 'Could not set monitor');
   };
   const launchSub = async () => {
@@ -529,16 +558,18 @@ export function Inbox() {
     const x = byId(id);
     const st = !x ? 'done' : DONE_STATES.includes(x.state) ? 'done' : x.state === 'waiting_for_you' ? 'needs' : 'working';
     return (
-      <span key={id} className="ou-ny-chip">
+      <span key={id} className="ou-ny-chip ou-ny-pill" title={x ? nameOf(x) : id}>
         <StatusRing status={st} size={12} />
-        <button type="button" className="ou-ny-chip-link" onClick={() => allRows.some((r) => r.id === id) ? select(id) : x && openOnWall(x)}>{x ? taskOf(x) : id}</button>
+        <button type="button" className="ou-ny-chip-link ou-ny-mono" onClick={() => allRows.some((r) => r.id === id) ? select(id) : x && openOnWall(x)}>{sid(id)}</button>
         {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove ${x ? taskOf(x) : id}`} onClick={(e) => { e.stopPropagation(); onRemove(); }}>{I.close}</button> : null}
       </span>
     );
   };
-  const reviewChip = (r) => chip(r.kind + r.who, <><StatusRing status={r.state === 'passed' ? 'done' : r.state === 'failed' ? 'failed' : 'review'} size={12} /><span>{r.who}</span></>);
+  const dropReview = (r) => setReviews(reviewers.filter((x) => !(r.kind === 'reviewer' && x.who === r.who)).map((x) => x.who), approvers.filter((x) => !(r.kind === 'approver' && x.who === r.who)).map((x) => x.who));
+  const reviewChip = (r) => chip(r.kind + r.who, <><StatusRing status={r.state === 'passed' ? 'done' : r.state === 'failed' ? 'failed' : 'review'} size={12} /><span>{r.who}</span>
+    <button type="button" className="ou-ny-chip-remove" aria-label={`Remove ${r.kind} ${r.who}`} title={`Remove ${r.kind} ${r.who}`} onClick={(e) => { e.stopPropagation(); dropReview(r); }}>{I.close}</button></>, 'ou-ny-pill');
   const addPicker = (label, options, onPick) => options.length ? (
-    <Selector size="sm" variant="ghost" label={label} isLabelHidden options={[{ value: '', label: '+ ' + label }, ...options]} value="" onChange={(v) => { if (v) onPick(v); }} />
+    <span className="ou-ny-addpick"><Selector size="sm" variant="ghost" label={label} isLabelHidden options={[{ value: '', label: '+ ' + label }, ...options]} value="" onChange={(v) => { if (v) onPick(v); }} /></span>
   ) : null;
   const prop = (label, value) => (
     <div className="ou-ny-prop" key={label}>
@@ -583,11 +614,11 @@ export function Inbox() {
         }}
       >
         <div className="ou-ny-row-main">
-          <span className="ou-ititle">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}<span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
-          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : null}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
+          <span className="ou-ititle"><span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
+          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap" aria-hidden="true" />}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
-          <StatusRing status={st} />
+          <span className="ou-ny-inline">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}<StatusRing status={st} /></span>
           <span className="ou-ny-row-age">{timeText || ''}</span>
         </div>
         <div className="ou-ny-actions" onClick={(e) => e.stopPropagation()}>
@@ -628,16 +659,19 @@ export function Inbox() {
     <section className="ou-ny-subtasks">
       <div className="ou-ny-h">Sub-tasks</div>
       <div className="ou-ny-sub-card">
-        <div className="ou-ny-sub-summary">
-          <b>{subDone}/{children.length} done</b>
-          <span>{subActive} in progress</span>
-          <span>{subBlocked} blocked</span>
+        <div className="ou-ny-sub-left">
+          <div className="ou-ny-sub-summary">
+            <b>{subDone}/{children.length} done</b>
+            <span>{subActive} in progress</span>
+            <span>{subBlocked} blocked</span>
+          </div>
+          <Bar key={sessionObj.id} done={subDone} total={children.length} />
         </div>
-        <Bar key={sessionObj.id} done={subDone} total={children.length} />
+        <div className="ou-ny-sub-state">{!children.length ? 'No sub-tasks yet' : subDone === children.length ? 'All sub-tasks done' : `${children.length - subDone} sub-task${children.length - subDone === 1 ? '' : 's'} open`}</div>
       </div>
       <div className="ou-ny-sub-tools">
         <Button size="sm" icon={I.plus} label="New sub-task" isDisabled={!sessionObj} onClick={() => setSubDraft('')} />
-        <TextInput size="sm" label="Search sub-tasks" isLabelHidden placeholder="Search sub-tasks" value={subQuery} onChange={setSubQuery} width="100%" />
+        <span className="ou-ny-search">{I.search}<TextInput size="sm" label="Search sub-tasks" isLabelHidden placeholder="Search tasks..." value={subQuery} onChange={setSubQuery} width="100%" /></span>
       </div>
       {subDraft !== null ? (
         <TextInput size="sm" label="New sub-task" isLabelHidden placeholder={`Task for a new ${engine || 'agent'} sub-task, Enter starts it`} value={subDraft} onChange={setSubDraft} onEnter={launchSub} hasAutoFocus width="100%"
@@ -649,7 +683,8 @@ export function Inbox() {
             <li key={x.id} className="ou-ny-sub-row" data-id={x.id}>
               <StatusRing status={DONE_STATES.includes(x.state) ? 'done' : blockedNow(x) ? 'blocked' : x.state === 'waiting_for_you' ? 'needs' : 'working'} />
               <span className="ou-ny-sub-n">{i + 1}.</span>
-              <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{taskOf(x)}</button>
+              <span className="ou-ny-mono ou-ny-sub-id">{sid(x.id)}</span>
+              <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{nameOf(x)}</button>
               <span className="ou-ny-muted">{x.engine_id}</span>
               <span className="ou-ny-row-age">{ago(x.state_at || x.started_at) || ''}</span>
             </li>
@@ -696,21 +731,18 @@ export function Inbox() {
     <>
       <div className="ou-ny-props-head">
         <span>Properties</span>
-        <IconButton size="sm" variant="ghost" icon={I.close} label="Hide properties" onClick={() => inboxStore.set({ props: false })} />
+        <IconButton size="sm" variant="ghost" icon={I.close} label="Hide properties" title="Hide properties" onClick={() => inboxStore.set({ props: false })} />
       </div>
       <div className="ou-ny-props-body">
         {prop('Status', <span className="ou-ny-inline"><StatusRing status={status} size={12} /><span>{WORD[status]}</span></span>)}
         {prop('Priority', sessionObj?.id ? (
-          <Selector size="sm" variant="ghost" label="Priority" isLabelHidden options={PRIORITIES.map(([value, label]) => ({ value, label }))} value={priority} onChange={(v) => v && v !== priority && setPriority(v)} />
+          <span className="ou-ny-inline ou-ny-prisel"><PriorityIcon level={priority} /><Selector size="sm" variant="ghost" label="Priority" isLabelHidden options={PRIORITIES.map(([value, label]) => ({ value, label }))} value={priority} onChange={(v) => v && v !== priority && setPriority(v)} /></span>
         ) : none('No priority'))}
         {prop('Labels', (
           <div className="ou-ny-chips-wrap ou-ny-prop-labels">
-            {userLabels.map((lbl) => (
-              <span key={lbl} className="ou-ny-chip">
-                <span>{lbl}</span>
-                <button type="button" className="ou-ny-chip-remove" aria-label={`Remove label ${lbl}`} onClick={(e) => { e?.stopPropagation?.(); handleRemoveLabel(lbl); }}>{I.close}</button>
-              </span>
-            ))}
+            {projectName ? labelPill(projectName, null, projectColour) : null}
+            {engine && engine !== projectName ? labelPill(engine) : null}
+            {userLabels.map((lbl) => labelPill(lbl, () => handleRemoveLabel(lbl)))}
             {addingLabel ? (
               <TextInput size="sm" label="New label" isLabelHidden placeholder="Label, Enter adds" value={newLabel} onChange={setNewLabel} onEnter={handleAddLabel} hasAutoFocus width={140}
                 onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAddingLabel(false); setNewLabel(''); } }} />
@@ -721,9 +753,21 @@ export function Inbox() {
             )}
           </div>
         ))}
-        {prop('Assignee', engine ? <span className="ou-ny-inline"><Avatar name={engine} /><span>{engine}</span></span> : none('Unassigned'))}
-        {prop('Project', projectName ? <span className="ou-ny-inline"><span className="ou-ny-dot" /><span>{projectName}</span></span> : none())}
-        {prop('Parent', parent ? sessionChip(parent.id) : none())}
+        {prop('Assignee', engine ? (
+          <span className="ou-ny-inline"><Avatar name={engine} big /><span>{engine}</span>
+            {sessionObj?.id ? <button type="button" className="ou-ny-arrow" aria-label={`Open ${engine} on the Wall`} title={`Open ${engine} on the Wall`} onClick={() => openOnWall(sessionObj)}>{I.arrow}</button> : null}
+          </span>
+        ) : none('Unassigned'))}
+        {prop('Project', projectName ? (
+          <span className="ou-ny-inline"><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span>
+            <button type="button" className="ou-ny-arrow" aria-label={`Open ${projectName} Home`} title={`Open ${projectName} Home`} onClick={() => openProjectHome(sessionObj?.project_id || item.project_id)}>{I.arrow}</button>
+          </span>
+        ) : none())}
+        {prop('Parent', parent ? (
+          <button type="button" className="ou-ny-parent" title={taskOf(parent)} onClick={() => (allRows.some((r) => r.id === parent.id) ? select(parent.id) : openOnWall(parent))}>
+            <span className="ou-ny-mono">{sid(parent.id)}</span> {taskOf(parent)} {I.arrow}
+          </button>
+        ) : none())}
         {prop('Blocked by', sessionObj?.id ? (
           <div className="ou-ny-chips-wrap">
             {blockedBy.map((id) => sessionChip(id, () => setBlockers(blockedBy.filter((b) => b !== id))))}
@@ -731,7 +775,12 @@ export function Inbox() {
           </div>
         ) : none())}
         {prop('Blocking', blocking.length ? <div className="ou-ny-chips-wrap">{blocking.map((id) => sessionChip(id))}</div> : none())}
-        {prop('Sub-tasks', children.length ? <div className="ou-ny-chips-wrap">{children.map((x) => sessionChip(x.id))}</div> : none())}
+        {prop('Sub-tasks', sessionObj?.id ? (
+          <div className="ou-ny-chips-wrap">
+            {children.map((x) => sessionChip(x.id))}
+            <button type="button" className="ou-ny-addpill" onClick={() => setSubDraft('')}>+ Add sub-task</button>
+          </div>
+        ) : none())}
         {prop('Reviewers', sessionObj?.id ? (
           <div className="ou-ny-chips-wrap">
             {reviewers.map(reviewChip)}
@@ -754,16 +803,16 @@ export function Inbox() {
           </div>
         ) : none())}
         {prop('Monitor', sessionObj?.id ? (
-          (s.automations || []).length ? (
-            <Selector size="sm" variant="ghost" label="Monitor" isLabelHidden options={[{ value: '', label: 'Not watched' }, ...(s.automations || []).map((a) => ({ value: a.id, label: a.name || a.id }))]} value={monitor?.automation_id || ''} onChange={(v) => (v || null) !== (monitor?.automation_id || null) && setMonitor(v)} />
-          ) : monitor ? <span>{monitor.name}{monitor.last_outcome ? ` (${monitor.last_outcome})` : ''}</span> : none('Not watched')
+          automations.length ? (
+            <Selector size="sm" variant="ghost" label="Monitor" isLabelHidden options={[{ value: '', label: 'Not watched' }, ...automations.map((a) => ({ value: a.id, label: a.name || a.id }))]} value={monitor?.automation_id || ''} onChange={(v) => (v || null) !== (monitor?.automation_id || null) && setMonitor(v)} />
+          ) : monitor ? <span>{monitor.name}{monitor.last_outcome ? ` (${monitor.last_outcome})` : ''}</span> : none('No automations in this project')
         ) : none('Not watched'))}
         <div className="ou-ny-props-rule" />
-        {prop('Workspace', sessionObj?.cwd ? <span className="ou-ny-mono" title={sessionObj.cwd}>{sessionObj.cwd.split(/[/\\]/).filter(Boolean).pop()}</span> : none())}
-        {prop('Branch', branch ? <span className="ou-ny-inline ou-ny-mono">{I.branch}<span>{branch}</span></span> : none())}
         {prop('Service', serviceUrl ? (
-          <button type="button" className="ou-ny-link" onClick={() => openTermLink(serviceUrl)}><span>{serviceUrl}</span>{I.open}</button>
-        ) : none('-'))}
+          <button type="button" className="ou-ny-link" title={serviceUrl} onClick={() => openTermLink(serviceUrl)}><span>{serviceUrl}</span>{I.open}</button>
+        ) : none())}
+        {prop('Workspace', sessionObj?.cwd ? <span title={sessionObj.cwd}>{sessionObj.cwd.split(/[/\\]/).filter(Boolean).pop()}</span> : none())}
+        {prop('Branch', branch ? <span className="ou-ny-wrapval ou-ny-mono">{I.branch}<span>{branch}</span></span> : none())}
         {prop('Run ledger', <RunLedger key={`ledger-${sessionObj?.id || 'none'}`} sessionId={sessionObj?.id || null} />)}
       </div>
     </>
@@ -806,35 +855,36 @@ export function Inbox() {
         {activeRow ? (
           <>
             <div className="ou-ny-bar">
-              <IconButton size="sm" variant="ghost" icon={I.up} label="Previous item" isDisabled={visibleRows[0]?.id === activeId} onClick={() => step(-1)} />
-              <IconButton size="sm" variant="ghost" icon={I.down} label="Next item" isDisabled={visibleRows[visibleRows.length - 1]?.id === activeId} onClick={() => step(1)} />
+              <IconButton size="sm" variant="ghost" icon={I.up} label="Previous item" title="Previous item (k)" isDisabled={visibleRows[0]?.id === activeId} onClick={() => step(-1)} />
+              <IconButton size="sm" variant="ghost" icon={I.down} label="Next item" title="Next item (j)" isDisabled={visibleRows[visibleRows.length - 1]?.id === activeId} onClick={() => step(1)} />
               <span className="ou-ny-bar-gap" />
               {activeRow.isSession && item.state === 'waiting_for_you' ? (
-                <Button size="sm" label="Answer" onClick={() => document.querySelector('.ou-ny-composer input, .ou-ny-composer textarea')?.focus()} />
+                <Button size="sm" icon={<Ic.Answer size={14} />} label="Answer" onClick={() => document.querySelector('.ou-ny-composer input, .ou-ny-composer textarea')?.focus()} />
               ) : null}
               {sessionObj ? (
-                <Selector size="sm" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}
+                <Selector size="sm" variant="ghost" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}
                   disabledMessage={sessionObj.prompt ? undefined : 'The original task was not recorded, so it cannot be handed over'} onChange={(val) => { if (val) setHandoverTarget(val); }} />
               ) : null}
               {!activeRow.isSession ? <Button size="sm" label="Dismiss" data-action="dismiss" data-id={item.id} onClick={() => dismiss(item.id)} /> : null}
               {activeRow.isSession || item.ref ? (
-                <IconButton size="sm" variant="ghost" icon={I.wall} label="Open on Wall" data-action="pick" data-id={activeRow.isSession ? item.id : item.ref}
+                <IconButton size="sm" variant="ghost" icon={I.wall} label="Open on Wall" title="Open on Wall" data-action="pick" data-id={activeRow.isSession ? item.id : item.ref}
                   onClick={() => (activeRow.isSession ? openOnWall(item) : openNotice(item))} />
               ) : null}
-              <IconButton size="sm" variant="ghost" icon={I.panel} label={propsOpen ? 'Hide properties' : 'Show properties'} aria-pressed={propsOpen} onClick={() => inboxStore.set({ props: !propsOpen })} />
-              <IconButton size="sm" variant="ghost" icon={I.close} label="Close details" onClick={() => select(null)} />
+              <IconButton size="sm" variant="ghost" icon={I.panel} label={propsOpen ? 'Hide properties' : 'Show properties'} title={propsOpen ? 'Hide properties' : 'Show properties'} aria-pressed={propsOpen} onClick={() => inboxStore.set({ props: !propsOpen })} />
+              <IconButton size="sm" variant="ghost" icon={I.close} label="Close details" title="Close details" onClick={() => select(null)} />
             </div>
             <div className="ou-ny-body">
               <Swap k={activeId}>
                 <div className="ou-ny-crumb">
                   <span>{projectName || 'No project'}</span>
-                  {branch ? <><span className="ou-ny-crumb-sep">{'›'}</span><span className="ou-ny-mono">{branch}</span></> : null}
+                  <span className="ou-ny-crumb-sep">{'›'}</span><span className="ou-ny-mono">{sid(sessionObj?.id || item.id)}</span>
                 </div>
                 <div className="ou-ny-chips ou-ny-top-chips">
                   {chip('status', <><StatusRing status={status} size={12} /><span>{WORD[status]}</span></>, `ou-ny-chip-${status}`)}
                   {chip('assignee', engine ? <><Avatar name={engine} /><span>{engine}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
                   {chip('priority', <><PriorityIcon level={priority} /><span>{priority === 'none' ? 'No priority' : PRIORITIES.find(([v]) => v === priority)[1]}</span></>, priority === 'none' ? 'ou-ny-chip-quiet' : '')}
-                  {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className="ou-ny-dot ou-ny-dot-label" /><span>{lbl}</span></>)) : chip('labels', <span>No label</span>, 'ou-ny-chip-quiet')}
+                  {projectName ? chip('project', <><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span></>) : null}
+                  {userLabels.length ? userLabels.map((lbl) => labelPill(lbl)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
                 </div>
                 <h2 className="ou-ny-doc-title ou-ipane-task">{title}</h2>
                 {sessionObj?.prompt && sessionObj.prompt !== title ? <p className="ou-ny-doc-task">{sessionObj.prompt}</p> : null}

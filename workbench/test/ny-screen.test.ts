@@ -39,7 +39,7 @@ function harness(Screen: any) {
       internals.H = {
         useSyncExternalStore: (_s: any, snapshot: any) => snapshot(),
         useState: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], (v: any) => { slots[i] = typeof v === 'function' ? v(slots[i]) : v; }]; },
-        useEffect: () => { cursor++; },
+        useEffect: (fn: any) => { cursor++; if (g.runEffects) fn(); },
       };
       let output;
       try { output = value.type(value.props); } finally { internals.H = previous; }
@@ -70,6 +70,7 @@ beforeEach(() => {
     waitingAll: () => g.ui.snap.live.filter((s: any) => s.state === 'waiting_for_you'),
     isInfo: () => false, taskOf: (s: any) => s.title, ago: () => '1m ago', openTermLink: () => {},
   });
+  g.runEffects = false;
   inboxStore.set({ selectedId: null, collapsed: [], props: true });
 });
 const s = (id: string, extra: any = {}) => ({ id, project_id: 'p1', engine_id: 'claude', state: 'working', state_at: '2026-11-10T00:00:00Z', title: 'Task ' + id, labels: [], prompt: 'do ' + id, ...extra });
@@ -79,7 +80,7 @@ test('an older snapshot row without the new fields still renders every property 
   inboxStore.set({ selectedId: 'old' });
   const h = harness(Inbox);
   assert.doesNotThrow(() => h.html());
-  assert.deepEqual(h.all(hasClass('ou-ny-prop-label')).map(text), ['Status', 'Priority', 'Labels', 'Assignee', 'Project', 'Parent', 'Blocked by', 'Blocking', 'Sub-tasks', 'Reviewers', 'Approvers', 'Monitor', 'Workspace', 'Branch', 'Service', 'Run ledger']);
+  assert.deepEqual(h.all(hasClass('ou-ny-prop-label')).map(text), ['Status', 'Priority', 'Labels', 'Assignee', 'Project', 'Parent', 'Blocked by', 'Blocking', 'Sub-tasks', 'Reviewers', 'Approvers', 'Monitor', 'Service', 'Workspace', 'Branch', 'Run ledger']);
   assert.equal(h.one(label('Priority')).props.value, 'none');
   assert.equal(text(prop(h, 'Blocking')), 'BlockingNone');
   assert.equal(h.one(label('Monitor')).props.value, '');
@@ -170,6 +171,65 @@ test('sub-tasks count children by state, filter by search and launch a child wit
   draft.props.onChange('add a test'); h.draw();
   await h.all(label('New sub-task')).find((n: any) => 'value' in n.props).props.onEnter();
   assert.deepEqual(sent('session.launch'), [{ project_id: 'p1', engine_id: 'claude', prompt: 'add a test', parent_id: 'p' }]);
+});
+
+test('monitor choices come from automation.list for the open session project, not the snapshot', async () => {
+  delete g.ui.snap.automations; g.runEffects = true;
+  const row = s('s1'); g.ui.snap.live = [row]; inboxStore.set({ selectedId: 's1' });
+  reply = (m) => (m === 'automation.list' ? { result: { automations: [{ id: 'a9', name: 'lint' }] } } : { result: {} });
+  const h = harness(Inbox); h.draw(); await settle(); h.draw();
+  assert.ok(sent('automation.list').some((p: any) => p.project_id === 'p1'));
+  assert.deepEqual(h.one(label('Monitor')).props.options.map((o: any) => o.label), ['Not watched', 'lint']);
+  h.one(label('Monitor')).props.onChange('a9'); await settle();
+  assert.deepEqual(sent('session.monitor-set').at(-1), { session_id: 's1', automation_id: 'a9' });
+});
+
+test('the Add sub-task pill in Properties opens the launch input and Enter starts a child with parent_id', async () => {
+  g.ui.snap.live = [s('p')]; inboxStore.set({ selectedId: 'p' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => hasClass('ou-ny-addpill')(n) && text(n.props.children) === '+ Add sub-task').props.onClick(); h.draw();
+  const draft = () => h.all(label('New sub-task')).find((n: any) => 'value' in n.props);
+  draft().props.onChange('split the parser'); h.draw();
+  await draft().props.onEnter();
+  assert.deepEqual(sent('session.launch'), [{ project_id: 'p1', engine_id: 'claude', prompt: 'split the parser', parent_id: 'p' }]);
+});
+
+test('the assignee arrow opens the session on the Wall', () => {
+  const viewed: string[] = []; const picked: string[] = [];
+  g.homeView = { set: (v: string) => viewed.push(v) }; g.pick = (id: string) => picked.push(id);
+  g.ui.snap.live = [s('s1')]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => n.props?.['aria-label'] === 'Open claude on the Wall').props.onClick();
+  assert.deepEqual([viewed, picked], [['wall'], ['s1']]);
+});
+
+test('the project arrow opens that project Home, switching project when it is another one', () => {
+  const viewed: string[] = []; const switched: string[] = [];
+  g.homeView = { set: (v: string) => viewed.push(v) }; g.switchProject = (id: string) => switched.push(id);
+  g.ui.snap.projects.push({ id: 'p2', name: 'Beta' });
+  g.ui.snap.live = [s('s1', { project_id: 'p2' })]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => n.props?.['aria-label'] === 'Open Beta Home').props.onClick();
+  assert.deepEqual([viewed, switched], [['home'], ['p2']]);
+});
+
+test('the x on a reviewer or approver chip drops only that one through session.reviewers-set', async () => {
+  const rv = (kind: string, who: string) => ({ kind, who, state: 'pending', note: null, review_session_id: null });
+  const row = s('s1', { reviews: [rv('reviewer', 'codex'), rv('reviewer', 'claude'), rv('approver', 'you')] });
+  g.ui.snap.live = [row]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => n.props?.['aria-label'] === 'Remove reviewer codex').props.onClick({ stopPropagation() {} }); await settle();
+  h.draw(); h.one((n: any) => n.props?.['aria-label'] === 'Remove approver you').props.onClick({ stopPropagation() {} }); await settle();
+  assert.deepEqual(sent('session.reviewers-set'), [{ session_id: 's1', reviewers: ['claude'], approvers: ['you'] }, { session_id: 's1', reviewers: ['claude'], approvers: [] }]);
+});
+
+test('sub-tasks without a terminal title are named and searched by their prompt', () => {
+  g.ui.snap.live = [s('p'), s('c1', { parent_id: 'p', title: null, prompt: 'Split the parser' }), s('c2', { parent_id: 'p', title: null, prompt: 'Fix lint' })];
+  inboxStore.set({ selectedId: 'p' });
+  const h = harness(Inbox); h.draw();
+  assert.deepEqual(h.all(hasClass('ou-ny-sub-title')).map((n: any) => text(n.props.children)), ['Split the parser', 'Fix lint']);
+  h.one(label('Search sub-tasks')).props.onChange('parser'); h.draw();
+  assert.deepEqual(h.all(hasClass('ou-ny-sub-row')).map((n: any) => n.props['data-id']), ['c1']);
 });
 
 test('the properties panel folds away and comes back from the top bar', () => {
