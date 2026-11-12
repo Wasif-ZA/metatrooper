@@ -423,6 +423,7 @@ function applyLook(look) {
   for (const [k, vars] of Object.entries(THEME_VARS)) if (look.theme[k]) for (const v of vars) root.style.setProperty(v, look.theme[k]);
   root.dataset.look = look.theme.look || 'plain';
   root.style.colorScheme = look.theme.scheme || 'dark';
+  root.dataset.scheme = look.theme.scheme || 'dark';
   termView.setLook(look);
   globalThis.setUiScheme?.();
 }
@@ -1910,14 +1911,15 @@ document.addEventListener('drop', async (e) => {
   e.preventDefault();
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
   if (onTerm && e.dataTransfer.files.length) {
-    const paths = api.filePaths(e.dataTransfer.files).map((p) => (/[\s"]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p));
+    // a FileList arrives empty through the preload bridge; an array of its Files keeps them
+    const paths = api.filePaths(Array.from(e.dataTransfer.files)).map((p) => (/[\s"]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p));
     termView.type(paths.join(' ') + ' ', onTerm.dataset.id);
     return;
   }
   for (const c of document.querySelectorAll('.srow.drop')) c.classList.remove('drop');
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   if (!card || !e.dataTransfer.files.length) return;
-  const r = await api.commentFiles(card.dataset.dropSession, e.dataTransfer.files);
+  const r = await api.commentFiles(card.dataset.dropSession, Array.from(e.dataTransfer.files));
   toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}` : r.error, !r.ok);
 });
 document.addEventListener('keydown', (e) => {

@@ -26,9 +26,7 @@ const wallSide = (() => {
     const sel = mine.some((x) => x.id === focused) ? focused : ui.snap.selected;
     const agents = mine.map((x, i) => {
       const k = kindOf(x.state);
-      const tile = document.querySelector?.(`#centre .tile[data-id="${x.id}"]`);
-      if (tile) tile.dataset.n = `${i + 1} ${x.engine_id}`;
-      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(taskOf(x))}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> ${esc(x.engine_id)}</span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
+      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> <span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
     }).join('');
     const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents}</div>`;
     if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
