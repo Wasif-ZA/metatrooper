@@ -37,10 +37,6 @@ export function PanelToggle({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M10 2.5v11" /></Icon>;
 }
 
-export function MicIcon({ size = 16, className, title }) {
-  return <Icon {...{ size, className, title }}><rect x="6" y="2" width="4" height="7.5" rx="2" /><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2" /></Icon>;
-}
-
 export function ExpandIcon({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" /></Icon>;
 }

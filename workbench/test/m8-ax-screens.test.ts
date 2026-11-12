@@ -308,7 +308,7 @@ test('Home start box appears only with a non-red engine and ends with the Start 
   assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options, [{ value: 'ready', label: 'ready' }]);
   assert.equal(h.one(label('Start')).props.tooltip, 'Start (Ctrl+Enter)');
   const bar = React.Children.toArray(h.one(hasClass('ou-hm-cbar')).props.children) as any[];
-  assert.deepEqual([bar[0].props.items.map((i: any) => i.label), bar[bar.length - 1].props.label], [['Mention a file (@)', 'Branch and model'], 'Start']);
+  assert.deepEqual([bar[0].props.items.map((i: any) => i.label), bar[bar.length - 1].props.label], [['Attach files', 'Branch and model'], 'Start']);
   assert.equal(h.all((n: any) => n.props.keys === 'Ctrl+Enter').length, 0);
 });
 
@@ -832,6 +832,31 @@ test('wire-03 blank worktree branch omits worktree.create and preserves exact la
   h.one(label('Branch for a new worktree')).props.onChange('   '); h.draw(); calls.length = 0;
   await h.one(label('Start')).props.onClick();
   assert.deepEqual(calls.filter(c => c[0] === 'rpc'), [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'codex' }]]);
+});
+// Protects the chat box wiring: model, access level, attach, branch label and project switch reach their real paths.
+test('chat box model and access level reach session.launch', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const h = harness(Home); h.draw(); h.one((n: any) => n.props.items?.some((i: any) => i.label === 'Branch and model')).props.items[1].onClick(); h.draw();
+  h.one(label('Model')).props.onChange(' gpt-test '); h.one(label('Approval')).props.onChange('edits'); h.one(label('Task for a new agent')).props.onChange('go'); h.draw(); calls.length = 0;
+  await h.one(label('Start')).props.onClick();
+  assert.deepEqual(calls.filter(c => c[0] === 'rpc')[0], ['rpc', 'session.launch', { project_id: 'p1', engine_id: 'codex', prompt: 'go', model: 'gpt-test', approval: 'edits' }]);
+});
+test('chat box attach inserts project-relative @paths and the branch label shows the new worktree', () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; g.ui.snap.projects[0].path = 'C:\\work\\alpha';
+  g.api.filePaths = () => ['C:\\work\\alpha\\src\\a.ts', 'D:\\other\\my notes.md'];
+  const h = harness(Home); h.draw(); h.one(label('Task for a new agent')).props.onChange('look at'); h.draw();
+  assert.deepEqual(h.one((n: any) => n.props.items?.some((i: any) => i.label === 'Attach files')).props.items.map((i: any) => i.label), ['Attach files', 'Branch and model']);
+  h.one((n: any) => n.type === 'input' && n.props['data-attach']).props.onChange({ target: { files: [], value: 'x' } }); h.draw();
+  assert.equal(g.ui.drafts['home-task'], 'look at @src/a.ts @"D:/other/my notes.md" ');
+  h.one((n: any) => n.props.items?.some((i: any) => i.label === 'Branch and model')).props.items[1].onClick(); h.draw();
+  h.one(label('Branch for a new worktree')).props.onChange('fix/x'); h.draw();
+  assert.match(h.html(), /fix\/x \(new worktree\)/);
+  delete g.ui.snap.projects[0].path;
+});
+test('chat box project selector switches the real project', () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; const switched: string[] = []; g.switchProject = (id: string) => switched.push(id);
+  const h = harness(Home); h.draw(); h.one(label('Project')).props.onChange('p2'); h.one(label('Project')).props.onChange('p1');
+  assert.deepEqual(switched, ['p2']);
 });
 // Protects automations.jsx:49 Remove onClick: the renderer sends only the stored automation id.
 test('wire-07 Remove sends automation.delete with that id only', async () => {

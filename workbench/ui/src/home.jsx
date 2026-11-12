@@ -7,7 +7,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon } from './icons/index.js';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
@@ -65,8 +65,7 @@ const DONE_STATES = ['done', 'exited', 'idle'];
 
 const hostIcon = <Workspace size={16} />;
 const editorIcon = <OpenOnWall size={16} />;
-const folderSmall = <Project size={16} />;
-const shieldSmall = <Approval size={16} />;
+const folderSmall = <FolderIcon size={16} />;
 const laptopSmall = <LaptopIcon size={16} />;
 const branchSmall = <Branch size={14} />;
 const circle = <StepOpen size={14} className="ou-hm-cbox" />;
@@ -109,6 +108,7 @@ function StartBox({ ready }) {
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   const proj = projectOf({ project_id: ui.projectId });
   const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
+  const working = (ui.snap?.live || []).filter((x) => x.project_id === ui.projectId && isWorking(x)).length;
   return composer({
     className: 'ou-hm-composerwrap ou-hm-task',
     filled: Boolean(task.trim()),
@@ -121,19 +121,24 @@ function StartBox({ ready }) {
       </div>
     ) : null,
     plus: [
-      { label: 'Mention a file (@)', onClick: () => { edit(task + (task && !task.endsWith(' ') ? ' @' : '@')); document.querySelector('#home .ou-hm-composerwrap textarea')?.focus(); } },
       { label: more ? 'Hide branch and model' : 'Branch and model', onClick: () => setMore(!more) },
     ],
     engine: { id: chosen, model: model.trim(), options: ready.map((e) => ({ value: e.id, label: e.id })), onChange: (v) => { ui.drafts['home-engine'] = v; setEngine(v); } },
     send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, onClick: start },
-    busy: starting,
+    attach: (paths) => {
+      const root = String(proj?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
+      const refs = paths.map((p) => { const f = p.replace(/\\/g, '/'); const rel = root && f.toLowerCase().startsWith(root.toLowerCase() + '/') ? f.slice(root.length + 1) : f; return `@${/\s/.test(rel) ? `"${rel}"` : rel}`; });
+      if (refs.length) edit(`${task}${task && !/\s$/.test(task) ? ' ' : ''}${refs.join(' ')} `);
+      document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
+    },
+    ring: { spinning: starting || working > 0, label: starting ? 'Starting' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agent working' },
     context: [
-      { key: 'project', icon: proj?.icon ? <ProjectIcon icon={proj.icon} size={14} /> : folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+      { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
       { key: 'machine', icon: laptopSmall, text: 'Local', title: 'Agents run on this computer' },
-      gitBranch ? { key: 'branch', icon: branchSmall, text: gitBranch } : null,
+      branch.trim() || gitBranch ? { key: 'branch', icon: branchSmall, text: branch.trim() ? `${branch.trim()} (new worktree)` : gitBranch } : null,
       { key: 'gap', gap: true },
-      { key: 'access', accent: approval === 'contained' || approval === 'edits', icon: shieldSmall, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
+      { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
         { value: 'default', label: 'Approval as in Settings' },
         { value: 'ask', label: 'Ask first' },
         { value: 'edits', label: 'Edits allowed' },

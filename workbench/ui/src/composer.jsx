@@ -2,10 +2,9 @@
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Selector } from '@astryxdesign/core/Selector';
-import { EngineMark, PlusIcon, MicIcon, ExpandIcon, ReturnIcon } from './icons/index.js';
+import { EngineMark, PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
 
 const plusIcon = <PlusIcon size={16} />;
-const micIcon = <MicIcon size={16} />;
 const expandIcon = <ExpandIcon size={14} />;
 const returnIcon = <ReturnIcon size={16} />;
 
@@ -17,32 +16,35 @@ const expand = (e) => {
 };
 
 // A render function, not a component: callers keep their own labelled fields and the test harnesses see every control.
-export function composer({ field, opts, plus, engine, send, context, busy, filled, className = '', onKeyDown }) {
+export function composer({ field, opts, plus, attach, engine, send, context, ring, filled, className = '', onKeyDown }) {
+  const key = className.split(' ')[0] || 'cmp';
+  const items = attach ? [{ label: 'Attach files', onClick: () => document.querySelector(`input[data-attach="${key}"]`)?.click() }, ...(plus || [])] : plus;
   return (
     <div className={`ou-cmp-wrap ${className}`}>
       <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}>
         {field}
+        {attach ? <input type="file" multiple hidden data-attach={key} onChange={(e) => { attach(api.filePaths(e.target.files)); e.target.value = ''; }} /> : null}
         <span className="ou-cmp-expand"><IconButton size="sm" variant="ghost" icon={expandIcon} label="Expand" aria-pressed="false" onClick={expand} /></span>
         {opts}
         <div className="ou-cmp-bar ou-hm-cbar">
-          {plus ? <DropdownMenu size="sm" menuWidth={200} items={plus} renderTrigger={(p) => <IconButton {...p} size="sm" variant="ghost" icon={plusIcon} label="Add" />} /> : null}
+          {items ? <DropdownMenu size="sm" menuWidth={200} items={items} renderTrigger={(p) => <IconButton {...p} size="sm" variant="ghost" icon={plusIcon} label="Add" />} /> : null}
           {engine ? (
-            <span className="ou-cmp-engine"><EngineMark id={engine.id} size={16} title={engine.id} />
-              <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={engine.options} value={engine.id} onChange={engine.onChange} />
-              {engine.model ? <span className="ou-cmp-model">{engine.model}</span> : null}
+            <span className="ou-cmp-engine">
+              <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={engine.options} value={engine.id} onChange={engine.onChange}
+                startIcon={<EngineMark id={engine.id} size={16} />}
+                renderValue={(o) => <span className="ou-cmp-pick"><b>{engineName(engine.id)}</b><span className="ou-cmp-model">{engine.model || 'default'}</span></span>} />
             </span>
           ) : null}
           <span className="ou-hm-cgap" />
-          <IconButton size="sm" variant="ghost" icon={micIcon} label="Voice input" tooltip="Voice input is not built yet" isDisabled className="ou-cmp-mic" />
           {send ? <IconButton size="sm" variant="secondary" icon={returnIcon} className="ou-cmp-send" {...send} /> : null}
         </div>
       </div>
       {context ? (
         <div className="ou-cmp-ctx">
           {context.filter(Boolean).map((c) => (c.gap ? <span key={c.key} className="ou-hm-cgap" /> : (
-            <span key={c.key} className={`ou-cmp-item${c.accent ? ' ou-cmp-accent' : ''}`} title={c.title}>{c.icon}{c.node || <span className="ou-cmp-text">{c.text}</span>}</span>
+            <span key={c.key} className={`ou-cmp-item${c.plain ? ' ou-cmp-plain' : ''}${c.accent ? ' ou-cmp-accent' : ''}`} title={c.title}>{c.icon}{c.node || <span className="ou-cmp-text">{c.text}</span>}</span>
           )))}
-          {busy ? <span className="ou-cmp-spin" role="status" aria-label="Starting" /> : null}
+          {ring ? <span className={`ou-cmp-ring${ring.spinning ? ' ou-cmp-spin' : ''}`} role="status" aria-label={ring.label} title={ring.label} /> : null}
         </div>
       ) : null}
     </div>

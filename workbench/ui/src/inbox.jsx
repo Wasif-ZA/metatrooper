@@ -305,7 +305,7 @@ function DetailAsk({ x }) {
         send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
         context: [
           x.engine_id ? { key: 'engine', icon: <Ic.EngineMark id={x.engine_id} size={14} />, text: x.engine_id } : null,
-          { key: 'project', icon: <Ic.Project size={14} />, text: here ? ui.snap?.projects?.find((p) => p.id === ui.projectId)?.name || 'This project' : projectName },
+          { key: 'project', icon: <Ic.FolderIcon size={16} />, text: here ? ui.snap?.projects?.find((p) => p.id === ui.projectId)?.name || 'This project' : projectName },
           branch ? { key: 'branch', icon: <Ic.Branch size={14} />, text: branch } : null,
         ],
       })}

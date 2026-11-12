@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer } from './composer.jsx';
 
@@ -186,7 +186,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           field: <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />,
           engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: e.id })), onChange: set('engine_id') },
           send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
-          context: [{ key: 'project', icon: folderIcon, node: <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> }],
+          context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> }],
         })}
         <label className="ou-ae-label">Labels</label>
         <div className="ou-hm-chips">

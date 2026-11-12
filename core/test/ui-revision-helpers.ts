@@ -8,7 +8,7 @@ import { buildGenerated, client, fakeGh, isolation, pipePath, root, startCore, t
 
 export const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim();
 
-export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
+export async function revisionHarness(fixture?: string, fakeWrapper?: string, extraEngines: object[] = []) {
   await buildGenerated();
   const iso = isolation();
   const project = join(iso.home, 'project');
@@ -34,6 +34,7 @@ export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
   writeFileSync(registry, JSON.stringify([
     { id: 'fake', command: process.execPath, args: [fakeEngine], prompt_arg: 'positional', state_source: 'hooks', roles: ['plan','worker','review','verify','visual-check','research'], cost_rank: 1, version_cmd: [process.execPath, '--version'], settings: { file: engineSettings, set: { enable: true } } },
     { id: 'ticker', command: process.execPath, args: [ticker], prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 2, version_cmd: [process.execPath, '--version'] },
+    ...extraEngines,
   ]));
   const env = { ...iso.env, METATROOPER_ENGINES: registry, METATROOPER_CLAUDE_SETTINGS: join(iso.home, 'claude-settings.json'), METATROOPER_CODEX_CONFIG: join(iso.home, 'codex-config.toml'), PATH: `${bin}${delimiter}${process.env.PATH}` };
   const core = await startCore({ ...iso, env });
