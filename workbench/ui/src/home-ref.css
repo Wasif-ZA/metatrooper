@@ -57,3 +57,9 @@ header.title .ou-hm-head .ou-hm-headtitle { font: 400 14px/1 'Geist', 'Segoe UI'
 :root, :root .ou-hm { --hm-waiting: #f0a429; }
 :root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-waiting: #a16207; }
 .ou-hm .ouros-ring { width: 16px; height: 16px; }
+
+/* 9.5 round 7: centre column centred between the sidebar and the card; 5px more air between card groups. */
+.ou-home.ou-hm { grid-template-columns: minmax(0, 1fr) 292px; }
+.ou-hm-rail { padding-left: 0; }
+.ou-hm-card .ou-hm-swap > div > .ou-hm-psec:not(:last-child) { padding-bottom: 8.5px; }
+.ou-hm-card .ou-hm-swap > div > .ou-hm-psec + .ou-hm-psec { padding-top: 8.5px; }

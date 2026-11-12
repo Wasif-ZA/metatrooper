@@ -75,7 +75,7 @@
 .fring, .ftree .fring { width: 14px; height: 14px; color: var(--body); }
 .ouros-ring { stroke-width: 2; }
 .ouros-ring circle[stroke-opacity] { stroke-opacity: .32; }
-:root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #bc4c00; }
+:root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #a16207; }
 .fshelves { margin-top: 0; padding-top: 2px; }
 .fthw { position: relative; display: flex; flex-direction: column; }
 .fthw.haskids .fth3 { padding-right: 22px; }
