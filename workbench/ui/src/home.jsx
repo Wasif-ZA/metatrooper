@@ -118,7 +118,7 @@ function StartBox({ ready }) {
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   const proj = projectOf({ project_id: ui.projectId });
   const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
-  const working = (ui.snap?.live || []).filter((x) => x.project_id === ui.projectId && isWorking(x)).length;
+  const active = new Map([...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].map((x) => [x.id, x])).values().filter((x) => x.project_id === ui.projectId && ACTIVE_STATES.has(x.state)).toArray().length;
   return composer({
     className: 'ou-hm-composerwrap ou-hm-task',
     filled: Boolean(task.trim()),
@@ -146,7 +146,7 @@ function StartBox({ ready }) {
       edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
     },
-    ring: { spinning: starting || working > 0, label: starting ? 'Starting' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agent working' },
+    ring: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
     context: [
       { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
@@ -166,6 +166,7 @@ function StartBox({ ready }) {
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
 const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', isolated: 'Full access' };
+const ACTIVE_STATES = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
 const statusOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'

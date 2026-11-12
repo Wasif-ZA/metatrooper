@@ -9,14 +9,14 @@ export type CheckResult = { code: number | null; timedOut?: boolean; error?: str
 export type AutomationDeps = {
   now: () => number;
   runCheck: (argv: string[], cwd: string, timeoutMs: number) => Promise<CheckResult>;
-  launch: (a: { project_id: string; engine_id: string; prompt: string }) => Promise<{ session_id: string }> | { session_id: string };
+  launch: (a: { project_id: string; engine_id: string; prompt: string; approval: string }) => Promise<{ session_id: string }> | { session_id: string };
   readFile: (absPath: string) => Buffer;
   send?: (session_id: string, text: string) => void;
   followUp?: (a: { project_id: string; engine_id: string; cwd: string | null; parent_id: string; prompt: string }) => Promise<{ session_id: string }> | { session_id: string };
 };
 export const LATE_MS = 120_000;
 
-type Row = { id: string; project_id: string; name: string; every_min: number; cron: string | null; runner: string; script: string; script_sha256: string; timeout_ms: number; engine_id: string; prompt: string; next_due: string; path: string };
+type Row = { id: string; project_id: string; name: string; every_min: number; cron: string | null; runner: string; script: string; script_sha256: string; timeout_ms: number; engine_id: string; prompt: string; next_due: string; path: string; approval: string | null };
 export type RunResult = { run_id: string; outcome: string; session_id: string | null };
 
 const running = new Set<string>();
@@ -96,7 +96,7 @@ async function runOne(db: DatabaseSync, deps: AutomationDeps, a: Row, now: numbe
   };
   const launch = async (exit: number | null) => {
     try {
-      const { session_id } = await deps.launch({ project_id: a.project_id, engine_id: a.engine_id, prompt: a.prompt });
+      const { session_id } = await deps.launch({ project_id: a.project_id, engine_id: a.engine_id, prompt: a.prompt, approval: a.approval || 'ask' });
       return await run('woke', exit, null, session_id);
     } catch (e) { return await run('failed', exit, `launch failed: ${(e as Error).message}`, null); }
   };

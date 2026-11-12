@@ -58,17 +58,18 @@ async function fixture(t: TestContext) {
   writeFileSync(join(dir, 'check.txt'), 'check');
   let now = Date.parse('2026-11-12T23:00:30.000Z');
   const calls = { checks: 0, launches: 0 };
+  const launched: any[] = [];
   let code = 1;
   const deps: AutomationDeps = {
     now: () => now,
     readFile: readFileSync,
     runCheck: async () => { calls.checks++; return { code }; },
-    launch: async () => { calls.launches++; return { session_id: `w${calls.launches}` }; },
+    launch: async (a) => { calls.launches++; launched.push(a); return { session_id: `w${calls.launches}` }; },
   };
   const methods = buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k', automationDeps: deps });
   const call = async (name: string, p: Record<string, unknown>) => methods.get(name)!.handler(p, ctx) as Promise<any>;
   const base = { project_id: 'p1', name: 'Nightly', engine_id: 'codex', prompt: 'Triage' };
-  return { db, dir, deps, calls, call, base, setNow: (ms: number) => { now = ms; }, setCode: (c: number) => { code = c; },
+  return { db, dir, deps, calls, launched, call, base, setNow: (ms: number) => { now = ms; }, setCode: (c: number) => { code = c; },
     row: (id: string) => db.prepare('SELECT * FROM automation WHERE id = ?').get(id) as Record<string, any> };
 }
 
@@ -120,6 +121,19 @@ test('the due check compares instants, not offset strings', async t => {
   f.db.prepare('UPDATE automation SET next_due = ? WHERE id = ?').run('2026-04-05T02:10:00.000+10:00', id);
   await automationTick(f.db, f.deps);
   assert.equal(f.calls.launches, 0);
+});
+
+test('automation approval is stored, listed and given to the woken agent, ask by default', async t => {
+  const f = await fixture(t);
+  const plain = await f.call('automation.set', { ...f.base, every_min: 30 });
+  const edits = await f.call('automation.set', { ...f.base, every_min: 30, approval: 'edits' });
+  assert.equal(f.row(plain.id).approval, null);
+  assert.equal(f.row(edits.id).approval, 'edits');
+  assert.equal((await f.call('automation.list', { project_id: 'p1' })).automations.find((a: any) => a.id === edits.id).approval, 'edits');
+  await f.call('automation.run', { id: plain.id });
+  await f.call('automation.run', { id: edits.id });
+  assert.deepEqual(f.launched.map((a: any) => a.approval), ['ask', 'edits']);
+  await assert.rejects(f.call('automation.set', { ...f.base, every_min: 30, approval: 'isolated' }), (e: any) => e.code === -32003);
 });
 
 test('automation.run runs now, records a run and leaves the schedule alone', async t => {

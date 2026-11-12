@@ -603,6 +603,28 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
 
 
 
+test('Automation editor access level saves as the run approval', async () => {
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+  const seen: any[] = [];
+  g.rpc = async (method: string, params: any) => { seen.push([method, params]); return method === 'cron.next' ? { result: { ok: true, runs: [], words: 'Weekdays at 09:00' } } : { result: { id: 'a1' } }; };
+  const initial = { name: 'Sweep', prompt: 'Run the tests.', cron: '0 9 * * 1-5', engine_id: 'ready', project_id: 'p1', approval: 'contained' };
+  const h = harness(function Screen() { return React.createElement(screens.AutomationEditor, { initial, labelNames: [], onClose() {}, onSaved() {} }); }, true);
+  h.draw(); await flush(); h.draw();
+  const access = h.one(label('Approval for each run'));
+  assert.equal(access.props.value, 'contained');
+  access.props.onChange('edits'); h.draw();
+  await h.one(label('Create automation')).props.onClick(); await flush();
+  assert.equal(seen.find((c) => c[0] === 'automation.set')[1].approval, 'edits');
+});
+test('Home ring spins for any running state the sidebar counts, unknown and waiting included', () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  for (const [state, want] of [['unknown', 'active'], ['waiting_for_you', 'active'], ['working', 'active'], ['done', 'idle']]) {
+    g.ui.snap.live = []; g.ui.snap.sessions = [{ id: 's1', project_id: 'p1', engine_id: 'codex', state, started_at: '2026-01-01T00:00:00Z', prompt: 'x' }];
+    const h = harness(Home); h.draw();
+    assert.equal(h.one((n: any) => n.type === 'svg' && n.props.className === 'ou-cmp-ring').props['data-state'], want, state);
+  }
+  g.ui.snap.live = []; g.ui.snap.sessions = [];
+});
 test('Automation editor presets round-trip to cron', () => {
   for (const cron of ['15 * * * *', '5 8 * * *', '0 9 * * 1-5', '45 17 * * 3']) assert.equal(screens.cronOf(screens.presetOf(cron)), cron, cron);
   assert.equal(screens.presetOf('30 7 1,15 * *').preset, 'custom');
