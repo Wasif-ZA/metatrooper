@@ -117,3 +117,11 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fthreads::-webkit-scrollbar { width: 0; }
 .fshelves { flex: none; max-height: 60%; overflow-y: auto; scrollbar-width: none; }
 .fshelves::-webkit-scrollbar { width: 0; }
+
+/* 9.5 round 6: search row and thread list move down inside the sidebar; brighter small text; 16px ring box draws a 14px ring. */
+.fsec.fsearchrow { margin-top: 25px; }
+.fth1, .fth3 { color: color-mix(in srgb, var(--ink) 63%, var(--canvas-deep)); }
+.fthwait { color: var(--hm-waiting); }
+.fring, .ftree .fring, .fring svg { width: 16px; height: 16px; }
+.fcore { padding: 4px; cursor: default; }
+.fthreads { padding-top: 5px; }

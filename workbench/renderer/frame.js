@@ -302,7 +302,7 @@ globalThis.frameView = (() => {
       const before = rowTops(list);
       setHtml('frame-agents', threadsHtml(ui.snap.tree, rows, ui.snap.git || {}, ui.pendingHide));
       const core = document.getElementById('frameCore');
-      if (core) core.innerHTML = document.getElementById('core')?.innerHTML || '';
+      if (core) { core.innerHTML = document.getElementById('core')?.innerHTML || ''; core.title = core.querySelector('[title]')?.title || ''; }
       animateRows(list, before);
       drawnSel = selectedId();
       // Home picks its default selection while rendering, after this draw; catch up once when it changed.
