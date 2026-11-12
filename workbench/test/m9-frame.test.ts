@@ -398,7 +398,7 @@ test('clicking an agent row while not on the Wall switches to the Wall', () => {
   assert.deepEqual(h.homeViewSetCalls, []);
 });
 
-test('thread list: one row per task with project, title, branch and engine marks; active tasks in Working, settled in Settled (closed); sub-agents behind a chevron; shelves toggle', () => {
+test('thread list: recent finished tasks on top, Working and older Settled shelves below; one row per task with project, title, branch and engine marks; sub-agents behind a chevron; shelves toggle', () => {
   const h = createFrameHarness();
   h.triggerDomContentLoaded();
   h.ctx.setTimeout = () => 0;
@@ -415,11 +415,12 @@ test('thread list: one row per task with project, title, branch and engine marks
   h.frameView.draw();
   const html = h.frameAgents.innerHTML;
   const ids = [...html.matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['busy', 'lead'], 'Working newest first; the sub-agent has no row of its own; Settled starts closed');
+  assert.deepEqual(ids, ['fresh', 'busy', 'lead'], 'recent finished on top, then Working newest first; the sub-agent has no row of its own; Settled starts closed');
+  assert.ok(html.indexOf('class="fthreads"') < html.indexOf('class="fshelves"'), 'recent list above the shelves');
   assert.match(html, /data-id="lead"[^]*?<span class="fthpn">shop<\/span><\/span><span class="fthtime"><span class="fthwait">Waiting 18s<\/span>/);
   assert.match(html, /data-id="lead"[^]*?<span class="ft">Lead task<\/span>[^]*?<span class="fthbr">feat\/share<\/span><span class="fthmks">(<span class="fthmk">[^]*?<\/span>){2}<\/span>/);
   assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">2<\/span>/);
-  assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">2<\/span>/);
+  assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">1<\/span>/);
   assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);
   assert.doesNotMatch(html, /data-id="kid"/);
   const kidsBtn = { dataset: { kids: 'lead' }, closest: (sel: string) => (sel === '[data-kids]' ? kidsBtn : null) };
@@ -430,9 +431,30 @@ test('thread list: one row per task with project, title, branch and engine marks
   const shelfBtn = (key: string) => ({ dataset: { shelf: key }, closest: (sel: string) => (sel === '[data-shelf]' ? shelfBtn(key) : null) });
   h.frameAgents.click(shelfBtn('settled'));
   const settledIds = [...h.frameAgents.innerHTML.split('data-shelf="settled"')[1].matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(settledIds, ['fresh', 'old'], 'settled newest first');
+  assert.deepEqual(settledIds, ['old'], 'Settled holds the finished tasks older than a day');
   h.frameAgents.click(shelfBtn('working'));
   assert.doesNotMatch(h.frameAgents.innerHTML, /data-id="busy"/);
   h.frameAgents.click(shelfBtn('working'));
   h.frameAgents.click(shelfBtn('settled'));
+});
+
+test('usage meters: one meter per engine showing its most used window, with every window in the tooltip', () => {
+  const h = createFrameHarness();
+  const usage: any = { hidden: true, innerHTML: '' };
+  const getById = h.doc.getElementById.bind(h.doc);
+  h.doc.getElementById = (id: string) => (id === 'frameUsage' ? usage : getById(id));
+  h.ctx.setTimeout = () => 0;
+  const soon = new Date(Date.now() + 3 * 3_600_000).toISOString();
+  h.ctx.ui.snap.limits = [
+    { provider: 'claude', window: '5h', status: 'ok', used_pct: 42, resets_at: soon },
+    { provider: 'claude', window: 'weekly', status: 'ok', used_pct: 59, resets_at: soon },
+    { provider: 'codex', window: '5h', status: 'ok', used_pct: 12, resets_at: soon },
+  ];
+  h.frameView.draw();
+  const meters = [...usage.innerHTML.matchAll(/<div class="fuse" title="([^"]*)">/g)];
+  assert.equal(meters.length, 2, 'one meter per engine');
+  assert.equal((usage.innerHTML.match(/class="fbar"/g) || []).length, 2);
+  assert.match(usage.innerHTML, /<b>59%<\/b>/, 'claude shows its most used window');
+  assert.doesNotMatch(usage.innerHTML, /<b>42%<\/b>/);
+  assert.match(meters[0][1], /5h: 42% used[^]*weekly: 59% used/, 'tooltip keeps every window');
 });
