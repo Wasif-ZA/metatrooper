@@ -41,7 +41,7 @@ async function startup(t: any, outcome: 'true' | 'false' | 'throw') {
     '../../core/src/browser/policy.ts': 'export const typedUrl = x => x;',
     '../../core/src/store/db.ts': 'export const openReaderDb = () => ({ exec() {} });',
     '../../core/src/pipe/client.ts': 'export const call = async (method, params, options) => { globalThis.__takeoverTest.sent.push({ method, params, options }); return { kind: "reply", reply: { result: {} } }; };',
-    './queries.ts': 'export const snapshot = () => ({ core: { pid: 1234, online: true }, sessions: [], needs_you: [], grants: [] }), withContext = x => x, withLiveText = x => x, dataVersion = () => 0, freshNeeds = () => ({ seen: new Set(), fresh: [] }), crashAction = () => "none", watchDb = () => {}, browserAudit = () => [], toastFor = () => null, taskOf = () => "";',
+    './queries.ts': 'export const snapshot = () => ({ core: { pid: 1234, online: true }, sessions: [], needs_you: [], grants: [] }), withContext = x => x, withLiveText = x => x, dataVersion = () => 0, anyOpenSession = () => false, freshNeeds = () => ({ seen: new Set(), fresh: [] }), crashAction = () => "none", watchDb = () => {}, browserAudit = () => [], toastFor = () => null, taskOf = () => "";',
     './handback.ts': 'export const fileDiff = () => {}, gitIn = () => {}, handback = () => {}, sessionChanges = () => {};',
     './gitpane.ts': 'export const gitAct = () => {}, gitView = () => {}, ownerGroups = () => {}, runIn = () => {};',
     '../../core/src/sessions/owners.ts': 'export const ownersAsync = async () => ({}), repoOfAsync = async () => null;',

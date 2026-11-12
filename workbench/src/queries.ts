@@ -241,6 +241,11 @@ export function watchDb(dir: string, prefix: string, onChange: () => void): fs.F
   }
 }
 
+/** True when any session in any project has not exited. */
+export function anyOpenSession(db: DatabaseSync): boolean {
+  return Boolean(db.prepare("SELECT 1 FROM session WHERE state != 'exited' LIMIT 1").get());
+}
+
 export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }
