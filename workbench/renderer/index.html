@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="review.css">
   <link rel="stylesheet" href="wall-plain.css">
   <link rel="stylesheet" href="ui.bundle.css">
+  <link rel="stylesheet" href="wall-ref.css">
 </head>
 <body class="ind-spark">
   <aside class="frame" id="frame" aria-label="Sidebar">
@@ -23,6 +24,7 @@
     <nav class="vseg fnav" role="group" aria-label="View"><button data-action="view" data-view="home" aria-pressed="false" title="Home" aria-label="Home"><span class="fi" data-icon="home"></span><span class="fl">Home</span></button><button data-action="view" data-view="ide" aria-pressed="false" title="IDE" aria-label="IDE"><span class="fi" data-icon="code"></span><span class="fl">IDE</span></button><button data-action="view" data-view="wall" aria-pressed="true" title="Wall" aria-label="Wall"><span class="fi" data-icon="wall"></span><span class="fl">Wall</span></button><button data-action="view" data-view="inbox" aria-pressed="false" title="Needs you" aria-label="Needs you"><span class="fi" data-icon="inbox"></span><span class="fl">Needs you</span><span class="fpill" id="frameNeeds" hidden></span></button></nav>
     <div class="fsec">Agents</div>
     <div class="fagents" id="frame-agents"></div>
+    <div class="hside" id="hside" aria-label="Workspaces and agents"></div>
     <div class="ffoot"><button data-action="view" data-view="addons" title="Add-ons" aria-label="Add-ons"><span class="fi" data-icon="addOns"></span><span class="fl">Add-ons</span></button><button data-action="report-issue" title="Report issue on GitHub" aria-label="Report issue"><span class="fi" data-icon="flag"></span><span class="fl">Report issue</span></button><button data-action="settings" title="Settings" aria-label="Settings"><span class="fi" data-icon="settings"></span><span class="fl">Settings</span></button></div>
   </aside>
   <header class="title">
@@ -77,6 +79,7 @@
   <script src="browser-chrome.js"></script>
   <script src="home.js"></script>
   <script src="frame.js"></script>
+  <script src="wall-side.js"></script>
   <script src="app.js"></script>
   <script src="ui.bundle.js"></script>
 </body>

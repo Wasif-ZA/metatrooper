@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const src = fs.readFileSync(path.join(import.meta.dirname, '..', 'renderer', 'wall-side.js'), 'utf8');
+
+function render(snap: any, projectId: string, git: any = null) {
+  const el = { dataset: {} as Record<string, string>, innerHTML: '' };
+  const ui = { snap, projectId, git, pendingHide: new Set<string>() };
+  const ctx: any = {
+    ui,
+    document: { getElementById: (id: string) => (id === 'hside' ? el : null) },
+    project: () => snap.projects.find((p: any) => p.id === projectId),
+    projectGroups: (list: any[]) => ({ projects: list.filter((p) => !p.scratch), worktrees: [], scratch: list.filter((p) => p.scratch), older: [] }),
+    esc: (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`),
+    taskOf: (x: any) => x.task || x.engine_id,
+  };
+  vm.runInNewContext(`${src}\nthis.wallSide = wallSide;`, ctx);
+  ctx.wallSide.draw();
+  return el.innerHTML;
+}
+
+const snap = {
+  projects: [{ id: 'p1', name: 'alpha', path: '/a' }, { id: 'p2', name: 'beta', path: '/b', scratch: true }],
+  sessions: [
+    { id: 's1', engine_id: 'claude', state: 'working' },
+    { id: 's2', engine_id: 'codex', state: 'waiting_for_you' },
+    { id: 's3', engine_id: 'gemini', state: 'idle' },
+    { id: 's4', engine_id: 'old', state: 'exited' },
+  ],
+  live: [{ id: 'x1', project_id: 'p2', state: 'done' }],
+  selected: 's2',
+};
+
+test('wall sidebar numbers the open project first with its branch, then the others with their worst live state', () => {
+  const html = render(snap, 'p1', { project: 'p1', branch: 'main' });
+  const ws = [...html.matchAll(/<button class="hws( on)?" data-action="project" data-id="(\w+)"[^>]*><span class="hn">(\d)<\/span><span class="hname">(\w+)<\/span>(?:<span class="hsdot hk-(\w+)">)?/g)].map((m) => [m[2], m[3], m[4], Boolean(m[1]), m[5]]);
+  assert.deepEqual(ws, [['p1', '1', 'alpha', true, 'block'], ['p2', '2', 'beta', false, 'done']]);
+  assert.match(html, /<span class="hbr">main<\/span>/);
+});
+
+test('wall sidebar lists each live session of the project with the state word of its real state, and marks the selected one', () => {
+  const html = render(snap, 'p1');
+  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname">(\w+)<\/span><span class="hst">(\w+)<\/span>/g)].map((m) => [m[2], m[4], m[5], Boolean(m[1])]);
+  assert.deepEqual(rows, [['s1', 'claude', 'working', false], ['s2', 'codex', 'blocked', true], ['s3', 'gemini', 'idle', false]]);
+  assert.match(html, /data-action="launch-menu"[^>]*>new</);
+});
+
+test('wall sidebar shows no branch for a project whose git status is for another project', () => {
+  assert.doesNotMatch(render(snap, 'p1', { project: 'p2', branch: 'dev' }), /hbr/);
+});

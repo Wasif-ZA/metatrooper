@@ -4,6 +4,12 @@ Parts of the Home screen, sidebar and engine marks are adapted from t3code
 (https://github.com/pingdotgg/t3code). Each adapted block is marked with a one-line source
 comment. Engine marks for Gemini and Copilot come from Simple Icons 15.0.0 (CC0 1.0).
 
+## herdr
+
+The Wall sidebar's agent state glyphs and colour roles (workbench/renderer/wall-side.js) follow
+herdr (https://github.com/herdrdev/herdr), src/client/shell.rs. Licensed under the Apache
+License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
 ## t3code
 
 MIT License

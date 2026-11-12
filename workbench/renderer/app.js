@@ -1235,6 +1235,7 @@ function render(focus = false) {
   if (ui.tab === 'browser') browserChrome.after(document.getElementById('view'));
   globalThis.homeView?.draw();
   globalThis.frameView?.draw();
+  if (typeof wallSide !== 'undefined') wallSide.draw();
   globalThis.inboxView?.draw();
   void globalThis.ideView?.draw();
   void globalThis.addonsView?.draw();
