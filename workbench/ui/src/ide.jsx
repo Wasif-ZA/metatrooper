@@ -1417,7 +1417,7 @@ export function Ide() {
                   { label: 'New folder', onClick: () => startNew(st, '', true) },
                   { label: 'Collapse folders', onClick: () => collapseAll(st) },
                   { label: 'Commands', onClick: () => paletteView.open() },
-                ]} renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="Explorer actions" tooltip="Explorer actions" icon={<Icon icon="more" size="sm" color="inherit" />} />} />
+                ]} renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="Explorer actions" tooltip="Explorer actions" icon={<Sc.MoreIcon size={14} />} />} />
               ) : null}
               {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
             </span>
