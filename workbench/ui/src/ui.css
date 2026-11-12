@@ -1200,11 +1200,12 @@ html { font-size: 16px; }
 .ou-cmp-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ou-cmp-item:hover, .ou-cmp-item:hover :is(span, button) { color: var(--ink) !important; }
 .ou-cmp-accent { flex: none; }
-.ou-cmp-accent, .ou-cmp-accent :is(span, button, b) { color: var(--cmp-accent) !important; font-weight: 600 !important; }
+.ou-cmp-accent, .ou-cmp-accent :is(span, button, b) { color: var(--cmp-accent) !important; font-size: 13px !important; font-weight: 600 !important; }
 .ou-cmp-accent:hover, .ou-cmp-accent:hover :is(span, button) { color: var(--cmp-accent) !important; }
 .ou-cmp-accent .astryx-selector { padding: 0 !important; gap: 8px; }
 .ou-cmp-accent .astryx-selector button { padding: 0; }
 .ou-cmp-item .astryx-icon, .ou-cmp-engine .astryx-icon { color: var(--cmp-quiet) !important; }
+.ou-cmp-item.ou-cmp-accent .astryx-icon, .ou-cmp-item.ou-cmp-accent .astryx-icon * { color: var(--cmp-accent) !important; }
 .ou-cmp-item .astryx-icon svg, .ou-cmp-engine .astryx-icon svg { width: 16px; height: 16px; }
 .ou-cmp-ring { flex: none; margin-left: -12px; fill: none; stroke-width: 2; stroke-linecap: round; }
 .ou-cmp-track { stroke: color-mix(in srgb, var(--mute) 40%, transparent); }
@@ -1213,3 +1214,7 @@ html { font-size: 16px; }
 .ou-cmp-ring[data-state="active"] { animation: ou-cmp-spin .9s linear infinite; }
 @keyframes ou-cmp-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ou-cmp-ring { animation: none !important; } }
+.ou-cmp-expand svg { stroke-width: 1.5; }
+.ou-cmp-send svg { stroke-width: 1.5; }
+.ou-cmp-bar .ou-cmp-send, .ou-cmp-bar .ou-cmp-send:disabled, .ou-cmp-bar .ou-cmp-send[aria-disabled="true"] { background: light-dark(var(--hairline-strong), color-mix(in srgb, var(--mute) 55%, var(--canvas-soft))) !important; color: light-dark(var(--mute), var(--canvas-soft)) !important; }
+.ou-cmp[data-filled="true"] .ou-cmp-send { background: var(--ink) !important; color: var(--canvas) !important; }
