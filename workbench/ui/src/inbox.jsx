@@ -7,6 +7,7 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import { composer } from './composer.jsx';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 
@@ -283,6 +284,7 @@ function DetailAsk({ x }) {
   const [answer, setAnswer] = useState('');
   const here = !x.project_id || x.project_id === ui.projectId;
   const projectName = ui.snap?.projects?.find((p) => p.id === x.project_id)?.name || 'another project';
+  const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const send = async () => {
     if (!here) return;
     const textToSend = answer.trim();
@@ -297,11 +299,17 @@ function DetailAsk({ x }) {
   };
   return (
     <div className="ou-ny-composer ou-ipane-answer">
-      <TextInput label="Answer" isLabelHidden placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />
-      <div className="ou-ipane-answer-row">
-        {!here ? <span className="ou-ipane-muted">{`In ${projectName}. Open it on the Wall to answer.`}</span> : <span />}
-        <Button size="sm" label="Send" isDisabled={!here || !answer.trim()} onClick={send} />
-      </div>
+      {composer({
+        filled: Boolean(here && answer.trim()),
+        field: <TextInput label="Answer" isLabelHidden placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />,
+        send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
+        context: [
+          x.engine_id ? { key: 'engine', icon: <Ic.EngineMark id={x.engine_id} size={14} />, text: x.engine_id } : null,
+          { key: 'project', icon: <Ic.Project size={14} />, text: here ? ui.snap?.projects?.find((p) => p.id === ui.projectId)?.name || 'This project' : projectName },
+          branch ? { key: 'branch', icon: <Ic.Branch size={14} />, text: branch } : null,
+        ],
+      })}
+      {!here ? <span className="ou-ipane-muted">{`In ${projectName}. Open it on the Wall to answer.`}</span> : null}
     </div>
   );
 }
@@ -801,7 +809,7 @@ export function Inbox() {
               <IconButton size="sm" variant="ghost" icon={I.down} label="Next item" isDisabled={visibleRows[visibleRows.length - 1]?.id === activeId} onClick={() => step(1)} />
               <span className="ou-ny-bar-gap" />
               {activeRow.isSession && item.state === 'waiting_for_you' ? (
-                <Button size="sm" label="Answer" onClick={() => document.querySelector('.ou-ny-composer input')?.focus()} />
+                <Button size="sm" label="Answer" onClick={() => document.querySelector('.ou-ny-composer input, .ou-ny-composer textarea')?.focus()} />
               ) : null}
               {sessionObj ? (
                 <Selector size="sm" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}

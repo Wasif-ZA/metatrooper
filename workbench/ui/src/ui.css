@@ -200,9 +200,7 @@ html { font-size: 16px; }
 .ou-ipane-lastline { font-family: var(--mono); font-size: 12px; }
 .ou-ipane-pre { margin: 0; max-height: 220px; overflow: auto; padding: 8px 12px; border-radius: var(--ny-r); background: var(--canvas-deep); border: 1px solid var(--ny-line); font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--body); white-space: pre-wrap; word-break: break-all; }
 .ou-ipane-muted { font-size: 12px; color: var(--mute); }
-.ou-ny-composer { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px; border: 1px solid var(--ny-line); border-radius: var(--ny-r); background: var(--canvas); }
-.ou-ny-composer input { background: transparent; }
-.ou-ipane-answer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ou-ny-composer { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 
 .ou-ny-props { width: 280px; flex: none; height: 100%; overflow-x: hidden; overflow-y: auto; border-left: 1px solid var(--ny-line); background: var(--canvas-deep); }
 .ou-ny-props[data-open="false"] { width: 0; border-left-width: 0; }
@@ -755,10 +753,7 @@ html { font-size: 16px; }
 .ou-ae-emojis { position: absolute; top: 36px; left: 0; z-index: 5; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas-soft); }
 .ou-ae-emojis button { width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; font-size: 16px; cursor: pointer; }
 .ou-ae-emojis button:hover, .ou-ae-emojis button[aria-selected="true"] { background: var(--canvas-deep); }
-.ou-ae-prompt { border: 1px solid var(--hairline); border-radius: 10px; background: var(--canvas-soft); }
-.ou-ae-prompt textarea { min-height: 96px; }
-.ou-ae-pfoot { display: flex; align-items: center; gap: 12px; padding: 4px 8px 8px; }
-.ou-ae-engine { display: inline-flex; align-items: center; gap: 2px; color: var(--body); }
+.ou-ae-prompt textarea { min-height: 96px !important; }
 .ou-ae-lab { cursor: pointer; background: none; }
 .ou-ae-lab.ou-on { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-soft); }
 .ou-ae-freq { margin-top: 8px; }
@@ -1005,8 +1000,6 @@ html { font-size: 16px; }
 .ou-hm-stop:hover { background: var(--hm-hover); }
 .ou-hm-thread .ou-hm-ask { max-width: 520px; }
 
-.ou-hm-composerwrap { display: flex; flex-direction: column; gap: 6px; }
-.ou-hm .ou-composer.ou-hm-task { border-radius: 14px; border-color: var(--hm-line); }
 .ou-hm-chips { display: flex; align-items: center; gap: 4px; padding: 0 6px; }
 .ou-hm-chip { display: inline-flex; align-items: center; gap: 2px; color: var(--hm-quiet); }
 .ou-hm-chip > svg { flex: none; }
@@ -1167,3 +1160,41 @@ html { font-size: 16px; }
 .ou-hm-dock { position: relative; bottom: auto; }
 .ou-hm-main { height: 100%; min-height: 0; }
 .ou-hm-center { min-height: 0; }
+
+/* Chat box: one shared composer (composer.jsx); sizes from the reference composer. */
+.ou-cmp-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ou-composer.ou-cmp { position: relative; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas-soft); box-shadow: 0 -4px 12px -4px color-mix(in srgb, var(--canvas-deep) 60%, transparent); }
+.ou-composer.ou-cmp:focus-within { border-color: var(--hairline-strong); }
+.ou-composer.ou-cmp > :first-child { padding: 0; }
+.ou-composer.ou-cmp :is(textarea, input) { display: block; width: 100%; padding: 12px 56px 4px 16px !important; font-size: 14px; line-height: 1.7; color: var(--ink); }
+.ou-composer.ou-cmp textarea { min-height: 96px; max-height: 40vh; }
+.ou-composer.ou-cmp input { height: auto; min-height: 48px; }
+.ou-composer.ou-cmp :is(textarea, input)::placeholder { color: var(--mute); font-weight: 300; opacity: .7; }
+.ou-cmp[data-expanded] textarea { min-height: 40vh; }
+.ou-cmp-expand { position: absolute; top: 8px; right: 13px; z-index: 2; }
+.ou-cmp-expand button { width: 24px; min-width: 24px; height: 24px; padding: 0; color: var(--mute); }
+.ou-cmp-expand button:hover { color: var(--body); }
+.ou-cmp-bar.ou-hm-cbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; padding: 6px 13px 8px 14px; }
+.ou-cmp-bar.ou-hm-cbar > :first-child { margin-left: -6px; }
+.ou-cmp-bar button { color: var(--mute); }
+.ou-cmp-bar button:hover:not(:disabled) { color: var(--body); }
+.ou-cmp-bar > button, .ou-cmp-bar > span > button { min-width: 32px; height: 32px; }
+.ou-cmp-engine { display: inline-flex; align-items: center; gap: 2px; min-width: 0; color: var(--body); }
+.ou-cmp-engine > svg { flex: none; margin-right: 2px; }
+.ou-cmp-engine, .ou-cmp-engine * { font-size: 13px; font-weight: 500; color: var(--body) !important; }
+.ou-cmp-model { color: var(--mute) !important; font-weight: 400 !important; }
+.ou-cmp-mic:disabled { opacity: .55; }
+.ou-cmp-bar .ou-cmp-send { width: 32px; min-width: 32px; height: 32px; margin-left: 4px; border-radius: 8px !important; border: 0; background: var(--hairline-strong) !important; color: var(--mute) !important; }
+.ou-cmp[data-filled="true"] .ou-cmp-send { background: var(--ink) !important; color: var(--canvas) !important; }
+.ou-cmp-ctx { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 6px; }
+.ou-cmp-item { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-width: 0; max-width: 16rem; font-size: 12px; color: var(--mute); }
+.ou-cmp-item > svg { flex: none; color: var(--mute); }
+.ou-cmp-item, .ou-cmp-item * { font-size: 12px !important; font-weight: 400 !important; color: var(--mute) !important; }
+.ou-cmp-item button { height: 24px; padding: 0 2px; }
+.ou-cmp-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-cmp-accent, .ou-cmp-accent * { color: var(--wait) !important; }
+.ou-cmp-item:hover, .ou-cmp-item:hover * { color: var(--ink) !important; }
+.ou-cmp-accent:hover, .ou-cmp-accent:hover * { color: var(--wait) !important; }
+.ou-cmp-spin { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 1.5px solid var(--hairline-strong); border-top-color: var(--body); animation: ou-cmp-spin .8s linear infinite; }
+@keyframes ou-cmp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ou-cmp-spin { animation: none; } }

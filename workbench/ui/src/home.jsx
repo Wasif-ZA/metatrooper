@@ -1,14 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
-import { IconButton } from '@astryxdesign/core/IconButton';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon } from './icons/index.js';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon } from './icons/index.js';
+import { composer } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
@@ -63,13 +63,12 @@ const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
 
-const attachIcon = <Attach size={16} />;
-const slidersIcon = <Options size={16} />;
-const sendIcon = <Send size={14} />;
 const hostIcon = <Workspace size={16} />;
 const editorIcon = <OpenOnWall size={16} />;
 const folderSmall = <Project size={16} />;
 const shieldSmall = <Approval size={16} />;
+const laptopSmall = <LaptopIcon size={16} />;
+const branchSmall = <Branch size={14} />;
 const circle = <StepOpen size={14} className="ou-hm-cbox" />;
 const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
@@ -81,9 +80,13 @@ function StartBox({ ready }) {
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');
   const [approval, setApproval] = useState('default');
-  const ref = useRef(null);
+  const [starting, setStarting] = useState(false);
 
   const start = async () => {
+    setStarting(true);
+    try { await launch(); } finally { setStarting(false); }
+  };
+  const launch = async () => {
     const text = task.trim();
     let target = ui.projectId;
     if (branch.trim()) {
@@ -104,38 +107,40 @@ function StartBox({ ready }) {
     await pick(r.result.session_id);
   };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
-  return (
-    <div className="ou-hm-composerwrap">
-    <div ref={ref} className="ou-composer ou-hm-task" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Describe the task. @ files, / commands" onChange={edit} />
-      {more ? (
-        <div className="ou-composerfoot ou-hm-opts">
-          <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
-          <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
-        </div>
-      ) : null}
-      <div className="ou-hm-cbar">
-        <IconButton size="sm" variant="ghost" icon={attachIcon} label="Mention a file (@)" onClick={() => { edit(task + (task && !task.endsWith(' ') ? ' @' : '@')); ref.current?.querySelector('textarea')?.focus(); }} />
-        <IconButton size="sm" variant="ghost" icon={slidersIcon} label={more ? 'Fewer options' : 'Options'} aria-expanded={more} aria-pressed={more} onClick={() => setMore(!more)} />
-        <span className="ou-hm-cgap" />
-        <span className="ou-hm-engine"><EngineMark id={chosen} size={16} title={chosen} />
-          <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
-        </span>
-        <IconButton size="sm" variant="primary" icon={sendIcon} label="Start" tooltip="Start (Ctrl+Enter)" className="ou-hm-send" data-action="home-start" data-engine={chosen} onClick={start} />
+  const proj = projectOf({ project_id: ui.projectId });
+  const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
+  return composer({
+    className: 'ou-hm-composerwrap ou-hm-task',
+    filled: Boolean(task.trim()),
+    onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } },
+    field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask an agent to do something. @ to mention files, / for commands" onChange={edit} />,
+    opts: more ? (
+      <div className="ou-composerfoot ou-hm-opts">
+        <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
+        <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
       </div>
-    </div>
-    <div className="ou-hm-chips">
-      <span className="ou-hm-chip">{projectOf({ project_id: ui.projectId })?.icon ? <ProjectIcon icon={projectOf({ project_id: ui.projectId }).icon} size={14} /> : folderSmall}<Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
-        options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /></span>
-      <span className="ou-hm-chip">{shieldSmall}<Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
+    ) : null,
+    plus: [
+      { label: 'Mention a file (@)', onClick: () => { edit(task + (task && !task.endsWith(' ') ? ' @' : '@')); document.querySelector('#home .ou-hm-composerwrap textarea')?.focus(); } },
+      { label: more ? 'Hide branch and model' : 'Branch and model', onClick: () => setMore(!more) },
+    ],
+    engine: { id: chosen, model: model.trim(), options: ready.map((e) => ({ value: e.id, label: e.id })), onChange: (v) => { ui.drafts['home-engine'] = v; setEngine(v); } },
+    send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, onClick: start },
+    busy: starting,
+    context: [
+      { key: 'project', icon: proj?.icon ? <ProjectIcon icon={proj.icon} size={14} /> : folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+        options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
+      { key: 'machine', icon: laptopSmall, text: 'Local', title: 'Agents run on this computer' },
+      gitBranch ? { key: 'branch', icon: branchSmall, text: gitBranch } : null,
+      { key: 'gap', gap: true },
+      { key: 'access', accent: approval === 'contained' || approval === 'edits', icon: shieldSmall, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
         { value: 'default', label: 'Approval as in Settings' },
         { value: 'ask', label: 'Ask first' },
         { value: 'edits', label: 'Edits allowed' },
         { value: 'contained', label: 'Auto' },
-      ]} /></span>
-    </div>
-    </div>
-  );
+      ]} /> },
+    ],
+  });
 }
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);

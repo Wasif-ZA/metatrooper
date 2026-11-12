@@ -7,6 +7,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
+import { composer } from './composer.jsx';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
 
@@ -178,13 +179,15 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
         <label className="ou-ae-label">Prompt</label>
-        <div className="ou-composer ou-ae-prompt">
-          <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />
-          <div className="ou-ae-pfoot">
-            <span className="ou-ae-engine"><EngineMark id={form.engine_id} size={14} /><Selector size="sm" variant="ghost" label="Agent" isLabelHidden value={form.engine_id} onChange={set('engine_id')} options={engines.map((e) => ({ value: e.id, label: e.id }))} /></span>
-            <span className="ou-ae-engine">{folderIcon}<Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /></span>
-          </div>
-        </div>
+        {composer({
+          className: 'ou-ae-prompt',
+          filled: Boolean(form.prompt.trim()),
+          onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey && ready) { e.preventDefault(); void save(); } },
+          field: <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />,
+          engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: e.id })), onChange: set('engine_id') },
+          send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
+          context: [{ key: 'project', icon: folderIcon, node: <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> }],
+        })}
         <label className="ou-ae-label">Labels</label>
         <div className="ou-hm-chips">
           {[...new Set([...labelNames, ...form.labels])].map((l) => {
