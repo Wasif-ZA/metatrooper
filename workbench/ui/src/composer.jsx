@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { EngineMark, PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
 
 const plusIcon = <PlusIcon size={16} />;
-const expandIcon = <ExpandIcon size={14} />;
+const expandIcon = <ExpandIcon size={20} />;
 const returnIcon = <ReturnIcon size={16} />;
 
 const expand = (e) => {
@@ -31,9 +31,10 @@ export function composer({ field, opts, plus, attach, engine, send, context, rin
   const items = attach ? [{ label: 'Attach files', onClick: () => document.querySelector(`input[data-attach="${key}"]`)?.click() }, ...(plus || [])] : plus;
   return (
     <div className={`ou-cmp-wrap ${className}`}>
-      <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}>
+      <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}
+        onDragOver={attach ? (e) => e.preventDefault() : undefined} onDrop={attach ? (e) => { e.preventDefault(); attach(api.filePaths([...e.dataTransfer.files])); } : undefined}>
         {field}
-        {attach ? <input type="file" multiple hidden data-attach={key} onChange={(e) => { attach(api.filePaths(e.target.files)); e.target.value = ''; }} /> : null}
+        {attach ? <input type="file" multiple hidden data-attach={key} onChange={(e) => { attach(api.filePaths([...e.target.files])); e.target.value = ''; }} /> : null}
         <span className="ou-cmp-expand"><IconButton size="sm" variant="ghost" icon={expandIcon} label="Expand" aria-pressed="false" onClick={expand} /></span>
         {opts}
         <div className="ou-cmp-bar ou-hm-cbar">

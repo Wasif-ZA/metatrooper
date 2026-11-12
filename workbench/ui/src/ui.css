@@ -753,7 +753,6 @@ html { font-size: 16px; }
 .ou-ae-emojis { position: absolute; top: 36px; left: 0; z-index: 5; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas-soft); }
 .ou-ae-emojis button { width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; font-size: 16px; cursor: pointer; }
 .ou-ae-emojis button:hover, .ou-ae-emojis button[aria-selected="true"] { background: var(--canvas-deep); }
-.ou-ae-prompt textarea { min-height: 96px !important; }
 .ou-ae-lab { cursor: pointer; background: none; }
 .ou-ae-lab.ou-on { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-soft); }
 .ou-ae-freq { margin-top: 8px; }
@@ -1160,7 +1159,7 @@ html { font-size: 16px; }
 .ou-hm-center { min-height: 0; }
 
 /* Chat box: one shared composer (composer.jsx); sizes from the reference composer. */
-.ou-cmp-wrap { --cmp-quiet: color-mix(in srgb, var(--mute) 70%, transparent); --cmp-accent: light-dark(var(--wait), color-mix(in srgb, var(--wait) 45%, var(--mute))); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ou-cmp-wrap { --cmp-quiet: color-mix(in srgb, var(--mute) 70%, transparent); --cmp-accent: light-dark(var(--wait), color-mix(in srgb, color-mix(in srgb, var(--wait) 25%, var(--mute)) 85%, transparent)); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ou-composer.ou-cmp { position: relative; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas-soft); box-shadow: 0 -4px 12px -4px color-mix(in srgb, var(--canvas-deep) 60%, transparent); }
 .ou-composer.ou-cmp:focus-within { border-color: var(--hairline-strong); }
 .ou-composer.ou-cmp > :first-child { padding: 0; }
@@ -1206,9 +1205,9 @@ html { font-size: 16px; }
 .ou-cmp-accent .astryx-selector { padding: 0 !important; gap: 8px; }
 .ou-cmp-accent .astryx-selector button { padding: 0; }
 .ou-cmp-item .astryx-icon, .ou-cmp-engine .astryx-icon { color: var(--cmp-quiet) !important; }
-.ou-cmp-item .astryx-icon svg, .ou-cmp-engine .astryx-icon svg { width: 14px; height: 14px; }
+.ou-cmp-item .astryx-icon svg, .ou-cmp-engine .astryx-icon svg { width: 16px; height: 16px; }
 .ou-cmp-ring { flex: none; margin-left: -12px; fill: none; stroke-width: 2; stroke-linecap: round; }
-.ou-cmp-track { stroke: var(--hairline-strong); }
+.ou-cmp-track { stroke: color-mix(in srgb, var(--mute) 40%, transparent); }
 .ou-cmp-arc { stroke: var(--body); }
 .ou-cmp-ring[data-state="waiting"] .ou-cmp-arc { stroke: var(--cmp-accent); }
 .ou-cmp-ring[data-state="active"] { animation: ou-cmp-spin .9s linear infinite; }
