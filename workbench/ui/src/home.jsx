@@ -12,7 +12,9 @@ import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullR
 import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
+import { PanelToggle } from './icons/index.js';
 import './home-ref.css';
+import './frame-ref.css';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
@@ -380,6 +382,11 @@ const openInEditor = (x) => {
   homeView.set('ide');
 };
 
+const openChanges = async (x) => {
+  openOnWall(x);
+  if (typeof openTab === 'function') await openTab('diff');
+};
+
 const openFolder = async (x) => {
   const r = await api.openFolder(x.id);
   if (!r || r.error) toast((r && r.error) || 'Could not open the folder', true);
@@ -432,7 +439,7 @@ function RailCard({ sel, kids }) {
             <PanelSection title="Version control">
               <PanelRow icon={branchIcon} label={branch} mono />
               {g.commit ? <PanelRow icon={commitIcon} label="Commit" value={<span className="ou-hm-mono">{g.commit}</span>} /> : null}
-              <PanelRow icon={filesIcon} label="Changes" value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
+              <PanelRow icon={filesIcon} label="Changes" chevron onClick={() => void openChanges(sel)} value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
               {pr ? (
                 <PanelRow icon={prIcon} label={`PR #${pr.number}`} onClick={pr.url && typeof openTermLink === 'function' ? () => openTermLink(pr.url) : undefined}
                   value={<span className={`ou-hm-checks ou-hm-ck-${pr.checks || 'none'}`}>{[pr.checks ? `checks ${pr.checks}` : null, String(pr.state || '').toLowerCase()].filter(Boolean).join(' · ')}</span>}>
@@ -469,22 +476,31 @@ function RailCard({ sel, kids }) {
   );
 }
 
-function HeadTitle({ x }) {
-  const [host, setHost] = useState(null);
+function HeadTitle({ x, details, toggleDetails }) {
+  const [hosts, setHosts] = useState(null);
   useLayoutEffect(() => {
-    const crumb = globalThis.document?.querySelector?.('header.title .crumb');
+    const bar = globalThis.document?.querySelector?.('header.title');
+    const crumb = bar?.querySelector('.crumb');
     if (!crumb) return undefined;
-    const el = document.createElement('span');
-    el.className = 'ou-hm-head';
-    crumb.after(el);
-    setHost(el);
-    return () => el.remove();
+    const title = document.createElement('span');
+    title.className = 'ou-hm-head';
+    crumb.after(title);
+    const acts = document.createElement('span');
+    acts.className = 'ou-hm-headacts';
+    bar.append(acts);
+    setHosts({ title, acts });
+    return () => { title.remove(); acts.remove(); };
   }, []);
-  return host ? createPortal(<><span className="ou-hm-headsep" aria-hidden="true">/</span><h2 className="ou-hm-headtitle" title={nameOf(x)}>{nameOf(x)}</h2></>, host) : null;
+  if (!hosts) return null;
+  const label = details ? 'Hide details' : 'Show details';
+  return <>
+    {createPortal(<><span className="ou-hm-headsep" aria-hidden="true">/</span><h2 className="ou-hm-headtitle" title={nameOf(x)}>{nameOf(x)}</h2></>, hosts.title)}
+    {createPortal(<button type="button" className="ou-hm-paneltog" aria-pressed={details} aria-label={label} title={label} onClick={toggleDetails}><PanelToggle size={16} /></button>, hosts.acts)}
+  </>;
 }
 
 export function Home() {
-  const { open = [] } = homeStore.use();
+  const { open = [], details = true } = homeStore.use();
   const selected = ui.homeSel;
   useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
   if (ui.view === 'automations' && project()) return <AutomationsPage />;
@@ -513,17 +529,17 @@ export function Home() {
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
   const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
-    <div className={`ou-home ou-hm${task ? '' : ' ou-hm-solo'}`}>
+    <div className={`ou-home ou-hm${task && details ? '' : ' ou-hm-solo'}`}>
       <div className="ou-hm-main">
         {task ? (
           <>
-            <HeadTitle x={task} />
+            <HeadTitle x={task} details={details} toggleDetails={() => homeStore.set({ details: !details })} />
             <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
             <div className="ou-hm-dock">{composer}</div>
           </>
         ) : <StartState composer={composer} />}
       </div>
-      {task ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
+      {task && details ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
     </div>
   );
 }

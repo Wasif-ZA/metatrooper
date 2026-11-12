@@ -22,3 +22,10 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-card .ou-hm-checks { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-hm-card .ou-hm-prow > .ou-hm-pvalue:has(.ou-hm-checks) { flex: 1 1 auto; min-width: 0; text-align: right; }
 .ou-hm-card .ou-hm-prow > :last-child { flex: none; }
+
+/* Round 2: centre column width, near-white lineage names, larger subagents label, 16px under the card's last row. */
+.ou-hm-center > .ou-hm-swap, .ou-hm-dock > .ou-hm-composerwrap { max-width: 735px; }
+.ou-hm-tlabel { font-size: 15px; }
+.ou-hm-card .ou-hm-lin .ou-hm-prow { font-size: 15px; }
+.ou-hm-card .ou-hm-lin .ou-hm-plabel { color: var(--ink); }
+.ou-hm-card .ou-hm-swap > div > .ou-hm-psec:last-child { padding-bottom: 16px; }

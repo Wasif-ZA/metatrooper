@@ -884,16 +884,34 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   g.api.openFolder = async (id: string) => { calls.push(['openFolder', id]); return { error: 'no folder' }; };
   const lead = session('lead', 'working', { project_id: 'p2' });
   g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead, session('k1', 'working', { parent_id: 'lead' }), session('k2', 'done', { parent_id: 'lead' })];
-  g.ui.snap.git = {};
+  g.ui.snap.git = { lead: { branch: 'feat/y', added: 1, deleted: 0, changed: [] } };
   const h = harness(Home); h.draw(); calls.length = 0;
   h.one(label('Open in editor')).props.onClick({ stopPropagation() {} });
   assert.deepEqual(switched, ['p2']); assert.deepEqual(calls, [['view', 'ide']]);
   g.ui.view = 'home'; h.draw(); calls.length = 0;
   await h.one((n: any) => n.props?.className === 'ou-hm-pact').props.onClick();
   assert.deepEqual(calls, [['openFolder', 'lead'], ['toast', 'no folder', true]]);
+  g.ui.view = 'home'; g.ui.projectId = 'p2'; h.draw(); calls.length = 0;
+  g.pick = async (id: string) => calls.push(['pick', id]); g.openTab = async (tab: string) => calls.push(['openTab', tab]);
+  await h.one(label('Changes')).props.onClick({ stopPropagation() {} });
+  assert.deepEqual(calls, [['view', 'wall'], ['pick', 'lead'], ['openTab', 'diff']], 'Changes opens the task on the Wall with its Diff tab');
+  delete g.pick; delete g.openTab; g.ui.projectId = 'p1'; g.ui.view = 'home';
   assert.equal(lineageTitle([session('a', 'working'), session('b', 'done')]), 'Lineage · 1 running');
   assert.equal(lineageTitle([session('a', 'done'), session('b', 'done')]), 'Lineage · 2 agents');
   delete g.api.openFolder; g.ui.snap.git = undefined;
+});
+
+test('Home details toggle in the bar hides and shows the details card; the centre takes the full width while it is hidden', () => {
+  homeStore.set({ open: [], tick: 0, details: true }); g.ui.homeSel = 'lead';
+  const lead = session('lead', 'working'); g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead];
+  const h = harness(Home); h.draw();
+  const head = () => h.one((n: any) => n.type?.name === 'HeadTitle');
+  assert.equal(head().props.details, true); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
+  head().props.toggleDetails(); h.draw();
+  assert.equal(head().props.details, false); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 0);
+  assert.match(h.html(), /class="ou-home ou-hm ou-hm-solo"/);
+  head().props.toggleDetails(); h.draw();
+  assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
 });
 
 test('openFolder in main opens the recorded folder of the session and refuses one without a folder', () => {

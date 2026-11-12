@@ -149,6 +149,64 @@ globalThis.frameView = (() => {
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
   }
 
+  // Thread list after t3code (MIT), apps/web/src/components/sidebar/SidebarThreadRow.tsx and Sidebar.tsx: one row per task
+  // (project chip + time, title, branch + engine marks), recent settled work on top, Working and Settled shelves at the bottom.
+  const ACTIVE = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
+  const DAY = 86_400_000;
+  const ago = (iso) => {
+    const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+    if (Number.isNaN(s)) return '';
+    return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
+  };
+  const shelf = { working: true, settled: false };
+
+  function threadRows(tree, rows, git = {}, hide = new Set()) {
+    const out = [];
+    for (const g of tree || []) {
+      const ids = g.sessions.filter((id) => rows[id] && !hide.has(id));
+      const mine = new Set(ids);
+      for (const id of ids) {
+        const x = rows[id];
+        if (x.parent_id && x.parent_id !== id && mine.has(x.parent_id)) continue;
+        const kids = ids.filter((k) => rows[k].parent_id === id && k !== id).map((k) => rows[k]);
+        out.push({ x, kids, project_id: g.project_id, project: g.name, branch: git[id]?.branch || null, active: ACTIVE.has(x.state) });
+      }
+    }
+    const at = (t) => Date.parse(t.x.state_at || t.x.started_at || '') || 0;
+    out.sort((a, b) => at(b) - at(a));
+    const settled = out.filter((t) => !t.active);
+    const recent = settled.filter((t) => Date.now() - at(t) < DAY).slice(0, 8);
+    return { working: out.filter((t) => t.active), recent, older: settled.filter((t) => !recent.includes(t)) };
+  }
+
+  function threadHtml(t, rows) {
+    const { x } = t;
+    const title = (x.title || '').trim();
+    const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
+    const words = STATE_WORDS[x.state] || x.state;
+    const sel = x.id === selectedId();
+    const when = x.state === 'waiting_for_you' ? `<span class="fthwait">Waiting ${esc(ago(x.state_at))}</span>` : esc(ago(x.state_at || x.started_at));
+    const crew = [x, ...t.kids];
+    const marks = crew.slice(0, 3).map((k) => `<span class="fthmk">${mark(k.engine_id)}</span>`).join('') + (crew.length > 3 ? `<span class="fthmore">+${crew.length - 3}</span>` : '');
+    return `<button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
+      + `<span class="fth1"><span class="fthproj" data-proj="${esc(t.project_id)}">${projIcon(t.project_id, 14)}<span class="fthpn">${esc(t.project)}</span></span><span class="fthtime">${when}</span></span>`
+      + `<span class="fth2">${ringHtml(x, rows)}<span class="ft">${esc(name)}</span></span>`
+      + `<span class="fth3"><span class="fthbr">${esc(t.branch || '')}</span><span class="fthmks">${marks}</span></span></button>`;
+  }
+
+  function shelfHtml(key, label, list, rows) {
+    const open = shelf[key];
+    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount">${list.length}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
+      + (open ? list.map((t) => threadHtml(t, rows)).join('') : '') + '</div>';
+  }
+
+  function threadsHtml(tree, rows, git, hide) {
+    const { working, recent, older } = threadRows(tree, rows, git, hide);
+    if (!working.length && !recent.length && !older.length) return '<p class="fempty">No agents running</p>';
+    const top = view.done ? recent.map((t) => threadHtml(t, rows)).join('') : '';
+    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && older.length ? shelfHtml('settled', 'Settled', older, rows) : ''}</div>`;
+  }
+
   const gh = { project: null, at: 0, issues: null };
   function drawGithub() {
     const pid = project()?.id ?? null;
@@ -207,7 +265,7 @@ globalThis.frameView = (() => {
       if (narrow) root.classList.add('side-auto'); else root.classList.remove('side-auto');
       dispatchEvent(new Event('resize'));
     }
-    [...document.querySelectorAll('#frame [data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
+    [...document.querySelectorAll('[data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
       if ((b.dataset.view || 'settings') === view_) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     const nw = document.querySelector?.('#frame .fnew');
@@ -222,7 +280,9 @@ globalThis.frameView = (() => {
       const rows = ui.snap.tree_rows || {};
       const list = document.getElementById('frame-agents');
       const before = rowTops(list);
-      setHtml('frame-agents', treeHtml(treeGroups(ui.snap.tree, rows, ui.snap.git || {}, ui.snap.projects || [], ui.pendingHide, ui.snap.selected), rows));
+      setHtml('frame-agents', threadsHtml(ui.snap.tree, rows, ui.snap.git || {}, ui.pendingHide));
+      const core = document.getElementById('frameCore');
+      if (core) core.innerHTML = document.getElementById('core')?.innerHTML || '';
       animateRows(list, before);
       drawnSel = selectedId();
       // Home picks its default selection while rendering, after this draw; catch up once when it changed.
@@ -326,10 +386,14 @@ globalThis.frameView = (() => {
     if (!nav) return;
     nav.classList.add('ficons');
     nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${I('calendar')}</span><span class="fl">Automations</span></button>`);
+    const spacer = document.querySelector('header.title .sp');
+    if (spacer) { nav.classList.add('tnav'); spacer.after(nav); }
+    const foot = document.querySelector('#frame .ffoot');
+    if (foot) foot.insertAdjacentHTML('beforeend', '<span class="fcore" id="frameCore"></span>');
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
-      sec.classList.add('fprojects');
-      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}</button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 16)}</button>`;
+      sec.classList.add('fprojects', 'fsearchrow');
+      sec.innerHTML = `<button class="fsearch" data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${I('search', 16)}</span><span class="fl">Search</span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}<span class="fpill" id="frameGhCount" hidden></span></button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('compose', 16) || I('plus', 16)}</button>`;
       document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;
@@ -344,15 +408,17 @@ globalThis.frameView = (() => {
     set(load('sidebar') === 'rail');
     document.getElementById('frameTog').addEventListener('click', toggle);
     document.getElementById('frame-agents').addEventListener('click', (e) => {
+      const sh = e.target.closest('[data-shelf]');
+      if (sh) { shelf[sh.dataset.shelf] = !shelf[sh.dataset.shelf]; draw(); return; }
       const sel = e.target.closest('[data-action="home-select"]');
       if (sel) { e.stopPropagation(); homeSelect(sel.dataset.id); return; }
       if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall');
     });
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
-      const row = e.target.closest('.fproj');
+      const row = e.target.closest('.fproj, .fthproj');
       if (!row) return;
       e.preventDefault();
-      iconMenu(row.dataset.id, e.clientX, e.clientY);
+      iconMenu(row.dataset.id || row.dataset.proj, e.clientX, e.clientY);
     });
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeIconUi(); });
