@@ -32,7 +32,7 @@ import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
-import { crashAction, freshNeeds, watchDb } from './queries.ts';
+import { anyOpenSession, crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -786,8 +786,11 @@ async function restartCore(): Promise<void> {
 
 /** Any open agent session counts, so an agent waiting on the user is never stopped unasked. */
 function busy(): boolean {
-  const s = lastGood;
-  return !!s && s.sessions.some((x) => x.state !== 'exited');
+  try {
+    const d = db();
+    if (d) return anyOpenSession(d);
+  } catch {}
+  return !!lastGood && lastGood.sessions.some((x) => x.state !== 'exited');
 }
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
