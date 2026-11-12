@@ -27,6 +27,7 @@ import { paletteView } from './palette.jsx';
 import { Terminal, Problems, closeShell, countProblems } from './ide-panel.jsx';
 import './ide-panel.css';
 import './ide-side.css';
+import './editor-ref.css';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -548,6 +549,7 @@ function askReload(st, path) {
 function dropTab(st, path) {
   const t = tabOf(st, path);
   st.tabs = st.tabs.filter((x) => x.path !== path);
+  if (st.right?.includes(path)) closeRight(st, path);
   if (st.active === path) st.active = st.tabs.length ? st.tabs[st.tabs.length - 1].path : null;
   bump();
 }
@@ -626,7 +628,7 @@ export const ideKeys = {
   changes: () => { if (!cur) return; cur.side = 'changes'; bump(); void loadGitStatus(cur); },
   palette: (open) => (open === undefined ? paletteView.toggle() : open ? paletteView.open() : paletteView.close()),
   paletteOpen: () => paletteView.isOpen(),
-  closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
+  closeTab: () => { if (cur && cur.focus === 1 && cur.rightActive) closeRight(cur, cur.rightActive); else if (cur && cur.active) closeTab(cur, cur.active); },
   save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
   preview: () => {
@@ -1146,23 +1148,21 @@ function StatusBar({ st, active, problems, onProblems }) {
           <Sc.CircleXIcon size={14} /><span>{errors}</span>
           <Sc.WarningIcon size={14} /><span>{warnings}</span>
         </button>
-        {nc ? (
-          <span className="ou-ide-status-item ou-ide-status-needs">
-            <span className="ou-dot ou-dot-wait" />
-            <span>{typeof nc === 'number' ? `${nc} needs you` : 'needs you'}</span>
-          </span>
-        ) : null}
       </div>
       <div className="ou-ide-status-right">
         {active ? (
           <>
             <span className="ou-ide-status-item">Ln {line}, Col {col}</span>
-            <span className="ou-ide-status-item">Spaces: 2</span>
+            <span className="ou-ide-status-item">{`Spaces: ${active.view?.state?.model?.getOptions?.().tabSize ?? 2}`}</span>
             <span className="ou-ide-status-item">UTF-8</span>
             <span className="ou-ide-status-item">LF</span>
-            {lang ? <span className="ou-ide-status-item">{lang}</span> : null}
+            {lang ? <span className="ou-ide-status-item"><Sc.BracesIcon size={13} />{lang}</span> : null}
           </>
         ) : null}
+        <span className={nc ? 'ou-ide-status-item ou-ide-status-needs' : 'ou-ide-status-item'} title={nc ? 'Needs you' : 'Nothing needs you'}>
+          <Sc.BellIcon size={14} />
+          {nc ? <span>{typeof nc === 'number' ? `${nc} needs you` : 'needs you'}</span> : null}
+        </span>
       </div>
     </footer>
   );
@@ -1280,11 +1280,88 @@ export function ideFiles(file = defaultFile) {
   return [...open, ...changed];
 }
 
+function tabItem(st, t, changed, close) {
+  return (
+    <Tab key={t.path} value={t.path} label={base(t.path)} className={fileLabelClass(st, t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
+      <span className={t.dirty ? 'ou-ide-tabend ou-ide-tabdirty' : 'ou-ide-tabend'}>
+        {fileErrors(st, t.path) ? <span className="ou-ide-error-count">{fileErrors(st, t.path)}{gitStatusOf(st, t.path) ? ',' : ''}</span> : null}
+        {gitStatusOf(st, t.path) ? <span className={fileLabelClass(st, t.path)}>{gitStatusOf(st, t.path)}</span> : null}
+        {t.dirty ? <span className="ou-ide-dirty" title="Unsaved" /> : changed.has(t.path) ? <Ring /> : null}
+        <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={<Sc.CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); close(); }} />
+      </span>
+    )} />
+  );
+}
+
+function GroupActions({ items, split }) {
+  return (
+    <span className="ou-ide-groupacts">
+      {split ? <IconButton size="sm" variant="ghost" label="Split editor right" tooltip="Split Editor Right" icon={<Sc.SplitIcon size={14} />} onClick={split} /> : null}
+      <DropdownMenu size="sm" menuWidth={200} items={items} isDisabled={!items.length}
+        renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="More actions" tooltip="More Actions..." icon={<Sc.MoreIcon size={14} />} isDisabled={!items.length} />} />
+    </span>
+  );
+}
+
+function splitRight(st) {
+  if (!st.active) return;
+  st.right = [...(st.right || []).filter((p) => p !== st.active), st.active];
+  st.rightActive = st.active;
+  st.focus = 1;
+  bump();
+}
+
+function closeRight(st, path) {
+  st.right = (st.right || []).filter((p) => p !== path);
+  if (st.rightActive === path) st.rightActive = st.right[st.right.length - 1] || null;
+  if (!st.right.length) st.focus = 0;
+  bump();
+}
+
+// The right group shows the left group's editor model; the left editor owns it.
+function MirrorHost({ st, tab, hidden }) {
+  const ref = useRef(null);
+  const doc = tab.view?.state;
+  useEffect(() => {
+    if (!doc) return undefined;
+    const view = openEditor(ref.current, doc, tab.path, onFor(st, tab));
+    return () => view.destroy();
+  }, [doc, st, tab]);
+  return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
+}
+
+function RightGroup({ st, right, changed }) {
+  const act = right.includes(st.rightActive) ? tabOf(st, st.rightActive) : tabOf(st, right[right.length - 1]);
+  const items = [
+    { label: 'Close', onClick: () => closeRight(st, act.path) },
+    { label: 'Close all', onClick: () => { st.right = []; st.focus = 0; bump(); } },
+    { type: 'divider' },
+    { label: 'Copy path', onClick: () => void copyPath(act.path, true) },
+    { label: 'Copy relative path', onClick: () => void copyPath(act.path, false) },
+    { label: 'Reveal in Files', onClick: () => void reveal(st, act.path) },
+  ];
+  return (
+    <div className="ou-ide-group" data-focused={st.focus === 1} onMouseDownCapture={() => { if (st.focus !== 1) { st.focus = 1; bump(); } }}>
+      <div className="ou-ide-tabs">
+        <TabList size="sm" layout="hug" overflow="auto" value={act.path} onChange={(v) => { st.rightActive = v; st.focus = 1; bump(); }}>
+          {right.map((p) => tabItem(st, tabOf(st, p), changed, () => closeRight(st, p)))}
+        </TabList>
+        <GroupActions items={items} />
+      </div>
+      <Crumb st={st} tab={act} changed={changed} />
+      <div className="ou-ide-view">
+        {right.map((p) => <MirrorHost key={`${st.pid}:r:${p}`} st={st} tab={tabOf(st, p)} hidden={p !== act.path} />)}
+      </div>
+    </div>
+  );
+}
+
 export function Ide() {
   ideStore.use();
   const [panel, setPanel] = useState(true);
   const [bottom, setBottom] = useState('terminal');
   const [gen, setGen] = useState(0);
+  const [max, setMax] = useState(false);
   bridge.togglePanel = () => setPanel((v) => !v);
   bridge.restartTerminal = () => { if (cur) closeShell(cur.pid); setPanel(true); setBottom('terminal'); setGen((g) => g + 1); };
 
@@ -1299,7 +1376,9 @@ export function Ide() {
   });
   if (!st || !project()) return null;
   const changed = changedSet();
-  const active = st.active ? tabOf(st, st.active) : null;
+  const right = (st.right || []).filter((p) => tabOf(st, p));
+  const active = st.focus === 1 && right.includes(st.rightActive) ? tabOf(st, st.rightActive) : st.active ? tabOf(st, st.active) : null;
+  const leftActive = st.active ? tabOf(st, st.active) : null;
   const problems = st.problems || [];
   const showProblems = () => { setPanel(true); setBottom('problems'); };
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
@@ -1348,42 +1427,39 @@ export function Ide() {
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
         </div>
       </aside>
-      <section className={panel ? 'ou-ide-main' : 'ou-ide-main ou-ide-folded'}>
+      <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
+        <div className="ou-ide-groups">
+        <div className="ou-ide-group" data-focused={st.focus !== 1} onMouseDownCapture={() => { if (st.focus === 1) { st.focus = 0; bump(); } }}>
         <ContextMenu id="ide-tab-menu" size="sm" label="Tab actions" items={tabMenu} isDisabled={!tt}
           onContextMenu={(e) => { st.tabMenu = e.target.closest?.('[data-tab-value]')?.dataset.tabValue || null; bump(); }}>
         <div className="ou-ide-tabs">
           {st.tabs.length ? (
             <TabList size="sm" layout="hug" overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v; bump(); }}>
-              {st.tabs.map((t) => (
-                <Tab key={t.path} value={t.path} label={base(t.path)} className={fileLabelClass(st, t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
-                  <span className={t.dirty ? 'ou-ide-tabend ou-ide-tabdirty' : 'ou-ide-tabend'}>
-                    {fileErrors(st, t.path) ? <span className="ou-ide-error-count">{fileErrors(st, t.path)}{gitStatusOf(st, t.path) ? ',' : ''}</span> : null}
-                    {gitStatusOf(st, t.path) ? <span className={fileLabelClass(st, t.path)}>{gitStatusOf(st, t.path)}</span> : null}
-                    {t.dirty ? <span className="ou-ide-dirty" title="Unsaved" /> : changed.has(t.path) ? <Ring /> : null}
-                    <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={<Sc.CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); closeTab(st, t.path); }} />
-                  </span>
-                )} />
-              ))}
+              {st.tabs.map((t) => tabItem(st, t, changed, () => closeTab(st, t.path)))}
             </TabList>
           ) : null}
-          <TabActions st={st} tab={active} changed={changed} />
-          <OpenInVsCodeButton st={st} tab={active} />
+          <TabActions st={st} tab={leftActive} changed={changed} />
+          <GroupActions st={st} items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
+          <OpenInVsCodeButton st={st} tab={leftActive} />
         </div>
         </ContextMenu>
-        <Crumb st={st} tab={active} changed={changed} />
+        <Crumb st={st} tab={leftActive} changed={changed} />
         <div className="ou-ide-view">
-          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
-          {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
-            : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView st={st} tab={active} />
-              : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
-                : active.image ? <div className="ou-ide-image"><img src={active.image} alt={active.path} /></div>
-                  : active.pdf ? <EmptyState title="PDF" description="PDFs open in your PDF reader." actions={<Button size="sm" variant="primary" label="Open outside" onClick={() => void openOutside(st, active.path)} />} />
-                  : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
-                    : inPreview(active) ? (isHtml(active.path)
-                      ? active.previewError ? <EmptyState isCompact title={active.previewError} />
-                        : active.previewUrl ? <iframe className="ou-ide-document-frame" src={active.previewUrl} title={`Preview ${active.path}`} sandbox="" />
+          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== leftActive || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
+          {!leftActive ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
+            : (changed.has(leftActive.path) || leftActive.gitDiff) && leftActive.mode === 'changes' ? <DiffView st={st} tab={leftActive} />
+              : leftActive.error ? <EmptyState isCompact title={leftActive.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, leftActive.path)} /></>} />
+                : leftActive.image ? <div className="ou-ide-image"><img src={leftActive.image} alt={leftActive.path} /></div>
+                  : leftActive.pdf ? <EmptyState title="PDF" description="PDFs open in your PDF reader." actions={<Button size="sm" variant="primary" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} />} />
+                  : leftActive.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
+                    : inPreview(leftActive) ? (isHtml(leftActive.path)
+                      ? leftActive.previewError ? <EmptyState isCompact title={leftActive.previewError} />
+                        : leftActive.previewUrl ? <iframe className="ou-ide-document-frame" src={leftActive.previewUrl} title={`Preview ${leftActive.path}`} sandbox="" />
                           : <p className="ou-ide-muted ou-ide-pad">Loading.</p>
-                      : <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} />) : null}
+                      : <Preview key={leftActive.path} text={leftActive.text} path={leftActive.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={leftActive} />) : null}
+        </div>
+        </div>
+        {right.length ? <RightGroup st={st} right={right} changed={changed} /> : null}
         </div>
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
@@ -1392,8 +1468,15 @@ export function Ide() {
               <Tab id="ide-terminal-tab" value="terminal" label="Terminal" panelId="ide-bottom-body" />
             </TabList>
             <span className="ou-ip-acts">
-              {bottom === 'terminal' ? <IconButton size="sm" variant="ghost" label="Restart the terminal" icon={<Sc.ReloadIcon size={14} />} onClick={() => bridge.restartTerminal()} /> : null}
-              <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={panel ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setPanel(!panel)} />
+              {bottom === 'terminal' ? (
+                <>
+                  <span className="ou-ip-shell" title="Shell"><Sc.TerminalIcon size={14} />{ui.shellKinds?.[0]?.kind || 'shell'}</span>
+                  <IconButton size="sm" variant="ghost" label="Restart the terminal" tooltip="Restart the terminal" icon={<Sc.ReloadIcon size={14} />} onClick={() => bridge.restartTerminal()} />
+                  <IconButton size="sm" variant="ghost" label="Kill the terminal" tooltip="Kill the terminal" icon={<Sc.TrashIcon size={14} />} onClick={() => { closeShell(st.pid); setPanel(false); setGen((g) => g + 1); }} />
+                </>
+              ) : null}
+              {panel ? <IconButton size="sm" variant="ghost" label={max ? 'Restore panel size' : 'Maximize panel size'} tooltip={max ? 'Restore panel size' : 'Maximize panel size'} aria-pressed={max} icon={max ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setMax(!max)} /> : null}
+              <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} tooltip={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={panel ? <Sc.CloseIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setPanel(!panel)} />
             </span>
           </div>
           <div id="ide-bottom-body" className="ou-ip-body" role="tabpanel" aria-labelledby={`ide-${bottom}-tab`} hidden={!panel}>

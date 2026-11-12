@@ -43,7 +43,7 @@ try { await build({
 const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject, Problems, diffSides } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
-const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow', 'Problems']);
+const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow', 'Problems', 'RightGroup', 'GroupActions']);
 
 // Expand app components with persistent hooks, dependency changes and effect cleanup.
 function harness(Screen: any, props: any = {}) {
@@ -265,4 +265,59 @@ test('staged rename diff reads HEAD at the old path', async () => {
   const sides = await diffSides({ pid: 'p1' }, { path: 'new.ts', from: 'old.ts', gitDiff: true, staged: true, diff: '' });
   assert.deepEqual(shows.sort(), [[':', 'new.ts'], ['HEAD', 'old.ts']]);
   assert.deepEqual(sides, { original: 'a\nb\n', modified: 'a\nB\n' });
+});
+
+test('IDE editor groups: Split editor right opens the active file in a right group; closing its last tab collapses back to one group', async () => {
+  const h = await explorer();
+  await open(h, 'outside.ts');
+  assert.equal(h.all(hasClass('ou-ide-group')).length, 1);
+  h.one(label('Split editor right')).props.onClick(); h.draw();
+  const groups = h.all(hasClass('ou-ide-group'));
+  assert.equal(groups.length, 2);
+  assert.equal(groups[1].props['data-focused'], true);
+  const right = h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string');
+  assert.equal(right.length, 2);
+  const closes = h.all(label('Close outside.ts'));
+  closes[closes.length - 1].props.onClick(event()); h.draw();
+  assert.equal(h.all(hasClass('ou-ide-group')).length, 1);
+  assert.equal(h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string').length, 1);
+});
+
+test('IDE editor groups: Ctrl+W in the focused right group closes only the right copy; closing the file on the left drops it from both, and reopening it stays in one group', async () => {
+  const h = await explorer();
+  await open(h, 'outside.ts');
+  h.one(label('Split editor right')).props.onClick(); h.draw();
+  ideKeys.closeTab(); h.draw();
+  assert.equal(h.all(hasClass('ou-ide-group')).length, 1);
+  assert.equal(h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string').length, 1);
+  h.one(label('Split editor right')).props.onClick(); h.draw();
+  h.all(label('Close outside.ts'))[0].props.onClick(event()); h.draw();
+  assert.equal(h.all(hasClass('ou-ide-group')).length, 1);
+  assert.equal(h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string').length, 0);
+  await open(h, 'outside.ts');
+  assert.equal(h.all(hasClass('ou-ide-group')).length, 1);
+});
+
+test('IDE group More actions lists the tab menu for the active tab, and its Close item closes that tab', async () => {
+  const h = await explorer();
+  await open(h, 'outside.ts');
+  const menu = h.one((n: any) => n.type?.name === 'GroupActions');
+  const items = menu.props.items.filter((x: any) => x.label);
+  assert.deepEqual(items.map((x: any) => x.label), ['Save', 'Reload from disk', 'Close', 'Close all', 'Copy path', 'Copy relative path', 'Reveal in Files']);
+  items.find((x: any) => x.label === 'Close').onClick(); h.draw();
+  assert.equal(h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string').length, 0);
+});
+
+test('IDE panel header: Maximize grows the panel, Hide folds it, Kill the terminal folds it and mounts a fresh terminal next time', async () => {
+  const h = await explorer();
+  h.one(label('Maximize panel size')).props.onClick(); h.draw();
+  assert.ok(h.one(hasClass('ou-ide-main')).props.className.includes('ou-ide-pmax'));
+  h.one(label('Restore panel size')).props.onClick(); h.draw();
+  assert.ok(!h.one(hasClass('ou-ide-main')).props.className.includes('ou-ide-pmax'));
+  const before = h.one((n: any) => n.type?.name === 'Terminal').key;
+  h.one(label('Kill the terminal')).props.onClick(); h.draw();
+  assert.equal(h.all((n: any) => n.type?.name === 'Terminal').length, 0);
+  assert.ok(h.one(hasClass('ou-ide-main')).props.className.includes('ou-ide-folded'));
+  h.one(label('Show the panel')).props.onClick(); h.draw();
+  assert.notEqual(h.one((n: any) => n.type?.name === 'Terminal').key, before);
 });
