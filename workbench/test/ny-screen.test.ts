@@ -203,6 +203,16 @@ test('the assignee arrow opens the session on the Wall', () => {
   assert.deepEqual([viewed, picked], [['wall'], ['s1']]);
 });
 
+test('the project arrow opens that project Home, switching project when it is another one', () => {
+  const viewed: string[] = []; const switched: string[] = [];
+  g.homeView = { set: (v: string) => viewed.push(v) }; g.switchProject = (id: string) => switched.push(id);
+  g.ui.snap.projects.push({ id: 'p2', name: 'Beta' });
+  g.ui.snap.live = [s('s1', { project_id: 'p2' })]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => n.props?.['aria-label'] === 'Open Beta Home').props.onClick();
+  assert.deepEqual([viewed, switched], [['home'], ['p2']]);
+});
+
 test('the properties panel folds away and comes back from the top bar', () => {
   g.ui.snap.live = [s('s1')]; inboxStore.set({ selectedId: 's1' });
   const h = harness(Inbox); h.draw();
