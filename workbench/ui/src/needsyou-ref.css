@@ -126,8 +126,9 @@
 .ou-inbox .ou-ny-meta .ou-ny-chip { height: 22px; padding: 0; border: 0; background: transparent; color: var(--body); }
 .ou-inbox .ou-ny-meta { gap: 14px; }
 .ou-inbox .ou-ipane-pre { white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; }
-.ou-inbox .ou-ny-body::-webkit-scrollbar-thumb { background: transparent; }
-.ou-inbox .ou-ny-body:hover::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
+.ou-inbox .ou-ny-body { --ny-thumb: transparent; }
+.ou-inbox .ou-ny-body:hover { --ny-thumb: var(--hairline-strong); }
+.ou-inbox .ou-ny-body::-webkit-scrollbar-thumb { background: var(--ny-thumb); }
 .ou-inbox .ou-ny-search, .ou-inbox .ou-ny-search > *, .ou-inbox .ou-ny-search input { height: var(--ny-ctl); min-height: 0; box-sizing: border-box; }
 .ou-inbox .ou-ny-h, .ou-inbox .ou-ny-subtasks > .ou-ny-h, .ou-inbox .ou-ny-activity > .ou-ny-h { font-size: 14px; font-weight: 400; color: var(--mute); margin-bottom: 4px; }
 .ou-inbox .ou-ny-question { font-family: var(--font-family-body); font-size: 14px; line-height: 1.5; color: var(--body); }
@@ -142,3 +143,10 @@
 .ou-inbox .ou-irow .ou-ny-row-sub { grid-column: 1; grid-row: 2; padding-right: 60px; }
 .ou-inbox .ou-irow .ou-ny-row-side > .ou-ny-ring { grid-column: 2; grid-row: 1; justify-self: end; }
 .ou-inbox .ou-irow .ou-ny-row-age { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
+
+/* 9.5 round 2 */
+.ou-inbox .ou-ny-search .astryx-text-input { height: var(--ny-ctl); min-height: 0; box-sizing: border-box; background: transparent; border: 1px solid var(--hairline-strong); border-radius: 4px; }
+.ou-inbox .ou-ny-search .astryx-field > div { height: var(--ny-ctl); min-height: 0; }
+.ou-inbox .ou-ny-search input { height: calc(var(--ny-ctl) - 2px); }
+.ou-inbox .ou-ny-meta .ou-ny-dot[class*="ou-ny-tone-"] { background: var(--lc); }
+.ou-inbox h2.ou-ny-doc-title { font-weight: 500; }

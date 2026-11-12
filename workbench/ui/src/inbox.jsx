@@ -174,8 +174,9 @@ const sid = (id) => String(id || '').slice(0, 8);
 const nameOf = (x) => ((x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x));
 const TONES = ['run', 'ok', 'wait', 'bad', 'review'];
 const toneOf = (text) => TONES[[...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
+const labelColour = (text, colour) => colour || (toneOf(text) === 'review' ? PROJECT_COLOURS.gray : null);
 const labelPill = (text, onRemove, colour) => (
-    <span key={text} className={`ou-ny-label${colour ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={colour ? { '--lc': colour } : undefined}>
+    <span key={text} className={`ou-ny-label${labelColour(text, colour) ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={labelColour(text, colour) ? { '--lc': labelColour(text, colour) } : undefined}>
       <span>{text}</span>
       {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove label ${text}`} onClick={(e) => { e?.stopPropagation?.(); onRemove(); }}>{I.close}</button> : null}
     </span>
@@ -752,8 +753,8 @@ export function Inbox() {
               <TextInput size="sm" label="New label" isLabelHidden placeholder="Label, Enter adds" value={newLabel} onChange={setNewLabel} onEnter={handleAddLabel} hasAutoFocus width={140}
                 onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAddingLabel(false); setNewLabel(''); } }} />
             ) : (
-              <button type="button" className="ou-ny-ghost-btn" aria-label="Add label" disabled={!hasLabelsArray} title={!hasLabelsArray ? 'Labels need a core update' : undefined} onClick={() => setAddingLabel(true)}>
-                {userLabels.length ? '+' : '+ Add label'}
+              <button type="button" className="ou-ny-addpill" aria-label="Add label" disabled={!hasLabelsArray} title={!hasLabelsArray ? 'Labels need a core update' : undefined} onClick={() => setAddingLabel(true)}>
+                + Add label
               </button>
             )}
           </div>
@@ -891,7 +892,7 @@ export function Inbox() {
                   {chip('assignee', engine ? <><Avatar name={engine} /><span>{engine}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
                   {chip('priority', <><PriorityIcon level={priority} /><span>{priority === 'none' ? 'No priority' : PRIORITIES.find(([v]) => v === priority)[1]}</span></>, priority === 'none' ? 'ou-ny-chip-quiet' : '')}
                   {projectName ? chip('project', <><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span></>) : null}
-                  {userLabels.length ? userLabels.map((lbl) => labelPill(lbl)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
+                  {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className={`ou-ny-dot${labelColour(lbl) ? '' : ` ou-ny-tone-${toneOf(lbl)}`}`} style={labelColour(lbl) ? { background: labelColour(lbl) } : undefined} /><span>{lbl}</span></>)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
                 </div>
                 <h2 className="ou-ny-doc-title ou-ipane-task">{title}</h2>
                 {sessionObj?.prompt && sessionObj.prompt !== title ? <p className="ou-ny-doc-task">{sessionObj.prompt}</p> : null}
