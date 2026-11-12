@@ -4,7 +4,6 @@
 const wallSide = (() => {
   const KIND = { working: 'work', starting: 'work', waiting_for_you: 'block', done: 'done', idle: 'idle', exited: 'idle' };
   const GLYPH = { work: '◐', block: '×', done: '✓', idle: '○', unknown: '·' };
-  const WORD = { work: 'working', block: 'blocked', done: 'done', idle: 'idle', unknown: 'unknown' };
   const kindOf = (state) => KIND[state] || 'unknown';
   const RANK = ['block', 'done', 'work', 'idle', 'unknown'];
   const worst = (kinds) => RANK.find((k) => kinds.includes(k)) || 'unknown';
@@ -29,7 +28,7 @@ const wallSide = (() => {
       const k = kindOf(x.state);
       const tile = document.querySelector?.(`#centre .tile[data-id="${x.id}"]`);
       if (tile) tile.dataset.n = `${i + 1} ${x.engine_id}`;
-      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(taskOf(x))}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> ${esc(x.engine_id)}</span><span class="hst">${WORD[k]}</span></button>`;
+      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(taskOf(x))}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> ${esc(x.engine_id)}</span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
     }).join('');
     const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents}</div>`;
     if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }

@@ -129,7 +129,8 @@ const wall = (() => {
       ids.forEach((id, i) => R[id] = { left: 8 + (i % cols) * (w + G), top: TOP + Math.floor(i / cols) * (hh + G), width: w, height: hh });
       return { R, C: colW(W), RX: 8, H };
     }
-    const rest = ORDER.filter((id) => !BIG.includes(id));
+    // an open side panel owns the right column, so the other tiles leave it (the sidebar still lists them)
+    const rest = document.body.classList.contains('no-split') ? ORDER.filter((id) => !BIG.includes(id)) : [];
     const C = rest.length || !document.body.classList.contains('no-split') ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });

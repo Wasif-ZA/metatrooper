@@ -16,6 +16,7 @@ function render(snap: any, projectId: string, git: any = null) {
     projectGroups: (list: any[]) => ({ projects: list.filter((p) => !p.scratch), worktrees: [], scratch: list.filter((p) => p.scratch), older: [] }),
     esc: (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`),
     taskOf: (x: any) => x.task || x.engine_id,
+    STATE_WORDS: { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle' },
   };
   vm.runInNewContext(`${src}\nthis.wallSide = wallSide;`, ctx);
   ctx.wallSide.draw();
@@ -41,10 +42,10 @@ test('wall sidebar numbers the open project first with its branch, then the othe
   assert.match(html, /<span class="hbr">main<\/span>/);
 });
 
-test('wall sidebar lists each live session of the project with the state word of its real state, and marks the selected one', () => {
+test('wall sidebar lists each live session of the project with the same state word the pane header uses, and marks the selected one', () => {
   const html = render(snap, 'p1');
-  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname"><span class="hnum">(\d)<\/span> (\w+)<\/span><span class="hst">(\w+)<\/span>/g)].map((m) => [m[2], m[4] + ' ' + m[5], m[6], Boolean(m[1])]);
-  assert.deepEqual(rows, [['s1', '1 claude', 'working', false], ['s2', '2 codex', 'blocked', true], ['s3', '3 gemini', 'idle', false]]);
+  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname"><span class="hnum">(\d)<\/span> (\w+)<\/span><span class="hst">([\w ]+)<\/span>/g)].map((m) => [m[2], m[3], m[4] + ' ' + m[5], m[6], Boolean(m[1])]);
+  assert.deepEqual(rows, [['s1', 'work', '1 claude', 'working', false], ['s2', 'block', '2 codex', 'waiting for you', true], ['s3', 'idle', '3 gemini', 'idle', false]]);
   assert.match(html, /data-action="launch-menu"[^>]*>new</);
 });
 
