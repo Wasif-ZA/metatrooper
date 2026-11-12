@@ -15,6 +15,7 @@ export const CheckIcon = draw(<path d="m3 8 3 3 7-7" />);
 export const CircleXIcon = draw(<><circle cx="8" cy="8" r="5.5" /><path d="m6 6 4 4m0-4-4 4" /></>);
 export const WarningIcon = draw(<><path d="M8 2.5 14 13H2zM8 6v3.5" /><circle cx="8" cy="11.25" r=".25" /></>);
 export const DiffIcon = draw(<><path d="M3 3h10v10H3zM5 6h6M8 4v4M5 10.5h6" /></>);
+export const CollapseAllIcon = draw(<><rect x="5.5" y="5.5" width="8" height="8" rx="1" /><path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7M7.5 9.5h4" /></>);
 export const MinusIcon = draw(<path d="M3.5 8h9" />);
 export const MailIcon = draw(<><rect x="2.5" y="3.5" width="11" height="9" rx="1.5" /><path d="m2.5 5 5.5 3.5L13.5 5" /></>);
 export const ArchiveIcon = draw(<><rect x="2.5" y="3" width="11" height="3" rx="1" /><path d="M3.5 6v6.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V6M6.5 9h3" /></>);

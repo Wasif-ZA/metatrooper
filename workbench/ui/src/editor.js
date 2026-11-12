@@ -93,7 +93,7 @@ function theme() {
     colors: {
       'editor.background': c.pane, 'editor.foreground': dark ? c['body-strong'] : c.ink, 'editorGutter.background': c.pane,
       'editorLineNumber.foreground': c.faint, 'editorLineNumber.activeForeground': c['body-strong'],
-      'editor.lineHighlightBackground': c.canvas, 'editor.lineHighlightBorder': c.canvas,
+      'editor.lineHighlightBackground': '#00000000', 'editor.lineHighlightBorder': c['hairline-strong'],
       'editorCursor.foreground': c.ink, 'editor.selectionBackground': c['canvas-soft'], 'editor.inactiveSelectionBackground': c['canvas-soft'],
       'editorRuler.foreground': c.hairline, 'editorIndentGuide.background1': c.hairline, 'editorWhitespace.foreground': c.hairline,
       'editorBracketMatch.background': '#00000000', 'editorBracketMatch.border': c['hairline-strong'],
@@ -113,7 +113,7 @@ function theme() {
 }
 
 const options = (path) => ({
-  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], renderWhitespace: 'trailing', linkedEditing: true, minimap: { enabled: false }, scrollBeyondLastLine: false, fixedOverflowWidgets: true,
+  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], renderWhitespace: 'trailing', linkedEditing: true, minimap: { enabled: false }, scrollBeyondLastLine: false, overviewRulerLanes: 3, scrollbar: { verticalScrollbarSize: 15 }, fixedOverflowWidgets: true,
   fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace', fontSize: 14, lineHeight: 19, letterSpacing: 0,
   wordWrap: ['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? 'on' : 'off',
 });

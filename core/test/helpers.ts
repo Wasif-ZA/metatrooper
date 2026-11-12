@@ -86,6 +86,7 @@ function compileExe(source: string): string {
 
 export function isolation() {
   const home = mkdtempSync(join(tmpdir(), 'metatrooper-test-'));
+  mkdirSync(join(home, 'AppData', 'Local'), { recursive: true });
   const prefix = `troop-test-${randomUUID().replaceAll('-', '')}`;
   const recorder = pathToFileURL(join(root, 'core/test/server-pid-recorder.mjs')).href;
   return { home, prefix, started: Date.now(), env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${recorder}`, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };

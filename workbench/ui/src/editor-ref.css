@@ -4,7 +4,6 @@
 .ou-ide .ou-ide-tabs .astryx-tab { background: var(--canvas-soft); border-top: 0; }
 .ou-ide .ou-ide-tabs .astryx-tab:hover { background: var(--canvas-soft); }
 .ou-ide .ou-ide-tabs .astryx-tab[data-selected] { background: var(--pane); }
-.ou-ide-group[data-focused="true"] .astryx-tab[data-selected] { box-shadow: inset 0 1px 0 var(--ink); }
 .ou-ide-crumb { background: var(--pane); border-bottom: 0; }
 
 .ou-ide-groups { flex: 1; display: flex; min-height: 0; }
@@ -31,3 +30,30 @@
 .ou-ide-status-bell { border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .ou-ide-status-bell:hover { color: var(--ink); background: var(--canvas); }
 :root[data-view="ide"] [role="menu"] { background: var(--canvas-soft); border: 1px solid var(--hairline-strong); box-shadow: var(--float, 0 8px 24px rgba(0,0,0,.36)); }
+
+/* One rail: the Editor's views sit in the app rail's #rail-slot; 48px cells, 24px icons, 2px bar on the active view */
+:root[data-view="ide"]:is(.side-rail, .side-auto) { --side: 48px; }
+:root[data-view="ide"] #frame .fsec { display: none; }
+#rail-slot { display: flex; flex-direction: column; gap: 0; margin: 4px 0; }
+#rail-slot > button { position: relative; width: 48px; height: 48px; min-width: 48px; min-height: 48px; padding: 0; border-radius: 0; justify-content: center; color: var(--mute); background: transparent; }
+#rail-slot > button:hover { color: var(--body-strong); background: transparent; }
+#rail-slot > button[aria-pressed="true"] { color: var(--ink); }
+#rail-slot > button[aria-pressed="true"]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+#rail-slot .ou-ide-railbadge { left: auto; top: auto; right: -7px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font: 600 9.5px/16px 'Geist', 'Segoe UI', sans-serif; color: var(--on-primary); background: var(--primary); box-shadow: none; }
+
+/* Status bar spans the window from x=0, under the rail */
+:root[data-view="ide"] #frame { bottom: 22px; }
+.ou-ide .ou-ide-status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--canvas-deep); }
+
+.ou-ip-tabcount { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; margin-left: 4px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; font: 600 10px/16px 'Geist', 'Segoe UI', sans-serif; color: var(--ink); background: var(--canvas-soft); }
+#rail-slot > button span:has(> svg), #rail-slot .ou-ide-railicon { flex: none; width: 24px; min-width: 24px; height: 24px; }
+#rail-slot > button svg { flex: none; width: 24px; min-width: 24px; height: 24px; }
+
+/* Editor view: the rail's own items use the same 48px cells and 24px icons; agent rings sit apart from the views */
+:root[data-view="ide"] #frame :is(.ftog, .fnew button, .ffoot button) { width: 48px; height: 48px; min-width: 48px; margin: 0; padding: 0; border-radius: 0; display: grid; place-items: center; }
+:root[data-view="ide"] #frame :is(.ftog, .fnew, .ffoot) svg { width: 24px; height: 24px; }
+:root[data-view="ide"] #frame :is(.fnew, .ffoot) { padding: 0; gap: 0; }
+:root[data-view="ide"] #frame .fhead { padding: 0 0 4px; gap: 0; }
+:root[data-view="ide"] #rail-slot { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+.ou-ide .monaco-editor .view-overlays .current-line { border-width: 1px; }
+:root[data-view="ide"] #frame .ffoot { padding-bottom: 8px; }
