@@ -583,7 +583,8 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
   assert.deepEqual(rows.map(n => n.props['data-id']), ['ask', 'unread-needs', 'read-needs', 'unread-failed', 'read-failed', 'unread-info', 'unread-done', 'read-info', 'read-done']);
   assert.deepEqual(rows.map(n => hasClass('ou-unread')(n)), [true, true, false, true, false, true, true, false, false]);
   assert.ok(rows.every(n => n.type === 'li' && n.props.role === 'button' && n.props.tabIndex === 0));
-  assert.deepEqual(h.all((n: any) => n.type?.name === 'StatusRing').map(n => n.props.status), ['needs', 'needs', 'needs', 'failed', 'failed', 'done', 'done', 'done', 'done']);
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'StatusRing' && n.props.size !== 14).map(n => n.props.status), ['needs', 'needs', 'needs', 'failed', 'failed', 'done', 'done', 'done', 'done']);
+  assert.equal(h.all((n: any) => n.type?.name === 'StatusRing' && n.props.size === 14).length, 8, 'rows without an agent show their status glyph in the avatar slot');
   assert.match(html, /aria-label="Needs you"[^]*aria-label="Failed"[^]*aria-label="Finished"/);
   const subs = h.all(hasClass('ou-ny-row-sub')).map(textContent);
   assert.equal(subs[0], 'engine-b asked a question'); assert.deepEqual(subs.slice(1, 4), ['Asked a question', 'Asked a question', 'Failed']);
