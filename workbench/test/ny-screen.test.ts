@@ -80,7 +80,7 @@ test('an older snapshot row without the new fields still renders every property 
   inboxStore.set({ selectedId: 'old' });
   const h = harness(Inbox);
   assert.doesNotThrow(() => h.html());
-  assert.deepEqual(h.all(hasClass('ou-ny-prop-label')).map(text), ['Status', 'Priority', 'Labels', 'Assignee', 'Project', 'Parent', 'Blocked by', 'Blocking', 'Sub-tasks', 'Reviewers', 'Approvers', 'Monitor', 'Service', 'Workspace', 'Branch', 'Folder', 'Started', 'Updated', 'Run ledger']);
+  assert.deepEqual(h.all(hasClass('ou-ny-prop-label')).map(text), ['Status', 'Priority', 'Labels', 'Assignee', 'Project', 'Parent', 'Blocked by', 'Blocking', 'Sub-tasks', 'Reviewers', 'Approvers', 'Monitor', 'Service', 'Workspace', 'Branch', 'Run ledger']);
   assert.equal(h.one(label('Priority')).props.value, 'none');
   assert.equal(text(prop(h, 'Blocking')), 'BlockingNone');
   assert.equal(h.one(label('Monitor')).props.value, '');
