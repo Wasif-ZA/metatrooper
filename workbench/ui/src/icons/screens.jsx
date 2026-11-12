@@ -5,6 +5,10 @@ const draw = (body) => function ScreenIcon({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}>{body}</Icon>;
 };
 
+export const SplitIcon = draw(<><rect x="2.5" y="3" width="11" height="10" rx="1" /><path d="M8 3v10" /></>);
+export const TrashIcon = draw(<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.25a1 1 0 0 0 1 .75h3.8a1 1 0 0 0 1-.75l.6-8.25" />);
+export const BracesIcon = draw(<path d="M6 3H5.5A1.5 1.5 0 0 0 4 4.5V7L3 8l1 1v2.5A1.5 1.5 0 0 0 5.5 13H6M10 3h.5A1.5 1.5 0 0 1 12 4.5V7l1 1-1 1v2.5a1.5 1.5 0 0 1-1.5 1.5H10" />);
+export const MoreIcon = draw(<><circle cx="3.5" cy="8" r=".9" fill="currentColor" /><circle cx="8" cy="8" r=".9" fill="currentColor" /><circle cx="12.5" cy="8" r=".9" fill="currentColor" /></>);
 export const ChevronUpIcon = draw(<path d="m4.5 9.5 3.5-3.5 3.5 3.5" />);
 export const CloseIcon = draw(<path d="m4.5 4.5 7 7m0-7-7 7" />);
 export const CheckIcon = draw(<path d="m3 8 3 3 7-7" />);
