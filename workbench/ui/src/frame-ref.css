@@ -125,3 +125,7 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fring, .ftree .fring, .fring svg { width: 16px; height: 16px; }
 .fcore { padding: 4px; cursor: default; }
 .fthreads { padding-top: 5px; }
+
+/* 9.5 round 8: hollow waiting mark in the sidebar time; chip line 2px higher. */
+.fthwait::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 4px 1px 0; border: 1.5px solid currentColor; border-radius: 50%; vertical-align: middle; }
+.fthreads { padding-top: 3px; }
