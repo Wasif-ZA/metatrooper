@@ -175,7 +175,9 @@ globalThis.frameView = (() => {
     }
     const at = (t) => Date.parse(t.x.state_at || t.x.started_at || '') || 0;
     out.sort((a, b) => at(b) - at(a));
-    return { working: out.filter((t) => t.active), settled: out.filter((t) => !t.active) };
+    const done = out.filter((t) => !t.active);
+    const recent = done.filter((t) => Date.now() - at(t) < 86_400_000).slice(0, 5);
+    return { working: out.filter((t) => t.active), recent, settled: done.filter((t) => !recent.includes(t)) };
   }
 
   function kidHtml(k, rows) {
@@ -210,9 +212,10 @@ globalThis.frameView = (() => {
   }
 
   function threadsHtml(tree, rows, git, hide) {
-    const { working, settled } = threadRows(tree, rows, git, hide);
-    if (!working.length && !settled.length) return '<p class="fempty">No agents running</p>';
-    return `<div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
+    const { working, recent, settled } = threadRows(tree, rows, git, hide);
+    if (!working.length && !recent.length && !settled.length) return '<p class="fempty">No agents running</p>';
+    const top = view.done ? recent.map((t) => threadHtml(t, rows)).join('') : '';
+    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
   }
 
   const gh = { project: null, at: 0, issues: null };
@@ -260,8 +263,8 @@ globalThis.frameView = (() => {
     };
     el.innerHTML = [...by.entries()].map(([provider, list]) => {
       const rows = list.slice().sort((a, b) => ORDER.indexOf(a.window) - ORDER.indexOf(b.window));
-      const slot = (r) => (r ? `<span class="fbar"><i style="width:${pctOf(r)}%"></i></span><span class="fmeta fslot"><b>${pctOf(r)}%</b> ${esc(whenOf(r))}</span>` : '<span></span><span></span>');
-      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span>${slot(rows[0])}${slot(rows[1])}</div>`;
+      const top = rows.reduce((a, b) => (pctOf(b) > pctOf(a) ? b : a));
+      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span><span class="fbar"><i style="width:${pctOf(top)}%"></i></span><span class="fmeta fslot"><b>${pctOf(top)}%</b> ${esc(whenOf(top))}</span></div>`;
     }).join('');
   }
 
@@ -399,12 +402,10 @@ globalThis.frameView = (() => {
 
   function mount() {
     for (const el of document.querySelectorAll?.('[data-icon]') ?? []) el.innerHTML = I(el.dataset.icon, Number(el.dataset.size) || 16);
-    const nav = document.querySelector?.('#frame .fnav');
+    const nav = document.querySelector?.('.fnav');
     if (!nav) return;
     nav.classList.add('ficons');
     nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${I('calendar')}</span><span class="fl">Automations</span></button>`);
-    const spacer = document.querySelector('header.title .sp');
-    if (spacer) { nav.classList.add('tnav'); spacer.after(nav); }
     const foot = document.querySelector('#frame .ffoot');
     if (foot) foot.insertAdjacentHTML('beforeend', '<span class="fcore" id="frameCore"></span>');
     const sec = document.querySelector('#frame .fsec');

@@ -95,4 +95,25 @@
 .fslot { font-size: 11px; }
 .fusage { grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); row-gap: 6px; }
 header.title .ou-hm-head .ou-hm-headtitle, .title .kpick#project-pick { font-family: 'Geist', 'Segoe UI', sans-serif; }
-header.title .ou-hm-head .ou-hm-headtitle { font-weight: 500; }
+header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
+
+/* 9.5 round: Geist is the cc UI token; t3code sizes and weights on it. Shelves pinned above the footer, recent tasks on top. */
+.frame, .frame button { font-family: 'Geist', 'Segoe UI', sans-serif; }
+.fthreads { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.fshelves { margin-top: auto; padding-top: 8px; }
+.fth { padding: 11px 8px; }
+.fth2 .ft { font-weight: 400; color: color-mix(in srgb, var(--ink) 77%, var(--canvas-deep)); }
+.fth.sel .fth2 .ft, .fth:hover .fth2 .ft { color: var(--ink); }
+.fsearch { font-size: 14px; color: color-mix(in srgb, var(--ink) 83%, var(--canvas-deep)); }
+.fsearchrow .fpill, .tnav .fpill { top: -1px; right: -3px; height: 12px; min-width: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; font: 500 10.5px/12px 'Geist', sans-serif; color: var(--mute); }
+.ffoot svg, .tnav svg, .fsearchrow svg, .fhead .ftog svg { width: 18px; height: 18px; stroke-width: 1.33; }
+.fusage { grid-template-columns: 14px 48px minmax(0, 1fr); column-gap: 8px; row-gap: 6px; }
+.fuse .fbar { width: 48px; }
+.fusage .fslot { font-size: 11px; }
+.fhead .ccmark, :root[data-theme='light'] .fhead .ccmark { font: 600 18px/1 'Geist', 'Segoe UI', sans-serif; }
+:root { --top: 35px; }
+.fagents { overflow: hidden; scrollbar-gutter: auto; }
+.fthreads { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.fthreads::-webkit-scrollbar { width: 0; }
+.fshelves { flex: none; max-height: 60%; overflow-y: auto; scrollbar-width: none; }
+.fshelves::-webkit-scrollbar { width: 0; }

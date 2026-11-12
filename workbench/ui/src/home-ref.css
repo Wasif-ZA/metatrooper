@@ -1,4 +1,4 @@
-/* Home laid out like the reference window: title in the bar, prompt bubble, floating details card. */
+﻿/* Home laid out like the reference window: title in the bar, prompt bubble, floating details card. */
 .ou-home.ou-hm { grid-template-columns: minmax(0, 1fr) 304px; }
 
 .ou-hm-head { display: inline-flex; align-items: center; gap: 10px; min-width: 0; margin-left: 2px; }
@@ -29,3 +29,21 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-card .ou-hm-lin .ou-hm-prow { font-size: 15px; }
 .ou-hm-card .ou-hm-lin .ou-hm-plabel { color: var(--ink); }
 .ou-hm-card .ou-hm-swap > div > .ou-hm-psec:last-child { padding-bottom: 16px; }
+
+/* 9.5 round: Geist on t3code sizes; lighter tones; centre rhythm; borderless prompt; card type. */
+.ou-hm-center, .ou-hm-rail { font-family: 'Geist', 'Segoe UI', sans-serif; }
+header.title .ou-hm-head .ou-hm-headtitle { font: 400 14px/1 'Geist', 'Segoe UI', sans-serif; }
+.ou-hm-user p { border: 0; font-size: 14px; font-weight: 400; }
+.ou-hm-worked { font-size: 14px; }
+.ou-hm-tlabel { font-size: 13px; font-weight: 600; }
+.ou-hm-latest { font-size: 14px; font-weight: 400; color: color-mix(in srgb, var(--ink) 91%, var(--canvas-deep)); }
+.ou-hm-subs .ou-hm-trigger { padding-left: 0; }
+.ou-hm-card .ou-hm-plabel { font-weight: 400; color: color-mix(in srgb, var(--ink) 87%, var(--canvas-deep)); }
+.ou-hm-card .ou-hm-mono.ou-hm-plabel { font-family: 'Geist', 'Segoe UI', sans-serif; }
+.ou-hm-card .ou-hm-lin .ou-hm-prow { font-size: 14px; }
+.ou-hm-card .ou-hm-lin .ou-hm-plabel { color: color-mix(in srgb, var(--ink) 87%, var(--canvas-deep)); }
+.ou-hm-card .ou-hm-swap > div > .ou-hm-psec:last-child { padding-bottom: 24px; }
+.ou-hm-card .ou-hm-prow button, .ou-hm-card .ou-hm-prow button * { font-size: 13px; font-weight: 500; }
+.ou-hm-subs { padding: 0; margin-bottom: -8px; }
+.ou-hm-waiton { margin-top: 25px; }
+.ou-hm-user { margin-bottom: 46px; }
