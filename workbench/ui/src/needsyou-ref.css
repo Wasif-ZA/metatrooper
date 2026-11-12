@@ -116,4 +116,46 @@
 .ou-inbox .ou-ny-ledger-row { grid-template-columns: minmax(0, 1fr) 36px 36px 44px; }
 .ou-inbox .ou-ny-ledger-model { grid-column: 1 / -1; white-space: normal; overflow: visible; word-break: break-all; color: var(--body); }
 .ou-inbox .ou-ny-ledger-row > :nth-child(2) { grid-column: 2; }
-.ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+/* scrollbar-width/color switch off ::-webkit-scrollbar in Chromium, and thin still draws arrow buttons on Windows */
+.ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: auto; scrollbar-color: auto; }
+.ou-inbox ::-webkit-scrollbar-button { width: 0; height: 0; display: none; }
+
+/* 9.5 round 1 */
+.ou-inbox .ou-ny-label { background: transparent; border: 1px solid var(--lc); color: var(--body); }
+.ou-inbox .ou-ny-tone-review { --lc: var(--mute); }
+.ou-inbox .ou-ny-meta .ou-ny-chip { height: 22px; padding: 0; border: 0; background: transparent; color: var(--body); }
+.ou-inbox .ou-ny-meta { gap: 14px; }
+.ou-inbox .ou-ipane-pre { white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; }
+.ou-inbox .ou-ny-body { --ny-thumb: transparent; }
+.ou-inbox .ou-ny-body:hover { --ny-thumb: var(--hairline-strong); }
+.ou-inbox .ou-ny-body::-webkit-scrollbar-thumb { background: var(--ny-thumb); }
+.ou-inbox .ou-ny-search, .ou-inbox .ou-ny-search > *, .ou-inbox .ou-ny-search input { height: var(--ny-ctl); min-height: 0; box-sizing: border-box; }
+.ou-inbox .ou-ny-h, .ou-inbox .ou-ny-subtasks > .ou-ny-h, .ou-inbox .ou-ny-activity > .ou-ny-h { font-size: 14px; font-weight: 400; color: var(--mute); margin-bottom: 4px; }
+.ou-inbox .ou-ny-question { font-family: var(--font-family-body); font-size: 14px; line-height: 1.5; color: var(--body); }
+.ou-inbox .ou-ny-ledger-one { color: var(--mute); }
+.ou-inbox .ou-ny-avatar-gap { display: inline-grid; place-items: center; }
+.ou-inbox .ou-ny-wslink { font-family: var(--font-family-body); font-size: 13px; color: var(--body); }
+.ou-inbox .ou-ny-answer-pin { position: sticky; bottom: 0; z-index: 2; padding: 8px 0 12px; background: var(--canvas-deep); }
+/* rows: title runs to 12px short of the status ring; the age sits under the ring */
+.ou-inbox .ou-irow { display: grid; grid-template-columns: minmax(0, 1fr) 16px; grid-template-rows: auto auto; column-gap: 12px; row-gap: 6px; align-items: center; }
+.ou-inbox .ou-ny-row-main, .ou-inbox .ou-ny-row-side { display: contents; }
+.ou-inbox .ou-irow .ou-ititle { grid-column: 1; grid-row: 1; }
+.ou-inbox .ou-irow .ou-ny-row-sub { grid-column: 1; grid-row: 2; padding-right: 60px; }
+.ou-inbox .ou-irow .ou-ny-row-side > .ou-ny-ring { grid-column: 2; grid-row: 1; justify-self: end; }
+.ou-inbox .ou-irow .ou-ny-row-age { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
+
+/* 9.5 round 2 */
+.ou-inbox .ou-ny-search .astryx-text-input { height: var(--ny-ctl); min-height: 0; box-sizing: border-box; background: transparent; border: 1px solid var(--hairline-strong); border-radius: 4px; }
+.ou-inbox .ou-ny-search .astryx-field > div { height: var(--ny-ctl); min-height: 0; }
+.ou-inbox .ou-ny-search input { height: calc(var(--ny-ctl) - 2px); }
+.ou-inbox .ou-ny-meta .ou-ny-dot[class*="ou-ny-tone-"] { background: var(--lc); }
+.ou-inbox h2.ou-ny-doc-title { font-weight: 500; }
+
+/* 9.5 round 3: one 24px height for chips and controls; meta row never clips descenders */
+.ou-inbox .ou-ny-chip, .ou-inbox .ou-ny-pill, .ou-inbox .ou-ny-label, .ou-inbox .ou-ny-addpill, .ou-inbox .ou-ny-addpick [role="combobox"] { height: var(--ny-ctl); line-height: 22px; }
+.ou-inbox .ou-ny-meta, .ou-inbox .ou-ny-meta .ou-ny-chip, .ou-inbox .ou-ny-meta .ou-ny-chip > span:not(.ou-ny-avatar) { overflow: visible; line-height: 20px; }
+.ou-inbox .ou-ny-meta { min-height: var(--ny-ctl); align-items: center; }
+.ou-inbox h2.ou-ny-doc-title { font-family: 'Geist', 'Segoe UI', sans-serif; }
+
+/* 9.5 round 4: add pills share the chip border */
+.ou-inbox .ou-ny-addpill, .ou-inbox .ou-ny-addpick [role="combobox"] { border-color: var(--hairline-strong); }

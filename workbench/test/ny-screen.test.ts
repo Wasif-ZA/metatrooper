@@ -232,6 +232,19 @@ test('sub-tasks without a terminal title are named and searched by their prompt'
   assert.deepEqual(h.all(hasClass('ou-ny-sub-row')).map((n: any) => n.props['data-id']), ['c1']);
 });
 
+test('View workspace opens the session folder through api.openFolder and toasts a refusal', async () => {
+  const opened: string[] = [];
+  g.api = { openFolder: async (id: string) => { opened.push(id); return id === 's2' ? { error: 'this session has no folder recorded' } : { ok: true }; } };
+  g.ui.snap.live = [s('s1', { cwd: 'C:/dev/shop' }), s('s2', { cwd: 'C:/dev/gone' })]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  const link = () => h.one((n: any) => hasClass('ou-ny-wslink')(n));
+  assert.equal(text(link().props.children), 'View workspace');
+  await link().props.onClick(); await settle();
+  inboxStore.set({ selectedId: 's2' }); h.draw(); await link().props.onClick(); await settle();
+  assert.deepEqual(opened, ['s1', 's2']);
+  assert.ok(calls.some((c) => c[0] === 'toast' && c[1] === 'this session has no folder recorded'));
+});
+
 test('the properties panel folds away and comes back from the top bar', () => {
   g.ui.snap.live = [s('s1')]; inboxStore.set({ selectedId: 's1' });
   const h = harness(Inbox); h.draw();

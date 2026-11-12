@@ -175,8 +175,9 @@ const sid = (id) => String(id || '').slice(0, 8);
 const nameOf = (x) => ((x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x));
 const TONES = ['run', 'ok', 'wait', 'bad', 'review'];
 const toneOf = (text) => TONES[[...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
+const labelColour = (text, colour) => (colour === PROJECT_COLOURS.gray || (!colour && toneOf(text) === 'review') ? 'var(--hairline-strong)' : colour || null);
 const labelPill = (text, onRemove, colour) => (
-    <span key={text} className={`ou-ny-label${colour ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={colour ? { '--lc': colour } : undefined}>
+    <span key={text} className={`ou-ny-label${labelColour(text, colour) ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={labelColour(text, colour) ? { '--lc': labelColour(text, colour) } : undefined}>
       <span>{text}</span>
       {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove label ${text}`} onClick={(e) => { e?.stopPropagation?.(); onRemove(); }}>{I.close}</button> : null}
     </span>
@@ -286,7 +287,7 @@ function RunLedger({ sessionId }) {
         <span>{formatTokens(data.tokens_in)} in {'·'} {formatTokens(data.tokens_out)} out</span>
         <span className="ou-ny-ledger-cost">{formatCost(data.usd, data.usd_estimated, data.unpriced)}</span>
       </div>
-      {(data.by_model || []).map((row, idx) => (
+      {(data.by_model || []).length === 1 ? <div className="ou-ny-ledger-model ou-ny-ledger-one" title={data.by_model[0].model}>{data.by_model[0].model}</div> : (data.by_model || []).map((row, idx) => (
         <div className="ou-ny-ledger-row" key={row.model || idx}>
           <span className="ou-ny-ledger-model" title={row.model}>{row.model}</span>
           <span>{formatTokens(row.tokens_in)}</span>
@@ -358,6 +359,11 @@ const openNotice = (n) => {
   homeView.set('wall');
   if (s && s.project_id && s.project_id !== ui.projectId) { ui.pendingNeedsYou = n.id; switchProject(s.project_id); return; }
   void openNeedsYou(n.id);
+};
+
+const openWorkspace = async (x) => {
+  const res = await api.openFolder(x.id);
+  if (!res || res.error) toast((res && res.error) || 'Could not open the folder', true);
 };
 
 const openProjectHome = (projectId) => {
@@ -622,10 +628,10 @@ export function Inbox() {
       >
         <div className="ou-ny-row-main">
           <span className="ou-ititle"><span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
-          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap" aria-hidden="true" />}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
+          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap"><StatusRing status={st} size={14} /></span>}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
-          <span className="ou-ny-inline">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}<StatusRing status={st} /></span>
+          <StatusRing status={st} />
           <span className="ou-ny-row-age">{timeText || ''}</span>
         </div>
         <div className="ou-ny-actions" onClick={(e) => e.stopPropagation()}>
@@ -711,7 +717,7 @@ export function Inbox() {
         {activeRow.isSession && item.state === 'waiting_for_you' ? (
           <li className="ou-ny-entry ou-ipane-question">
             <div className="ou-ny-entry-head"><Avatar name={engine} /><span className="ou-ny-entry-who">{engine} asked</span><span className="ou-ny-muted">{ago(item.state_at) || ''}</span></div>
-            <div className="ou-ny-entry-body ou-ipane-lastline">{item.last_line || taskOf(item)}</div>
+            <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{item.last_line || taskOf(item)}</div>
           </li>
         ) : null}
         {!activeRow.isSession ? <li><DetailNotice key={`notice-${item.id}`} n={item} /></li> : null}
@@ -730,7 +736,7 @@ export function Inbox() {
           </li>
         ))}
       </ol>
-      {activeRow.isSession && item.state === 'waiting_for_you' ? <DetailAsk key={item.id} x={item} /> : null}
+      {activeRow.isSession && item.state === 'waiting_for_you' ? <div className="ou-ny-answer-pin"><DetailAsk key={item.id} x={item} /></div> : null}
     </section>
   );
 
@@ -754,8 +760,8 @@ export function Inbox() {
               <TextInput size="sm" label="New label" isLabelHidden placeholder="Label, Enter adds" value={newLabel} onChange={setNewLabel} onEnter={handleAddLabel} hasAutoFocus width={140}
                 onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAddingLabel(false); setNewLabel(''); } }} />
             ) : (
-              <button type="button" className="ou-ny-ghost-btn" aria-label="Add label" disabled={!hasLabelsArray} title={!hasLabelsArray ? 'Labels need a core update' : undefined} onClick={() => setAddingLabel(true)}>
-                {userLabels.length ? '+' : '+ Add label'}
+              <button type="button" className="ou-ny-addpill" aria-label="Add label" disabled={!hasLabelsArray} title={!hasLabelsArray ? 'Labels need a core update' : undefined} onClick={() => setAddingLabel(true)}>
+                + Add label
               </button>
             )}
           </div>
@@ -818,7 +824,9 @@ export function Inbox() {
         {prop('Service', serviceUrl ? (
           <button type="button" className="ou-ny-link" title={serviceUrl} onClick={() => openTermLink(serviceUrl)}><span>{serviceUrl}</span>{I.open}</button>
         ) : none())}
-        {prop('Workspace', sessionObj?.cwd ? <span title={sessionObj.cwd}>{sessionObj.cwd.split(/[/\\]/).filter(Boolean).pop()}</span> : none())}
+        {prop('Workspace', sessionObj?.cwd && sessionObj?.id ? (
+          <button type="button" className="ou-ny-link ou-ny-wslink" title={sessionObj.cwd} onClick={() => openWorkspace(sessionObj)}><span>View workspace</span>{I.open}</button>
+        ) : none())}
         {prop('Branch', branch ? <span className="ou-ny-wrapval ou-ny-mono">{I.branch}<span>{branch}</span></span> : none())}
         {prop('Run ledger', <RunLedger key={`ledger-${sessionObj?.id || 'none'}`} sessionId={sessionObj?.id || null} />)}
       </div>
@@ -886,12 +894,12 @@ export function Inbox() {
                   <span>{projectName || 'No project'}</span>
                   <span className="ou-ny-crumb-sep">{'›'}</span><span className="ou-ny-mono">{sid(sessionObj?.id || item.id)}</span>
                 </div>
-                <div className="ou-ny-chips ou-ny-top-chips">
+                <div className="ou-ny-chips ou-ny-top-chips ou-ny-meta">
                   {chip('status', <><StatusRing status={status} size={12} /><span>{WORD[status]}</span></>, `ou-ny-chip-${status}`)}
                   {chip('assignee', engine ? <><Avatar name={engine} /><span>{engine}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
                   {chip('priority', <><PriorityIcon level={priority} /><span>{priority === 'none' ? 'No priority' : PRIORITIES.find(([v]) => v === priority)[1]}</span></>, priority === 'none' ? 'ou-ny-chip-quiet' : '')}
                   {projectName ? chip('project', <><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span></>) : null}
-                  {userLabels.length ? userLabels.map((lbl) => labelPill(lbl)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
+                  {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className={`ou-ny-dot${labelColour(lbl) ? '' : ` ou-ny-tone-${toneOf(lbl)}`}`} style={labelColour(lbl) ? { background: labelColour(lbl) === 'var(--hairline-strong)' ? 'var(--mute)' : labelColour(lbl) } : undefined} /><span>{lbl}</span></>)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
                 </div>
                 <h2 className="ou-ny-doc-title ou-ipane-task">{title}</h2>
                 {sessionObj?.prompt && sessionObj.prompt !== title ? <p className="ou-ny-doc-task">{sessionObj.prompt}</p> : null}
