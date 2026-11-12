@@ -69,3 +69,4 @@
 @container (max-width: 240px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: none; } }
 :root[data-view="wall"] #centre .tile .tile-body { padding: 12px 6px 8px 14px; background: var(--canvas-deep); }
 :root[data-view="wall"] #centre .tile .xterm-viewport, :root[data-view="wall"] #centre .tile .xterm-screen { background: var(--canvas-deep) !important; }
+:root[data-view="wall"] #frame .fcore { display: none; }

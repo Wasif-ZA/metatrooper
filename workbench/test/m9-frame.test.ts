@@ -88,7 +88,7 @@ function createFrameHarness(initialStorage: Record<string, string> = {}) {
       return null;
     },
     querySelectorAll(sel: string) {
-      if (sel === '#frame [data-action="view"]') return viewButtons;
+      if (sel === '[data-action="view"]') return viewButtons;
       return [];
     },
     addEventListener(ev: string, fn: Function) {
@@ -396,4 +396,43 @@ test('clicking an agent row while not on the Wall switches to the Wall', () => {
   h.homeViewSetCalls.length = 0;
   h.frameAgents.click(emptyEl);
   assert.deepEqual(h.homeViewSetCalls, []);
+});
+
+test('thread list: one row per task with project, title, branch and engine marks; active tasks in Working, settled in Settled (closed); sub-agents behind a chevron; shelves toggle', () => {
+  const h = createFrameHarness();
+  h.triggerDomContentLoaded();
+  h.ctx.setTimeout = () => 0;
+  const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  h.ctx.ui.snap.tree = [{ project_id: 'p1', name: 'shop', sessions: ['lead', 'kid', 'busy', 'old', 'fresh'] }];
+  h.ctx.ui.snap.tree_rows = {
+    lead: { id: 'lead', state: 'waiting_for_you', engine_id: 'claude', title: 'Lead task', state_at: iso(18_000), started_at: iso(60_000) },
+    kid: { id: 'kid', parent_id: 'lead', state: 'working', engine_id: 'codex', title: 'Kid task', state_at: iso(5_000), started_at: iso(30_000) },
+    busy: { id: 'busy', state: 'working', engine_id: 'codex', title: 'Busy task', state_at: iso(1_000), started_at: iso(120_000) },
+    old: { id: 'old', state: 'exited', engine_id: 'claude', title: 'Old task', state_at: iso(3 * 86_400_000), started_at: iso(3 * 86_400_000 + 60_000) },
+    fresh: { id: 'fresh', state: 'done', engine_id: 'gemini', title: 'Fresh task', state_at: iso(7 * 60_000), started_at: iso(9 * 60_000) },
+  };
+  h.ctx.ui.snap.git = { lead: { branch: 'feat/share' } };
+  h.frameView.draw();
+  const html = h.frameAgents.innerHTML;
+  const ids = [...html.matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(ids, ['busy', 'lead'], 'Working newest first; the sub-agent has no row of its own; Settled starts closed');
+  assert.match(html, /data-id="lead"[^]*?<span class="fthpn">shop<\/span><\/span><span class="fthtime"><span class="fthwait">Waiting 18s<\/span>/);
+  assert.match(html, /data-id="lead"[^]*?<span class="ft">Lead task<\/span>[^]*?<span class="fthbr">feat\/share<\/span><span class="fthmks">(<span class="fthmk">[^]*?<\/span>){2}<\/span>/);
+  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">2<\/span>/);
+  assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">2<\/span>/);
+  assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);
+  assert.doesNotMatch(html, /data-id="kid"/);
+  const kidsBtn = { dataset: { kids: 'lead' }, closest: (sel: string) => (sel === '[data-kids]' ? kidsBtn : null) };
+  h.frameAgents.click(kidsBtn);
+  assert.match(h.frameAgents.innerHTML, /data-kids="lead" aria-expanded="true"[^]*?<div class="fthkids"><button class="fthkid" data-action="home-select" data-id="kid"[^]*?<span class="ft">Kid task<\/span>/);
+  h.frameAgents.click(kidsBtn);
+  assert.doesNotMatch(h.frameAgents.innerHTML, /data-id="kid"/);
+  const shelfBtn = (key: string) => ({ dataset: { shelf: key }, closest: (sel: string) => (sel === '[data-shelf]' ? shelfBtn(key) : null) });
+  h.frameAgents.click(shelfBtn('settled'));
+  const settledIds = [...h.frameAgents.innerHTML.split('data-shelf="settled"')[1].matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(settledIds, ['fresh', 'old'], 'settled newest first');
+  h.frameAgents.click(shelfBtn('working'));
+  assert.doesNotMatch(h.frameAgents.innerHTML, /data-id="busy"/);
+  h.frameAgents.click(shelfBtn('working'));
+  h.frameAgents.click(shelfBtn('settled'));
 });

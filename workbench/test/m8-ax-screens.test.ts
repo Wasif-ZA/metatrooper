@@ -53,7 +53,7 @@ async function bundle(contents: string, output: string) {
 await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
 const screens = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
-const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore } = screens;
+const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore, lineageTitle } = screens;
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
@@ -349,17 +349,19 @@ test('Home picks the oldest waiting task, else the newest working one; a picked 
   g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
 });
 
-test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in status colours, the latest line, and waiting-on with Stop; opening lists slim rows with the orchestrator first and steps only after a row is clicked', () => {
+test('Home task view: prompt bubble, worked line, a collapsed subagents trigger in status colours, the latest line, and waiting-on with Stop; opening lists slim rows with the orchestrator first and steps only after a row is clicked', () => {
   homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'lead';
   const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
-  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'Okay, splitting the checkout.', steps, started_at: new Date(Date.now() - 65000).toISOString() }),
+  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'Okay, splitting the checkout.', steps, prompt: 'Split the checkout', started_at: new Date(Date.now() - 65000).toISOString() }),
     session('a', 'done', { parent_id: 'lead' }), session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests', steps }),
     session('c', 'exited', { parent_id: 'lead', outcome: 'failed', reason: 'tests broke' })];
   const h = harness(Home); h.draw();
   const view = () => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView'));
   const html = view();
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['<h1 class="ou-hm-tasktitle">Task lead</h1>', '<span class="ou-hm-crumbproj">Alpha</span>', 'Working for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
+  assert.equal(h.one((n: any) => n.type?.name === 'HeadTitle').props.x.id, 'lead', 'the bar carries the task title');
+  assert.doesNotMatch(html, /<h1|ou-hm-crumb/);
+  const order = ['aria-label="Alpha: Task lead"', '<div class="ou-hm-user"><p>Split the checkout</p></div>', 'Working for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
     '<span class="ou-hm-c-working">1 working</span>', '<span class="ou-hm-c-done">1 done</span>', '<span class="ou-hm-c-failed">1 failed</span>',
     '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
   assert.doesNotMatch(html.slice(0, html.indexOf('ou-hm-subs')), /1\/2 steps/);
@@ -404,7 +406,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   const h = harness(Home); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 agent', 'Task kid'].map(at);
+  const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 working', 'Task kid'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
@@ -876,12 +878,73 @@ test('chat box access label names the level from Settings', () => {
   assert.equal(h.one(label('Approval')).props.renderValue(), 'Edits allowed');
   g.ui.settingsLook = { themes: [] };
 });
+test('Home details card: Open in editor shows the task project in the IDE, the folder button asks main to open the folder, Lineage counts running', async () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'lead';
+  const switched: string[] = []; g.switchProject = (id: string) => switched.push(id);
+  g.api.openFolder = async (id: string) => { calls.push(['openFolder', id]); return { error: 'no folder' }; };
+  const lead = session('lead', 'working', { project_id: 'p2' });
+  g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead, session('k1', 'working', { parent_id: 'lead' }), session('k2', 'done', { parent_id: 'lead' })];
+  g.ui.snap.git = { lead: { branch: 'feat/y', added: 1, deleted: 0, changed: [] } };
+  const h = harness(Home); h.draw(); calls.length = 0;
+  h.one(label('Open in editor')).props.onClick({ stopPropagation() {} });
+  assert.deepEqual(switched, ['p2']); assert.deepEqual(calls, [['view', 'ide']]);
+  g.ui.view = 'home'; h.draw(); calls.length = 0;
+  await h.one((n: any) => n.props?.className === 'ou-hm-pact').props.onClick();
+  assert.deepEqual(calls, [['openFolder', 'lead'], ['toast', 'no folder', true]]);
+  g.ui.view = 'home'; g.ui.projectId = 'p2'; h.draw(); calls.length = 0;
+  g.pick = async (id: string) => calls.push(['pick', id]); g.openTab = async (tab: string) => calls.push(['openTab', tab]);
+  await h.one(label('Changes')).props.onClick({ stopPropagation() {} });
+  assert.deepEqual(calls, [['view', 'wall'], ['pick', 'lead'], ['openTab', 'diff']], 'Changes opens the task on the Wall with its Diff tab');
+  delete g.pick; delete g.openTab; g.ui.projectId = 'p1'; g.ui.view = 'home';
+  assert.equal(lineageTitle([session('a', 'working'), session('w', 'waiting_for_you'), session('b', 'done')]), 'Lineage · 1 working · 1 waiting · 1 done', 'same words as the subagents block');
+  assert.equal(lineageTitle([session('a', 'done'), session('b', 'done')]), 'Lineage · 2 done');
+  delete g.api.openFolder; g.ui.snap.git = undefined;
+});
+
+test('Home details toggle in the bar hides and shows the details card; the centre takes the full width while it is hidden', () => {
+  homeStore.set({ open: [], tick: 0, details: true }); g.ui.homeSel = 'lead';
+  const lead = session('lead', 'working'); g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead];
+  const h = harness(Home); h.draw();
+  const head = () => h.one((n: any) => n.type?.name === 'HeadTitle');
+  assert.equal(head().props.details, true); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
+  head().props.toggleDetails(); h.draw();
+  assert.equal(head().props.details, false); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 0);
+  assert.match(h.html(), /class="ou-home ou-hm ou-hm-solo"/);
+  head().props.toggleDetails(); h.draw();
+  assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
+});
+
+test('openFolder in main opens the recorded folder of the session and refuses one without a folder', () => {
+  const src = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+  const body = src.slice(src.indexOf("on('openFolder'"), src.indexOf("on('openFolder'") + 260);
+  assert.match(body, /const cwd = cwdOf\(sessionId\);\s*if \(!cwd\) return \{ error: 'this session has no folder recorded' \};\s*const error = await shell\.openPath\(cwd\);/);
+  assert.match(readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8'), /openFolder: \(sessionId\) => ipcRenderer\.invoke\('openFolder', sessionId\)/);
+});
+
+test('Merge confirm calls prMerge for the task and toasts the result', async () => {
+  homeStore.set({ open: [], tick: 0, details: true }); g.ui.homeSel = 'lead';
+  const lead = session('lead', 'working'); g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead];
+  g.ui.snap.git = { lead: { branch: 'feat/m', added: 1, deleted: 0, changed: [], pr: { number: 9, state: 'OPEN', url: '', checks: 'pass' } } };
+  g.api.prMerge = async (id: string) => { calls.push(['prMerge', id]); return { ok: true }; };
+  const h = harness(Home); h.draw(); calls.length = 0;
+  h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
+  const dialog = h.one((n: any) => n.props?.title === 'Merge PR #9?');
+  await dialog.props.onAction();
+  assert.deepEqual(calls, [['prMerge', 'lead'], ['toast', 'Merged PR #9']]);
+  g.api.prMerge = async () => ({ error: 'not mergeable' }); calls.length = 0;
+  h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
+  await h.one((n: any) => n.props?.title === 'Merge PR #9?').props.onAction();
+  assert.deepEqual(calls, [['toast', 'not mergeable', true]]);
+  delete g.api.prMerge; g.ui.snap.git = undefined;
+});
+
 test('Home task title skips a terminal title that is a program path', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
   g.ui.snap.live = [{ id: 's1', project_id: 'p1', engine_id: 'codex', state: 'working', started_at: '2026-01-01T00:00:00Z', title: 'C:\\Program Files\\nodejs\\node.exe', prompt: 'Fix the login' }];
   const html = harness(Home).html();
   g.ui.snap.live = [];
-  assert.match(html, /<h1 class="ou-hm-tasktitle">Fix the login<\/h1>/);
+  assert.match(html, /aria-label="[^"]*: Fix the login"/);
+  assert.doesNotMatch(html, /node\.exe/);
 });
 test('chat box project selector switches the real project', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; const switched: string[] = []; g.switchProject = (id: string) => switched.push(id);

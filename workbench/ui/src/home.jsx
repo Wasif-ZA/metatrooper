@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
@@ -10,6 +11,10 @@ import { AutomationsPage } from './automations.jsx';
 import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
+import { ExternalLinkIcon } from './icons/screens.jsx';
+import { PanelToggle } from './icons/index.js';
+import './home-ref.css';
+import './frame-ref.css';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
@@ -232,7 +237,7 @@ function Ring({ k, size = 12, className }) {
   const s = statusOf(k);
   return <ProgressRing state={progressOf(k)} done={st?.done} total={st?.total} size={size} className={className} title={STATUS_WORD[s]} />;
 }
-const Dot = ({ k }) => <Ring k={k} size={12} className="ou-hm-dot" />;
+const Dot = ({ k }) => <Ring k={k} size={14} className="ou-hm-dot" />;
 
 function Steps({ st }) {
   return (
@@ -302,12 +307,8 @@ function TaskView({ x, kids, openList, toggle }) {
     try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
   };
   return (
-    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state}>
-      <h1 className="ou-hm-tasktitle">{nameOf(x)}</h1>
-      <nav className="ou-hm-crumb" aria-label="Task">
-        <span className="ou-hm-crumbproj">{proj}</span>
-        {branch ? <><span className="ou-hm-crumbsep">/</span><span className="ou-hm-crumbbranch">{branchIcon}{branch}</span></> : null}
-      </nav>
+    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
+      {x.prompt ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
           <Ring k={x} size={14} />
@@ -376,6 +377,23 @@ const openOnWall = (x) => {
   void pick(x.id);
 };
 
+const openInEditor = (x) => {
+  if (x.project_id && x.project_id !== ui.projectId) switchProject(x.project_id);
+  homeView.set('ide');
+};
+
+const openChanges = async (x) => {
+  openOnWall(x);
+  if (typeof openTab === 'function') await openTab('diff');
+};
+
+const openFolder = async (x) => {
+  const r = await api.openFolder(x.id);
+  if (!r || r.error) toast((r && r.error) || 'Could not open the folder', true);
+};
+
+export const lineageTitle = (kids) => `Lineage · ${summarizeSubagentStatuses(kids.map(statusOf))}`;
+
 function PanelSection({ title, heading = false, children }) {
   return (
     <section className="ou-hm-psec" aria-label={title}>
@@ -408,14 +426,17 @@ function RailCard({ sel, kids }) {
       {sel ? (
         <Swap k={sel.id}>
           <PanelSection title="Workspace">
-            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host} />
+            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host}>
+              <button type="button" className="ou-hm-pact" aria-label={`Open ${host} folder`} title="Open the folder" onClick={() => void openFolder(sel)}>{folderSmall}</button>
+            </PanelRow>
+            <PanelRow icon={<ExternalLinkIcon size={16} />} label="Open in editor" chevron onClick={() => openInEditor(sel)} />
             <PanelRow icon={editorIcon} label="Open on Wall" chevron onClick={() => openOnWall(sel)} />
           </PanelSection>
           {branch ? (
             <PanelSection title="Version control">
               <PanelRow icon={branchIcon} label={branch} mono />
               {g.commit ? <PanelRow icon={commitIcon} label="Commit" value={<span className="ou-hm-mono">{g.commit}</span>} /> : null}
-              <PanelRow icon={filesIcon} label="Changes" value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
+              <PanelRow icon={filesIcon} label="Changes" chevron onClick={() => void openChanges(sel)} value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
               {pr ? (
                 <PanelRow icon={prIcon} label={`PR #${pr.number}`} onClick={pr.url && typeof openTermLink === 'function' ? () => openTermLink(pr.url) : undefined}
                   value={<span className={`ou-hm-checks ou-hm-ck-${pr.checks || 'none'}`}>{[pr.checks ? `checks ${pr.checks}` : null, String(pr.state || '').toLowerCase()].filter(Boolean).join(' · ')}</span>}>
@@ -425,7 +446,7 @@ function RailCard({ sel, kids }) {
             </PanelSection>
           ) : null}
           {kids.length ? (
-            <PanelSection title={`Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`} heading>
+            <PanelSection title={lineageTitle(kids)} heading>
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
                   <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
@@ -444,16 +465,39 @@ function RailCard({ sel, kids }) {
           description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from cc.`} actionLabel="Merge"
           onAction={async () => {
             setMerging(false);
-            const r = await rpc('gh.merge', { session_id: sel.id });
-            if (r && r.result) toast(`Merged PR #${pr.number}`); else toast((r && r.error && (r.error.message || r.error)) || 'Could not merge', true);
+            const r = await api.prMerge(sel.id);
+            if (r && r.ok) toast(`Merged PR #${pr.number}`); else toast((r && r.error) || 'Could not merge', true);
           }} />
       ) : null}
     </div>
   );
 }
 
+function HeadTitle({ x, details, toggleDetails }) {
+  const [hosts, setHosts] = useState(null);
+  useLayoutEffect(() => {
+    const bar = globalThis.document?.querySelector?.('header.title');
+    const crumb = bar?.querySelector('.crumb');
+    if (!crumb) return undefined;
+    const title = document.createElement('span');
+    title.className = 'ou-hm-head';
+    crumb.after(title);
+    const acts = document.createElement('span');
+    acts.className = 'ou-hm-headacts';
+    bar.append(acts);
+    setHosts({ title, acts });
+    return () => { title.remove(); acts.remove(); };
+  }, []);
+  if (!hosts) return null;
+  const label = details ? 'Hide details' : 'Show details';
+  return <>
+    {createPortal(<><span className="ou-hm-headsep" aria-hidden="true">/</span><h2 className="ou-hm-headtitle" title={nameOf(x)}>{nameOf(x)}</h2></>, hosts.title)}
+    {createPortal(<button type="button" className="ou-hm-paneltog" aria-pressed={details} aria-label={label} title={label} onClick={toggleDetails}><PanelToggle size={16} /></button>, hosts.acts)}
+  </>;
+}
+
 export function Home() {
-  const { open = [] } = homeStore.use();
+  const { open = [], details = true } = homeStore.use();
   const selected = ui.homeSel;
   useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
   if (ui.view === 'automations' && project()) return <AutomationsPage />;
@@ -482,16 +526,17 @@ export function Home() {
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
   const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
-    <div className={`ou-home ou-hm${task ? '' : ' ou-hm-solo'}`}>
+    <div className={`ou-home ou-hm${task && details ? '' : ' ou-hm-solo'}`}>
       <div className="ou-hm-main">
         {task ? (
           <>
+            <HeadTitle x={task} details={details} toggleDetails={() => homeStore.set({ details: !details })} />
             <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
             <div className="ou-hm-dock">{composer}</div>
           </>
         ) : <StartState composer={composer} />}
       </div>
-      {task ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
+      {task && details ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
     </div>
   );
 }

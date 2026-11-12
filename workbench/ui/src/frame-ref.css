@@ -1,0 +1,98 @@
+﻿/* Sidebar and top bar laid out like the reference window: search row, thread rows, Working/Settled shelves, icon footer. */
+:root:not(.side-rail):not(.side-auto) { --side: 255px; }
+.frame { font-family: var(--font-family-body, 'Geist', sans-serif); }
+.fhead { justify-content: flex-start; gap: 6px; padding: 0 12px 0 10px; border-bottom: 0; }
+.fhead .ftog { order: -1; }
+
+.fsec.fsearchrow { display: flex; align-items: center; gap: 2px; margin: 4px 8px 6px; padding: 0; border-top: 0; font-size: 14px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--mute); }
+.fsearch { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 6px; color: var(--mute); font-size: 14px; text-align: left; }
+.fsearch:hover, .fsearch:focus-visible { background: var(--canvas); color: var(--ink); }
+.fsearchrow .fic { width: 28px; height: 28px; }
+
+.fagents { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
+.fthreads { display: flex; flex-direction: column; gap: 2px; }
+.fth { flex: none; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0 8px; padding: 8px; border-radius: 8px; color: var(--body); text-align: left; }
+.fth:hover { background: var(--canvas); }
+.fth.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.fth:focus-visible, .fshelfh:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+.fth1, .fth2, .fth3 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fth1 { font-size: 12.5px; color: var(--mute); }
+.fthproj { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; }
+.fthpn, .fthbr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fthtime { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mute); }
+.fthwait { color: var(--wait); }
+.fth2 .ft { flex: 1; min-width: 0; font-size: 14.5px; color: var(--ink); }
+.fth.fgone .fth2 .ft { color: var(--body); }
+.fth3 { min-height: 14px; font-size: 12px; color: var(--mute); }
+.fthbr { flex: 1; }
+.fthmks { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+.fthmk { width: 14px; height: 14px; display: grid; place-items: center; }
+.fthmk svg { width: 14px; height: 14px; }
+.fthmore { font-size: 10.5px; color: var(--mute); }
+
+.fshelves { margin-top: auto; padding-top: 8px; }
+.fshelf { display: flex; flex-direction: column; gap: 2px; }
+.fshelfh { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 8px; padding: 0 8px; border-radius: 6px; color: var(--body); font-size: 14px; text-align: left; }
+.fshelfh:hover { background: var(--canvas); color: var(--ink); }
+.fshelfh .fl { flex: 1; }
+.fcount { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--mute); }
+.fchev { display: grid; place-items: center; color: var(--mute); transition: transform 150ms ease-out; }
+.fshelfh[aria-expanded="true"] .fchev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .fchev { transition: none; } }
+
+.fusage { border-top: 0; }
+.ffoot { flex-direction: row; align-items: center; gap: 2px; padding: 6px 8px 8px; border-top: 0; }
+.ffoot button { width: 32px; height: 32px; margin: 0; padding: 0; justify-content: center; color: var(--mute); }
+.ffoot button:hover { color: var(--ink); }
+.ffoot .fl { display: none; }
+.fcore { margin-left: auto; display: inline-flex; align-items: center; }
+
+:root:is(.side-rail, .side-auto) .frame :is(.fth1, .fth3, .fth2 .ft, .fshelfh .fl, .fcount, .fsearchrow .fic) { display: none; }
+:root:is(.side-rail, .side-auto) .fsec.fsearchrow { margin: 4px 8px; font-size: inherit; }
+:root:is(.side-rail, .side-auto) .fsearch { justify-content: center; padding: 0; }
+:root:is(.side-rail, .side-auto) .fth { align-items: center; padding: 8px 0; }
+:root:is(.side-rail, .side-auto) .fshelfh { justify-content: center; padding: 0; }
+:root:is(.side-rail, .side-auto) .ffoot { flex-direction: column; }
+:root:is(.side-rail, .side-auto) .fcore { margin: 4px 0 0; }
+
+/* Top bar: no rule under it; views as one icon cluster on the right; search, core and New live in the sidebar. */
+:root:not([data-view="wall"]) header.title { border-bottom: 0; }
+:root:not([data-view="wall"]) header.title > :is([data-action="palette"], #core, #newagent) { display: none !important; }
+.title .kpick#project-pick { font-family: var(--font-family-body, sans-serif); font-weight: 400; color: var(--body); }
+.tnav { flex: none; display: flex; flex-direction: row; align-items: center; gap: 2px; padding: 0; }
+.tnav button { position: relative; width: 28px; height: 28px; margin: 0; padding: 0; justify-content: center; border-radius: 6px; color: var(--mute); }
+.tnav button:hover { background: var(--canvas); color: var(--ink); }
+.tnav button[aria-current="page"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-weight: 400; }
+.tnav .fl { display: none; }
+.tnav .fi { width: 16px; }
+.tnav .fpill { position: absolute; top: -3px; right: -5px; height: 14px; min-width: 8px; padding: 0 4px; font-size: 9.5px; line-height: 14px; box-shadow: 0 0 0 2px var(--canvas-deep); }
+.ou-hm-headacts { display: inline-flex; align-items: center; margin: 0 8px 0 6px; padding-left: 6px; border-left: 1px solid var(--hairline); }
+.ou-hm-paneltog { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mute); cursor: pointer; }
+.ou-hm-paneltog:hover, .ou-hm-paneltog[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
+.ou-hm-paneltog:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+
+/* Round 3: rings read as progress (14px, 2px stroke, visible track), darker status colours in light, sub-agent rows, shelves from the top. */
+.fring, .ftree .fring { width: 14px; height: 14px; color: var(--body); }
+.ouros-ring { stroke-width: 2; }
+.ouros-ring circle[stroke-opacity] { stroke-opacity: .32; }
+:root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #bc4c00; }
+.fshelves { margin-top: 0; padding-top: 2px; }
+.fthw { position: relative; display: flex; flex-direction: column; }
+.fthw.haskids .fth3 { padding-right: 22px; }
+.fthx { position: absolute; right: 12px; top: 49px; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--mute); cursor: pointer; }
+.fthx:hover { background: var(--canvas); color: var(--ink); }
+.fthx svg { transition: transform 150ms ease-out; }
+.fthx[aria-expanded="true"] svg { transform: rotate(90deg); }
+.fthx:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+.fthkids { display: flex; flex-direction: column; gap: 1px; margin: 2px 8px 4px 22px; padding-left: 6px; border-left: 1px solid var(--hairline); }
+.fthkid { display: flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 6px; border-radius: 6px; color: var(--body); text-align: left; }
+.fthkid:hover { background: var(--canvas); }
+.fthkid.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.fthkid .ft { flex: 1; min-width: 0; font-size: 13px; }
+.fthkid .fthmk { flex: none; }
+@media (prefers-reduced-motion: reduce) { .fthx svg { transition: none; } }
+:root:is(.side-rail, .side-auto) .frame :is(.fthx, .fthkids) { display: none; }
+.fslot { font-size: 11px; }
+.fusage { grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); row-gap: 6px; }
+header.title .ou-hm-head .ou-hm-headtitle, .title .kpick#project-pick { font-family: 'Geist', 'Segoe UI', sans-serif; }
+header.title .ou-hm-head .ou-hm-headtitle { font-weight: 500; }

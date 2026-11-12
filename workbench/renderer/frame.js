@@ -130,7 +130,7 @@ globalThis.frameView = (() => {
 
   function ringOf(dot, done, total, title) {
     if (!globalThis.progressRingSvg) return statusHtml(dot);
-    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 12, title })}</span>`;
+    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 14, title })}</span>`;
   }
 
   function agentHtml(x, depth, rows = {}) {
@@ -147,6 +147,72 @@ globalThis.frameView = (() => {
     return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${projIcon(g.project_id, 18)}</span><span class="fl">${esc(g.name)}</span></button>`
       + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${ringOf(wt.state, wt.settled, wt.total, `${STATUS_LABEL[wt.state]}, ${wt.settled} of ${wt.total} settled`)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
+  }
+
+  // Thread list after t3code (MIT), apps/web/src/components/sidebar/SidebarThreadRow.tsx and Sidebar.tsx: one row per task
+  // (project chip + time, title, branch + engine marks), recent settled work on top, Working and Settled shelves at the bottom.
+  const ACTIVE = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
+  const ago = (iso) => {
+    const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+    if (Number.isNaN(s)) return '';
+    return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
+  };
+  const shelf = { working: true, settled: false };
+  const openKids = new Set();
+  const rowName = (x) => { const title = (x.title || '').trim(); return (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x); };
+
+  function threadRows(tree, rows, git = {}, hide = new Set()) {
+    const out = [];
+    for (const g of tree || []) {
+      const ids = g.sessions.filter((id) => rows[id] && !hide.has(id));
+      const mine = new Set(ids);
+      for (const id of ids) {
+        const x = rows[id];
+        if (x.parent_id && x.parent_id !== id && mine.has(x.parent_id)) continue;
+        const kids = ids.filter((k) => rows[k].parent_id === id && k !== id).map((k) => rows[k]);
+        out.push({ x, kids, project_id: g.project_id, project: g.name, branch: git[id]?.branch || null, active: ACTIVE.has(x.state) });
+      }
+    }
+    const at = (t) => Date.parse(t.x.state_at || t.x.started_at || '') || 0;
+    out.sort((a, b) => at(b) - at(a));
+    return { working: out.filter((t) => t.active), settled: out.filter((t) => !t.active) };
+  }
+
+  function kidHtml(k, rows) {
+    const name = rowName(k);
+    const words = STATE_WORDS[k.state] || k.state;
+    const sel = k.id === selectedId();
+    return `<button class="fthkid${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(k.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${k.model || k.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(k.model || k.engine_id)}, ${esc(words)}">${ringHtml(k, rows)}<span class="fthmk">${mark(k.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fthtime">${esc(ago(k.state_at || k.started_at))}</span></button>`;
+  }
+
+  function threadHtml(t, rows) {
+    const { x } = t;
+    const name = rowName(x);
+    const words = STATE_WORDS[x.state] || x.state;
+    const sel = x.id === selectedId();
+    const when = x.state === 'waiting_for_you' ? `<span class="fthwait">Waiting ${esc(ago(x.state_at))}</span>` : esc(ago(x.state_at || x.started_at));
+    const crew = [x, ...t.kids];
+    const marks = crew.slice(0, 3).map((k) => `<span class="fthmk">${mark(k.engine_id)}</span>`).join('') + (crew.length > 3 ? `<span class="fthmore">+${crew.length - 3}</span>` : '');
+    const open = openKids.has(x.id);
+    const n = t.kids.length;
+    const toggle = n ? `<button class="fthx" data-kids="${esc(x.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${n} sub-agent${n === 1 ? '' : 's'} of ${esc(name)}" title="${n} sub-agent${n === 1 ? '' : 's'}">${I('chevronRight', 14)}</button>` : '';
+    const kids = open ? `<div class="fthkids">${t.kids.map((k) => kidHtml(k, rows)).join('')}</div>` : '';
+    return `<div class="fthw${n ? ' haskids' : ''}${open ? ' open' : ''}" data-key="s:${esc(x.id)}"><button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
+      + `<span class="fth1"><span class="fthproj" data-proj="${esc(t.project_id)}">${projIcon(t.project_id, 14)}<span class="fthpn">${esc(t.project)}</span></span><span class="fthtime">${when}</span></span>`
+      + `<span class="fth2">${ringHtml(x, rows)}<span class="ft">${esc(name)}</span></span>`
+      + `<span class="fth3"><span class="fthbr">${esc(t.branch || '')}</span><span class="fthmks">${marks}</span></span></button>${toggle}${kids}</div>`;
+  }
+
+  function shelfHtml(key, label, list, rows) {
+    const open = shelf[key];
+    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount">${list.length}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
+      + (open ? list.map((t) => threadHtml(t, rows)).join('') : '') + '</div>';
+  }
+
+  function threadsHtml(tree, rows, git, hide) {
+    const { working, settled } = threadRows(tree, rows, git, hide);
+    if (!working.length && !settled.length) return '<p class="fempty">No agents running</p>';
+    return `<div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
   }
 
   const gh = { project: null, at: 0, issues: null };
@@ -203,11 +269,20 @@ globalThis.frameView = (() => {
     const view_ = globalThis.settingsView?.isOpen() ? 'settings' : ui.view || 'wall';
     const narrow = view_ === 'settings' || view_ === 'ide';
     if (root.dataset) root.dataset.view = view_;
+    const nav = document.querySelector?.('.fnav');
+    const spacer = document.querySelector?.('header.title .sp');
+    if (nav && spacer) {
+      // The Wall keeps its view pill in its own sidebar; every other view has the icons in the top bar.
+      const wall = view_ === 'wall';
+      nav.classList.toggle('tnav', !wall);
+      if (wall && nav.parentElement?.id !== 'frame') document.getElementById('frame').insertBefore(nav, document.getElementById('frame-agents'));
+      else if (!wall && nav.previousElementSibling !== spacer) spacer.after(nav);
+    }
     if (root.classList.contains('side-auto') !== narrow) {
       if (narrow) root.classList.add('side-auto'); else root.classList.remove('side-auto');
       dispatchEvent(new Event('resize'));
     }
-    [...document.querySelectorAll('#frame [data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
+    [...document.querySelectorAll('[data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
       if ((b.dataset.view || 'settings') === view_) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     const nw = document.querySelector?.('#frame .fnew');
@@ -222,7 +297,9 @@ globalThis.frameView = (() => {
       const rows = ui.snap.tree_rows || {};
       const list = document.getElementById('frame-agents');
       const before = rowTops(list);
-      setHtml('frame-agents', treeHtml(treeGroups(ui.snap.tree, rows, ui.snap.git || {}, ui.snap.projects || [], ui.pendingHide, ui.snap.selected), rows));
+      setHtml('frame-agents', threadsHtml(ui.snap.tree, rows, ui.snap.git || {}, ui.pendingHide));
+      const core = document.getElementById('frameCore');
+      if (core) core.innerHTML = document.getElementById('core')?.innerHTML || '';
       animateRows(list, before);
       drawnSel = selectedId();
       // Home picks its default selection while rendering, after this draw; catch up once when it changed.
@@ -326,10 +403,14 @@ globalThis.frameView = (() => {
     if (!nav) return;
     nav.classList.add('ficons');
     nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${I('calendar')}</span><span class="fl">Automations</span></button>`);
+    const spacer = document.querySelector('header.title .sp');
+    if (spacer) { nav.classList.add('tnav'); spacer.after(nav); }
+    const foot = document.querySelector('#frame .ffoot');
+    if (foot) foot.insertAdjacentHTML('beforeend', '<span class="fcore" id="frameCore"></span>');
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
-      sec.classList.add('fprojects');
-      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}</button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 16)}</button>`;
+      sec.classList.add('fprojects', 'fsearchrow');
+      sec.innerHTML = `<button class="fsearch" data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${I('search', 16)}</span><span class="fl">Search</span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}<span class="fpill" id="frameGhCount" hidden></span></button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('compose', 16) || I('plus', 16)}</button>`;
       document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;
@@ -344,15 +425,19 @@ globalThis.frameView = (() => {
     set(load('sidebar') === 'rail');
     document.getElementById('frameTog').addEventListener('click', toggle);
     document.getElementById('frame-agents').addEventListener('click', (e) => {
+      const kx = e.target.closest('[data-kids]');
+      if (kx) { if (openKids.has(kx.dataset.kids)) openKids.delete(kx.dataset.kids); else openKids.add(kx.dataset.kids); draw(); return; }
+      const sh = e.target.closest('[data-shelf]');
+      if (sh) { shelf[sh.dataset.shelf] = !shelf[sh.dataset.shelf]; draw(); return; }
       const sel = e.target.closest('[data-action="home-select"]');
       if (sel) { e.stopPropagation(); homeSelect(sel.dataset.id); return; }
       if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall');
     });
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
-      const row = e.target.closest('.fproj');
+      const row = e.target.closest('.fproj, .fthproj');
       if (!row) return;
       e.preventDefault();
-      iconMenu(row.dataset.id, e.clientX, e.clientY);
+      iconMenu(row.dataset.id || row.dataset.proj, e.clientX, e.clientY);
     });
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeIconUi(); });

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 
@@ -52,6 +53,33 @@ export const ghPr: PrLookup = async (top, branch) => {
     return null;
   }
 };
+
+function runOut(cmd: string, cwd: string, args: string[]): Promise<{ ok: boolean; out: string }> {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 60000 }, (err, out, errOut) => resolve(err ? { ok: false, out: String(errOut || err.message).trim() } : { ok: true, out }));
+  });
+}
+
+/** Merges the PR of the branch checked out at `cwd` with `gh pr merge --merge`; in the demo (`demoFile` set) a --no-ff merge into the main worktree, then the PR is marked MERGED there. */
+export async function mergePr(cwd: string, demoFile: string | null): Promise<{ ok: true } | { error: string }> {
+  const branch = (await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+  if (!branch || branch === 'HEAD') return { error: 'no branch is checked out in this folder' };
+  const fresh = () => { for (const k of prCache.keys()) if (k.endsWith(`\n${branch}`)) prCache.delete(k); };
+  if (!demoFile) {
+    const r = await runOut('gh', cwd, ['pr', 'merge', branch, '--merge']);
+    if (r.ok) fresh();
+    return r.ok ? { ok: true } : { error: r.out.split('\n')[0] || 'gh pr merge failed' };
+  }
+  const main = (await git(cwd, ['worktree', 'list', '--porcelain'])).match(/^worktree (.+)$/m)?.[1];
+  if (!main) return { error: 'no main worktree found' };
+  const r = await runOut('git', main, ['-c', 'user.name=Demo', '-c', 'user.email=demo@example.invalid', 'merge', '--no-ff', '--no-edit', branch]);
+  if (!r.ok) return { error: r.out.split('\n')[0] || 'git merge failed' };
+  const gh = JSON.parse(fs.readFileSync(demoFile, 'utf8'));
+  if (gh.prs?.[branch]) gh.prs[branch].state = 'MERGED';
+  fs.writeFileSync(demoFile, JSON.stringify(gh, null, 2));
+  fresh();
+  return { ok: true };
+}
 
 export type Issue = { number: number; title: string; labels: string[]; assignees: string[]; url: string };
 
