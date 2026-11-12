@@ -51,6 +51,10 @@
 :root[data-view="wall"] #strip { top: calc(-1 * var(--top)); bottom: auto; left: auto; right: 8px; height: var(--top); z-index: 31; gap: 2px; padding: 0; border: 0; background: none; }
 :root[data-view="wall"] #strip .stab { height: 24px; padding: 0 8px; font: 12.5px var(--sans); color: var(--mute); }
 :root[data-view="wall"] #strip .stab:hover, :root[data-view="wall"] #strip .stab.on { color: var(--ink); }
+:root[data-view="wall"] #strip .sterm { margin-right: 8px; border: 1px solid var(--hairline); color: var(--ink); cursor: grab; }
+:root:not([data-view="wall"]) #strip .sterm { display: none; }
+#menu [data-wall-term] { cursor: grab; }
+:root[data-view="wall"] #centre .tile.drop-at { border-color: var(--accent); border-style: dashed; }
 
 :root[data-view="wall"] #centre .tile { overflow: visible; border: 1px solid var(--hairline-strong); border-radius: 0; background: var(--canvas-deep); box-shadow: none; }
 :root[data-view="wall"] #centre:not(:focus-within) .tile.big:not(.big2), :root[data-view="wall"] #centre .tile:focus-within { border-color: var(--accent); }

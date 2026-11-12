@@ -64,6 +64,7 @@ export const DEFAULTS = {
       bash: process.platform === 'win32'
         ? { label: 'Git Bash', command: ['C:/Program Files/Git/bin/bash.exe', '--login', '-i'], fallback: [] as string[] }
         : { label: 'Bash', command: ['bash', '--login', '-i'], fallback: [] as string[] },
+      ...(process.platform === 'win32' ? { wsl: { label: 'WSL', command: ['wsl.exe'], fallback: [] as string[] } } : {}),
     } as Record<string, { label: string; command: string[]; fallback: string[] }>,
   },
   ui: {
