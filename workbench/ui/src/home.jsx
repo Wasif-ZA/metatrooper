@@ -237,7 +237,7 @@ function Ring({ k, size = 12, className }) {
   const s = statusOf(k);
   return <ProgressRing state={progressOf(k)} done={st?.done} total={st?.total} size={size} className={className} title={STATUS_WORD[s]} />;
 }
-const Dot = ({ k }) => <Ring k={k} size={12} className="ou-hm-dot" />;
+const Dot = ({ k }) => <Ring k={k} size={14} className="ou-hm-dot" />;
 
 function Steps({ st }) {
   return (
@@ -392,10 +392,7 @@ const openFolder = async (x) => {
   if (!r || r.error) toast((r && r.error) || 'Could not open the folder', true);
 };
 
-export const lineageTitle = (kids) => {
-  const running = kids.filter((k) => !settled(k)).length;
-  return running ? `Lineage · ${running} running` : `Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`;
-};
+export const lineageTitle = (kids) => `Lineage · ${summarizeSubagentStatuses(kids.map(statusOf))}`;
 
 function PanelSection({ title, heading = false, children }) {
   return (
@@ -468,8 +465,8 @@ function RailCard({ sel, kids }) {
           description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from cc.`} actionLabel="Merge"
           onAction={async () => {
             setMerging(false);
-            const r = await rpc('gh.merge', { session_id: sel.id });
-            if (r && r.result) toast(`Merged PR #${pr.number}`); else toast((r && r.error && (r.error.message || r.error)) || 'Could not merge', true);
+            const r = await api.prMerge(sel.id);
+            if (r && r.ok) toast(`Merged PR #${pr.number}`); else toast((r && r.error) || 'Could not merge', true);
           }} />
       ) : null}
     </div>

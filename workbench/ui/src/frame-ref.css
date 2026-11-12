@@ -1,4 +1,4 @@
-/* Sidebar and top bar laid out like the reference window: search row, thread rows, Working/Settled shelves, icon footer. */
+﻿/* Sidebar and top bar laid out like the reference window: search row, thread rows, Working/Settled shelves, icon footer. */
 :root:not(.side-rail):not(.side-auto) { --side: 255px; }
 .frame { font-family: var(--font-family-body, 'Geist', sans-serif); }
 .fhead { justify-content: flex-start; gap: 6px; padding: 0 12px 0 10px; border-bottom: 0; }
@@ -70,3 +70,29 @@
 .ou-hm-paneltog { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mute); cursor: pointer; }
 .ou-hm-paneltog:hover, .ou-hm-paneltog[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
 .ou-hm-paneltog:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+
+/* Round 3: rings read as progress (14px, 2px stroke, visible track), darker status colours in light, sub-agent rows, shelves from the top. */
+.fring, .ftree .fring { width: 14px; height: 14px; color: var(--body); }
+.ouros-ring { stroke-width: 2; }
+.ouros-ring circle[stroke-opacity] { stroke-opacity: .32; }
+:root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #bc4c00; }
+.fshelves { margin-top: 0; padding-top: 2px; }
+.fthw { position: relative; display: flex; flex-direction: column; }
+.fthw.haskids .fth3 { padding-right: 22px; }
+.fthx { position: absolute; right: 12px; top: 49px; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--mute); cursor: pointer; }
+.fthx:hover { background: var(--canvas); color: var(--ink); }
+.fthx svg { transition: transform 150ms ease-out; }
+.fthx[aria-expanded="true"] svg { transform: rotate(90deg); }
+.fthx:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+.fthkids { display: flex; flex-direction: column; gap: 1px; margin: 2px 8px 4px 22px; padding-left: 6px; border-left: 1px solid var(--hairline); }
+.fthkid { display: flex; align-items: center; gap: 6px; height: 28px; min-width: 0; padding: 0 6px; border-radius: 6px; color: var(--body); text-align: left; }
+.fthkid:hover { background: var(--canvas); }
+.fthkid.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.fthkid .ft { flex: 1; min-width: 0; font-size: 13px; }
+.fthkid .fthmk { flex: none; }
+@media (prefers-reduced-motion: reduce) { .fthx svg { transition: none; } }
+:root:is(.side-rail, .side-auto) .frame :is(.fthx, .fthkids) { display: none; }
+.fslot { font-size: 11px; }
+.fusage { grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); row-gap: 6px; }
+header.title .ou-hm-head .ou-hm-headtitle, .title .kpick#project-pick { font-family: 'Geist', 'Segoe UI', sans-serif; }
+header.title .ou-hm-head .ou-hm-headtitle { font-weight: 500; }

@@ -406,7 +406,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   const h = harness(Home); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid'].map(at);
+  const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 working', 'Task kid'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
@@ -896,8 +896,8 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   await h.one(label('Changes')).props.onClick({ stopPropagation() {} });
   assert.deepEqual(calls, [['view', 'wall'], ['pick', 'lead'], ['openTab', 'diff']], 'Changes opens the task on the Wall with its Diff tab');
   delete g.pick; delete g.openTab; g.ui.projectId = 'p1'; g.ui.view = 'home';
-  assert.equal(lineageTitle([session('a', 'working'), session('b', 'done')]), 'Lineage · 1 running');
-  assert.equal(lineageTitle([session('a', 'done'), session('b', 'done')]), 'Lineage · 2 agents');
+  assert.equal(lineageTitle([session('a', 'working'), session('w', 'waiting_for_you'), session('b', 'done')]), 'Lineage · 1 working · 1 waiting · 1 done', 'same words as the subagents block');
+  assert.equal(lineageTitle([session('a', 'done'), session('b', 'done')]), 'Lineage · 2 done');
   delete g.api.openFolder; g.ui.snap.git = undefined;
 });
 
@@ -919,6 +919,23 @@ test('openFolder in main opens the recorded folder of the session and refuses on
   const body = src.slice(src.indexOf("on('openFolder'"), src.indexOf("on('openFolder'") + 260);
   assert.match(body, /const cwd = cwdOf\(sessionId\);\s*if \(!cwd\) return \{ error: 'this session has no folder recorded' \};\s*const error = await shell\.openPath\(cwd\);/);
   assert.match(readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8'), /openFolder: \(sessionId\) => ipcRenderer\.invoke\('openFolder', sessionId\)/);
+});
+
+test('Merge confirm calls prMerge for the task and toasts the result', async () => {
+  homeStore.set({ open: [], tick: 0, details: true }); g.ui.homeSel = 'lead';
+  const lead = session('lead', 'working'); g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead];
+  g.ui.snap.git = { lead: { branch: 'feat/m', added: 1, deleted: 0, changed: [], pr: { number: 9, state: 'OPEN', url: '', checks: 'pass' } } };
+  g.api.prMerge = async (id: string) => { calls.push(['prMerge', id]); return { ok: true }; };
+  const h = harness(Home); h.draw(); calls.length = 0;
+  h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
+  const dialog = h.one((n: any) => n.props?.title === 'Merge PR #9?');
+  await dialog.props.onAction();
+  assert.deepEqual(calls, [['prMerge', 'lead'], ['toast', 'Merged PR #9']]);
+  g.api.prMerge = async () => ({ error: 'not mergeable' }); calls.length = 0;
+  h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
+  await h.one((n: any) => n.props?.title === 'Merge PR #9?').props.onAction();
+  assert.deepEqual(calls, [['toast', 'not mergeable', true]]);
+  delete g.api.prMerge; g.ui.snap.git = undefined;
 });
 
 test('Home task title skips a terminal title that is a program path', () => {

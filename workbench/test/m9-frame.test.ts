@@ -398,7 +398,7 @@ test('clicking an agent row while not on the Wall switches to the Wall', () => {
   assert.deepEqual(h.homeViewSetCalls, []);
 });
 
-test('thread list: one row per task with project, title, branch and engine marks; active tasks in Working, older settled in Settled; shelves toggle', () => {
+test('thread list: one row per task with project, title, branch and engine marks; active tasks in Working, settled in Settled (closed); sub-agents behind a chevron; shelves toggle', () => {
   const h = createFrameHarness();
   h.triggerDomContentLoaded();
   h.ctx.setTimeout = () => 0;
@@ -415,14 +415,22 @@ test('thread list: one row per task with project, title, branch and engine marks
   h.frameView.draw();
   const html = h.frameAgents.innerHTML;
   const ids = [...html.matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['fresh', 'busy', 'lead'], 'recent settled on top, then Working newest first; the sub-agent has no row of its own; Settled starts closed');
+  assert.deepEqual(ids, ['busy', 'lead'], 'Working newest first; the sub-agent has no row of its own; Settled starts closed');
   assert.match(html, /data-id="lead"[^]*?<span class="fthpn">shop<\/span><\/span><span class="fthtime"><span class="fthwait">Waiting 18s<\/span>/);
   assert.match(html, /data-id="lead"[^]*?<span class="ft">Lead task<\/span>[^]*?<span class="fthbr">feat\/share<\/span><span class="fthmks">(<span class="fthmk">[^]*?<\/span>){2}<\/span>/);
   assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">2<\/span>/);
-  assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">1<\/span>/);
+  assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">2<\/span>/);
+  assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);
+  assert.doesNotMatch(html, /data-id="kid"/);
+  const kidsBtn = { dataset: { kids: 'lead' }, closest: (sel: string) => (sel === '[data-kids]' ? kidsBtn : null) };
+  h.frameAgents.click(kidsBtn);
+  assert.match(h.frameAgents.innerHTML, /data-kids="lead" aria-expanded="true"[^]*?<div class="fthkids"><button class="fthkid" data-action="home-select" data-id="kid"[^]*?<span class="ft">Kid task<\/span>/);
+  h.frameAgents.click(kidsBtn);
+  assert.doesNotMatch(h.frameAgents.innerHTML, /data-id="kid"/);
   const shelfBtn = (key: string) => ({ dataset: { shelf: key }, closest: (sel: string) => (sel === '[data-shelf]' ? shelfBtn(key) : null) });
   h.frameAgents.click(shelfBtn('settled'));
-  assert.match(h.frameAgents.innerHTML, /data-shelf="settled" aria-expanded="true"[^]*data-id="old"/);
+  const settledIds = [...h.frameAgents.innerHTML.split('data-shelf="settled"')[1].matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(settledIds, ['fresh', 'old'], 'settled newest first');
   h.frameAgents.click(shelfBtn('working'));
   assert.doesNotMatch(h.frameAgents.innerHTML, /data-id="busy"/);
   h.frameAgents.click(shelfBtn('working'));

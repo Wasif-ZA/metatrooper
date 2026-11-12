@@ -130,7 +130,7 @@ globalThis.frameView = (() => {
 
   function ringOf(dot, done, total, title) {
     if (!globalThis.progressRingSvg) return statusHtml(dot);
-    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 12, title })}</span>`;
+    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 14, title })}</span>`;
   }
 
   function agentHtml(x, depth, rows = {}) {
@@ -152,13 +152,14 @@ globalThis.frameView = (() => {
   // Thread list after t3code (MIT), apps/web/src/components/sidebar/SidebarThreadRow.tsx and Sidebar.tsx: one row per task
   // (project chip + time, title, branch + engine marks), recent settled work on top, Working and Settled shelves at the bottom.
   const ACTIVE = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
-  const DAY = 86_400_000;
   const ago = (iso) => {
     const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
     if (Number.isNaN(s)) return '';
     return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   };
   const shelf = { working: true, settled: false };
+  const openKids = new Set();
+  const rowName = (x) => { const title = (x.title || '').trim(); return (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x); };
 
   function threadRows(tree, rows, git = {}, hide = new Set()) {
     const out = [];
@@ -174,24 +175,32 @@ globalThis.frameView = (() => {
     }
     const at = (t) => Date.parse(t.x.state_at || t.x.started_at || '') || 0;
     out.sort((a, b) => at(b) - at(a));
-    const settled = out.filter((t) => !t.active);
-    const recent = settled.filter((t) => Date.now() - at(t) < DAY).slice(0, 8);
-    return { working: out.filter((t) => t.active), recent, older: settled.filter((t) => !recent.includes(t)) };
+    return { working: out.filter((t) => t.active), settled: out.filter((t) => !t.active) };
+  }
+
+  function kidHtml(k, rows) {
+    const name = rowName(k);
+    const words = STATE_WORDS[k.state] || k.state;
+    const sel = k.id === selectedId();
+    return `<button class="fthkid${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(k.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${k.model || k.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(k.model || k.engine_id)}, ${esc(words)}">${ringHtml(k, rows)}<span class="fthmk">${mark(k.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fthtime">${esc(ago(k.state_at || k.started_at))}</span></button>`;
   }
 
   function threadHtml(t, rows) {
     const { x } = t;
-    const title = (x.title || '').trim();
-    const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
+    const name = rowName(x);
     const words = STATE_WORDS[x.state] || x.state;
     const sel = x.id === selectedId();
     const when = x.state === 'waiting_for_you' ? `<span class="fthwait">Waiting ${esc(ago(x.state_at))}</span>` : esc(ago(x.state_at || x.started_at));
     const crew = [x, ...t.kids];
     const marks = crew.slice(0, 3).map((k) => `<span class="fthmk">${mark(k.engine_id)}</span>`).join('') + (crew.length > 3 ? `<span class="fthmore">+${crew.length - 3}</span>` : '');
-    return `<button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
+    const open = openKids.has(x.id);
+    const n = t.kids.length;
+    const toggle = n ? `<button class="fthx" data-kids="${esc(x.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${n} sub-agent${n === 1 ? '' : 's'} of ${esc(name)}" title="${n} sub-agent${n === 1 ? '' : 's'}">${I('chevronRight', 14)}</button>` : '';
+    const kids = open ? `<div class="fthkids">${t.kids.map((k) => kidHtml(k, rows)).join('')}</div>` : '';
+    return `<div class="fthw${n ? ' haskids' : ''}${open ? ' open' : ''}" data-key="s:${esc(x.id)}"><button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
       + `<span class="fth1"><span class="fthproj" data-proj="${esc(t.project_id)}">${projIcon(t.project_id, 14)}<span class="fthpn">${esc(t.project)}</span></span><span class="fthtime">${when}</span></span>`
       + `<span class="fth2">${ringHtml(x, rows)}<span class="ft">${esc(name)}</span></span>`
-      + `<span class="fth3"><span class="fthbr">${esc(t.branch || '')}</span><span class="fthmks">${marks}</span></span></button>`;
+      + `<span class="fth3"><span class="fthbr">${esc(t.branch || '')}</span><span class="fthmks">${marks}</span></span></button>${toggle}${kids}</div>`;
   }
 
   function shelfHtml(key, label, list, rows) {
@@ -201,10 +210,9 @@ globalThis.frameView = (() => {
   }
 
   function threadsHtml(tree, rows, git, hide) {
-    const { working, recent, older } = threadRows(tree, rows, git, hide);
-    if (!working.length && !recent.length && !older.length) return '<p class="fempty">No agents running</p>';
-    const top = view.done ? recent.map((t) => threadHtml(t, rows)).join('') : '';
-    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && older.length ? shelfHtml('settled', 'Settled', older, rows) : ''}</div>`;
+    const { working, settled } = threadRows(tree, rows, git, hide);
+    if (!working.length && !settled.length) return '<p class="fempty">No agents running</p>';
+    return `<div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
   }
 
   const gh = { project: null, at: 0, issues: null };
@@ -408,6 +416,8 @@ globalThis.frameView = (() => {
     set(load('sidebar') === 'rail');
     document.getElementById('frameTog').addEventListener('click', toggle);
     document.getElementById('frame-agents').addEventListener('click', (e) => {
+      const kx = e.target.closest('[data-kids]');
+      if (kx) { if (openKids.has(kx.dataset.kids)) openKids.delete(kx.dataset.kids); else openKids.add(kx.dataset.kids); draw(); return; }
       const sh = e.target.closest('[data-shelf]');
       if (sh) { shelf[sh.dataset.shelf] = !shelf[sh.dataset.shelf]; draw(); return; }
       const sel = e.target.closest('[data-action="home-select"]');

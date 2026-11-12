@@ -37,7 +37,7 @@ import { formatComment } from './editor-comment.js';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
-import { ghIssues, ghPr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
+import { ghIssues, ghPr, mergePr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
 import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
@@ -556,6 +556,11 @@ function handlers(): void {
     const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined) : undefined;
     return row?.cwd ?? null;
   };
+  on('prMerge', async (sessionId: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd) return { error: 'this session has no folder recorded' };
+    return mergePr(cwd, demo ? path.join(homeDir(), 'demo', 'github.json') : null);
+  });
   on('openFolder', async (sessionId: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
