@@ -79,6 +79,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   worktree.create         {project_id, branch?, base?: "HEAD"}  (stable)
   ui.hello                {ui_key}
   engines.check           {}
+  engines.models          {engine_id}
   hooks.install           {codex?: bool}
   hooks.uninstall         {codex?: bool}
   plugin.preview          {source}

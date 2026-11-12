@@ -97,6 +97,7 @@ const valueOf = (data, key) => key.split('.').reduce((o, k) => (o ? o[k] : undef
 async function write(key, value) {
   const r = key === 'sessions.approval' ? await api.setApproval(value) : await api.setSetting(key, value);
   if (r && r.error) toast(r.error, true);
+  else if (key === 'sessions.approval') { if (ui.settingsLook) ui.settingsLook.approval = value; }
   else if (key.startsWith('terminal.') || key.startsWith('ui.')) { ui.settingsLook = { ...(await api.uiSettings()), firstRun: false }; applyLook(ui.settingsLook); render(); }
   await reload();
 }

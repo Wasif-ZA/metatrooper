@@ -305,7 +305,7 @@ test('Add-ons loads once, clears on leave, reloads and ignores a stale response'
 test('Home start box appears only with a non-red engine and ends with the Start arrow', () => {
   g.ui.snap.engines = [{ id: 'bad', light: 'red' }]; const h = harness(Home); h.draw(); assert.equal(h.all(label('Start')).length, 0);
   g.ui.snap.engines.push({ id: 'ready', light: 'yellow' }); h.draw(); assert.equal(h.all(label('Start')).length, 1);
-  assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options, [{ value: 'ready', label: 'ready' }]);
+  assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options[0], { type: 'section', title: 'Agent', options: [{ value: 'ready', label: 'ready' }] });
   assert.equal(h.one(label('Start')).props.tooltip, 'Start (Ctrl+Enter)');
   const bar = React.Children.toArray(h.one(hasClass('ou-hm-cbar')).props.children) as any[];
   assert.deepEqual([bar[0].props.items.map((i: any) => i.label), bar[bar.length - 1].props.label], [['Attach files', 'Branch and model'], 'Start']);
@@ -852,6 +852,29 @@ test('chat box attach inserts project-relative @paths and the branch label shows
   h.one(label('Branch for a new worktree')).props.onChange('fix/x'); h.draw();
   assert.match(h.html(), /fix\/x \(new worktree\)/);
   delete g.ui.snap.projects[0].path;
+});
+test('chat box model menu lists engines.models and the picked model reaches session.launch', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const asked: any[] = []; const rpcBefore = g.rpc;
+  g.rpc = async (method: string, params: any) => { asked.push([method, params]); if (method === 'engines.models') return { result: { models: ['big', 'small'] } }; return rpcBefore(method, params); };
+  const h = harness(Home, true); h.draw(); await flush(); h.draw();
+  assert.deepEqual(asked[0], ['engines.models', { engine_id: 'codex' }]);
+  const agent = h.one(label('Agent'));
+  assert.deepEqual(agent.props.options[1].options.map((o: any) => o.label), ['Agent default', 'big', 'small', 'Custom model...']);
+  agent.props.onChange('model:small'); h.one(label('Task for a new agent')).props.onChange('go'); h.draw(); calls.length = 0;
+  await h.one(label('Start')).props.onClick();
+  assert.deepEqual(calls.filter(c => c[0] === 'rpc' && c[1] === 'session.launch')[0], ['rpc', 'session.launch', { project_id: 'p1', engine_id: 'codex', prompt: 'go', model: 'small' }]);
+  g.rpc = rpcBefore;
+});
+test('chat box access label names the level from Settings', () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; g.ui.settingsLook = { themes: [], approval: 'contained' };
+  const h = harness(Home); h.draw();
+  const access = h.one(label('Approval'));
+  assert.equal(access.props.renderValue(), 'Auto');
+  assert.equal(access.props.options[0].label, 'Auto (from Settings)');
+  access.props.onChange('edits'); h.draw();
+  assert.equal(h.one(label('Approval')).props.renderValue(), 'Edits allowed');
+  g.ui.settingsLook = { themes: [] };
 });
 test('chat box project selector switches the real project', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }]; const switched: string[] = []; g.switchProject = (id: string) => switched.push(id);

@@ -194,6 +194,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS) | -32002, -32003, -32602 | yes | yes |
 | `ui.hello` | `{ui_key}` | {ok}; marks this connection as a trusted UI connection (see Access) |  |  |  |
 | `engines.check` | `{}` | {} (results land in `engine_check`) |  |  |  |
+| `engines.models` | `{engine_id}` | {models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument | -32002 |  |  |
 | `hooks.install` | `{codex?: bool}` | {diff} |  |  | yes |
 | `hooks.uninstall` | `{codex?: bool}` | {diff} |  |  | yes |
 | `plugin.preview` | `{source}` | {valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |  |  |  |

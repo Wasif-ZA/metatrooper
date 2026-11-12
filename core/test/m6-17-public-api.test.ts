@@ -75,6 +75,7 @@ const EXPECTED_METHODS = [
   'worktree.create',
   'ui.hello',
   'engines.check',
+  'engines.models',
   'hooks.install',
   'hooks.uninstall',
   'plugin.preview',

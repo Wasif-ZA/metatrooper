@@ -184,6 +184,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           filled: Boolean(form.prompt.trim()),
           onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey && ready) { e.preventDefault(); void save(); } },
           field: <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />,
+          attach: (paths) => set('prompt')(`${form.prompt}${form.prompt && !/\s$/.test(form.prompt) ? ' ' : ''}${paths.map((p) => `@${p}`).join(' ')} `),
           engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: e.id })), onChange: set('engine_id') },
           send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
           context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> }],

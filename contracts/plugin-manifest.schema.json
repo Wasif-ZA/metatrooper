@@ -44,6 +44,7 @@
           "description": "Flag that passes a model name, e.g. --model or -m. Omit if the CLI takes no model argument.",
           "type": "string"
         },
+        "models": { "type": "array", "items": { "type": "string" }, "description": "Model names the chat box picker lists for this engine; any other name can still be typed." },
         "resume_args": { "type": "array", "items": { "type": "string" }, "description": "Arguments that resume an earlier session; {native_id} is replaced by its id. Omit if the CLI cannot resume." },
         "auth_error": { "type": "string", "maxLength": 200, "description": "Regex, matched case-insensitively against the last 200 rows of a resumed session's screen, that means the engine needs signing in. After 2 matches the core stops resuming the engine and raises one needs-you item." },
         "version_cmd": { "type": "array", "items": { "type": "string" }, "minItems": 1 },

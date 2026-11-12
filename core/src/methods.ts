@@ -127,6 +127,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'worktree.create', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
+  { name: 'engines.models', errors: [E.NOT_FOUND], params: '{engine_id}', result: '{models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
   { name: 'hooks.uninstall', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
   { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install)' },
@@ -721,6 +722,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('engines.check', { handler: () => { void checkAll(db, ctl.engines()); return {}; } });
+  m.set('engines.models', {
+    handler: (p) => {
+      const engine = ctl.engines().find((e) => e.id === str(p, 'engine_id'));
+      if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
+      return { models: engine.model_arg ? engine.models ?? [] : [] };
+    },
+  });
 
   m.set('worktree.create', {
     handler: (p) => {

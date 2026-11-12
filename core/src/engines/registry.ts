@@ -12,6 +12,8 @@ export interface EngineSpec {
   args?: string[];
   prompt_arg?: string;
   model_arg?: string;
+  /** Model names the chat box picker lists; any other name can still be typed. */
+  models?: string[];
   resume_args?: string[];
   /** Regex, matched case-insensitively against a resumed session's last screen, that means the engine needs signing in. */
   auth_error?: string;
@@ -66,7 +68,7 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 
 export const BUILT_IN: EngineSpec[] = [
   {
-    id: 'claude', command: 'claude', prompt_arg: 'positional', model_arg: '--model', resume_args: ['--resume', '{native_id}'], auth_error: 'invalid api key|please run /login|oauth token (has expired|revoked)|authentication_error', version_cmd: ['claude', '--version'],
+    id: 'claude', command: 'claude', prompt_arg: 'positional', model_arg: '--model', models: ['opus', 'sonnet', 'haiku'], resume_args: ['--resume', '{native_id}'], auth_error: 'invalid api key|please run /login|oauth token (has expired|revoked)|authentication_error', version_cmd: ['claude', '--version'],
     install: 'npm install -g @anthropic-ai/claude-code', login: 'claude, then /login',
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
     sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },

@@ -80,6 +80,11 @@ function StartBox({ ready }) {
   const [model, setModel] = useState('');
   const [approval, setApproval] = useState('default');
   const [starting, setStarting] = useState(false);
+  const [models, setModels] = useState({});
+  useEffect(() => {
+    if (models[chosen] || typeof rpc !== 'function') return;
+    void rpc('engines.models', { engine_id: chosen }, true).then((r) => { if (r && r.result) setModels((m) => ({ ...m, [chosen]: r.result.models })); });
+  }, [chosen]);
 
   const start = async () => {
     setStarting(true);
@@ -123,7 +128,14 @@ function StartBox({ ready }) {
     plus: [
       { label: more ? 'Hide branch and model' : 'Branch and model', onClick: () => setMore(!more) },
     ],
-    engine: { id: chosen, model: model.trim(), options: ready.map((e) => ({ value: e.id, label: e.id })), onChange: (v) => { ui.drafts['home-engine'] = v; setEngine(v); } },
+    engine: { id: chosen, model: model.trim(), options: [
+      { type: 'section', title: 'Agent', options: ready.map((e) => ({ value: e.id, label: e.id })) },
+      { type: 'section', title: 'Model', options: [{ value: 'model:', label: 'Agent default' }, ...(models[chosen] || []).map((m) => ({ value: `model:${m}`, label: m })), { value: 'custom', label: 'Custom model...' }] },
+    ], onChange: (v) => {
+      if (v === 'custom') { setMore(true); return; }
+      if (v.startsWith('model:')) { setModel(v.slice(6)); return; }
+      ui.drafts['home-engine'] = v; setEngine(v); setModel('');
+    } },
     send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, onClick: start },
     attach: (paths) => {
       const root = String(proj?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
@@ -133,13 +145,14 @@ function StartBox({ ready }) {
     },
     ring: { spinning: starting || working > 0, label: starting ? 'Starting' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agent working' },
     context: [
-      { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+      { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
       { key: 'machine', icon: laptopSmall, text: 'Local', title: 'Agents run on this computer' },
       branch.trim() || gitBranch ? { key: 'branch', icon: branchSmall, text: branch.trim() ? `${branch.trim()} (new worktree)` : gitBranch } : null,
       { key: 'gap', gap: true },
-      { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
-        { value: 'default', label: 'Approval as in Settings' },
+      { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" placement="above" value={approval} onChange={setApproval}
+        renderValue={() => ACCESS[approval === 'default' ? ui.settingsLook?.approval || 'ask' : approval] || 'Ask first'} options={[
+        { value: 'default', label: `${ACCESS[ui.settingsLook?.approval] || 'Ask first'} (from Settings)` },
         { value: 'ask', label: 'Ask first' },
         { value: 'edits', label: 'Edits allowed' },
         { value: 'contained', label: 'Auto' },
@@ -149,6 +162,7 @@ function StartBox({ ready }) {
 }
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
+const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', isolated: 'Full access' };
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
 const statusOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
