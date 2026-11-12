@@ -33,7 +33,9 @@
 .hag { opacity: .5; }
 .hag.on, .hag:hover { opacity: 1; }
 .hag .hname { color: var(--ink); }
-.hag .hst { color: var(--mute); }
+.hag .hst { color: var(--mute); padding-left: 6px; }
+.hag .hnum { color: var(--mute); font-weight: 400; }
+.hag .htask { color: var(--faint); font-weight: 400; }
 .hag:hover { background: var(--canvas); }
 .hsdot.hk-work, .hg.hk-work { color: var(--work); }
 .hsdot.hk-block, .hg.hk-block { color: var(--del); }
@@ -47,7 +49,7 @@
 :root[data-view="wall"] .title .branch { display: none; }
 :root[data-view="wall"] .stage { background: var(--canvas-deep); }
 :root[data-view="wall"] #listBtn, :root[data-view="wall"] #foldMore, :root[data-view="wall"] #strip > :not(.stab) { display: none; }
-:root[data-view="wall"] #strip { top: calc(-1 * var(--top)); bottom: auto; left: auto; right: 8px; height: var(--top); z-index: 31; gap: 2px; padding: 0; border: 0; background: none; }
+:root[data-view="wall"] #strip { top: calc(-1 * var(--top)); bottom: auto; left: auto; right: 12px; width: auto !important; container-type: normal; justify-content: flex-end; height: var(--top); z-index: 31; gap: 2px; padding: 0; border: 0; background: none; }
 :root[data-view="wall"] #strip .stab { height: 24px; padding: 0 8px; font: 12.5px 'Geist', 'Segoe UI', sans-serif; color: var(--mute); }
 :root[data-view="wall"] #strip .stab:hover, :root[data-view="wall"] #strip .stab.on { color: var(--ink); }
 :root[data-view="wall"] #strip :is([data-tab="diff"], [data-tab="handback"]) { display: none; }
@@ -58,7 +60,8 @@
 
 /* Panes keep the old Wall look (wall.css, style.css, wall-plain.css); only these fixes sit on top. */
 :root[data-view="wall"] #centre .tile:is(.shell, :not([data-state="exited"])) .ph .rs { display: none; }
-:root[data-view="wall"] #centre .ph .ou-ah-name { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-view="wall"][data-scheme="light"] #centre .pane:is(.on, :focus-within) { border-color: var(--accent); }
+:root[data-view="wall"] #centre .ph .ou-ah-name { flex: 1 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-view="wall"] #centre .ph .ou-ah-acts { flex: none; }
 @container (max-width: 340px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: contents; } }
 @container (max-width: 240px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: none; } }

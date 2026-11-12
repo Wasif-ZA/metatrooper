@@ -42,10 +42,10 @@ test('wall sidebar numbers the open project first with its branch, then the othe
   assert.match(html, /<span class="hbr">main<\/span>/);
 });
 
-test('wall sidebar lists each live session of the project by its pane title, with the same state word the pane header uses, and marks the selected one', () => {
+test('wall sidebar lists each live session of the project by number, engine and pane title, with the same state word the pane header uses, and marks the selected one', () => {
   const html = render(snap, 'p1');
-  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname">([\w ]+)<\/span><span class="hst">([\w ]+)<\/span>/g)].map((m) => [m[2], m[3], m[4], m[5], Boolean(m[1])]);
-  assert.deepEqual(rows, [['s1', 'work', 'fix login', 'working', false], ['s2', 'block', 'add tests', 'waiting for you', true], ['s3', 'idle', 'gemini', 'idle', false]]);
+  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname"><span class="hnum">(\d)<\/span> <span class="heng">(\w+)<\/span> <span class="htask">([\w ]+)<\/span><\/span><span class="hst">([\w ]+)<\/span>/g)].map((m) => [m[2], m[3], `${m[4]} ${m[5]} ${m[6]}`, m[7], Boolean(m[1])]);
+  assert.deepEqual(rows, [['s1', 'work', '1 claude fix login', 'working', false], ['s2', 'block', '2 codex add tests', 'waiting for you', true], ['s3', 'idle', '3 gemini gemini', 'idle', false]]);
   assert.match(html, /data-action="launch-menu"[^>]*>new</);
 });
 

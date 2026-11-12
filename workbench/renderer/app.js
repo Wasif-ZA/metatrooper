@@ -423,6 +423,7 @@ function applyLook(look) {
   for (const [k, vars] of Object.entries(THEME_VARS)) if (look.theme[k]) for (const v of vars) root.style.setProperty(v, look.theme[k]);
   root.dataset.look = look.theme.look || 'plain';
   root.style.colorScheme = look.theme.scheme || 'dark';
+  root.dataset.scheme = look.theme.scheme || 'dark';
   termView.setLook(look);
   globalThis.setUiScheme?.();
 }
