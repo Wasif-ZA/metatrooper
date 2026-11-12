@@ -116,4 +116,6 @@
 .ou-inbox .ou-ny-ledger-row { grid-template-columns: minmax(0, 1fr) 36px 36px 44px; }
 .ou-inbox .ou-ny-ledger-model { grid-column: 1 / -1; white-space: normal; overflow: visible; word-break: break-all; color: var(--body); }
 .ou-inbox .ou-ny-ledger-row > :nth-child(2) { grid-column: 2; }
-.ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+/* scrollbar-width/color switch off ::-webkit-scrollbar in Chromium, and thin still draws arrow buttons on Windows */
+.ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: auto; scrollbar-color: auto; }
+.ou-inbox ::-webkit-scrollbar-button { width: 0; height: 0; display: none; }
