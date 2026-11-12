@@ -5,7 +5,7 @@ const wall = (() => {
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, r = document) => r.querySelector(s);
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
-  const TOP = 24, G = 8, BAR = 36, SPN = 15;
+  const TOP = 10, BOT = 24, G = 10, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];
@@ -120,7 +120,7 @@ const wall = (() => {
 
   const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : (W - 16 - G) / 2);
   function rects() {
-    const st = $('#stage'), W = st?.clientWidth || innerWidth, H = (st?.clientHeight || innerHeight) - TOP - 60;
+    const st = $('#stage'), W = st?.clientWidth || innerWidth, H = (st?.clientHeight || innerHeight) - TOP - BOT;
     const R = {};
     const ids = [...BIG, ...ORDER].filter((id) => S[id]);
     if (mode === 'grid') {
@@ -129,7 +129,8 @@ const wall = (() => {
       ids.forEach((id, i) => R[id] = { left: 8 + (i % cols) * (w + G), top: TOP + Math.floor(i / cols) * (hh + G), width: w, height: hh });
       return { R, C: colW(W), RX: 8, H };
     }
-    const rest = ORDER.filter((id) => !BIG.includes(id));
+    // an open side panel owns the right column, so the other tiles leave it (the sidebar still lists them)
+    const rest = document.body.classList.contains('no-split') ? ORDER.filter((id) => !BIG.includes(id)) : [];
     const C = rest.length || !document.body.classList.contains('no-split') ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
@@ -204,7 +205,7 @@ const wall = (() => {
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
     const sp = $('#split');
-    if (sp && sp._rx !== RX) { sp._rx = RX; to('#split', { left: RX, onComplete: () => reportPaneBounds() }); }
+    if (sp && sp._rx !== RX) { sp._rx = RX; to('#split', { left: RX, onComplete: () => { if (typeof reportPaneBounds === 'function') reportPaneBounds(); } }); }
     fitSearch();
     changed();
   }

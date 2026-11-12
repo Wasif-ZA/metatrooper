@@ -56,7 +56,7 @@ test('D35 folded done tiles past the cap leave a "+N more" bar in the last slot,
   const listBtn = { ...node(), classList: { toggle() {} }, setAttribute: (_k: string, v: boolean) => { listOpened = v; } };
   const centre = { ...node(), appendChild: (el: any) => { more = el; } };
   const document = {
-    body: node(),
+    body: { ...node(), classList: { add() {}, remove() {}, toggle() {}, contains: (c: string) => c === 'no-split' } },
     querySelector: (s: string) => (s === '#foldMore' ? more : s === '#centre' ? centre : s === '#listBtn' ? listBtn : node()),
     createElement: () => {
       const t: any = { content: { firstChild: null } };

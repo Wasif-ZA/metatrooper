@@ -14,6 +14,9 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <div class="r2"><span class="tile-info"><span class="tile-last fl"></span><button class="tile-changed link" data-action="changed-menu" hidden></button><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></span></div>
   <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
+// Wall panes read at about a 20px line pitch; the user's terminal size setting stays the base.
+const WALL_FONT_UP = 2, WALL_LINE = 1.12;
+
 const termView = (() => {
   const troop = window.troop;
   const centre = document.getElementById('centre');
@@ -90,7 +93,7 @@ const termView = (() => {
     // a UI Automation invoke clicks the tile itself, not a point inside it
     el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
-    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme() });
+    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size + WALL_FONT_UP, lineHeight: WALL_LINE, fontFamily: look.theme.font_mono, theme: xtermTheme() });
     const fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
     term.open(body);
@@ -319,7 +322,7 @@ const termView = (() => {
     look = next;
     for (const t of terms.values()) {
       t.term.options.fontFamily = look.theme.font_mono;
-      t.term.options.fontSize = look.terminal.font_size;
+      t.term.options.fontSize = look.terminal.font_size + WALL_FONT_UP;
       t.term.options.scrollback = look.terminal.scrollback;
       t.term.options.theme = xtermTheme();
       resize(t);
