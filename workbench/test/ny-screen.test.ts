@@ -213,6 +213,25 @@ test('the project arrow opens that project Home, switching project when it is an
   assert.deepEqual([viewed, switched], [['home'], ['p2']]);
 });
 
+test('the x on a reviewer or approver chip drops only that one through session.reviewers-set', async () => {
+  const rv = (kind: string, who: string) => ({ kind, who, state: 'pending', note: null, review_session_id: null });
+  const row = s('s1', { reviews: [rv('reviewer', 'codex'), rv('reviewer', 'claude'), rv('approver', 'you')] });
+  g.ui.snap.live = [row]; inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  h.one((n: any) => n.props?.['aria-label'] === 'Remove reviewer codex').props.onClick({ stopPropagation() {} }); await settle();
+  h.draw(); h.one((n: any) => n.props?.['aria-label'] === 'Remove approver you').props.onClick({ stopPropagation() {} }); await settle();
+  assert.deepEqual(sent('session.reviewers-set'), [{ session_id: 's1', reviewers: ['claude'], approvers: ['you'] }, { session_id: 's1', reviewers: ['claude'], approvers: [] }]);
+});
+
+test('sub-tasks without a terminal title are named and searched by their prompt', () => {
+  g.ui.snap.live = [s('p'), s('c1', { parent_id: 'p', title: null, prompt: 'Split the parser' }), s('c2', { parent_id: 'p', title: null, prompt: 'Fix lint' })];
+  inboxStore.set({ selectedId: 'p' });
+  const h = harness(Inbox); h.draw();
+  assert.deepEqual(h.all(hasClass('ou-ny-sub-title')).map((n: any) => text(n.props.children)), ['Split the parser', 'Fix lint']);
+  h.one(label('Search sub-tasks')).props.onChange('parser'); h.draw();
+  assert.deepEqual(h.all(hasClass('ou-ny-sub-row')).map((n: any) => n.props['data-id']), ['c1']);
+});
+
 test('the properties panel folds away and comes back from the top bar', () => {
   g.ui.snap.live = [s('s1')]; inboxStore.set({ selectedId: 's1' });
   const h = harness(Inbox); h.draw();

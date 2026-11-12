@@ -36,21 +36,21 @@
 .ou-inbox .ou-ny-doc { max-width: 820px; padding: 32px 32px 48px; gap: 20px; }
 .ou-inbox .ou-ny-crumb { font-size: 13px; color: var(--ink); }
 .ou-inbox .ou-ny-crumb .ou-ny-mono { font-size: 13px; color: var(--ink); }
-.ou-inbox .ou-ny-top-chips { gap: 6px; padding-bottom: 20px; }
+.ou-inbox .ou-ny-top-chips { gap: 6px; padding-bottom: 0; border-bottom: 0; }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet { color: var(--mute); }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet svg { color: var(--mute); }
 .ou-inbox h2.ou-ny-doc-title { margin: 4px 0 0; font-size: 24px; font-weight: 500; line-height: 1.3; }
 .ou-inbox .ou-ny-doc-task { font-size: 15px; line-height: 1.6; }
 
 /* GitHub-style label pill, tinted from the status tokens */
-.ou-inbox .ou-ny-label { display: inline-flex; align-items: center; gap: 4px; height: 22px; max-width: 100%; padding: 0 8px; border: 1px solid currentColor; border-radius: var(--ny-pill); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; background: color-mix(in srgb, currentColor 12%, transparent); }
+.ou-inbox .ou-ny-label { --lc: var(--mute); display: inline-flex; align-items: center; gap: 4px; height: 22px; max-width: 100%; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--lc) 60%, transparent); border-radius: var(--ny-pill); font-size: 12px; font-weight: 400; line-height: 1; white-space: nowrap; color: var(--body); background: color-mix(in srgb, var(--lc) 16%, transparent); }
 .ou-inbox .ou-ny-label > span { overflow: hidden; text-overflow: ellipsis; }
-.ou-inbox .ou-ny-label .ou-ny-chip-remove { color: inherit; }
-.ou-inbox .ou-ny-tone-run { color: var(--st-run); }
-.ou-inbox .ou-ny-tone-ok { color: var(--st-ok); }
-.ou-inbox .ou-ny-tone-wait { color: var(--st-wait); }
-.ou-inbox .ou-ny-tone-bad { color: var(--st-bad); }
-.ou-inbox .ou-ny-tone-review { color: var(--body); }
+.ou-inbox .ou-ny-label .ou-ny-chip-remove { color: var(--mute); }
+.ou-inbox .ou-ny-tone-run { --lc: var(--st-run); }
+.ou-inbox .ou-ny-tone-ok { --lc: var(--st-ok); }
+.ou-inbox .ou-ny-tone-wait { --lc: var(--st-wait); }
+.ou-inbox .ou-ny-tone-bad { --lc: var(--st-bad); }
+.ou-inbox .ou-ny-tone-review { --lc: var(--body); }
 
 /* sub-tasks block */
 .ou-inbox .ou-ny-subtasks { gap: 12px; }
@@ -75,9 +75,9 @@
 /* properties panel */
 .ou-inbox .ou-ny-props { width: 300px; }
 .ou-inbox .ou-ny-props > * { min-width: 300px; }
-.ou-inbox .ou-ny-props-head { height: 48px; font-size: 14px; }
+.ou-inbox .ou-ny-props-head { height: 48px; font-size: 14px; border-bottom: 1px solid var(--hairline); }
 .ou-inbox .ou-ny-props-body { padding: 8px 0 24px; }
-.ou-inbox .ou-ny-prop { grid-template-columns: 78px minmax(0, 1fr); gap: 12px; min-height: 34px; padding: 4px 16px; }
+.ou-inbox .ou-ny-prop { grid-template-columns: 66px minmax(0, 1fr); gap: 12px; min-height: 34px; padding: 4px 16px; }
 .ou-inbox .ou-ny-prop-label { padding-top: 4px; line-height: 16px; }
 .ou-inbox .ou-ny-prop-val { font-size: 13px; }
 .ou-inbox .ou-ny-prop-val [role="combobox"] { margin-left: 0; }
@@ -104,3 +104,16 @@
 .ou-inbox .ou-ny-link { max-width: 100%; font-family: var(--mono); font-size: 12px; color: var(--st-ok); }
 .ou-inbox .ou-ny-link > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ou-inbox .ou-ny-link > svg { flex: none; }
+
+/* round 3 */
+.ou-inbox { --ny-pri-hot: #f2994a; }
+.ou-inbox .ou-ny-pri-high, .ou-inbox .ou-ny-pri-urgent { color: var(--ny-pri-hot); }
+.ou-inbox .ou-ny-bar .astryx-selector { width: auto; min-width: 0; background: transparent; border: 1px solid var(--hairline-strong); border-radius: 4px; }
+.ou-inbox .ou-ny-bar .astryx-selector, .ou-inbox .ou-ny-bar .astryx-selector * { font-size: 12px; font-weight: 400; color: var(--body); }
+.ou-inbox .ou-ny-bar [role="combobox"] { min-width: 0; }
+.ou-inbox .ou-ny-terminal-block { padding: 0; border: 0; background: transparent; }
+.ou-inbox .ou-ny-avatar-gap { flex: none; width: 16px; height: 16px; }
+.ou-inbox .ou-ny-ledger-row { grid-template-columns: minmax(0, 1fr) 36px 36px 44px; }
+.ou-inbox .ou-ny-ledger-model { grid-column: 1 / -1; white-space: normal; overflow: visible; word-break: break-all; color: var(--body); }
+.ou-inbox .ou-ny-ledger-row > :nth-child(2) { grid-column: 2; }
+.ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }

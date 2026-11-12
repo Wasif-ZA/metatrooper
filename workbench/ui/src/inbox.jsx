@@ -170,10 +170,11 @@ const I = {
 };
 
 const sid = (id) => String(id || '').slice(0, 8);
+const nameOf = (x) => ((x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x));
 const TONES = ['run', 'ok', 'wait', 'bad', 'review'];
 const toneOf = (text) => TONES[[...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
 const labelPill = (text, onRemove, colour) => (
-    <span key={text} className={`ou-ny-label${colour ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={colour ? { color: colour } : undefined}>
+    <span key={text} className={`ou-ny-label${colour ? '' : ` ou-ny-tone-${toneOf(text)}`}`} style={colour ? { '--lc': colour } : undefined}>
       <span>{text}</span>
       {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove label ${text}`} onClick={(e) => { e?.stopPropagation?.(); onRemove(); }}>{I.close}</button> : null}
     </span>
@@ -488,7 +489,7 @@ export function Inbox() {
   const subDone = children.filter((x) => DONE_STATES.includes(x.state)).length;
   const subBlocked = children.filter((x) => blockedNow(x)).length;
   const subActive = children.filter((x) => !DONE_STATES.includes(x.state) && !blockedNow(x)).length;
-  const subShown = children.filter((x) => !subQuery.trim() || taskOf(x).toLowerCase().includes(subQuery.trim().toLowerCase()));
+  const subShown = children.filter((x) => !subQuery.trim() || nameOf(x).toLowerCase().includes(subQuery.trim().toLowerCase()));
   const peers = sessionObj ? everyone.filter((x) => x.id !== sessionObj.id && (!sessionObj.project_id || x.project_id === sessionObj.project_id)) : [];
   const handEngines = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== engine);
   const handOptions = [{ value: '', label: 'Hand over' }, ...handEngines.map((e) => ({ value: e.id, label: e.id }))];
@@ -548,14 +549,16 @@ export function Inbox() {
     const x = byId(id);
     const st = !x ? 'done' : DONE_STATES.includes(x.state) ? 'done' : x.state === 'waiting_for_you' ? 'needs' : 'working';
     return (
-      <span key={id} className="ou-ny-chip ou-ny-pill" title={x ? taskOf(x) : id}>
+      <span key={id} className="ou-ny-chip ou-ny-pill" title={x ? nameOf(x) : id}>
         <StatusRing status={st} size={12} />
         <button type="button" className="ou-ny-chip-link ou-ny-mono" onClick={() => allRows.some((r) => r.id === id) ? select(id) : x && openOnWall(x)}>{sid(id)}</button>
         {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove ${x ? taskOf(x) : id}`} onClick={(e) => { e.stopPropagation(); onRemove(); }}>{I.close}</button> : null}
       </span>
     );
   };
-  const reviewChip = (r) => chip(r.kind + r.who, <><StatusRing status={r.state === 'passed' ? 'done' : r.state === 'failed' ? 'failed' : 'review'} size={12} /><span>{r.who}</span></>, 'ou-ny-pill');
+  const dropReview = (r) => setReviews(reviewers.filter((x) => !(r.kind === 'reviewer' && x.who === r.who)).map((x) => x.who), approvers.filter((x) => !(r.kind === 'approver' && x.who === r.who)).map((x) => x.who));
+  const reviewChip = (r) => chip(r.kind + r.who, <><StatusRing status={r.state === 'passed' ? 'done' : r.state === 'failed' ? 'failed' : 'review'} size={12} /><span>{r.who}</span>
+    <button type="button" className="ou-ny-chip-remove" aria-label={`Remove ${r.kind} ${r.who}`} title={`Remove ${r.kind} ${r.who}`} onClick={(e) => { e.stopPropagation(); dropReview(r); }}>{I.close}</button></>, 'ou-ny-pill');
   const addPicker = (label, options, onPick) => options.length ? (
     <span className="ou-ny-addpick"><Selector size="sm" variant="ghost" label={label} isLabelHidden options={[{ value: '', label: '+ ' + label }, ...options]} value="" onChange={(v) => { if (v) onPick(v); }} /></span>
   ) : null;
@@ -603,7 +606,7 @@ export function Inbox() {
       >
         <div className="ou-ny-row-main">
           <span className="ou-ititle"><span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
-          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : null}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
+          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap" aria-hidden="true" />}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
           <span className="ou-ny-inline">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}<StatusRing status={st} /></span>
@@ -672,7 +675,7 @@ export function Inbox() {
               <StatusRing status={DONE_STATES.includes(x.state) ? 'done' : blockedNow(x) ? 'blocked' : x.state === 'waiting_for_you' ? 'needs' : 'working'} />
               <span className="ou-ny-sub-n">{i + 1}.</span>
               <span className="ou-ny-mono ou-ny-sub-id">{sid(x.id)}</span>
-              <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{taskOf(x)}</button>
+              <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{nameOf(x)}</button>
               <span className="ou-ny-muted">{x.engine_id}</span>
               <span className="ou-ny-row-age">{ago(x.state_at || x.started_at) || ''}</span>
             </li>
@@ -850,7 +853,7 @@ export function Inbox() {
                 <Button size="sm" icon={<Ic.Answer size={14} />} label="Answer" onClick={() => document.querySelector('.ou-ny-composer input')?.focus()} />
               ) : null}
               {sessionObj ? (
-                <Selector size="sm" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}
+                <Selector size="sm" variant="ghost" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}
                   disabledMessage={sessionObj.prompt ? undefined : 'The original task was not recorded, so it cannot be handed over'} onChange={(val) => { if (val) setHandoverTarget(val); }} />
               ) : null}
               {!activeRow.isSession ? <Button size="sm" label="Dismiss" data-action="dismiss" data-id={item.id} onClick={() => dismiss(item.id)} /> : null}
