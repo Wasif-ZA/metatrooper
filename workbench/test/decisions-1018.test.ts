@@ -68,11 +68,11 @@ test('D35 folded done tiles past the cap leave a "+N more" bar in the last slot,
   const tw = (target: unknown, vars: Record<string, unknown>) => { set.push([target, vars]); return { kill() {} }; };
   const ctx = vm.createContext({
     gsap: { to: tw, set: tw, fromTo: tw, delayedCall: tw }, termView: { tile: (id: string) => tiles.get(id) ?? tiles.set(id, node()).get(id) }, matchMedia: () => ({ matches: false }),
-    document, addEventListener() {}, setInterval() {}, setTimeout() {}, clearTimeout() {}, innerWidth: 1400, innerHeight: 300, reportPaneBounds() {},
+    document, addEventListener() {}, setInterval() {}, setTimeout() {}, clearTimeout() {}, innerWidth: 1400, innerHeight: 260, reportPaneBounds() {},
   });
   vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
   const wall = ctx.wall;
-  // 300 px tall: 176 px of wall, so 2 fold slots
+  // a short window: room for 2 fold slots
   wall.decide([{ id: 'w', state: 'working' }, ...['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, state: 'done' }))], 'w');
   wall.layout(false);
   assert.ok(more, 'the bar exists');

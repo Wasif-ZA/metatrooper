@@ -5,7 +5,7 @@ const wall = (() => {
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, r = document) => r.querySelector(s);
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
-  const TOP = 10, BOT = 24, G = 10, BAR = 36, SPN = 15;
+  const TOP = 8, BOT = 8, G = 8, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];

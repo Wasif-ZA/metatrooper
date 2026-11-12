@@ -26,8 +26,8 @@ function render(snap: any, projectId: string, git: any = null) {
 const snap = {
   projects: [{ id: 'p1', name: 'alpha', path: '/a' }, { id: 'p2', name: 'beta', path: '/b', scratch: true }],
   sessions: [
-    { id: 's1', engine_id: 'claude', state: 'working' },
-    { id: 's2', engine_id: 'codex', state: 'waiting_for_you' },
+    { id: 's1', engine_id: 'claude', state: 'working', task: 'fix login' },
+    { id: 's2', engine_id: 'codex', state: 'waiting_for_you', task: 'add tests' },
     { id: 's3', engine_id: 'gemini', state: 'idle' },
     { id: 's4', engine_id: 'old', state: 'exited' },
   ],
@@ -42,10 +42,10 @@ test('wall sidebar numbers the open project first with its branch, then the othe
   assert.match(html, /<span class="hbr">main<\/span>/);
 });
 
-test('wall sidebar lists each live session of the project with the same state word the pane header uses, and marks the selected one', () => {
+test('wall sidebar lists each live session of the project by its pane title, with the same state word the pane header uses, and marks the selected one', () => {
   const html = render(snap, 'p1');
-  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname"><span class="hnum">(\d)<\/span> (\w+)<\/span><span class="hst">([\w ]+)<\/span>/g)].map((m) => [m[2], m[3], m[4] + ' ' + m[5], m[6], Boolean(m[1])]);
-  assert.deepEqual(rows, [['s1', 'work', '1 claude', 'working', false], ['s2', 'block', '2 codex', 'waiting for you', true], ['s3', 'idle', '3 gemini', 'idle', false]]);
+  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname">([\w ]+)<\/span><span class="hst">([\w ]+)<\/span>/g)].map((m) => [m[2], m[3], m[4], m[5], Boolean(m[1])]);
+  assert.deepEqual(rows, [['s1', 'work', 'fix login', 'working', false], ['s2', 'block', 'add tests', 'waiting for you', true], ['s3', 'idle', 'gemini', 'idle', false]]);
   assert.match(html, /data-action="launch-menu"[^>]*>new</);
 });
 
