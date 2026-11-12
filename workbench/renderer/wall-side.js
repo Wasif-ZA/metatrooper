@@ -24,14 +24,22 @@ const wallSide = (() => {
       return `<button class="hws${on ? ' on' : ''}" data-action="project" data-id="${esc(p.id)}" title="${esc(p.path || p.name)}"><span class="hn">${i + 1}</span><span class="hname">${esc(p.name)}</span>${k ? `<span class="hsdot hk-${k}">●</span>` : ''}${branch ? `<span class="hbr">${esc(branch)}</span>` : ''}</button>`;
     }).join('');
     const mine = cur ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)) : [];
-    const sel = ui.snap.selected;
-    const agents = mine.map((x) => {
+    const sel = mine.some((x) => x.id === focused) ? focused : ui.snap.selected;
+    const agents = mine.map((x, i) => {
       const k = kindOf(x.state);
-      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(taskOf(x))}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname">${esc(x.engine_id)}</span><span class="hst">${WORD[k]}</span></button>`;
+      const tile = document.querySelector?.(`#centre .tile[data-id="${x.id}"]`);
+      if (tile) tile.dataset.n = `${i + 1} ${x.engine_id}`;
+      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(taskOf(x))}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> ${esc(x.engine_id)}</span><span class="hst">${WORD[k]}</span></button>`;
     }).join('');
     const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents}</div>`;
     if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
   }
+
+  let focused = null;
+  document.addEventListener?.('focusin', (e) => {
+    const t = e.target.closest?.('#centre .tile');
+    if (t && t.dataset.id !== focused) { focused = t.dataset.id; draw(); }
+  });
 
   return { draw };
 })();

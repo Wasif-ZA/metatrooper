@@ -43,8 +43,8 @@ test('wall sidebar numbers the open project first with its branch, then the othe
 
 test('wall sidebar lists each live session of the project with the state word of its real state, and marks the selected one', () => {
   const html = render(snap, 'p1');
-  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname">(\w+)<\/span><span class="hst">(\w+)<\/span>/g)].map((m) => [m[2], m[4], m[5], Boolean(m[1])]);
-  assert.deepEqual(rows, [['s1', 'claude', 'working', false], ['s2', 'codex', 'blocked', true], ['s3', 'gemini', 'idle', false]]);
+  const rows = [...html.matchAll(/<button class="hag( on)?" data-action="pick" data-id="(\w+)"[^>]*><span class="hg hk-(\w+)">[^<]*<\/span><span class="hname"><span class="hnum">(\d)<\/span> (\w+)<\/span><span class="hst">(\w+)<\/span>/g)].map((m) => [m[2], m[4] + ' ' + m[5], m[6], Boolean(m[1])]);
+  assert.deepEqual(rows, [['s1', '1 claude', 'working', false], ['s2', '2 codex', 'blocked', true], ['s3', '3 gemini', 'idle', false]]);
   assert.match(html, /data-action="launch-menu"[^>]*>new</);
 });
 
