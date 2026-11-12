@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
@@ -10,6 +11,8 @@ import { AutomationsPage } from './automations.jsx';
 import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
+import { ExternalLinkIcon } from './icons/screens.jsx';
+import './home-ref.css';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
@@ -302,12 +305,8 @@ function TaskView({ x, kids, openList, toggle }) {
     try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
   };
   return (
-    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state}>
-      <h1 className="ou-hm-tasktitle">{nameOf(x)}</h1>
-      <nav className="ou-hm-crumb" aria-label="Task">
-        <span className="ou-hm-crumbproj">{proj}</span>
-        {branch ? <><span className="ou-hm-crumbsep">/</span><span className="ou-hm-crumbbranch">{branchIcon}{branch}</span></> : null}
-      </nav>
+    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
+      {x.prompt ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
           <Ring k={x} size={14} />
@@ -376,6 +375,21 @@ const openOnWall = (x) => {
   void pick(x.id);
 };
 
+const openInEditor = (x) => {
+  if (x.project_id && x.project_id !== ui.projectId) switchProject(x.project_id);
+  homeView.set('ide');
+};
+
+const openFolder = async (x) => {
+  const r = await api.openFolder(x.id);
+  if (!r || r.error) toast((r && r.error) || 'Could not open the folder', true);
+};
+
+export const lineageTitle = (kids) => {
+  const running = kids.filter((k) => !settled(k)).length;
+  return running ? `Lineage · ${running} running` : `Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`;
+};
+
 function PanelSection({ title, heading = false, children }) {
   return (
     <section className="ou-hm-psec" aria-label={title}>
@@ -408,7 +422,10 @@ function RailCard({ sel, kids }) {
       {sel ? (
         <Swap k={sel.id}>
           <PanelSection title="Workspace">
-            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host} />
+            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host}>
+              <button type="button" className="ou-hm-pact" aria-label={`Open ${host} folder`} title="Open the folder" onClick={() => void openFolder(sel)}>{folderSmall}</button>
+            </PanelRow>
+            <PanelRow icon={<ExternalLinkIcon size={16} />} label="Open in editor" chevron onClick={() => openInEditor(sel)} />
             <PanelRow icon={editorIcon} label="Open on Wall" chevron onClick={() => openOnWall(sel)} />
           </PanelSection>
           {branch ? (
@@ -425,7 +442,7 @@ function RailCard({ sel, kids }) {
             </PanelSection>
           ) : null}
           {kids.length ? (
-            <PanelSection title={`Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`} heading>
+            <PanelSection title={lineageTitle(kids)} heading>
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
                   <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
@@ -450,6 +467,20 @@ function RailCard({ sel, kids }) {
       ) : null}
     </div>
   );
+}
+
+function HeadTitle({ x }) {
+  const [host, setHost] = useState(null);
+  useLayoutEffect(() => {
+    const crumb = globalThis.document?.querySelector?.('header.title .crumb');
+    if (!crumb) return undefined;
+    const el = document.createElement('span');
+    el.className = 'ou-hm-head';
+    crumb.after(el);
+    setHost(el);
+    return () => el.remove();
+  }, []);
+  return host ? createPortal(<><span className="ou-hm-headsep" aria-hidden="true">/</span><h2 className="ou-hm-headtitle" title={nameOf(x)}>{nameOf(x)}</h2></>, host) : null;
 }
 
 export function Home() {
@@ -486,6 +517,7 @@ export function Home() {
       <div className="ou-hm-main">
         {task ? (
           <>
+            <HeadTitle x={task} />
             <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
             <div className="ou-hm-dock">{composer}</div>
           </>

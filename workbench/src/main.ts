@@ -556,6 +556,12 @@ function handlers(): void {
     const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined) : undefined;
     return row?.cwd ?? null;
   };
+  on('openFolder', async (sessionId: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd) return { error: 'this session has no folder recorded' };
+    const error = await shell.openPath(cwd);
+    return error ? { error } : { ok: true };
+  });
   /** The commit the Diff tab compares against: the turn's start, HEAD, or where the branch left the default branch. */
   const diffBase = async (sessionId: unknown, scope: unknown, cwd: string): Promise<string> => {
     const g = gitIn(cwd);

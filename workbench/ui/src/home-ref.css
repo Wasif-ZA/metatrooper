@@ -1,0 +1,24 @@
+/* Home laid out like the reference window: title in the bar, prompt bubble, floating details card. */
+.ou-home.ou-hm { grid-template-columns: minmax(0, 1fr) 304px; }
+
+.ou-hm-head { display: inline-flex; align-items: center; gap: 10px; min-width: 0; margin-left: 2px; }
+.ou-hm-headsep { color: var(--mute); opacity: 0.7; font-size: 15px; }
+header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/1 var(--font-family-body, inherit); letter-spacing: 0; text-transform: none; color: var(--ink); }
+
+.ou-hm-center { padding-top: 28px; }
+.ou-hm-user { display: flex; justify-content: flex-end; margin-bottom: 40px; }
+.ou-hm-user p { max-width: 80%; margin: 0; padding: 11px 16px; border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--ink) 9%, var(--canvas-deep)); font-size: 15px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ou-hm-subs { border-bottom: 0; }
+
+.ou-hm-rail { position: relative; align-self: start; padding: 16px 13px 16px 12px; }
+.ou-hm-card { height: auto; min-height: 0; border: 1px solid color-mix(in srgb, var(--ink) 11%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--ink) 4%, var(--canvas-deep)); }
+.ou-hm-card .ou-hm-psec { padding: 6px; }
+.ou-hm-card .ou-hm-prow { min-height: 32px; border-radius: 8px; }
+.ou-hm-pact { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: auto; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mute); cursor: pointer; }
+.ou-hm-pact:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.ou-hm-pact:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
+.ou-hm-card .ou-hm-plabel { flex: 1 1 auto; }
+.ou-hm-card .ou-hm-prow > .ou-hm-plabel:has(+ .ou-hm-pvalue .ou-hm-checks) { flex: none; }
+.ou-hm-card .ou-hm-checks { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-hm-card .ou-hm-prow > .ou-hm-pvalue:has(.ou-hm-checks) { flex: 1 1 auto; min-width: 0; text-align: right; }
+.ou-hm-card .ou-hm-prow > :last-child { flex: none; }

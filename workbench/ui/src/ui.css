@@ -1121,8 +1121,6 @@ html { font-size: 16px; }
 
 /* Review 3: card pinned full height, 16px icon column, ring beside the logo, 24px chips, 12px minimum type, equal-height automation cards. */
 .ou-home.ou-hm { align-items: stretch; }
-.ou-hm-rail { position: sticky; top: 0; align-self: stretch; height: 100%; min-height: 100%; padding: 0; }
-.ou-hm-card { height: 100%; min-height: 100%; border: 0; border-left: 1px solid var(--hm-line); border-radius: 0; background: color-mix(in srgb, var(--canvas-soft) 55%, var(--canvas-deep)); }
 .ou-hm-picon { width: 16px; justify-content: center; color: inherit; }
 .ou-hm-picon > svg { width: 16px; height: 16px; }
 .ou-hm-prow { color: color-mix(in srgb, var(--ink) 80%, transparent); }

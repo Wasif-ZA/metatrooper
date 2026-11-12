@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('troop', {
   pasteImage: (sessionId) => ipcRenderer.invoke('pasteImage', sessionId),
   linkCheck: (sessionId, candidates) => ipcRenderer.invoke('linkCheck', sessionId, candidates),
   openLink: (target, line, col) => ipcRenderer.invoke('openLink', target, line, col),
+  openFolder: (sessionId) => ipcRenderer.invoke('openFolder', sessionId),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),
   onTerm: (fn) => {
     const listener = (_e, sessionId, msg) => fn(sessionId, msg);
