@@ -1085,10 +1085,6 @@ function CommentBox({ st, tab, draft, setDraft, place, send }) {
   );
 }
 
-function OpenInVsCodeButton({ st, tab }) {
-  return <IconButton size="sm" variant="ghost" className="ou-ide-open-vscode" label="Open in VS Code" tooltip="Open in VS Code" icon={<Sc.ExternalLinkIcon size={12} />} onClick={() => void openInVsCode(st, tab?.path)} />;
-}
-
 function TabActions({ st, tab, changed }) {
   const isChanged = tab && (changed.has(tab.path) || Boolean(tab.gitDiff));
   const preview = Boolean(tab) && canPreview(tab.path);
@@ -1159,10 +1155,10 @@ function StatusBar({ st, active, problems, onProblems }) {
             {lang ? <span className="ou-ide-status-item"><Sc.BracesIcon size={13} />{lang}</span> : null}
           </>
         ) : null}
-        <span className={nc ? 'ou-ide-status-item ou-ide-status-needs' : 'ou-ide-status-item'} title={nc ? 'Needs you' : 'Nothing needs you'}>
+        <button type="button" className={nc ? 'ou-ide-status-item ou-ide-status-bell ou-ide-status-needs' : 'ou-ide-status-item ou-ide-status-bell'} title="Open Needs you" aria-label={nc ? `${nc} needs you. Open Needs you` : 'Open Needs you'} onClick={() => homeView.set('inbox')}>
           <Sc.BellIcon size={14} />
           {nc ? <span>{typeof nc === 'number' ? `${nc} needs you` : 'needs you'}</span> : null}
-        </span>
+        </button>
       </div>
     </footer>
   );
@@ -1362,6 +1358,7 @@ export function Ide() {
   const [bottom, setBottom] = useState('terminal');
   const [gen, setGen] = useState(0);
   const [max, setMax] = useState(false);
+  const [shellName, setShellName] = useState(null);
   bridge.togglePanel = () => setPanel((v) => !v);
   bridge.restartTerminal = () => { if (cur) closeShell(cur.pid); setPanel(true); setBottom('terminal'); setGen((g) => g + 1); };
 
@@ -1403,6 +1400,7 @@ export function Ide() {
     { label: 'Copy path', onClick: () => void copyPath(tp, true) },
     { label: 'Copy relative path', onClick: () => void copyPath(tp, false) },
     { label: 'Reveal in Files', onClick: () => void reveal(st, tp) },
+    { label: 'Open in VS Code', onClick: () => void openInVsCode(st, tp) },
   ];
 
   return (
@@ -1440,7 +1438,6 @@ export function Ide() {
           ) : null}
           <TabActions st={st} tab={leftActive} changed={changed} />
           <GroupActions st={st} items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
-          <OpenInVsCodeButton st={st} tab={leftActive} />
         </div>
         </ContextMenu>
         <Crumb st={st} tab={leftActive} changed={changed} />
@@ -1470,9 +1467,8 @@ export function Ide() {
             <span className="ou-ip-acts">
               {bottom === 'terminal' ? (
                 <>
-                  <span className="ou-ip-shell" title="Shell"><Sc.TerminalIcon size={14} />{ui.shellKinds?.[0]?.kind || 'shell'}</span>
-                  <IconButton size="sm" variant="ghost" label="Restart the terminal" tooltip="Restart the terminal" icon={<Sc.ReloadIcon size={14} />} onClick={() => bridge.restartTerminal()} />
-                  <IconButton size="sm" variant="ghost" label="Kill the terminal" tooltip="Kill the terminal" icon={<Sc.TrashIcon size={14} />} onClick={() => { closeShell(st.pid); setPanel(false); setGen((g) => g + 1); }} />
+                  {shellName ? <span className="ou-ip-shell" title="Running shell"><Sc.TerminalIcon size={14} />{shellName}</span> : null}
+                  <IconButton size="sm" variant="ghost" label="Kill the terminal" tooltip="Kill the terminal" icon={<Sc.TrashIcon size={14} />} onClick={() => { closeShell(st.pid); setShellName(null); setPanel(false); setGen((g) => g + 1); }} />
                 </>
               ) : null}
               {panel ? <IconButton size="sm" variant="ghost" label={max ? 'Restore panel size' : 'Maximize panel size'} tooltip={max ? 'Restore panel size' : 'Maximize panel size'} aria-pressed={max} icon={max ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setMax(!max)} /> : null}
@@ -1482,7 +1478,7 @@ export function Ide() {
           <div id="ide-bottom-body" className="ou-ip-body" role="tabpanel" aria-labelledby={`ide-${bottom}-tab`} hidden={!panel}>
           {panel ? (bottom === 'problems'
             ? <Problems problems={problems} FileIcon={FileIcon} open={(path, line) => void openFile(st, path, { line })} />
-            : <Terminal key={`${st.pid}:${gen}`} pid={st.pid} />) : null}
+            : <Terminal key={`${st.pid}:${gen}`} pid={st.pid} onKind={setShellName} />) : null}
           </div>
         </div>
       </section>

@@ -43,7 +43,7 @@ try { await build({
 const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject, Problems, diffSides } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
-const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow', 'Problems', 'RightGroup', 'GroupActions']);
+const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'ScRow', 'Problems', 'RightGroup', 'GroupActions']);
 
 // Expand app components with persistent hooks, dependency changes and effect cleanup.
 function harness(Screen: any, props: any = {}) {
@@ -145,27 +145,12 @@ async function open(h: any, path: string) {
 }
 
 // Verify Open in VS Code button renders at the end of the tab strip and calls openInVsCode.
-test('fe1e04a8 IDE: Open in VS Code is a small ghost button with a link icon at the END of the tab strip', async () => {
+test('fe1e04a8 IDE: Open in VS Code sits in the tab strip More actions menu and opens the active file', async () => {
   const h = await explorer();
   await open(h, 'outside.ts');
-  const tabsBar = h.one(hasClass('ou-ide-tabs'));
-  const children = Array.isArray(tabsBar.props.children) ? tabsBar.props.children : [tabsBar.props.children];
-  const tabListIndex = children.findIndex((c: any) => c?.type?.name === 'TabList');
-  const btnIndex = children.findIndex((c: any) => c?.type?.name === 'OpenInVsCodeButton' || c?.props?.className === 'ou-ide-open-vscode');
-  assert.ok(tabListIndex >= 0);
-  assert.equal(btnIndex, children.length - 1);
-  const tabList = children[tabListIndex];
-  const tabs = Array.isArray(tabList.props.children) ? tabList.props.children : [tabList.props.children];
-  const lastTab = tabs[tabs.length - 1];
-  assert.equal(lastTab.props.value, 'outside.ts');
-  assert.ok(btnIndex > tabListIndex);
-  const btn = h.one(hasClass('ou-ide-open-vscode'));
-  assert.equal(btn.props.label, 'Open in VS Code');
-  assert.equal(btn.props.size, 'sm');
-  assert.equal(btn.props.variant, 'ghost');
-  const iconPath = btn.props.icon?.type?.(btn.props.icon.props)?.props?.children?.props?.d;
-  assert.equal(iconPath, 'M7 3.5H4.5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V9M9.5 3.5h3v3M12.5 3.5l-5 5');
-  await btn.props.onClick(event());
+  assert.equal(h.all(hasClass('ou-ide-open-vscode')).length, 0);
+  const item = h.one((n: any) => n.type?.name === 'GroupActions').props.items.find((x: any) => x.label === 'Open in VS Code');
+  await item.onClick();
   assert.deepEqual(recorded('openInVsCode'), [['openInVsCode', g.ui.projectId, 'outside.ts']]);
 });
 
@@ -303,7 +288,7 @@ test('IDE group More actions lists the tab menu for the active tab, and its Clos
   await open(h, 'outside.ts');
   const menu = h.one((n: any) => n.type?.name === 'GroupActions');
   const items = menu.props.items.filter((x: any) => x.label);
-  assert.deepEqual(items.map((x: any) => x.label), ['Save', 'Reload from disk', 'Close', 'Close all', 'Copy path', 'Copy relative path', 'Reveal in Files']);
+  assert.deepEqual(items.map((x: any) => x.label), ['Save', 'Reload from disk', 'Close', 'Close all', 'Copy path', 'Copy relative path', 'Reveal in Files', 'Open in VS Code']);
   items.find((x: any) => x.label === 'Close').onClick(); h.draw();
   assert.equal(h.all((n: any) => n.props?.value === 'outside.ts' && typeof n.props?.label === 'string').length, 0);
 });
@@ -320,4 +305,17 @@ test('IDE panel header: Maximize grows the panel, Hide folds it, Kill the termin
   assert.ok(h.one(hasClass('ou-ide-main')).props.className.includes('ou-ide-folded'));
   h.one(label('Show the panel')).props.onClick(); h.draw();
   assert.notEqual(h.one((n: any) => n.type?.name === 'Terminal').key, before);
+});
+
+test('IDE status bar: the bell is a button that opens Needs you and shows the count when something waits', async () => {
+  const opened: string[] = [];
+  g.homeView = { set: (v: string) => opened.push(v) };
+  g.needsCount = () => 1;
+  const h = await explorer();
+  const bell = h.one(hasClass('ou-ide-status-bell'));
+  assert.equal(bell.type, 'button');
+  assert.equal(bell.props['aria-label'], '1 needs you. Open Needs you');
+  bell.props.onClick();
+  assert.deepEqual(opened, ['inbox']);
+  delete g.needsCount; delete g.homeView;
 });

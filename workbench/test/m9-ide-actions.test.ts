@@ -298,7 +298,7 @@ test('New file dialog creates file on submit and opens the tab', async () => {
   assert.equal(tab.path, 'docs/architecture.md');
 });
 
-test('Open in VS Code from breadcrumb calls api.openInVsCode', async () => {
+test('Open in VS Code from the tab strip More actions menu calls api.openInVsCode', async () => {
   await drawIde();
   const cur = __getCur();
   cur.ask = null;
@@ -315,16 +315,15 @@ test('Open in VS Code from breadcrumb calls api.openInVsCode', async () => {
   const h = harness(Ide);
   h.draw();
 
-  const crumbBtn = h.one((n: any) => n.props?.label === 'Open in VS Code' && n.props?.variant === 'ghost');
-  assert.ok(crumbBtn);
-  assert.equal(crumbBtn.props.size, 'sm');
+  const menuItem = h.one((n: any) => n.type?.name === 'GroupActions').props.items.find((x: any) => x.label === 'Open in VS Code');
+  assert.ok(menuItem);
 
-  await crumbBtn.props.onClick();
+  await menuItem.onClick();
   assert.deepEqual(vsCalls, [['p1', 'src/server.ts']]);
 
   // Toast shown when openInVsCode returns error
   g.api.openInVsCode = async () => ({ error: 'code not found on PATH' });
-  await crumbBtn.props.onClick();
+  await menuItem.onClick();
   assert.ok(calls.some((c) => c[0] === 'toast' && c[1] === 'code not found on PATH' && c[2] === true));
 });
 

@@ -12,12 +12,11 @@
 .ou-ide-group + .ou-ide-group { border-left: 1px solid var(--hairline); }
 .ou-ide-groupacts { flex: none; display: inline-flex; align-items: center; gap: 2px; margin-left: auto; padding: 0 8px 0 4px; }
 .ou-ide-tabactions ~ .ou-ide-groupacts { margin-left: 0; }
-.ou-ide-groupacts ~ .ou-ide-open-vscode { margin-left: 0; margin-right: 8px; }
 .ou-ide-groupacts button { width: 24px; height: 24px; min-width: 24px; min-height: 24px; color: var(--body); }
 
 .ou-ide-panel { height: 32%; min-height: 120px; background: var(--pane); border-top: 1px solid var(--hairline); }
 .ou-ide-phead { background: var(--pane); }
-.ou-ide-pmax .ou-ide-groups { flex: 0 0 72px; }
+.ou-ide-pmax .ou-ide-groups { display: none; }
 .ou-ide-pmax .ou-ide-panel { flex: 1; height: auto; }
 .ou-ide-folded .ou-ide-panel { min-height: 0; }
 .ou-ip-shell { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 12px; color: var(--body); }
@@ -29,3 +28,6 @@
 .ou-ide-status .ou-ip-sprob:hover { color: var(--ink); background: var(--canvas); }
 .ou-ide-status-left { padding-left: 4px; }
 .ou-ide-status-right { padding-right: 4px; }
+.ou-ide-status-bell { border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.ou-ide-status-bell:hover { color: var(--ink); background: var(--canvas); }
+:root[data-view="ide"] [role="menu"] { background: var(--canvas-soft); border: 1px solid var(--hairline-strong); box-shadow: var(--float, 0 8px 24px rgba(0,0,0,.36)); }

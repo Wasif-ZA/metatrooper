@@ -74,6 +74,8 @@ async function connect(t) {
   }
   if (shells.get(t.pid) !== t) { void rpc('shell.close', { shell_id: r.result.shell_id }, true); return; }
   t.id = r.result.shell_id;
+  t.kind = kind;
+  t.onKind?.(kind);
   try { t.fit.fit(); } catch {}
   t.cols = t.term.cols;
   t.rows = t.term.rows;
@@ -103,7 +105,7 @@ export function closeShell(pid) {
 }
 
 /** A real shell in the project folder, kept alive across tab switches and panel folds. */
-export function Terminal({ pid }) {
+export function Terminal({ pid, onKind }) {
   const host = useRef(null);
   useEffect(() => {
     let t = null, sizes = null, dead = false;
@@ -111,6 +113,8 @@ export function Terminal({ pid }) {
       if (dead || !host.current) return;
       t = shells.get(pid);
       if (!t) { t = make(pid); shells.set(pid, t); }
+      t.onKind = onKind;
+      if (t.kind) onKind?.(t.kind);
       host.current.append(t.el);
       if (!t.opened) { t.opened = true; t.term.open(t.el); void connect(t); }
       Object.assign(t.term.options, look());
