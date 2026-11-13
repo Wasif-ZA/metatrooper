@@ -32,7 +32,7 @@
 :root:not(.side-rail):not(.side-auto) .ou-ide-railviews > button[aria-pressed="true"]::before { inset: auto 4px -3px; width: auto; height: 2px; }
 :root:not(.side-rail):not(.side-auto):not([data-view="ide"]) .ou-ide-railviews > * { display: none; }
 .ou-ide-railicon { position: relative; display: inline-flex; }
-.ou-ide-railbadge { position: absolute; left: 10px; top: 8px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; font: 600 9.5px/14px 'Geist', 'Segoe UI', sans-serif; text-align: center; color: var(--canvas-deep); background: var(--ink); border-radius: 0; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--canvas-deep); }
+.ou-ide-railbadge { position: absolute; left: 10px; top: 8px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; font: 600 9.5px/14px var(--font-app); text-align: center; color: var(--canvas-deep); background: var(--ink); border-radius: 0; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--canvas-deep); }
 /* fallback when the app rail is absent */
 .ou-ide-side:has(> .ou-ide-rail) { flex-direction: row; }
 .ou-ide-rail { flex: none; display: flex; flex-direction: column; width: 40px; border-right: 1px solid var(--hairline); }

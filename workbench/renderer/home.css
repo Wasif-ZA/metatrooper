@@ -1,5 +1,5 @@
 
-.home { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; overflow: auto; padding: 32px 32px 64px; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+.home { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; overflow: auto; padding: 32px 32px 64px; background: var(--canvas-deep); font-family: var(--font-app); font-size: 13.5px; color: var(--body-strong); }
 .hcol { max-width: 960px; margin: 0 auto; }
 .hhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .hhead h1 { margin: 0; font-weight: 600; font-size: 26px; line-height: 1.2; letter-spacing: -.01em; color: var(--ink); }
@@ -61,7 +61,7 @@
 .hcf select { height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--body-strong); font: inherit; }
 
 /* first-run start screen, plain look */
-:root:not([data-look="dither"]) .start { border: 0; background: var(--canvas-deep); padding: 48px 32px; font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .start { border: 0; background: var(--canvas-deep); padding: 48px 32px; font-family: var(--font-app); font-size: 13.5px; color: var(--body-strong); }
 :root:not([data-look="dither"]) .start > * { max-width: 600px; margin-left: auto; margin-right: auto; }
 :root:not([data-look="dither"]) .start h3 { margin-top: 0; margin-bottom: 12px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
 :root:not([data-look="dither"]) .start .firstrun h3 { font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--mute); }

@@ -9,7 +9,7 @@
 .ou-ip-tabcount { font: inherit; background: transparent; }
 .ou-ip-body { display: flex; flex: 1; min-height: 0; }
 .ou-ip-body[hidden] { display: none; }
-.ou-ide-status { font: 12px/22px 'Geist', 'Segoe UI', sans-serif; letter-spacing: 0; }
+.ou-ide-status { font: 12px/22px var(--font-app); letter-spacing: 0; }
 .ou-ide-folded .ou-ide-panel { height: 35px; }
 .ou-ip-acts { display: flex; align-items: center; gap: 2px; }
 
