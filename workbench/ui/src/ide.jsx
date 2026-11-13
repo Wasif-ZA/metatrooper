@@ -175,7 +175,8 @@ function gitFiles(st) {
 
 async function loadGitStatus(st) {
   const seq = ++st.gitSeq;
-  const r = await api.git(st.pid, 'status');
+  let r;
+  try { r = await api.git(st.pid, 'status'); } catch (e) { r = { error: String(e) }; }
   if (st.gitSeq !== seq) return;
   st.git = r && !r.error ? r : (r && r.error ? { error: r.error } : { error: 'Could not read git status.' });
   if (typeof rpc === 'function') void rpc('session.owners', { project_id: st.pid }, true).then((o) => {
@@ -187,7 +188,8 @@ async function loadGitStatus(st) {
 }
 
 async function gitStage(st, paths, unstage = false) {
-  const r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths);
+  let r;
+  try { r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths); } catch (e) { r = { error: String(e) }; }
   if (r && r.error) { toast(r.error, true); return; }
   await loadGitStatus(st);
 }
@@ -900,7 +902,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={staged ? <Sc.MinusIcon size={12} /> : <Ic.PlusIcon size={12} />}
-        onClick={(e) => { e.stopPropagation(); void gitStage(st, staged ? [file.path, file.from].filter(Boolean) : [file.path], staged); }} />
+        onClick={(e) => e.stopPropagation()} clickAction={() => gitStage(st, staged ? [file.path, file.from].filter(Boolean) : [file.path], staged)} />
       {fileErrors(st, file.path) ? <span className="ou-ide-error-count">{fileErrors(st, file.path)},</span> : null}
       <span className={`ou-ide-scletter ou-ide-git-${file.letter.toLowerCase()}`}>{file.letter}</span>
     </div>
@@ -955,7 +957,7 @@ function SourceControl({ st }) {
             <div className="ou-ide-schead">
               <button type="button" className="ou-ide-scfold" aria-expanded={!fold.changes} onClick={() => toggle('changes')}><span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><span>Changes</span></button>
               {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={<Ic.PlusIcon size={12} />}
-                onClick={() => void gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
+                clickAction={() => gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
               <span className="ou-ide-count">{unstaged.length}</span>
             </div>
             {fold.changes ? null : unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
@@ -1434,7 +1436,7 @@ export function Ide() {
                   { label: 'Commands', onClick: () => paletteView.open() },
                 ]} renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="Explorer actions" tooltip="Explorer actions" icon={<Sc.MoreIcon size={14} />} />} />
               ) : null}
-              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
+              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} clickAction={() => loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
             </span>
           </div>
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
