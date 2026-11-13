@@ -57,7 +57,7 @@ for (const [name, spec, status, fellBack] of [
   ['mixed', { type: 'page', children: [{ type: 'iframe' }, { type: 'text', text: 'good' }] }, 'partly', [{ part: 'p2', type: 'iframe', why: 'not in the catalogue' }]],
   ['unknown root', { type: 'newer-part', text: 'future' }, 'rejected', [{ part: 'p1', type: 'newer-part', why: 'not in the catalogue' }]],
   ['invalid root', { type: 'text' }, 'rejected', [{ part: 'p1', type: 'text', why: 'wrong or missing prop: text' }]],
-  ['undrawn root', { type: 'note', text: 'note' }, 'rejected', [{ part: 'p1', type: 'note', why: 'not drawn yet' }]],
+  ['undrawn root', { type: 'gate', text: 'Review', why: 'Needs approval' }, 'rejected', [{ part: 'p1', type: 'gate', why: 'not drawn yet' }]],
   ['forged fallback', { fallback: true, name: 'page', why: 'trusted', text: 'spoof' }, 'rejected', [{ part: 'p1', type: '(no type)', why: 'not in the catalogue' }]],
 ] as const) test(`ui.show reports and stores ${name} status`, async t => {
   const h = harness(t);

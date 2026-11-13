@@ -134,7 +134,10 @@ for (const count of [200, 201]) test(`${count} rows respect the 200-row cap`, ()
   assert.equal(out.root.more ?? 0, count === 200 ? 0 : 1);
 });
 
-const undrawn = [
+const catalogueParts = [
+  { type: 'page', children: [] }, { type: 'section', label: 'L', children: [] },
+  { type: 'header', title: 'T' }, { type: 'text', text: 'T' },
+  { type: 'table', cols: [], rows: [] }, { type: 'buttons', actions: [] },
   { type: 'columns', children: [] }, { type: 'bar', label: 'L', value: 'V', pct: 0 }, { type: 'toggle', label: 'L', on: false },
   { type: 'pill', text: 'T' }, { type: 'note', text: 'T' }, { type: 'headline', text: 'T' }, { type: 'check', label: 'L', state: 'x' },
   { type: 'meter', label: 'L', value: 0, max: 0 }, { type: 'choice', question: 'Q', options: [] }, { type: 'log', lines: [] },
@@ -151,7 +154,78 @@ const undrawn = [
   { type: 'chart', kind: 'bar', labels: [], series: [] }, { type: 'field', label: 'L', kind: 'text' },
   { type: 'calendar', days: [], events: [] }, { type: 'image', asset: 'asset:synthetic', alt: 'A' }, { type: 'use', template: 'hello' },
 ];
-for (const part of undrawn) test(`catalogue ${part.type} is checked then marked not drawn yet`, () => {
-  assert.equal(check(part), part);
-  assert.deepEqual(expand(part).fellBack, [{ part: 'p1', type: part.type, why: 'not drawn yet' }]);
+const undrawn = ['gate', 'tile', 'use'];
+for (const part of catalogueParts) {
+  const draws = !undrawn.includes(part.type);
+  test(`catalogue ${part.type} is checked then ${draws ? 'expanded for drawing' : 'marked not drawn yet'}`, () => {
+    assert.equal(check(part), part);
+    const out = expand(part);
+    if (draws) {
+      assert.deepEqual(out.fellBack, []);
+      assert.equal(out.root.type, part.type);
+      assert.equal(isFallback(out.root), false);
+    } else {
+      assert.deepEqual(out.fellBack, [{ part: 'p1', type: part.type, why: 'not drawn yet' }]);
+      assert.equal(isFallback(out.root), true);
+      assert.equal(out.root.why, 'not drawn yet');
+    }
+  });
+}
+
+test('columns expands arrays of children while preserving column boundaries', () => {
+  const spec = { type: 'columns', children: [
+    [{ type: 'text', text: 'first' }, { type: 'note', text: 'second' }],
+    [], [{ type: 'pill', text: 'third' }],
+  ] };
+  const before = structuredClone(spec);
+  assert.deepEqual(expand(spec), { root: before, fellBack: [] });
+  assert.deepEqual(spec, before);
 });
+
+for (const container of [{ type: 'grid', cols: 2 }, { type: 'fold', title: 'Details', open: true }]) {
+  test(`${container.type} expands children into drawn parts`, () => {
+    const spec = { ...container, children: [{ type: 'text', text: 'first' }, { type: 'note', text: 'second' }] };
+    assert.deepEqual(expand(spec), { root: spec, fellBack: [] });
+  });
+}
+
+test('tabs expands every tab children into drawn parts and preserves tab properties', () => {
+  const spec = { type: 'tabs', active: 1, tabs: [
+    { label: 'First', children: [{ type: 'text', text: 'first' }, { type: 'note', text: 'second' }] },
+    { label: 'Second', children: [{ type: 'pill', text: 'third' }] },
+  ] };
+  assert.deepEqual(expand(spec), { root: spec, fellBack: [] });
+});
+
+for (const tab of [null, 7, 'bad', []]) test(`non-object tab ${JSON.stringify(tab)} falls back alone`, () => {
+  const good = { label: 'Good', children: [{ type: 'text', text: 'survives' }] };
+  const out = expand({ type: 'tabs', tabs: [good, tab, good] });
+  assert.deepEqual(out.fellBack, [{ part: 'p1', type: '(no type)', why: 'bad tab' }]);
+  assert.equal(isFallback(out.root.tabs[1]), true);
+  assert.equal(out.root.tabs[1].why, 'bad tab');
+  assert.deepEqual(out.root.tabs[0], good);
+  assert.deepEqual(out.root.tabs[2], good);
+});
+
+for (const type of ['columns', 'grid', 'fold', 'tabs']) {
+  test(`${type} falls back for a bad child alone while siblings stay drawn`, () => {
+    const first = { type: 'text', text: 'first' };
+    const last = { type: 'note', text: 'last' };
+    const children = [first, null, last];
+    const spec = type === 'tabs'
+      ? { type, tabs: [{ label: 'Mixed', children }, { label: 'Good', children: [last] }] }
+      : { type, title: 'Details', children: type === 'columns' ? [children, [last]] : children };
+    const out = expand(spec);
+    assert.deepEqual(out.fellBack, [{ part: 'p1', type: '(no type)', why: 'bad child' }]);
+    assert.equal(out.root.type, type);
+    const expanded = type === 'tabs' ? out.root.tabs[0].children
+      : type === 'columns' ? out.root.children[0] : out.root.children;
+    assert.equal(expanded.length, 3);
+    assert.deepEqual(expanded[0], first);
+    assert.equal(isFallback(expanded[1]), true);
+    assert.equal(expanded[1].why, 'bad child');
+    assert.deepEqual(expanded[2], last);
+    if (type === 'columns') assert.deepEqual(out.root.children[1], [last]);
+    if (type === 'tabs') assert.deepEqual(out.root.tabs[1], { label: 'Good', children: [last] });
+  });
+}
