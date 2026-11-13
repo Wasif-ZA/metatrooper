@@ -755,13 +755,11 @@ html { font-size: 16px; }
 .ou-ae-seg button { height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--mute); font-size: 13px; cursor: pointer; }
 .ou-ae-seg button[aria-checked="true"] { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-deep); }
 .ou-ae-when { min-height: 32px; }
-.ou-ae-time { height: 28px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-soft); color: var(--ink); font: inherit; color-scheme: dark; }
 .ou-ae-preview { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-left: 2px solid var(--st-ok); background: var(--canvas-soft); border-radius: 0 6px 6px 0; color: var(--body); }
 .ou-ae-preview[data-valid="false"] { border-left-color: var(--st-bad); }
 .ou-ae-preview b { color: var(--ink); font-weight: 600; }
 .ou-ae-cron { font-family: var(--mono); font-size: 12px; color: var(--mute); }
 .ou-ae-adv { display: flex; flex-direction: column; gap: 8px; }
-.ou-ae-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .ou-hm-autoname.ou-hm-link { color: var(--ink); font-weight: 500; }
 .ou-home [aria-label="New automation"] h2, .ou-home [aria-label="Edit automation"] h2, [aria-label="New automation"] h2, [aria-label="Edit automation"] h2 { outline: none; box-shadow: none; text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
 
@@ -1006,8 +1004,6 @@ html { font-size: 16px; }
 .ou-ap-tabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--mute); font: inherit; cursor: pointer; }
 .ou-ap-tabs button[aria-selected="true"] { background: var(--canvas-soft); color: var(--ink); }
 .ou-ap-gap { flex: 1 1 auto; }
-.ou-ap-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--mute); cursor: pointer; }
-.ou-ap-icon:hover, .ou-ap-icon[aria-pressed="true"] { color: var(--ink); background: var(--canvas-soft); }
 .ou-ap-sel { display: inline-flex; align-items: center; gap: 2px; color: var(--mute); }
 .ou-ap-note { margin: 8px 0 18px; font-size: 12px; color: var(--mute); }
 .ou-ap-items { list-style: none; margin: 0; padding: 0; }
@@ -1018,18 +1014,15 @@ html { font-size: 16px; }
 .ou-ap-itop { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ou-ap-emoji { width: 20px; text-align: center; flex: none; font-size: 15px; }
 .ou-ap-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; color: var(--ink); }
-.ou-ap-type { flex: none; padding: 0 7px; border: 1px solid var(--hairline-strong); border-radius: 6px; font-size: 11px; line-height: 18px; color: var(--mute); }
 .ou-ap-unread { margin-left: auto; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--st-run); }
 .ou-ap-prompt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.5; color: var(--mute); padding-left: 28px; }
-.ou-ap-foot { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--mute); padding-left: 28px; white-space: nowrap; }
 .ou-ap-state { border: 0; background: none; padding: 0; font: inherit; color: var(--mute); cursor: pointer; }
 .ou-ap-state.ou-on { color: var(--st-ok); }
-.ou-ap-label { font-size: 11px; }
+.ou-ap-label { font-size: 12px; }
 .ou-ap-items.ou-ap-list .ou-ap-item { flex-direction: row; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 0; background: none; border-bottom: 1px solid var(--hairline); }
 .ou-ap-items.ou-ap-list .ou-ap-item:hover { background: var(--canvas-soft); }
 .ou-ap-items.ou-ap-list .ou-ap-itop { flex: 0 1 280px; }
 .ou-ap-items.ou-ap-list .ou-ap-prompt { flex: 1 1 auto; -webkit-line-clamp: 1; padding: 0; }
-.ou-ap-items.ou-ap-list .ou-ap-foot { flex: none; padding: 0; }
 .ou-ap-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6vh 0 0; }
 .ou-ap-emptyicon { color: var(--mute); margin-bottom: 10px; }
 .ou-ap .ou-ap-empty h2 { margin: 0 0 6px; font-size: 18px; font-weight: 500; color: var(--ink); text-transform: none; letter-spacing: 0; }
@@ -1051,14 +1044,9 @@ html { font-size: 16px; }
 .ou-ae-page .ou-ae { padding: 0; max-width: 760px; }
 .ou-hm-chip, .ou-hm-chip * { font-weight: 400 !important; color: var(--mute); font-size: 12px; }
 .ou-hm-chip:hover, .ou-hm-chip:hover * { color: var(--ink); }
-.ou-ap-sel, .ou-ap-sel *, .ou-ap-foot button, .ou-ap-foot button * { font-weight: 400 !important; }
+.ou-ap-sel, .ou-ap-sel * { font-weight: 400 !important; }
 .ou-ap-sel, .ou-ap-sel * { color: var(--mute); }
 .ou-ae-error { color: var(--st-bad); font-weight: 500; }
-.ou-ap-foot > :last-child { flex: none; }
-.ou-ap-foot > span:not(.ou-ap-gap) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ou-ap-foot > .ou-ap-gap { min-width: 8px; }
-.ou-ap-box .ou-ap-foot { flex-wrap: wrap; row-gap: 4px; white-space: normal; }
-.ou-ap-box .ou-ap-foot > span:not(.ou-ap-gap) { overflow: visible; white-space: nowrap; }
 
 /* Final round: honest status counts, start page order, OpenHands-form automation cards, one focus ring. */
 .ou-hm-start .ou-hm-startlist { margin: 4px auto 22px; }
@@ -1104,7 +1092,7 @@ html { font-size: 16px; }
 .ou-hm-crumbbranch { margin-left: 0; }
 
 .ou-hm-more, .ou-hm-role, .ou-hm-pilltext span, .ou-hm-model, .ou-hm-tsum, .ou-hm-olabel, .ou-hm-oagents, .ou-hm .ou-hm-phase,
-.ou-hm-mdetail, .ou-hm .ou-hm-psech, .ou-hm-small, .ou-hm-slimsteps, .ou-hm-slim .ou-hm-role, .ou-ap-type, .ou-ap-label, .ou-hm-crumbbranch { font-size: 12px; }
+.ou-hm-mdetail, .ou-hm .ou-hm-psech, .ou-hm-small, .ou-hm-slimsteps, .ou-hm-slim .ou-hm-role, .ou-hm-crumbbranch { font-size: 12px; }
 
 .ou-ap-chips { gap: 6px; }
 .ou-ap-chip { height: 24px; gap: 6px; padding: 0 8px; font-size: 12px; }
