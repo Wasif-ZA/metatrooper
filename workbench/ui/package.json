@@ -15,7 +15,8 @@
     "marked": "18.1.2",
     "monaco-editor": "0.57.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "recharts": "3.10.1"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

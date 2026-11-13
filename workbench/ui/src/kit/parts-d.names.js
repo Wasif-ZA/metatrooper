@@ -1,1 +1,1 @@
-export default [];
+export default ['chart', 'spark', 'tracker'];
