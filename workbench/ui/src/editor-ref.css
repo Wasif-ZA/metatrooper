@@ -63,3 +63,6 @@
 
 /* Syntax colours for light looks; Monaco reads these through theme() in editor.js */
 :root[data-theme='light'] .ou-ide { --syn-keyword: #8250df; --syn-string: #116329; --syn-number: #bf3989; --syn-fn: #0550ae; --syn-type: #1b7c83; }
+
+/* One count-badge shape across the Editor: round, like the rail, search and Problems tab counts */
+.ou-ide-schead .ou-ide-count, .ou-ip-pcount { border-radius: 8px; }
