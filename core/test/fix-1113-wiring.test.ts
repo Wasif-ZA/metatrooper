@@ -103,3 +103,22 @@ test('Tier B a: session.stop ends one agent as cancelled with no failed item, an
     db.close();
   } finally { await c.close(); }
 });
+
+test('Tier B d: plugin.enable persists, and a disabled plugin is not loaded', { timeout: 60_000 }, async () => {
+  const c = await core();
+  try {
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(join(c.iso.home, 'troop.db'));
+    const id = (db.prepare("SELECT id FROM plugin WHERE source = 'builtin' ORDER BY id LIMIT 1").get() as { id: string }).id;
+    db.close();
+    assert.deepEqual((await c.pipe.request('plugin.enable', { plugin_id: id, on: false })).result, { enabled: false });
+    const { loadPlugin } = await import('../src/plugins/store.ts');
+    const ro = new DatabaseSync(join(c.iso.home, 'troop.db'), { readOnly: true });
+    assert.equal((ro.prepare('SELECT enabled FROM plugin WHERE id = ?').get(id) as { enabled: number }).enabled, 0);
+    assert.equal(loadPlugin(ro, id), null);
+    ro.close();
+    assert.equal((await c.pipe.request('plugin.enable', { plugin_id: 'nope', on: true })).error?.code, -32002);
+    assert.equal((await c.pipe.request('plugin.enable', { plugin_id: id, on: 'yes' })).error?.code, -32602);
+    assert.deepEqual((await c.pipe.request('plugin.enable', { plugin_id: id, on: true })).result, { enabled: true });
+  } finally { await c.close(); }
+});

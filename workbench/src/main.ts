@@ -63,7 +63,7 @@ export const UI_METHODS = new Set([
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
-  'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove',
+  'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable',
   'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
 

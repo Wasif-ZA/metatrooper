@@ -32,6 +32,14 @@ function items(engines, rows) {
   return [...agents, ...plugins];
 }
 
+async function setEnabled(id, on) {
+  const r = await rpc('plugin.enable', { plugin_id: id, on });
+  if (!r.result) return;
+  toast(`${id} is ${on ? 'on' : 'off'}. New sessions follow it.`);
+  addonsStore.set({ rows: null });
+  void drawAddons();
+}
+
 function card(it, open, toggle, remove) {
   const { e, p } = it;
   const source = (p ? ['Plugin', ver(p.version)] : ['Agent', ver(e.version), e.plugin_id && `from ${e.plugin_id}`]).filter(Boolean).join(' · ');
@@ -42,7 +50,7 @@ function card(it, open, toggle, remove) {
       <span className="ou-acard-tile">{p ? <Ic.AddOnsIcon size={18} /> : <Sc.TerminalIcon size={18} />}</span>
       <div className="ou-acard-name"><b>{it.id}</b><span>{source}</span></div>
       <div className="ou-acard-slot">
-        {p ? <><Switch size="sm" label={p.enabled ? 'On' : 'Off'} isLabelHidden value={!!p.enabled} isDisabled data-action="addon-toggle" data-id={p.id} /><Badge label="Not built yet" /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
+        {p ? <><Switch size="sm" label={`${p.id} is ${p.enabled ? 'on' : 'off'}`} isLabelHidden value={!!p.enabled} data-id={p.id} onChange={(on) => void setEnabled(p.id, on)} /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
           : it.state === 'bad' ? <><Badge label="Not ready" className="ou-notready" /><Button size="sm" variant="ghost" label="Check again" data-action="check-engines" /></>
           : <Badge label="Ready" className="ou-acard-ready" />}
       </div>

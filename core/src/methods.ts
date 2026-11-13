@@ -134,6 +134,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install)' },
   { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
+  { name: 'plugin.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{plugin_id, on: boolean}', result: '{enabled}; persists the switch; a disabled plugin contributes no engines, MCP servers or actions to new sessions until it is turned on again' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
   { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
@@ -824,6 +825,14 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('plugin.enable', {
+    handler: (p) => {
+      if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const r = db.prepare('UPDATE plugin SET enabled = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'plugin_id'));
+      if (!r.changes) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+      return { enabled: p.on };
+    },
+  });
   m.set('plugin.remove', { handler: (p) => { removePlugin(db, str(p, 'plugin_id')); return {}; } });
 
   m.set('plugin.secret.set', {

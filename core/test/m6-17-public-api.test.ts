@@ -82,6 +82,7 @@ const EXPECTED_METHODS = [
   'plugin.preview',
   'plugin.install',
   'plugin.remove',
+  'plugin.enable',
   'plugin.secret.set',
   'browser.secret.set',
   'mcp.resolve',
@@ -144,6 +145,7 @@ const EXPECTED_MOVED = [
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
   'loop.choose',
+  'plugin.enable',
   'session.stop',
   'worktree.create',
   'audit.list',
