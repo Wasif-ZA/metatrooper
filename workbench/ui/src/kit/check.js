@@ -97,8 +97,13 @@ export function expand(spec) {
     if (!DRAWN.includes(raw.type)) return fail(id, fallback(raw, 'not drawn yet'));
     const str = (x, what) => (TYPES.str(x) ? String(x) : (fail(id, fallback(x, `bad ${what}`)), '?'));
     const out = { ...raw };
-    if (raw.type === 'page' || raw.type === 'section') {
-      out.children = raw.children.slice(0, MAX_PARTS + 1).map((x) => (typeof x === 'string' ? build(x, depth + 1) : fail(id, fallback(x, 'bad child')))).filter((x) => x !== DROP);
+    const kids = (a) => (Array.isArray(a) ? a.slice(0, MAX_PARTS + 1).map((x) => (typeof x === 'string' ? build(x, depth + 1) : fail(id, fallback(x, 'bad child')))).filter((x) => x !== DROP) : []);
+    if (CHILDREN.has(raw.type)) {
+      out.children = raw.type === 'columns' && Array.isArray(raw.children) && raw.children.some(Array.isArray)
+        ? raw.children.slice(0, 12).map((col) => kids(Array.isArray(col) ? col : [col]))
+        : kids(raw.children);
+    } else if (raw.type === 'tabs' && Array.isArray(raw.tabs)) {
+      out.tabs = raw.tabs.slice(0, 12).map((t) => (isObj(t) ? { ...t, children: kids(t.children) } : fail(id, fallback(t, 'bad tab'))));
     } else if (raw.type === 'header' && raw.tabs) {
       out.tabs = raw.tabs.slice(0, 12).map((t) => str(t, 'tab'));
     } else if (raw.type === 'buttons') {
