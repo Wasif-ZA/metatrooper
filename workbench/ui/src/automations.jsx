@@ -16,7 +16,7 @@ function DeleteAutomation({ a, label = 'Delete', done }) {
   return <>
     <Button variant="ghost" size="sm" label={label} onClick={() => setAsking(true)} />
     {asking ? <AlertDialog isOpen onOpenChange={(o) => { if (!o) setAsking(false); }} title={`Delete ${a.name}?`}
-      description="It stops running and its run history goes with it. This cannot be undone." actionLabel="Delete"
+      description="It stops running and its run history goes with it. This cannot be undone." actionLabel="Delete" actionVariant="destructive"
       onAction={async () => {
         setAsking(false);
         const r = await rpc('automation.delete', { id: a.id });
@@ -40,6 +40,7 @@ export function Automations() {
   const pid = ui.projectId;
   const [list, setList] = useState(null);
   const [form, setForm] = useState(BLANK);
+  const [adding, setAdding] = useState(false);
   const engines = ui.snap.engines.filter((e) => e.light !== 'red');
   const load = async () => {
     const r = await rpc('automation.list', pid ? { project_id: pid } : {}, true);
@@ -50,8 +51,10 @@ export function Automations() {
   const engine = form.engine_id || (engines[0] ? engines[0].id : '');
   const ready = Boolean(pid && form.name.trim() && form.runner.trim() && form.script.trim() && form.prompt.trim() && engine && Number.isInteger(form.every_min) && form.every_min >= 1);
   const add = async () => {
-    if (!ready) return;
+    if (!ready || adding) return;
+    setAdding(true);
     const r = await rpc('automation.set', { project_id: pid, name: form.name.trim(), every_min: form.every_min, runner: form.runner.trim().split(/\s+/), script: form.script.trim(), engine_id: engine, prompt: form.prompt.trim() });
+    setAdding(false);
     if (r.result) { setForm(BLANK); await load(); }
   };
   const last = (a) => (a.runs[0] ? `last run ${ago(a.runs[0].at)}: ${a.runs[0].outcome}` : 'not run yet');
@@ -81,7 +84,7 @@ export function Automations() {
           <Field label="Run the script with" hint="The program and its arguments, split on spaces. No shell."><TextInput label="Runner" isLabelHidden width={260} value={form.runner} onChange={set('runner')} placeholder="node" /></Field>
           <Field label="Agent to start"><Selector label="Agent" isLabelHidden width={260} options={engines.map((e) => ({ value: e.id, label: e.id }))} value={engine} onChange={set('engine_id')} /></Field>
           <Field label="What to tell the agent"><TextInput label="Prompt" isLabelHidden width={260} value={form.prompt} onChange={set('prompt')} onEnter={add} placeholder="The check failed. Find out why and fix it." /></Field>
-          <Field label="Save" hint={pid ? 'The script is pinned by its hash when you save. Edit the script, then save again.' : 'Open a project first.'}><Button label="Add automation" isDisabled={!ready} onClick={add} /></Field>
+          <Field label="Save" hint={pid ? 'The script is pinned by its hash when you save. Edit the script, then save again.' : 'Open a project first.'}><Button label="Add automation" isDisabled={!ready} isLoading={adding} onClick={add} /></Field>
         </div>
       </section>
     </>
@@ -89,6 +92,16 @@ export function Automations() {
 }
 
 const pad = (n) => String(n).padStart(2, '0');
+
+/** Arrow keys move the pick and the focus along a row of buttons, wrapping at the ends. */
+const arrowPick = (keys, current, pick) => (e) => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const i = (keys.indexOf(current) + step + keys.length) % keys.length;
+  pick(keys[i]);
+  e.currentTarget.children[i]?.focus();
+};
 
 const nextWords = (iso) => {
   const t = Date.parse(iso || '');
@@ -158,6 +171,11 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const canRun = engines.find((e) => e.id === form.engine_id)?.approvals || ['ask', 'edits', 'contained'];
   const [preview, setPreview] = useState(null);
   const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const emojiBtn = useRef(null);
+  const closeEmoji = (refocus) => { setPicking(false); if (refocus) emojiBtn.current?.focus(); };
+  const presets = [...(every ? [['every', `Every ${every} min`]] : []), ...PRESETS];
+  const pickPreset = (k) => setForm((f) => ({ ...f, preset: k, custom: k === 'custom' ? cronOf(f) || f.custom : f.custom }));
   useEffect(() => {
     let live = true;
     setSaveError('');
@@ -170,16 +188,16 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const ready = valid && form.name.trim() && form.prompt.trim() && form.engine_id && form.project_id && (!form.script.trim() || form.runner.trim());
   const toggleLabel = (name) => set('labels')(form.labels.includes(name) ? form.labels.filter((l) => l !== name) : [...form.labels, name]);
   const save = async () => {
-    if (!ready) return;
+    if (!ready || saving) return;
+    setSaving(true);
     const r = await rpc('automation.set', {
       ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), ...(form.preset === 'every' ? { cron: null, every_min: every } : { cron, every_min: 1440 }),
       labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(), approval: canRun.includes(form.approval) ? form.approval : 'ask',
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
+    setSaving(false);
     if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); return; }
-    const why = String((r && r.error && (r.error.message || r.error)) || 'Could not save the automation');
-    setSaveError(why);
-    toast(why, true);
+    setSaveError(String((r && r.error && (r.error.message || r.error)) || 'Could not save the automation'));
   };
   return (
     <section className="ou-ae-page" aria-label={initial?.id ? 'Edit automation' : 'New automation'}>
@@ -190,17 +208,18 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <span className="ou-ap-gap" />
         {initial?.id ? <DeleteAutomation a={initial} done={onSaved} /> : null}
         <Button variant="ghost" size="sm" label="Cancel" onClick={onClose} />
-        <Button variant="primary" size="sm" label={initial?.id ? 'Save' : 'Create automation'} isDisabled={!ready} onClick={save} />
+        <Button variant="primary" size="sm" label={initial?.id ? 'Save' : 'Create automation'} isDisabled={!ready} isLoading={saving} onClick={save} />
       </header>
       <div className="ou-ae">
         <div className="ou-ae-row">
-          <span className="ou-ae-emoji">
-            <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
-            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPicking(false); } }}>{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
+          <span className="ou-ae-emoji" onKeyDown={(e) => { if (e.key === 'Escape' && picking) { e.stopPropagation(); closeEmoji(true); } }}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeEmoji(false); }}>
+            <button ref={emojiBtn} type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
+            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); closeEmoji(true); }}>{e}</button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
-        <label className="ou-ae-label">Prompt</label>
+        <span className="ou-ae-label">Prompt</span>
         {composer({
           className: 'ou-ae-prompt',
           filled: Boolean(form.prompt.trim()),
@@ -208,7 +227,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           field: <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />,
           attach: (paths) => set('prompt')(atRefs(form.prompt, paths, (s.projects || []).find((p) => p.id === form.project_id)?.path)),
           engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: engineName(e.id), icon: <EngineMark id={e.id} size={16} /> })), onChange: set('engine_id') },
-          send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
+          send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready || saving, onClick: save },
           context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" placement="above" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
             { key: 'machine', icon: <LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
             form.project_id === ui.projectId && ui.git && ui.git.project === ui.projectId && ui.git.branch ? { key: 'branch', icon: <Branch size={14} />, text: ui.git.branch } : null,
@@ -217,7 +236,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
               options={[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }].filter((o) => canRun.includes(o.value))} /> },
           ],
         })}
-        <label className="ou-ae-label">Labels</label>
+        <span className="ou-ae-label">Labels</span>
         <div className="ou-hm-chips">
           {[...new Set([...labelNames, ...form.labels])].map((l) => {
             const c = colours[l];
@@ -229,9 +248,9 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
             onEnter={() => { const v = newLabel.trim().slice(0, 32); if (v && !form.labels.includes(v)) set('labels')([...form.labels, v]); setNewLabel(''); }} />
         </div>
         <div className="ou-ae-row ou-ae-freq">
-          <label className="ou-ae-label">Frequency</label>
-          <span className="ou-ae-seg" role="radiogroup" aria-label="Frequency">
-            {[...(every ? [['every', `Every ${every} min`]] : []), ...PRESETS].map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={form.preset === k} onClick={() => setForm((f) => ({ ...f, preset: k, custom: k === 'custom' ? cronOf(f) || f.custom : f.custom }))}>{label}</button>)}
+          <span className="ou-ae-label">Frequency</span>
+          <span className="ou-ae-seg" role="radiogroup" aria-label="Frequency" onKeyDown={arrowPick(presets.map(([k]) => k), form.preset, pickPreset)}>
+            {presets.map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={form.preset === k} tabIndex={form.preset === k ? 0 : -1} onClick={() => pickPreset(k)}>{label}</button>)}
           </span>
         </div>
         <div className="ou-ae-row ou-ae-when">
@@ -297,6 +316,8 @@ export function AutomationsPage() {
   const [sort, setSort] = useState('newest');
   const [colours, setColours] = useState({});
   const [editing, setEditing] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [running, setRunning] = useState(null);
   const box = useRef(null);
   const shownView = useRef(view);
   useLayoutEffect(() => {
@@ -306,13 +327,14 @@ export function AutomationsPage() {
   }, [view]);
   const refresh = async () => {
     const [r, l] = await Promise.all([rpc('automation.list', {}, true), rpc('label.list', {}, true)]);
-    setList(r && r.result ? r.result.automations : []);
+    setFailed(!(r && r.result));
+    if (r && r.result) setList(r.result.automations);
     setColours(Object.fromEntries(((l && l.result && l.result.labels) || []).map((x) => [x.name, x.colour])));
   };
   useEffect(() => { void refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, []);
   const s = ui.snap || {};
-  const projName = (pid) => (s.projects || []).find((p) => p.id === pid)?.name || pid;
-  const projIcon = (pid) => (s.projects || []).find((p) => p.id === pid)?.icon || null;
+  const proj = (pid) => (s.projects || []).find((p) => p.id === pid);
+  const projName = (pid) => proj(pid)?.name || pid;
   const q = query.trim().toLowerCase();
   const order = {
     newest: (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')),
@@ -323,14 +345,16 @@ export function AutomationsPage() {
     && (!q || [a.name, a.prompt, projName(a.project_id), ...(a.labels || []).map(labelName)].some((v) => String(v || '').toLowerCase().includes(q)))).slice().sort(order);
   const pickView = (v) => { setView(v); try { save('auto-view', v); } catch {} };
   const runNow = async (a) => {
+    if (running) return;
+    setRunning(a.id);
     const r = await rpc('automation.run', { id: a.id });
+    setRunning(null);
     const o = r && r.result;
-    if (o) {
-      if (o.outcome === 'woke') toast(`${a.name}: agent started`);
-      else if (o.outcome === 'skip') toast(`${a.name}: check passed, no agent started`);
-      else toast(`${a.name} failed: ${o.detail || o.outcome}`, true);
-      void refresh();
-    } else toast((r && r.error && (r.error.message || r.error)) || 'Could not run it', true);
+    if (!o) return;
+    if (o.outcome === 'woke') toast(`${a.name}: agent started`);
+    else if (o.outcome === 'skip') toast(`${a.name}: check passed, no agent started`);
+    else toast(`${a.name} failed: ${o.detail || o.outcome}`, true);
+    void refresh();
   };
   const flip = async (a) => { await rpc('automation.enable', { id: a.id, enabled: !a.enabled }); void refresh(); };
   const fresh = (a) => { const t = Date.parse(a.runs?.[0]?.at || ''); return !Number.isNaN(t) && Date.now() - t < 86400000; };
@@ -344,18 +368,18 @@ export function AutomationsPage() {
   }
   const card = (a) => (
     <li key={a.id} data-id={a.id}>
-      <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setEditing(a); }}>
+      <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" aria-label={`Edit ${a.name}`} onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
+        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setEditing(a); } }}>
         <span className="ou-ap-itop">
           <span className="ou-ap-emoji" aria-hidden="true">{a.icon || <Schedule size={16} />}</span>
           <span className="ou-ap-name">{a.name}</span>
           {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
           <span className="ou-ap-gap" />
-          <Button size="sm" variant="ghost" icon={playIcon} label="Run now" onClick={() => runNow(a)} />
+          <Button size="sm" variant="ghost" icon={playIcon} label="Run now" isLoading={running === a.id} isDisabled={running !== null && running !== a.id} onClick={() => runNow(a)} />
         </span>
         {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
         <span className="ou-ap-chips">
-          <span className="ou-ap-chip">{projIcon(a.project_id) ? <ProjectIcon icon={projIcon(a.project_id)} size={14} /> : folderIcon}{projName(a.project_id)}</span>
+          <span className="ou-ap-chip">{proj(a.project_id)?.icon ? <ProjectIcon icon={proj(a.project_id).icon} size={14} /> : folderIcon}{projName(a.project_id)}</span>
           <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
           <span className="ou-ap-chip">{a.engine_id ? <><EngineMark id={a.engine_id} size={14} />{engineName(a.engine_id)}</> : 'agent'}</span>
           {(a.labels || []).map((l) => {
@@ -376,14 +400,8 @@ export function AutomationsPage() {
         <Button size="sm" variant="secondary" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
       </div>
       <div className="ou-ap-bar">
-        <span className="ou-ap-tabs" role="tablist" aria-label="Automations" onKeyDown={(e) => {
-          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-          e.preventDefault();
-          const next = tab === 'mine' ? 'ideas' : 'mine';
-          setTab(next);
-          e.currentTarget.querySelectorAll('[role=tab]')[next === 'mine' ? 0 : 1]?.focus();
-        }}>
-          {[['mine', 'Mine'], ['ideas', 'Ideas']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
+        <span className="ou-ap-tabs" role="tablist" aria-label="Automations" onKeyDown={arrowPick(['mine', 'ideas'], tab, setTab)}>
+          {[['mine', 'Mine'], ['ideas', 'Ideas']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} onClick={() => setTab(k)}>{label}</button>)}
         </span>
         <span className="ou-ap-search">{searchIcon}<TextInput size="sm" label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={160}
           onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} /></span>
@@ -391,12 +409,14 @@ export function AutomationsPage() {
         <span className="ou-ap-sel" title="Sort">{sortIcon}<Selector size="sm" variant="ghost" label="Sort automations" isLabelHidden value={sort} onChange={(v) => setSort(v || 'newest')} options={[{ value: 'newest', label: 'Newest' }, { value: 'name', label: 'Name' }, { value: 'next', label: 'Next run' }]} /></span>
         <span className="ou-ap-gap" />
         <span className="ou-hm-seg" role="group" aria-label="Layout">
-          <button type="button" aria-pressed={view === 'list'} title="List" onClick={() => pickView('list')}>{listIcon}</button>
-          <button type="button" aria-pressed={view === 'box'} title="Boxes" onClick={() => pickView('box')}>{boxIcon}</button>
+          <button type="button" aria-pressed={view === 'list'} title="List" aria-label="List layout" onClick={() => pickView('list')}>{listIcon}</button>
+          <button type="button" aria-pressed={view === 'box'} title="Boxes" aria-label="Box layout" onClick={() => pickView('box')}>{boxIcon}</button>
         </span>
       </div>
       <p className="ou-ap-note">Runs while cc is open.</p>
-      {tab === 'ideas' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? <p className="ou-ap-note">Loading.</p> : !(list || []).length ? (
+      {tab === 'ideas' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? (failed
+        ? <p className="ou-ap-note" role="alert">Could not load automations. <Button size="sm" variant="ghost" label="Try again" onClick={() => void refresh()} /></p>
+        : <p className="ou-ap-note">Loading.</p>) : !(list || []).length ? (
         <div className="ou-ap-empty">
           <span className="ou-ap-emptyicon">{clockBig}</span>
           <h2>Schedule a task</h2>

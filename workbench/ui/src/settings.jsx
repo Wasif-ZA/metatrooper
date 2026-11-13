@@ -95,8 +95,8 @@ const SECTIONS = [
 
 export function Notices() {
   const [text, setText] = useState(undefined);
-  useEffect(() => { void api.notices().then(setText); }, []);
-  if (text === undefined) return null;
+  useEffect(() => { api.notices().then(setText, () => setText('')); }, []);
+  if (text === undefined) return <Text color="secondary">Loading.</Text>;
   if (!text) return <Text color="secondary">THIRD_PARTY_NOTICES.md was not found next to the app.</Text>;
   const open = (e) => { const a = e.target.closest?.('a[href^="http"]'); if (a) { e.preventDefault(); void api.openLink(a.href); } };
   return <article className="ou-notices" onClick={open} dangerouslySetInnerHTML={{ __html: marked.parse(text) }} />;
@@ -124,7 +124,7 @@ const NAV_ICON = {
   automations: Ic.ScheduleIcon,
   licences: Ic.LearnIcon,
 };
-const nav = (id, size = 16) => { const Nav = NAV_ICON[id]; return <Nav size={size} />; };
+const navIcon = (id, size = 16) => { const Icon = NAV_ICON[id]; return <Icon size={size} />; };
 
 function CheckCommand({ row, data }) {
   const id = ui.projectId;
@@ -212,7 +212,7 @@ export function Settings() {
         {NAV.map((g, i) => (
           <div key={i} className="ou-navgroup">
             {g.title ? <span className="ou-navhead">{g.title}</span> : null}
-            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} icon={nav(id)} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
+            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} icon={navIcon(id)} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
           </div>
         ))}
       </nav>
@@ -225,7 +225,7 @@ export function Settings() {
           <div className="ou-scol">
             {hits ? (hits.length ? hits.map((g) => <Group key={g.title} group={g} data={data} />) : <Text color="secondary">No setting matches "{query}".</Text>) : (
               <>
-                <div className="ou-stitle"><h1>{nav(sec.id, 20)}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
+                <div className="ou-stitle"><h1>{navIcon(sec.id, 20)}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
                 {sec.groups.map((g, i) => <Group key={g.title || i} group={g} data={data} />)}
                 {sec.body ? <sec.body /> : null}
               </>

@@ -11,14 +11,13 @@ import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
-import { PluginInstall } from './plugin-install.jsx';
+import { PluginInstall, ver } from './plugin-install.jsx';
 
 export const addonsStore = createStore({ tick: 0, rows: null });
 
 const KIND = [['agent', 'Agents'], ['plugin', 'Plugins']];
 const STATE = [['on', 'On'], ['off', 'Off'], ['bad', 'Not ready']];
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const ver = (v) => { const s = String(v || '').trim().replace(/\.$/, ''); return s && (/^\d/.test(s) ? `v${s}` : s); };
 
 function items(engines, rows) {
   const agents = [...engines].sort((a, b) => (a.light === 'red') === (b.light === 'red') ? byId(a, b) : a.light === 'red' ? -1 : 1).map((e) => ({
@@ -121,7 +120,7 @@ export function Addons() {
       <div className="ou-addons-body">
         <aside className="ou-facets" aria-label="Filters">{facet('Kind', KIND)}{facet('State', STATE)}</aside>
         <div className="ou-results">
-          <div className="ou-addons-count">{shown.length} result(s)</div>
+          <div className="ou-addons-count" role="status">{shown.length} {shown.length === 1 ? 'result' : 'results'}</div>
           {shown.map((it) => card(it, it.kind === 'plugin' && open.includes(it.id), toggle, setGoing))}
           {!engines.length && !filtered ? <EmptyState title="No agents found." isCompact actions={<Button label="Check agents again" data-action="check-engines" />} /> : null}
           {wantPlugins && rows === null ? <Text color="secondary">Loading plugins.</Text> : null}

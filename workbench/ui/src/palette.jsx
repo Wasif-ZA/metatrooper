@@ -79,9 +79,9 @@ const source = {
     return [...fileHits, ...commands()];
   },
   async search(q) {
-    const files = ideShown()
-      ? [...new Set(((await api.fsFind(ui.projectId, q)) || []).map(slashed))].slice(0, 20).map((p) => file(p, 'Files'))
-      : [];
+    let found = [];
+    if (ideShown()) try { found = (await api.fsFind(ui.projectId, q)) || []; } catch {}
+    const files = [...new Set(found.map(slashed))].slice(0, 20).map((p) => file(p, 'Files'));
     const lq = q.toLowerCase();
     const cmdHits = commands().filter((c) => c.label.toLowerCase().includes(lq));
     const keyHits = q ? allKeys().map(keyItem).filter((c) => c.label.toLowerCase().includes(lq)) : [];
