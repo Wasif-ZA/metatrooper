@@ -179,7 +179,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <div className="ou-ae-row">
           <span className="ou-ae-emoji">
             <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
-            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
+            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPicking(false); } }}>{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
@@ -359,7 +359,13 @@ export function AutomationsPage() {
         <Button size="sm" variant="secondary" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
       </div>
       <div className="ou-ap-bar">
-        <span className="ou-ap-tabs" role="tablist" aria-label="Automations">
+        <span className="ou-ap-tabs" role="tablist" aria-label="Automations" onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          const next = tab === 'mine' ? 'ideas' : 'mine';
+          setTab(next);
+          e.currentTarget.querySelectorAll('[role=tab]')[next === 'mine' ? 0 : 1]?.focus();
+        }}>
           {[['mine', 'Mine'], ['ideas', 'Ideas']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </span>
         <span className="ou-ap-search">{searchIcon}<TextInput size="sm" label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={160}

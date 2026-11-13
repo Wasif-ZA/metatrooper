@@ -208,7 +208,9 @@ globalThis.frameView = (() => {
     p.setAttribute('role', 'dialog');
     p.setAttribute('aria-label', 'Tasks: open GitHub issues');
     const list = gh.issues || [];
-    p.innerHTML = `<div class="fghhead">Open issues<span class="fe">${list.length}</span></div>${list.length ? list.map((i) => `<div class="fghrow" title="${esc(i.url)}"><span class="fe">#${esc(i.number)}</span><span class="ft">${esc(i.title)}</span>${i.labels.map((n) => `<span class="fchip">${esc(n)}</span>`).join('')}${i.assignees.length ? `<span class="fe">${esc(i.assignees.join(', '))}</span>` : ''}</div>`).join('') : `<p class="fempty">${gh.issues ? 'No open issues, or gh is not signed in here' : 'Loading issues'}</p>`}`;
+    p.innerHTML = `<div class="fghhead">Open issues<span class="fe">${list.length}</span></div>${list.length ? list.map((i) => `<div class="fghrow" role="button" tabindex="0" data-url="${esc(i.url)}" title="${esc(i.url)}"><span class="fe">#${esc(i.number)}</span><span class="ft">${esc(i.title)}</span>${i.labels.map((n) => `<span class="fchip">${esc(n)}</span>`).join('')}${i.assignees.length ? `<span class="fe">${esc(i.assignees.join(', '))}</span>` : ''}</div>`).join('') : `<p class="fempty">${gh.issues ? 'No open issues, or gh is not signed in here' : 'Loading issues'}</p>`}`;
+    p.addEventListener('click', (e) => { const row = e.target.closest('.fghrow'); if (row) openTermLink(row.dataset.url); });
+    p.addEventListener('keydown', (e) => { const row = e.target.closest('.fghrow'); if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTermLink(row.dataset.url); } });
     document.body.appendChild(p);
   }
 
@@ -402,8 +404,9 @@ globalThis.frameView = (() => {
       e.preventDefault();
       iconMenu(row.dataset.id || row.dataset.proj, e.clientX, e.clientY);
     });
-    document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeIconUi(); });
+    const closeGh = () => document.getElementById('frameGhPanel')?.remove();
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); if (!e.target.closest?.('#frameGhPanel, #frameGh')) closeGh(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeIconUi(); closeGh(); } });
     mount();
   });
 
