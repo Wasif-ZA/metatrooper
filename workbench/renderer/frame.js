@@ -417,7 +417,7 @@ globalThis.frameView = (() => {
       const row = e.target.closest('.fproj, [data-proj]');
       if (!row) return;
       e.preventDefault();
-      rowMenu('Change iconâ€¦', e.clientX, e.clientY, () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY));
+      rowMenu('Change icon…', e.clientX, e.clientY, () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY));
     });
     const closeGh = () => document.getElementById('frameGhPanel')?.remove();
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); if (!e.target.closest?.('#frameGhPanel, #frameGh')) closeGh(); });
