@@ -58,8 +58,7 @@
 .ou-ide-head:has([aria-label="Explorer actions"]) .ou-ide-head-actions { opacity: 1; }
 .ou-ide-hit:hover, .ou-ide-match:hover, .ou-ide-sfile:hover, .ou-ide-scrow:hover { background: var(--row-hover); }
 .ou-ide-cur, .ou-ide-scrow:focus-visible { background: var(--row-selected); color: var(--ink); }
-:is(.ou-ide-hit, .ou-ide-sfile, .ou-ide-scrow) .ou-ide-name { flex: 0 1 auto; min-width: 0; }
-.ou-ide-scrow .ou-ide-engine { flex: 0 1 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.ou-ide-scrow .ou-ide-engine { max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
 .ou-ide-error-count { font-variant-numeric: tabular-nums; }
 .ou-ide-tree .astryx-tree-list { --tree-list-indent: 8px; --tree-list-row-gap: 0px; }
 .ou-ide-tree [role="group"] { margin: 0; padding: 0; border: 0; }
