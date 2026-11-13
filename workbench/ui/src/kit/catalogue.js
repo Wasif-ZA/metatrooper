@@ -55,7 +55,7 @@ export const KIT = {
   stat: { req: { label: 'str', value: 'str' }, opt: { delta: 'str', dir: 'str', sub: 'str' }, set: { dir: ['up', 'down', 'flat'] } },
   grid: { req: { children: 'arr' }, opt: { cols: 'num' } },
   chart: { req: { kind: 'str', labels: 'arr', series: 'arr' }, opt: { title: 'str', unit: 'str', target: 'num', forecast: 'num', tones: 'arr' }, set: { kind: ['bar', 'line', 'share'] } },
-  field: { req: { label: 'str', kind: 'str' }, opt: { value: 'str', options: 'arr', placeholder: 'str', event: 'str', to: 'str' }, set: { kind: ['text', 'longtext', 'number', 'date', 'select', 'check', 'money'] } },
+  field: { req: { label: 'str', kind: 'str' }, opt: { value: 'str', options: 'arr', placeholder: 'str', event: 'str', to: 'str', required: 'bool', disabled: 'bool', invalid: 'bool', error: 'str' }, set: { kind: ['text', 'longtext', 'number', 'date', 'select', 'check', 'money'] } },
   calendar: { req: { days: 'arr', events: 'arr' }, opt: { hours: 'arr' } },
   image: { req: { asset: 'str', alt: 'str' }, opt: { caption: 'str', still: 'str' }, set: { still: ['dashboard', 'site', 'pdf', 'video', 'photo'] } },
   use: { req: { template: 'str' }, opt: { data: 'obj' } },

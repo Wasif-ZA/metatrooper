@@ -1,6 +1,5 @@
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
 import { ButtonGroup } from '@astryxdesign/core/ButtonGroup';
 import { Card } from '@astryxdesign/core/Card';
 import { ChatMessage, ChatMessageBubble } from '@astryxdesign/core/Chat';
@@ -22,7 +21,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { fallback } from './check.js';
-import { Plain } from './Draw.jsx';
+import { Act, Plain, useEmit, useValue } from './Draw.jsx';
 import './parts-c.css';
 
 const TO = 'goes to the agent';
@@ -42,7 +41,7 @@ function Acts({ a }) {
   if (!Array.isArray(a) || !a.length) return null;
   return (
     <ButtonGroup label="Actions">
-      {each(a, 12, (b) => isObj(b) && isStr(b.label), (b, i) => <Button key={i} label={S(b.label)} variant={b.primary === true ? 'primary' : 'secondary'} />, 'bad button')}
+      {each(a, 12, (b) => isObj(b) && isStr(b.label), (b, i) => <Act key={i} a={b} />, 'bad button')}
     </ButtonGroup>
   );
 }
@@ -58,34 +57,77 @@ const DAY = ['ou-pc-d0', 'ou-pc-d1', 'ou-pc-d2', 'ou-pc-d3', 'ou-pc-d4', 'ou-pc-
 const COLS = ['', 'ou-pc-n1', 'ou-pc-n2', 'ou-pc-n3', 'ou-pc-n4', 'ou-pc-n5', 'ou-pc-n6', 'ou-pc-n7'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+const STATUS = (p, missing) => (missing ? { type: 'error', message: 'required' } : p.error !== undefined ? { type: 'error', message: S(p.error) } : p.invalid === true ? { type: 'error' } : undefined);
+
 function Field({ p }) {
   const label = S(p.label);
-  const v = p.value === undefined ? '' : S(p.value);
+  const init = p.value === undefined ? '' : S(p.value);
   const ph = p.placeholder === undefined ? undefined : S(p.placeholder);
-  const n = Number(v);
-  switch (p.kind) {
-    case 'longtext': return <TextArea label={label} value={v} placeholder={ph} description={TO} onChange={nop} rows={3} isReadOnly />;
-    case 'check': return <CheckboxInput label={label} value={v === 'yes'} description={TO} onChange={nop} isReadOnly />;
+  const n = Number(init);
+  let kind = p.kind;
+  if ((kind === 'number' || kind === 'money') && init !== '' && !Number.isFinite(n)) kind = 'text';
+  if (kind === 'date' && init !== '' && !ISO_DATE.test(init)) kind = 'text';
+  const start = kind === 'check' ? init === 'yes' : kind === 'number' || kind === 'money' ? (init === '' ? null : n) : kind === 'date' ? init || undefined : init;
+  const [v, set, missing] = useValue(label, start, p.required === true);
+  const emit = useEmit();
+  const ev = p.event === undefined ? null : S(p.event);
+  const at = { label, description: TO, isRequired: p.required === true, isDisabled: p.disabled === true, status: STATUS(p, missing) };
+  switch (kind) {
+    case 'longtext': return <TextArea {...at} value={v} placeholder={ph} onChange={set} rows={3} />;
+    case 'check': return <CheckboxInput {...at} value={v} onChange={set} />;
     case 'number':
-    case 'money':
-      if (v === '' || Number.isFinite(n)) return <NumberInput label={label} value={v === '' ? null : n} placeholder={ph} description={TO} onChange={nop} isReadOnly formatValue={p.kind === 'money' ? (x) => `$${x.toLocaleString('en-AU')}` : undefined} />;
-      break;
-    case 'date':
-      if (v === '' || ISO_DATE.test(v)) return <DateInput label={label} value={v || undefined} placeholder={ph} description={TO} onChange={nop} />;
-      break;
+    case 'money': return <NumberInput {...at} value={v} placeholder={ph} onChange={set} formatValue={kind === 'money' ? (x) => `$${x.toLocaleString('en-AU')}` : undefined} />;
+    case 'date': return <DateInput {...at} value={v} placeholder={ph} onChange={set} />;
     case 'select': {
       const opts = Array.isArray(p.options) ? p.options.slice(0, 50) : [];
       const good = opts.filter(isStr).map((o) => ({ value: S(o), label: S(o) }));
       return (
         <VStack gap={1}>
-          <Selector label={label} options={good} value={good.some((o) => o.value === v) ? v : undefined} placeholder={ph} description={TO} onChange={nop} />
+          <Selector {...at} options={good} value={good.some((o) => o.value === v) ? v : undefined} placeholder={ph} onChange={set} />
           {opts.map((o, i) => (isStr(o) ? null : <Plain key={i} f={fallback(o, 'bad option')} />))}
         </VStack>
       );
     }
     default:
   }
-  return <TextInput type="text" label={label} value={v} placeholder={ph} description={TO} onChange={nop} isReadOnly />;
+  return <TextInput {...at} type="text" value={v} placeholder={ph} onChange={set} onEnter={ev === null ? undefined : () => emit(ev)} />;
+}
+
+function Toggle({ p }) {
+  const [on, set] = useValue(S(p.label), p.on);
+  return <Switch label={S(p.label)} value={on} description={p.note !== undefined ? S(p.note) : undefined} onChange={set} />;
+}
+
+function LiveCheck({ p }) {
+  const label = S(p.label);
+  const [on, set] = useValue(label, p.state === 'done');
+  const emit = useEmit();
+  return <CheckboxInput label={label} value={on} description={p.value !== undefined ? S(p.value) : undefined} onChange={(x) => { set(x); emit(S(p.event), { [label]: x }); }} />;
+}
+
+function ChoiceField({ label }) {
+  const [v, set] = useValue(label, '');
+  return <TextInput type="text" label={label} value={v} description={TO} onChange={set} />;
+}
+
+function Choice({ p }) {
+  const opts = p.options.slice(0, 6);
+  const ok = (o) => isObj(o) && isStr(o.title) && (o.note === undefined || isStr(o.note));
+  const [v, set] = useValue(S(p.question), Number.isInteger(p.picked) && ok(opts[p.picked]) ? S(opts[p.picked].title) : '');
+  const at = opts.findIndex((o) => ok(o) && S(o.title) === v);
+  return (
+    <Card padding={4}>
+      <VStack gap={3}>
+        <Text size="sm" color="secondary">{`The agent is asking · your answer ${TO}`}</Text>
+        <RadioList label={S(p.question)} value={at < 0 ? '' : String(at)} onChange={(i) => set(ok(opts[i]) ? S(opts[i].title) : '')}>
+          {opts.map((o, i) => (ok(o) ? <RadioListItem key={i} value={String(i)} label={`${i + 1} · ${S(o.title)}`} description={o.note !== undefined ? S(o.note) : undefined} /> : null))}
+        </RadioList>
+        {opts.map((o, i) => (ok(o) ? null : <Plain key={i} f={fallback(o, 'bad option')} />))}
+        {p.field !== undefined ? <ChoiceField label={S(p.field)} /> : null}
+        <Acts a={p.actions || [{ label: 'Send', primary: true }]} />
+      </VStack>
+    </Card>
+  );
 }
 
 function Calendar({ p }) {
@@ -152,32 +194,16 @@ function Preview({ p }) {
 }
 
 export default {
-  toggle: ({ p }) => <Switch label={S(p.label)} value={p.on} description={p.note !== undefined ? S(p.note) : undefined} onChange={nop} />,
+  toggle: Toggle,
 
-  check: ({ p }) => (
+  check: ({ p }) => (p.event !== undefined ? <LiveCheck p={p} /> : (
     <div className="ou-pc-row">
       <CheckboxInput label={S(p.label)} value={pick(CHECK, p.state, false)} description={p.value !== undefined ? S(p.value) : undefined} onChange={nop} isReadOnly />
       {pick(CHECK_TAG, p.state, null) ? <Badge variant="neutral" label={CHECK_TAG[p.state]} /> : null}
     </div>
-  ),
+  )),
 
-  choice: ({ p }) => {
-    const opts = p.options.slice(0, 6);
-    const ok = (o) => isObj(o) && isStr(o.title) && (o.note === undefined || isStr(o.note));
-    return (
-      <Card padding={4}>
-        <VStack gap={3}>
-          <Text size="sm" color="secondary">{`The agent is asking · your answer ${TO}`}</Text>
-          <RadioList label={S(p.question)} value={Number.isInteger(p.picked) && ok(opts[p.picked]) ? String(p.picked) : ''} onChange={nop}>
-            {opts.map((o, i) => (ok(o) ? <RadioListItem key={i} value={String(i)} label={`${i + 1} · ${S(o.title)}`} description={o.note !== undefined ? S(o.note) : undefined} /> : null))}
-          </RadioList>
-          {opts.map((o, i) => (ok(o) ? null : <Plain key={i} f={fallback(o, 'bad option')} />))}
-          {p.field !== undefined ? <TextInput type="text" label={S(p.field)} value="" description={TO} onChange={nop} isReadOnly /> : null}
-          <Acts a={p.actions || [{ label: 'Send', primary: true }]} />
-        </VStack>
-      </Card>
-    );
-  },
+  choice: Choice,
 
   field: Field,
   calendar: Calendar,

@@ -109,7 +109,7 @@ export function expand(spec) {
     } else if (raw.type === 'header' && raw.tabs) {
       out.tabs = raw.tabs.slice(0, 12).map((t) => str(t, 'tab'));
     } else if (raw.type === 'buttons') {
-      out.actions = raw.actions.slice(0, 12).map((a) => (isObj(a) && TYPES.str(a.label) ? { label: String(a.label), primary: a.primary === true } : fail(id, fallback(a, 'bad button'))));
+      out.actions = raw.actions.slice(0, 12).map((a) => (isObj(a) && TYPES.str(a.label) ? { label: String(a.label), primary: a.primary === true, ...(TYPES.str(a.event) ? { event: String(a.event) } : {}) } : fail(id, fallback(a, 'bad button'))));
     } else if (raw.type === 'table') {
       const cols = raw.cols.slice(0, 20).map((x) => str(x, 'column'));
       const cell = (x) => (x == null ? '' : TYPES.str(x) ? String(x) : isObj(x) && typeof x.ref === 'string' ? build(x.ref, depth + 1) : fail(id, fallback(x, 'bad cell')));

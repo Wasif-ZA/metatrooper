@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component, createContext, useContext, useRef, useState } from 'react';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { ButtonGroup } from '@astryxdesign/core/ButtonGroup';
@@ -33,6 +33,27 @@ class Guard extends Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? <Plain f={{ name: this.props.name, why: 'could not draw', text: '' }} /> : this.props.children; }
+}
+
+const Form = createContext(null);
+const EMPTY = (v) => v === '' || v == null || v === false;
+
+/** A control's value on this surface: kept under `key` for the next event's context; `need` marks it required. */
+export function useValue(key, initial, need) {
+  const f = useContext(Form);
+  const [v, set] = useState(initial);
+  if (f) { f.vals[key] = v; if (need) f.need.add(key); }
+  return [v, set, Boolean(f?.missing.includes(key) && EMPTY(v))];
+}
+
+/** Sends an event name, with every control value on the surface as context, to the agent that drew it. */
+export const useEmit = () => useContext(Form)?.emit ?? (() => {});
+
+/** One drawn button; a click sends its `event`, else its label. */
+export function Act({ a, size }) {
+  const emit = useEmit();
+  const ev = a.event != null && (typeof a.event === 'string' || typeof a.event === 'number') ? a.event : a.label;
+  return <Button size={size} label={String(a.label)} variant={a.primary === true ? 'primary' : 'secondary'} onClick={() => emit(ev)} />;
 }
 
 const Cell = ({ v }) => (typeof v === 'string' ? v : <Part p={v} />);
@@ -78,7 +99,7 @@ export function Part({ p }) {
     case 'buttons':
       return (
         <ButtonGroup label="Actions">
-          {p.actions.map((a, i) => (isFallback(a) ? <Plain key={i} f={a} /> : <Button key={i} label={a.label} variant={a.primary ? 'primary' : 'secondary'} />))}
+          {p.actions.map((a, i) => (isFallback(a) ? <Plain key={i} f={a} /> : <Act key={i} a={a} />))}
         </ButtonGroup>
       );
     default: {
@@ -89,8 +110,18 @@ export function Part({ p }) {
 }
 
 /** Draws an agent's spec from the catalogue only; every part is checked before it draws, and a bad one becomes a text box. */
-export function Drawn({ spec }) {
+export function Drawn({ spec, onEvent }) {
   const { root } = expand(spec);
-  return <div className="ou-drawn"><Guard name="screen"><Part p={root} /></Guard></div>;
+  const [missing, setMissing] = useState([]);
+  const vals = useRef({}).current;
+  const need = useRef(new Set()).current;
+  need.clear();
+  const emit = (event, set = {}) => {
+    Object.assign(vals, set);
+    const gap = [...need].filter((k) => EMPTY(vals[k]));
+    setMissing(gap);
+    if (!gap.length && onEvent) onEvent({ event: String(event), context: Object.fromEntries(Object.entries(vals).filter(([, x]) => x != null).slice(0, 50).map(([k, x]) => [k.slice(0, 80), x])) });
+  };
+  return <div className="ou-drawn"><Form.Provider value={{ vals, need, missing, emit }}><Guard name="screen"><Part p={root} /></Guard></Form.Provider></div>;
 }
 

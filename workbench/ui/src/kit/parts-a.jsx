@@ -1,6 +1,5 @@
 import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
-import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Collapsible } from '@astryxdesign/core/Collapsible';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
@@ -19,7 +18,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TreeList } from '@astryxdesign/core/TreeList';
 import { VStack } from '@astryxdesign/core/VStack';
 import { MAX_ROWS } from './check.js';
-import { Plain } from './Draw.jsx';
+import { Act, Plain } from './Draw.jsx';
 import './parts-a.css';
 
 const isStr = (v) => typeof v === 'string' || typeof v === 'number';
@@ -187,13 +186,13 @@ export default {
     const [rows, outs] = split(p.items, 'queue', (q, i) => {
       obj(q);
       const tag = maybe(q.tag);
-      const acts = Array.isArray(q.actions) ? q.actions.slice(0, 6).map((a) => ({ label: need(obj(a).label), primary: a.primary === true })) : [];
+      const acts = Array.isArray(q.actions) ? q.actions.slice(0, 6).map((a) => ({ label: need(obj(a).label), primary: a.primary === true, event: a.event })) : [];
       return {
         key: i,
         label: need(q.title),
         description: maybe(q.sub),
         start: q.flag === true ? <StatusDot variant="error" label="flagged" /> : undefined,
-        end: tag || acts.length ? <HStack gap={2} vAlign="center">{tag ? <Badge label={tag} /> : null}{acts.map((a, k) => <Button key={k} size="sm" label={a.label} variant={a.primary ? 'primary' : 'secondary'} />)}</HStack> : undefined,
+        end: tag || acts.length ? <HStack gap={2} vAlign="center">{tag ? <Badge label={tag} /> : null}{acts.map((a, k) => <Act key={k} size="sm" a={a} />)}</HStack> : undefined,
         on: i === p.selected,
       };
     });

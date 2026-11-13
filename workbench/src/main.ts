@@ -64,7 +64,7 @@ export const UI_METHODS = new Set([
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable',
-  'ui.get', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
+  'ui.get', 'ui.event', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
 
 let win: BrowserWindow | null = null;

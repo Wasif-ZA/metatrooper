@@ -80,6 +80,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   worktree.create         {project_id, branch?, base?: "HEAD"}  (stable)
   ui.show                 {session_id, surface, title?, zone?: "tab", catalogue?, spec}
   ui.get                  {surface}
+  ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
   ui.hello                {ui_key}
   engines.check           {}
   engines.models          {engine_id}

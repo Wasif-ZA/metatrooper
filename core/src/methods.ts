@@ -42,7 +42,7 @@ import { Desktop } from './desktop/driver.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
-import { getSurface, showSurface } from './surfaces.ts';
+import { getSurface, showSurface, surfaceEvent } from './surfaces.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -129,6 +129,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'worktree.create', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
   { name: 'ui.show', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, title?, zone?: "tab", catalogue?, spec}', result: '{surface, status: drawn | partly | rejected, fellBack: [{part, type, why}]}; stores or replaces the screen `session_id` drew and the workbench opens it as a tab. Every part is checked against the catalogue; a bad one is drawn as plain text and listed in `fellBack`. -32003 when another session owns `surface`; -32602 for a bad id, a zone other than `tab`, or a spec over 256 KB. Called by the `ouros_ui` MCP tool' },
   { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at}; -32002 when it does not exist' },
+  { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, the way `comment.deliver` sends a comment (Claude through the UserPromptSubmit hook, other engines typed into the terminal). Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has ended the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
   { name: 'engines.models', errors: [E.NOT_FOUND], params: '{engine_id}', result: '{models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument' },
@@ -861,6 +862,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('ui.show', { handler: (p) => showSurface(db, p) });
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
+  m.set('ui.event', { needsUi: true, handler: (p) => surfaceEvent(db, p, (id, engine, text) => (getEngine(db, engine)?.state_source === 'hooks' ? null : term.paste(id, text))) });
 
   m.set('mcp.resolve', {
     handler: (p) => {
