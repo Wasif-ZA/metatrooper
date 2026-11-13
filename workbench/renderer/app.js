@@ -1553,9 +1553,10 @@ async function onClick(e) {
     case 'restart-core':
       if (!restartArmed()) { ui.restartAt = Date.now(); render(); setTimeout(render, ARM_MS); return; }
       ui.restartAt = 0;
-      toast('Restarting core');
-      await api.restartCore();
-      toast('Core restarted');
+      await busyClick(el, a, async () => {
+        toast('Restarting core');
+        try { await api.restartCore(); toast('Core restarted'); } catch (err) { toast(`Could not restart the core: ${err.message}`, true); }
+      });
       return;
     case 'open-logs':
       await api.openLogs();
