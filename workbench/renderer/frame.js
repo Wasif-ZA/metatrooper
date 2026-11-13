@@ -347,7 +347,7 @@ globalThis.frameView = (() => {
           ? `<div class="fgrid">${PROJECT_EMOJIS.map((e) => `<button class="fcell${st.emoji === e ? ' on' : ''}" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}</div>`
           : `<div class="fgrid">${names.map((n) => `<button class="fcell${st.name === n ? ' on' : ''}" data-icon-name="${n}" title="${n}" aria-label="${n}"${st.name === n ? ` style="color:${colours[st.colour]}"` : ''}>${I(n, 16)}</button>`).join('')}</div>${swatches()}`;
       box.innerHTML = `<div class="fghhead"><span>Change icon</span><span class="fprev">${globalThis.projectIconHtml?.(preview(), 20) ?? ''}</span></div>`
-        + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
+        + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" tabindex="${st.tab === t ? 0 : -1}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
         + `<div class="fpickbody">${body}</div><div class="fpickfoot"><button data-act="reset">Reset</button><span class="sp"></span><button data-act="cancel">Cancel</button><button class="fprimary" data-act="save">Save</button></div>`;
       box.querySelector('.fletters')?.addEventListener('input', (e) => { st.text = e.target.value.toUpperCase(); box.querySelector('.fprev').innerHTML = globalThis.projectIconHtml?.(preview(), 20) ?? ''; });
     };
@@ -372,6 +372,17 @@ globalThis.frameView = (() => {
       else if (b.dataset.act === 'save') return void save(preview());
       render();
       box.querySelector(b.dataset.tab ? '[aria-selected="true"]' : b.dataset.colour ? '.fswatch.on' : '.fcell.on')?.focus();
+    });
+    box.addEventListener('keydown', (e) => {
+      if (!e.target.closest('[role="tab"]')) return;
+      const tabs = ['monogram', 'emoji', 'icon'];
+      const i = tabs.indexOf(st.tab);
+      const n = { ArrowRight: i + 1, ArrowLeft: i - 1 + tabs.length, Home: 0, End: tabs.length - 1 }[e.key];
+      if (n === undefined) return;
+      e.preventDefault();
+      st.tab = tabs[n % tabs.length];
+      render();
+      box.querySelector('[aria-selected="true"]').focus();
     });
     render();
     document.body.appendChild(box);
