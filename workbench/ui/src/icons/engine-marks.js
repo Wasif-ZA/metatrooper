@@ -1,5 +1,6 @@
 // Provider marks per engine, shown only to say which engine runs a task; an engine without one gets our own shape.
 import { engineName } from '../words.js';
+import { esc } from './shapes.js';
 
 export const ENGINE_MARKS = {
   // From t3code (MIT), apps/web/src/components/Icons.tsx (ClaudeAI)
@@ -16,8 +17,6 @@ export const ENGINE_MARKS = {
   pi: { name: 'Pi', viewBox: '0 0 16 16', inner: '<rect x="1.5" y="5" width="13" height="6" rx="3" fill="#E0457B"/>' },
 };
 
-const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-
 /** The viewBox and inner SVG markup for an engine id; an unknown engine gets an outlined square with its first letter. */
 export function engineMarkParts(id) {
   const key = String(id || '').trim().toLowerCase();
@@ -31,5 +30,5 @@ export function engineMarkParts(id) {
 export function engineMarkSvg(id, size = 14) {
   const name = esc(engineName(id));
   const { viewBox, inner } = engineMarkParts(id);
-  return `<svg class="emark" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" preserveAspectRatio="xMidYMid" role="img" aria-label="${name}"><title>${name}</title>${inner}</svg>`;
+  return `<svg class="emark" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" preserveAspectRatio="xMidYMid" focusable="false" role="img" aria-label="${name}"><title>${name}</title>${inner}</svg>`;
 }
