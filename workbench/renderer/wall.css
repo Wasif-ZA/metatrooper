@@ -154,6 +154,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ou-ah-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ph .ou-ah-acts .btn { height: 24px; padding: 0 6px; font-size: 10.5px; }
 .tile-more { position: relative; display: inline-flex; }
+:is(.pane.big, .paired .pane, .tile.shell) .tile-more:not(:has(.tile-previews > *, .tile-desk > *)) { display: none; }
 .tile-more summary::-webkit-details-marker, .tile-more summary::marker { display: none; }
 .tile-more summary { list-style: none; user-select: none; }
 .tile-more summary.tx:hover { background: var(--canvas-soft); color: var(--ink); }
