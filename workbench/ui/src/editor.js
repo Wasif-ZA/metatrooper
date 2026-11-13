@@ -16,7 +16,7 @@ let seq = 0;
 
 // A tab's text: plain until Monaco loads, then a model that keeps undo across remounts.
 class Doc {
-  constructor(text, path, on) { this.text = text.replace(/\r\n?/g, '\n'); this.path = path; this.on = on; this.model = null; this.view = null; }
+  constructor(text, path, on) { this.crlf = text.includes('\r\n'); this.text = text.replace(/\r\n?/g, '\n'); this.path = path; this.on = on; this.model = null; this.view = null; }
   sliceDoc() { return this.model ? this.model.getValue() : this.text; }
   dispose() { this.model?.dispose(); this.model = null; }
 }
@@ -220,7 +220,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
       }
       return new Map([...zones].map(([k, z]) => [k, z.node]));
     },
-    dispose() { dead = true; ed?.dispose(); for (const x of models) x.dispose(); },
+    dispose() { dead = true; if (ed) { ed.setModel(null); ed.dispose(); } for (const x of models) x.dispose(); },
   };
 }
 

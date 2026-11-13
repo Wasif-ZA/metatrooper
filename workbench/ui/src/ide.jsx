@@ -358,10 +358,10 @@ function railHost() {
 const focusRow = (path) => setTimeout(() => document.querySelector(`#ide-tree-menu [data-tree-id="${CSS.escape(path)}"]`)?.focus(), 0);
 
 // TreeList keeps user toggles in internal state, so a reveal remounts it with the open folders as props
-async function reveal(st, path) {
+async function reveal(st, path, folder = false) {
   const open = [...document.querySelectorAll('#ide-tree-menu [data-tree-id][aria-expanded="true"]')].map((e) => e.dataset.treeId);
   const parts = path.split('/');
-  const up = parts.slice(1).map((_, i) => parts.slice(0, i + 1).join('/'));
+  const up = [...parts.slice(1).map((_, i) => parts.slice(0, i + 1).join('/')), ...(folder ? [path] : [])];
   st.open = new Set([...open, ...up]);
   st.treeKey = (st.treeKey || 0) + 1;
   Object.assign(st, { side: 'files', rootOpen: true, q: '', hits: [], findOpen: false });
@@ -1113,7 +1113,7 @@ function Crumb({ st, tab }) {
       <nav className="ou-ide-path" aria-label="Breadcrumb">{parts.map((x, i) => (
         <span key={i} className="ou-ide-segw">
           {i ? <span className="ou-ide-sep" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span> : null}
-          <button type="button" className="ou-ide-seg" title={`Reveal ${parts.slice(0, i + 1).join('/')} in Files`} onClick={() => void reveal(st, parts.slice(0, i + 1).join('/'))}>
+          <button type="button" className="ou-ide-seg" title={`Reveal ${parts.slice(0, i + 1).join('/')} in Files`} onClick={() => void reveal(st, parts.slice(0, i + 1).join('/'), i < parts.length - 1)}>
             {i === parts.length - 1 ? <><FileIcon path={tab.path} /><b>{x}</b></> : x}
           </button>
         </span>
@@ -1153,7 +1153,7 @@ function StatusBar({ st, active, problems, onProblems }) {
             <span className="ou-ide-status-item">Ln {line}, Col {col}</span>
             <span className="ou-ide-status-item">{`Spaces: ${active.view?.state?.model?.getOptions?.().tabSize ?? 2}`}</span>
             <span className="ou-ide-status-item">UTF-8</span>
-            <span className="ou-ide-status-item">LF</span>
+            <span className="ou-ide-status-item">{active.view?.state?.crlf ? 'CRLF' : 'LF'}</span>
             {lang ? <span className="ou-ide-status-item"><Sc.BracesIcon size={13} />{lang}</span> : null}
           </>
         ) : null}
