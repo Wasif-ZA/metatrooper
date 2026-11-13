@@ -25,7 +25,7 @@ const browserChrome = (() => {
     if (path === '/') path = '';
     const z = zoom && Math.abs(zoom - 1) > 0.001 ? `<button class="zoom" data-action="pane-act" data-act="zoom-reset" title="Reset zoom (Ctrl+0)">${Math.round(zoom * 100)}%</button>` : '';
     return `<label class="burl${draft != null ? ' drafting' : ''}"><span class="shown"><span class="host-part" data-scr="url-host">${esc(host)}</span><span class="path" data-scr="url-path">${esc(path)}</span></span>
-      <input data-key="url" id="pane-url" value="${esc(draft ?? url ?? '')}" placeholder="Search, or type a URL like localhost:3001 (Ctrl+L)" spellcheck="false">${z}</label>`;
+      <input data-key="url" id="pane-url" value="${esc(draft ?? url ?? '')}" placeholder="Search, or type a URL like localhost:3001 (Ctrl+L)" spellcheck="false" aria-label="Address">${z}</label>`;
   }
 
   const CK = '<svg class="ck" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2l2.3 2.3 4.7-5"/></svg>';
