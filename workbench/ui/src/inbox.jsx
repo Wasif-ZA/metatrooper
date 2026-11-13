@@ -881,12 +881,12 @@ export function Inbox() {
         </header>
         <div className="ou-ny-filters" role="group" aria-label="Filter">
           <Selector size="sm" variant="ghost" label="Show" isLabelHidden value={filter} onChange={(v) => inboxStore.set({ filter: v })}
-            options={[{ value: 'all', label: 'All kinds' }, ...groups.map((g) => ({ value: g.key, label: g.title }))]} />
+            options={[{ value: 'all', label: 'Kinds' }, ...groups.map((g) => ({ value: g.key, label: g.title }))]} />
           <Selector size="sm" variant="ghost" label="Agent" isLabelHidden value={engineFilter} onChange={(v) => inboxStore.set({ engine: v })}
-            options={[{ value: '', label: 'All agents' }, ...[...new Set(everyone.map((x) => x.engine_id).filter(Boolean))].map((id) => ({ value: id, label: Ic.engineName(id) }))]} />
+            options={[{ value: '', label: 'Agents' }, ...[...new Set(everyone.map((x) => x.engine_id).filter(Boolean))].map((id) => ({ value: id, label: Ic.engineName(id) }))]} />
           <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={projectFilter} onChange={(v) => inboxStore.set({ project: v })}
-            options={[{ value: '', label: 'All projects' }, ...(s.projects || []).map((p) => ({ value: p.id, label: p.name }))]} />
-          {filter !== 'all' || engineFilter || projectFilter ? <Button size="sm" variant="ghost" label="Clear filters" onClick={() => inboxStore.set({ filter: 'all', engine: '', project: '' })} /> : null}
+            options={[{ value: '', label: 'Projects' }, ...(s.projects || []).map((p) => ({ value: p.id, label: p.name }))]} />
+          {filter !== 'all' || engineFilter || projectFilter ? <IconButton size="sm" variant="ghost" icon={I.close} label="Clear filters" onClick={() => inboxStore.set({ filter: 'all', engine: '', project: '' })} /> : null}
         </div>
         {totalItems === 0 ? (
           <div className="ou-ny-empty">{filter !== 'all' || engineFilter || projectFilter ? <EmptyState title="Nothing matches these filters." isCompact /> : <EmptyState title="Nothing is waiting on you." description="Questions from agents and finished work show up here." isCompact />}</div>

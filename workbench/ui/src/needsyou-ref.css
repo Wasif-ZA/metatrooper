@@ -154,7 +154,8 @@
 .ou-inbox .ou-ny-mark { flex: none; }
 
 /* filter pickers start on the row text line and stay on one row */
-.ou-inbox .ou-ny-filters { padding: 6px 12px; }
+.ou-inbox .ou-ny-filters { padding: 6px 12px; flex-wrap: nowrap; }
+.ou-inbox .ou-ny-filters > * { flex: 0 1 auto; min-width: 0; }
 
 /* states the unset controls lost */
 .ou-inbox .ou-ny-addpick [role="combobox"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
