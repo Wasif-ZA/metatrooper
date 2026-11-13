@@ -735,8 +735,8 @@ html { font-size: 16px; }
 .ou-ap-chip > svg { width: 14px; height: 14px; color: var(--mute); flex: none; }
 .ou-ap-ldot { width: 7px; height: 7px; border-radius: 50%; background: var(--mute); flex: none; }
 .ou-ap-chip.ou-ap-state { cursor: pointer; color: var(--mute); }
-.ou-ap-chip.ou-ap-state:hover { color: var(--ink); border-color: var(--hairline-strong); }
 .ou-ap-chip.ou-ap-state.ou-on { color: var(--st-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
+.ou-ap-chip.ou-ap-state:hover { color: var(--ink); border-color: var(--hairline-strong); }
 .ou-ae input:focus, .ou-ae textarea:focus, .ou-ae input:focus-visible, .ou-addons dialog input:focus, .ou-addons dialog input:focus-visible { outline: none !important; box-shadow: none !important; }
 .ou-addons dialog .astryx-layout-content { display: grid; gap: 8px; }
 
