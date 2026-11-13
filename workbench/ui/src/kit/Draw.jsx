@@ -120,7 +120,7 @@ export function Drawn({ spec, onEvent }) {
     Object.assign(vals, set);
     const gap = [...need].filter((k) => EMPTY(vals[k]));
     setMissing(gap);
-    if (!gap.length && onEvent) onEvent({ event: String(event), context: Object.fromEntries(Object.entries(vals).filter(([, x]) => x != null)) });
+    if (!gap.length && onEvent) onEvent({ event: String(event), context: Object.fromEntries(Object.entries(vals).filter(([, x]) => x != null).slice(0, 50).map(([k, x]) => [k.slice(0, 80), x])) });
   };
   return <div className="ou-drawn"><Form.Provider value={{ vals, need, missing, emit }}><Guard name="screen"><Part p={root} /></Guard></Form.Provider></div>;
 }

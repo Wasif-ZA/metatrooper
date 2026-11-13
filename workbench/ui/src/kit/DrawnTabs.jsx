@@ -40,7 +40,7 @@ const DROP = { stale: 'not sent: the agent redrew this screen', repeat: 'not sen
 async function send(t, e) {
   const out = await api.call('ui.event', { surface: t.id, seq: t.seq, event: e.event, context: e.context });
   const r = out.kind === 'reply' ? out.reply.result : null;
-  t.said = r ? (r.dropped ? DROP[r.dropped] : SAID[r.to]) || '' : 'not sent: core did not take it';
+  t.said = r ? (r.dropped ? DROP[r.dropped] : SAID[r.to]) || '' : `not sent: ${out.kind === 'reply' && out.reply.error ? out.reply.error.message : 'core is offline'}`;
   bump();
 }
 

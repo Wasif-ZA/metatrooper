@@ -69,7 +69,7 @@ export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeI
   if (sent.get(r.session_id, key, r.session_id, key)) return { delivered: false, to: null, dropped: 'repeat', seq: r.seq };
   const inbox = () => {
     db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'other', ?, ?)")
-      .run(ulid(), nowIso(), r.session_id, `Your click on "${r.title}" could not reach its ${r.engine_id} session, which has ended: ${line}`);
+      .run(ulid(), nowIso(), r.session_id, `Your click on "${r.title}" did not reach its ${r.engine_id} session (it has ended or has no terminal), so it is kept here: ${line}`);
     return { delivered: true, to: 'inbox' as const, seq: r.seq };
   };
   if (r.state === 'exited') return inbox();

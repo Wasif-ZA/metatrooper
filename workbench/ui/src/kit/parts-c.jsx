@@ -71,27 +71,26 @@ function Field({ p }) {
   const [v, set, missing] = useValue(label, start, p.required === true);
   const emit = useEmit();
   const ev = p.event === undefined ? null : S(p.event);
-  const change = (x) => { set(x); if (ev !== null && kind !== 'text' && kind !== 'longtext') emit(ev, { [label]: x }); };
   const at = { label, description: TO, isRequired: p.required === true, isDisabled: p.disabled === true, status: STATUS(p, missing) };
   switch (kind) {
-    case 'longtext': return <TextArea {...at} value={v} placeholder={ph} onChange={change} rows={3} />;
-    case 'check': return <CheckboxInput {...at} value={v} onChange={change} />;
+    case 'longtext': return <TextArea {...at} value={v} placeholder={ph} onChange={set} rows={3} />;
+    case 'check': return <CheckboxInput {...at} value={v} onChange={set} />;
     case 'number':
-    case 'money': return <NumberInput {...at} value={v} placeholder={ph} onChange={change} formatValue={kind === 'money' ? (x) => `$${x.toLocaleString('en-AU')}` : undefined} />;
-    case 'date': return <DateInput {...at} value={v} placeholder={ph} onChange={change} />;
+    case 'money': return <NumberInput {...at} value={v} placeholder={ph} onChange={set} formatValue={kind === 'money' ? (x) => `$${x.toLocaleString('en-AU')}` : undefined} />;
+    case 'date': return <DateInput {...at} value={v} placeholder={ph} onChange={set} />;
     case 'select': {
       const opts = Array.isArray(p.options) ? p.options.slice(0, 50) : [];
       const good = opts.filter(isStr).map((o) => ({ value: S(o), label: S(o) }));
       return (
         <VStack gap={1}>
-          <Selector {...at} options={good} value={good.some((o) => o.value === v) ? v : undefined} placeholder={ph} onChange={change} />
+          <Selector {...at} options={good} value={good.some((o) => o.value === v) ? v : undefined} placeholder={ph} onChange={set} />
           {opts.map((o, i) => (isStr(o) ? null : <Plain key={i} f={fallback(o, 'bad option')} />))}
         </VStack>
       );
     }
     default:
   }
-  return <TextInput {...at} type="text" value={v} placeholder={ph} onChange={change} onEnter={ev === null ? undefined : () => emit(ev)} />;
+  return <TextInput {...at} type="text" value={v} placeholder={ph} onChange={set} onEnter={ev === null ? undefined : () => emit(ev)} />;
 }
 
 function Toggle({ p }) {
