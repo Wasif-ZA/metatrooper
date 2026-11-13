@@ -1,0 +1,27 @@
+.ou-pb-headline { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ou-pb-kbd, .ou-pb-time { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ou-pb-mute { color: var(--mute); }
+.ou-pb-log { border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 10px; font: 12px/1.6 var(--mono, monospace); color: var(--ink); max-height: 420px; overflow: auto; }
+.ou-pb-logrow { display: grid; grid-template-columns: auto 16px 1fr; gap: 8px; align-items: center; }
+.ou-pb-group { grid-template-columns: 16px 1fr auto; font-weight: 600; }
+.ou-pb-mark { display: inline-flex; justify-content: center; color: var(--mute); }
+.ou-pb-k-heal { color: var(--st-wait); }
+.ou-pb-k-fail, .ou-pb-logrow.ou-pb-bad { color: var(--st-bad); }
+.ou-pb-dot { width: 8px; height: 8px; border-radius: 50%; justify-self: center; background: var(--st-ok); }
+.ou-pb-run .ou-pb-dot { background: var(--st-run); }
+.ou-pb-bad .ou-pb-dot { background: var(--st-bad); }
+.ou-pb-mute .ou-pb-dot, .ou-pb-group.ou-pb-mute { color: var(--mute); }
+.ou-pb-group.ou-pb-mute .ou-pb-dot { background: transparent; border: 1px solid var(--mute); box-sizing: border-box; }
+.ou-pb-doc { border: 1px solid var(--hairline); border-radius: 6px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.ou-pb-dochead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ou-pb-para { padding-left: 10px; border-left: 2px solid transparent; }
+.ou-pb-added { border-left-color: var(--st-ok); }
+.ou-pb-flag { border-left-color: var(--st-wait); }
+.ou-pb-refs { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.ou-pb-image { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.ou-pb-sources { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.ou-pb-sources > li { display: flex; gap: 10px; align-items: flex-start; }
+.ou-pb-dir-up { color: var(--st-ok); }
+.ou-pb-dir-down { color: var(--st-bad); }
+.ou-pb-dir-flat { color: var(--mute); }
+.ou-pb-inline { display: flex; }
