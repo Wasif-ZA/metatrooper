@@ -351,6 +351,8 @@ const wall = (() => {
   gsap.set('#list', { x: -310, visibility: 'hidden' });
   gsap.set('#sheet', { y: 208 });
   addEventListener('resize', () => layout(false));
+  const stage = $('#stage');
+  if (stage && typeof ResizeObserver === 'function') new ResizeObserver(() => layout(false)).observe(stage);
   for (const type of ['keydown', 'mousedown']) addEventListener(type, (e) => { if (e.target && e.target.closest && e.target.closest('.tile.big')) touchAt = Date.now(); }, true);
   $('#search').addEventListener('click', (e) => {
     const box = e.currentTarget;
