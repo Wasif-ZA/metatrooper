@@ -163,3 +163,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 
 /* Pressed: one step past hover, on every sidebar and top bar button. */
 :is(.fth, .fthkid, .fshelfh, .fsearch, .fic, .ftog, .fthx, .tnav button, .ffoot button, .title .ib, .fcell, .ftabs button, .fpickfoot button:not(.fprimary), .ficonmenu button):active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+
+/* The Editor's rail slot takes no room outside the Editor (its id rule outranked the class rule that hides it). */
+:root:not([data-view="ide"]) #rail-slot { display: none; }
