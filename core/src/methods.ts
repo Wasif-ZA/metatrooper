@@ -559,6 +559,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!shell) throw new RpcError(E.ENGINE_UNAVAILABLE, `${kind} is not available on this machine`);
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      if (!fs.existsSync(project.path)) throw new RpcError(E.NOT_FOUND, `the project folder is gone: ${project.path}`);
       if (beingRemoved(project.path)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
       const id = `sh_${ulid()}`;
       term.open(id, shell.argv, project.path, process.env);

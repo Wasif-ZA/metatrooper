@@ -76,6 +76,10 @@ export function launchSession(
   db: DatabaseSync,
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; browserGrant?: string; host?: 'pty' | 'sandbox'; parentId?: string; model?: string; blockerIds?: string[] },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
+  if (process.argv.includes('--demo') && opts.engine.id !== 'demo-fixture') {
+    throw new RpcError(E.ENGINE_UNAVAILABLE, `the demo runs only demo-fixture; ${opts.engine.id} would use your real account`);
+  }
+  if (!fs.existsSync(opts.cwd ?? opts.projectPath)) throw new RpcError(E.NOT_FOUND, `the project folder is gone: ${opts.cwd ?? opts.projectPath}`);
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
   const id = ulid();
