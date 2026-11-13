@@ -3,17 +3,17 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkOverride, findFavicon, monogramColour, monogramText, PICK_ICONS, PROJECT_COLOURS, readOverrides, resolveProjectIcon, writeOverride } from '../src/projecticon.ts';
+import { checkOverride, findFavicon, PICK_ICONS, PROJECT_COLOURS, readOverrides, resolveProjectIcon, writeOverride } from '../src/projecticon.ts';
 import { PICK_ICONS as UI_PICK, PROJECT_COLOURS as UI_COLOURS, projectIconHtml, SHAPES } from '../ui/src/icons/shapes.js';
 
 const dir = () => mkdtempSync(join(tmpdir(), 'wb-project-icon-'));
 
-test('resolve order: an override wins, then the repo favicon, then a monogram', () => {
+test('resolve order: an override wins, then the repo favicon, else none', () => {
   const d = dir();
   const e = dir();
   try {
     const p = { path: d, name: 'shop-cart' };
-    assert.deepEqual(resolveProjectIcon(p), { kind: 'monogram', text: 'SC', colour: monogramColour('shop-cart') });
+    assert.equal(resolveProjectIcon(p), null);
     mkdirSync(join(e, 'public'));
     writeFileSync(join(e, 'public', 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
     const fav = resolveProjectIcon({ path: e, name: 'api-server' }, null);
@@ -39,13 +39,6 @@ test('findFavicon prefers the root favicon, reads it as a data URL, skips files 
     assert.equal(later?.file, 'favicon.ico', 'after a minute the folder is read again and the root favicon wins');
     assert.ok(later?.src.startsWith('data:image/x-icon;base64,'));
   } finally { rmSync(d, { recursive: true, force: true }); }
-});
-
-test('monogram letters come from the first two words, else the first two letters; the colour is stable per name', () => {
-  assert.deepEqual(['shop-cart', 'api-server', 'metatrooper', 'myApp', 'x', 'docs_site'].map(monogramText), ['SC', 'AS', 'ME', 'MA', 'X', 'DS']);
-  assert.equal(monogramColour('shop-cart'), monogramColour('shop-cart'));
-  assert.ok(monogramColour('shop-cart') in PROJECT_COLOURS);
-  assert.ok(new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(monogramColour)).size > 1, 'names spread over colours');
 });
 
 test('an override must be a 1-2 letter monogram, an emoji, or a listed icon, with a listed colour', () => {

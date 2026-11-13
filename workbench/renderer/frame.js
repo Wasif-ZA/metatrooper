@@ -348,7 +348,7 @@ globalThis.frameView = (() => {
     m.querySelector('button').focus();
   }
 
-  /** The Change icon panel: a monogram (letters + colour), an emoji, or a line icon with a colour; Reset goes back to the favicon or default monogram. */
+  /** The Change icon panel: a monogram (letters + colour), an emoji, or a line icon with a colour; Reset goes back to the favicon or the plain folder icon. */
   function iconPicker(projectId, x, y) {
     closeIconUi();
     const { PROJECT_COLOURS: colours, PICK_ICONS: names } = globalThis.projectIconChoices || { PROJECT_COLOURS: {}, PICK_ICONS: [] };

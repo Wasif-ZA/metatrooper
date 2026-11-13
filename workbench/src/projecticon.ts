@@ -51,25 +51,9 @@ export function findFavicon(dir: string, now = Date.now()): Extract<ProjectIcon,
   return icon;
 }
 
-/** Two letters from a project name: the first letters of its first two words (split on - _ . space and camelCase), else its first two letters. */
-export function monogramText(name: string): string {
-  const words = String(name).replace(/([a-z])([A-Z])/g, '$1 $2').split(/[\s\-_.]+/).filter(Boolean);
-  const letters = words.length > 1 ? words[0][0] + words[1][0] : Array.from(words[0] ?? '?').slice(0, 2).join('');
-  return letters.toUpperCase();
-}
-
-/** A colour name picked by a stable hash of the project name, so a project keeps its colour. */
-export function monogramColour(name: string): string {
-  let h = 2166136261;
-  for (const ch of String(name)) h = Math.imul(h ^ ch.codePointAt(0)!, 16777619) >>> 0;
-  const names = Object.keys(PROJECT_COLOURS);
-  return names[h % names.length];
-}
-
-/** Override first, then the repo's favicon or logo, then a monogram tile. */
-export function resolveProjectIcon(p: { path: string; name: string }, override?: IconOverride | null): ProjectIcon {
-  if (override) return override;
-  return findFavicon(p.path) ?? { kind: 'monogram', text: monogramText(p.name), colour: monogramColour(p.name) };
+/** Override first, then the repo's favicon or logo, else null (the UI draws its plain folder icon). */
+export function resolveProjectIcon(p: { path: string; name: string }, override?: IconOverride | null): ProjectIcon | null {
+  return override || findFavicon(p.path);
 }
 
 /** Validates an override from the UI; null clears it. Throws on anything else. */
