@@ -15,7 +15,7 @@ import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
 import { PROJECT_COLOURS } from './icons/shapes.js';
 
-export const inboxStore = createStore({ tick: 0, filter: 'all', collapsed: [], selectedId: null, props: true });
+export const inboxStore = createStore({ tick: 0, filter: 'all', engine: '', project: '', collapsed: [], selectedId: null, props: true });
 
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 const PRIORITIES = [['none', 'No priority'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']];
@@ -400,7 +400,7 @@ async function write(method, params, apply, undo, failText) {
 }
 
 export function Inbox() {
-  const { collapsed = [], selectedId, props: propsOpen = true } = inboxStore.use();
+  const { collapsed = [], selectedId, props: propsOpen = true, filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
   const [addingLabel, setAddingLabel] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [handoverTarget, setHandoverTarget] = useState(null);
@@ -419,7 +419,7 @@ export function Inbox() {
   const live = s.live || [];
   const sessions = s.sessions || [];
   const needsYou = s.needs_you || [];
-  const approvals = s.approvals || [];
+  const allApprovals = s.approvals || [];
   const everyone = [...live, ...sessions.filter((x) => !live.some((l) => l.id === x.id))];
   const byId = (id) => everyone.find((x) => x.id === id) || null;
 
@@ -441,6 +441,12 @@ export function Inbox() {
   const blockedNow = (x) => Boolean(x && Array.isArray(x.blocked_by) && x.blocked_by.some((id) => !DONE_STATES.includes(byId(id)?.state)));
   const byPriority = (isSession) => (a, b) => RANK[priorityOf(sessionOf(b, isSession))] - RANK[priorityOf(sessionOf(a, isSession))] || (isSession ? 0 : Boolean(a.read_at) - Boolean(b.read_at));
 
+  // Kind, agent and project filters (the old Needs you screen had them); a row passes when its session matches.
+  const passes = (item, isSession) => {
+    const x = sessionOf(item, isSession);
+    return (!engineFilter || x?.engine_id === engineFilter) && (!projectFilter || (x?.project_id || item.project_id) === projectFilter);
+  };
+  const approvals = allApprovals.filter((a) => passes({ ref: a.session_id }, false));
   const waitingSessions = waitingAll().slice().sort(byPriority(true));
   const workingSessions = live.filter((x) => x.state === 'working').sort(byPriority(true));
   const needsNotices = needsYou.filter((n) => kindOf(n) === 'needs').sort(byPriority(false));
@@ -455,6 +461,10 @@ export function Inbox() {
     { key: 'failed', title: 'Failed', status: 'failed', count: failedNotices.length, items: failedNotices.map((n) => [n, false]) },
     { key: 'done', title: 'Done', status: 'done', count: doneNotices.length, items: doneNotices.map((n) => [n, false]) },
   ];
+  for (const g of groups) {
+    g.items = filter !== 'all' && filter !== g.key ? [] : g.items.filter(([item, isSession]) => passes(item, isSession));
+    g.count = g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
+  }
   const totalItems = groups.reduce((acc, g) => acc + g.count, 0);
   const allRows = groups.flatMap((g) => g.items.map(([item, isSession]) => ({ id: item.id, item, isSession, group: g })));
   const visibleRows = allRows.filter((r) => !collapsed.includes(r.group.key));
@@ -850,8 +860,17 @@ export function Inbox() {
           <h1 className="ou-ny-title">Needs you</h1>
           <span className="ou-ny-counts">{waitingAll().length} waiting {'·'} {workingSessions.length} working {'·'} {needsYou.length} notices</span>
         </header>
+        <div className="ou-ny-filters" role="group" aria-label="Filter">
+          <Selector size="sm" variant="ghost" label="Show" isLabelHidden value={filter} onChange={(v) => inboxStore.set({ filter: v })}
+            options={[{ value: 'all', label: 'All kinds' }, ...groups.map((g) => ({ value: g.key, label: g.title }))]} />
+          <Selector size="sm" variant="ghost" label="Agent" isLabelHidden value={engineFilter} onChange={(v) => inboxStore.set({ engine: v })}
+            options={[{ value: '', label: 'All agents' }, ...[...new Set(everyone.map((x) => x.engine_id).filter(Boolean))].map((id) => ({ value: id, label: Ic.engineName(id) }))]} />
+          <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={projectFilter} onChange={(v) => inboxStore.set({ project: v })}
+            options={[{ value: '', label: 'All projects' }, ...(s.projects || []).map((p) => ({ value: p.id, label: p.name }))]} />
+          {filter !== 'all' || engineFilter || projectFilter ? <Button size="sm" variant="ghost" label="Clear filters" onClick={() => inboxStore.set({ filter: 'all', engine: '', project: '' })} /> : null}
+        </div>
         {totalItems === 0 ? (
-          <div className="ou-ny-empty"><EmptyState title="Nothing is waiting on you." description="Questions from agents and finished work show up here." isCompact /></div>
+          <div className="ou-ny-empty">{filter !== 'all' || engineFilter || projectFilter ? <EmptyState title="Nothing matches these filters." isCompact /> : <EmptyState title="Nothing is waiting on you." description="Questions from agents and finished work show up here." isCompact />}</div>
         ) : (
           <ListMotion order={order} counts={counts}>
             {groups.map((group) => {
