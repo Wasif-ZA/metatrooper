@@ -352,9 +352,11 @@ globalThis.frameView = (() => {
       box.querySelector('.fletters')?.addEventListener('input', (e) => { st.text = e.target.value.toUpperCase(); box.querySelector('.fprev').innerHTML = globalThis.projectIconHtml?.(preview(), 20) ?? ''; });
     };
     const save = async (icon) => {
+      const at = document.activeElement;
       box.inert = true;
       const r = await troop.call('project.icon-set', { project_id: projectId, icon }).catch((e) => ({ reply: { error: e } }));
       box.inert = false;
+      at?.focus?.();
       if (r?.reply?.error) { globalThis.toast?.(r.reply.error.message || 'Could not save the icon', true); return; }
       closeIconUi();
     };
