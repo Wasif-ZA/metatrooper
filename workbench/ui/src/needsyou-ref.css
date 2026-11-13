@@ -37,7 +37,7 @@
 .ou-inbox .ou-ny-top-chips { gap: 6px; padding-bottom: 0; border-bottom: 0; }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet { color: var(--mute); }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet svg { color: var(--mute); }
-.ou-inbox h2.ou-ny-doc-title { margin: 4px 0 0; font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 24px; font-weight: 500; line-height: 1.3; }
+.ou-inbox h2.ou-ny-doc-title { margin: 4px 0 0; font-family: var(--font-app); font-size: 24px; font-weight: 500; line-height: 1.3; }
 .ou-inbox .ou-ny-doc-task { font-size: 15px; line-height: 1.6; }
 
 /* GitHub-style label pill, tinted from the status tokens */
