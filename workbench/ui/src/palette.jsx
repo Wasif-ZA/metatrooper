@@ -47,8 +47,16 @@ const keyItem = (k, i) => {
   const meta = `${k.keys} · ${k.where}`;
   const label = `${k.does} · ${meta}`;
   const id = `key:${k.keys}:${k.does}:${i}`;
-  return cmd('Keys', label, () => { paletteView.close(); }, id);
+  return cmd('Keys', label, () => { paletteView.close(); if (k.where === 'anywhere' || k.where === 'IDE') setTimeout(() => pressKeys(k.keys), 0); }, id);
 };
+
+// A Keys row presses its first combo; rows tied to a tile or the browser only name the key.
+export function pressKeys(keys) {
+  const parts = String(keys).split(',')[0].trim().split('+');
+  const key = parts.pop();
+  if (!key || key === 'Esc' || /click/.test(key)) return;
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: key.length === 1 ? key.toLowerCase() : key, ctrlKey: parts.includes('Ctrl'), shiftKey: parts.includes('Shift'), altKey: parts.includes('Alt'), bubbles: true, cancelable: true }));
+}
 
 const file = (path, group) => ({ id: path, label: path, auxiliaryData: { group } });
 const slashed = (f) => String(f).replace(/\\/g, '/');
