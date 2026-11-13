@@ -67,6 +67,8 @@
 :root[data-view="wall"][data-scheme="light"] #centre .pane:is(.on, :focus-within) { border-color: var(--accent); }
 :root[data-view="wall"] #centre .ph .ou-ah-name { flex: 1 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-view="wall"] #centre .ph .ou-ah-acts { flex: none; }
+:root[data-view="wall"] #centre .ph .ou-ah-state { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @container (max-width: 340px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: contents; } }
 @container (max-width: 240px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: none; } }
+@container (max-width: 340px) { :root[data-view="wall"] #centre .ph .r1 > .tile-engine { display: none; } }
 :root[data-view="wall"] #frame .fcore { display: none; }
