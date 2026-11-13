@@ -47,7 +47,7 @@ export function PluginInstall({ onClose }) {
             <Heading level={2}>Add add-on</Heading>
             <TextInput ref={field} label="Plugin folder or git URL" placeholder="C:/plugins/my-plugin" value={source} onChange={(v) => { setSource(v); setPre(null); setFailed(''); }} onEnter={check} hasAutoFocus isDisabled={busy} />
             {busy ? <Text as="p" color="secondary" role="status">Working. A git URL is cloned first, which can take a minute.</Text> : null}
-            {failed ? <Text as="p" role="alert">{failed}</Text> : null}
+            {failed ? <Text as="p" className="ou-ae-error" role="alert">{failed}</Text> : null}
             {pre && !pre.valid ? <div className="ou-tags">{pre.errors.map((e) => <span key={e} className="ou-tag">{e}</span>)}</div> : null}
             {s ? (
               <>

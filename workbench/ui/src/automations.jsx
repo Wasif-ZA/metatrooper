@@ -375,7 +375,7 @@ export function AutomationsPage() {
           <span className="ou-ap-name">{a.name}</span>
           {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
           <span className="ou-ap-gap" />
-          <Button size="sm" variant="ghost" icon={playIcon} label="Run now" isLoading={running === a.id} onClick={() => runNow(a)} />
+          <Button size="sm" variant="ghost" icon={playIcon} label="Run now" isLoading={running === a.id} isDisabled={running !== null && running !== a.id} onClick={() => runNow(a)} />
         </span>
         {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
         <span className="ou-ap-chips">
