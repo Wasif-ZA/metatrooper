@@ -12,6 +12,7 @@ import { Home, homeStore, openNewTask } from './home.jsx';
 import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from './ide.jsx';
 import { Palette, paletteView } from './palette.jsx';
 import { createStore } from './store.js';
+import { syncDrawn } from './kit/DrawnTabs.jsx';
 
 // `ui` is app.js's top-level const: global, but not a globalThis property.
 const schemeOf = () => (typeof ui !== 'undefined' && ui.look?.theme?.scheme === 'light' ? 'light' : 'dark');
@@ -79,7 +80,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
-globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn, dropProject };
+globalThis.ideView = { draw: () => { void syncDrawn(); return drawIde(); }, shown: ideShown, open: openAt, dirtyIn, dropProject };
 globalThis.paletteView = paletteView;
 
 document.addEventListener('keydown', (e) => {

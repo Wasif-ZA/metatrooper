@@ -28,6 +28,7 @@ import { Terminal, Problems, closeShell, countProblems } from './ide-panel.jsx';
 import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
+import { DrawnTabs } from './kit/DrawnTabs.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -1428,6 +1429,7 @@ export function Ide() {
       </aside>
       <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
         <div className="ou-ide-groups">
+        <DrawnTabs pid={st.pid} />
         <div className="ou-ide-group" data-focused={st.focus !== 1} onMouseDownCapture={() => { if (st.focus === 1) { st.focus = 0; bump(); } }}>
         <ContextMenu id="ide-tab-menu" size="sm" label="Tab actions" items={tabMenu} isDisabled={!tt}
           onContextMenu={(e) => { st.tabMenu = e.target.closest?.('[data-tab-value]')?.dataset.tabValue || null; bump(); }}>
