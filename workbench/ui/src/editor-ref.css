@@ -1,4 +1,4 @@
-/* Editor laid out after the VS Code workbench: layered side, tab strip and editor; two editor groups. */
+/* Editor: layered side, tab strip and editor; two editor groups. */
 .ou-ide-side, .ou-ide-side .ou-ide-head { background: var(--canvas); }
 .ou-ide .ou-ide-tabs, .ou-ide .ou-ide-tabs nav, .ou-ide .ou-ide-tabs .astryx-tab-strip { background: var(--canvas); }
 .ou-ide .ou-ide-tabs .astryx-tab { background: var(--canvas-soft); border-top: 0; }
@@ -21,12 +21,15 @@
 .ou-ip-shell { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 12px; color: var(--body); }
 .ou-ip-acts button { width: 24px; height: 24px; min-width: 24px; min-height: 24px; color: var(--body); }
 
-.ou-ide .ou-ide-status { padding: 0; font: 12px/22px 'Geist', 'Segoe UI', sans-serif; color: var(--body); }
+.ou-ide .ou-ide-status { padding: 0; font: 12px/22px var(--font-family-body); font-variant-numeric: tabular-nums; color: var(--body); }
 .ou-ide-status-left, .ou-ide-status-right { gap: 0; }
 .ou-ide-status .ou-ide-status-item { height: 22px; padding: 0 6px; }
 .ou-ide-status .ou-ip-sprob:hover { color: var(--ink); background: var(--canvas); }
-.ou-ide-status-left { padding-left: 4px; }
-.ou-ide-status-right { padding-right: 4px; }
+.ou-ide-status-left { min-width: 0; padding-left: 4px; }
+.ou-ide-status-right { flex: none; padding-right: 4px; }
+.ou-ide-status-left > button, .ou-ide-status-item svg { flex: none; }
+.ou-ide-status-branch { min-width: 0; }
+.ou-ide-status-branch > span { overflow: hidden; text-overflow: ellipsis; }
 .ou-ide-status-bell { border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .ou-ide-status-bell:hover { color: var(--ink); background: var(--canvas); }
 :root[data-view="ide"] [role="menu"] { background: var(--canvas-soft); border: 1px solid var(--hairline-strong); box-shadow: var(--float, 0 8px 24px rgba(0,0,0,.36)); }
@@ -39,13 +42,13 @@
 #rail-slot > button:hover { color: var(--body-strong); background: transparent; }
 #rail-slot > button[aria-pressed="true"] { color: var(--ink); }
 #rail-slot > button[aria-pressed="true"]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--ink); }
-#rail-slot .ou-ide-railbadge { left: auto; top: auto; right: -7px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font: 600 9.5px/16px 'Geist', 'Segoe UI', sans-serif; color: var(--on-primary); background: var(--primary); box-shadow: none; }
+#rail-slot .ou-ide-railbadge { left: auto; top: auto; right: -7px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font: 600 9.5px/16px 'Geist', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; color: var(--on-primary); background: var(--primary); box-shadow: none; }
 
 /* Status bar spans the window from x=0, under the rail */
 :root[data-view="ide"] #frame { bottom: 22px; }
 .ou-ide .ou-ide-status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--canvas-deep); }
 
-.ou-ip-tabcount { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; margin-left: 4px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; font: 600 10px/16px 'Geist', 'Segoe UI', sans-serif; color: var(--ink); background: var(--canvas-soft); }
+.ou-ip-tabcount { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; margin-left: 4px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; font: 600 10px/16px var(--font-family-body); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--canvas-soft); }
 #rail-slot > button span:has(> svg), #rail-slot .ou-ide-railicon { flex: none; width: 24px; min-width: 24px; height: 24px; }
 #rail-slot > button svg { flex: none; width: 24px; min-width: 24px; height: 24px; }
 

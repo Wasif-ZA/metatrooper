@@ -6,7 +6,7 @@ const LANG = {
 const WORKERS = { json: 'json', css: 'css', html: 'html', typescript: 'ts', javascript: 'ts' };
 const SEVERITY = { 8: 'error', 4: 'warning', 2: 'info', 1: 'hint' };
 
-const ext = (path) => path.split('.').pop().toLowerCase();
+export const ext = (path) => path.split('.').pop().toLowerCase();
 const langOf = (path) => LANG[ext(path)] || 'plaintext';
 
 let monaco = null;
@@ -68,8 +68,7 @@ function theme() {
     const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
     return '#' + (a === 255 ? [r, g, b] : [r, g, b, a]).map((x) => x.toString(16).padStart(2, '0')).join('');
   };
-  const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'mute', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong',
-    'syn-keyword', 'syn-string', 'syn-number', 'syn-fn', 'syn-type', 'del', 'add-bg', 'del-bg'].map((k) => [k, hex(`--${k}`)]));
+  const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong'].map((k) => [k, hex(`--${k}`)]));
   probe.remove();
   const fg = (k) => c[k].slice(1, 7);
   const dark = parseInt(fg('pane').slice(0, 2), 16) + parseInt(fg('pane').slice(2, 4), 16) + parseInt(fg('pane').slice(4, 6), 16) < 384;
@@ -181,7 +180,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
   loadMonaco().then((m) => {
     if (dead) return;
     models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
-    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false, renderIndicators: true, lineDecorationsWidth: 18, automaticLayout: true });
+    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false, renderIndicators: true, lineDecorationsWidth: 18 });
     ed.setModel({ original: models[0], modified: models[1] });
     ed.getOriginalEditor().updateOptions({ scrollbar: { vertical: 'hidden', verticalScrollbarSize: 0 } });
     for (const side of ['old', 'new']) {

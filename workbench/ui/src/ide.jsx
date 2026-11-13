@@ -19,7 +19,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { applyPatch, editorState, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
+import { applyPatch, editorState, ext, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
@@ -60,7 +60,7 @@ const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
 const tabOf = (st, path) => st.tabs.find((x) => x.path === path);
 const PIC_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
-const isPic = (p) => PIC_EXTS.has(p ? p.split('.').pop().toLowerCase() : '');
+const isPic = (p) => PIC_EXTS.has(p ? ext(p) : '');
 const isPdf = (p) => /\.pdf$/i.test(p);
 const isHtml = (p) => /\.html?$/i.test(p);
 const canPreview = (p) => isMd(p) || isHtml(p);
@@ -104,7 +104,8 @@ export async function drawIde() {
 async function loadDir(st, rel) {
   if (st.dirs.has(rel) || st.listing.has(rel)) return;
   st.listing.add(rel);
-  const list = await api.fsList(st.pid, rel || '.');
+  let list = null;
+  try { list = await api.fsList(st.pid, rel || '.'); } catch {}
   st.listing.delete(rel);
   st.dirs.set(rel, list || []);
   bump();
@@ -185,23 +186,21 @@ async function loadGitStatus(st) {
   bump();
 }
 
-async function gitStage(st, paths) {
-  const r = await api.git(st.pid, 'stage-paths', paths);
-  if (r && r.error) { toast(r.error, true); return; }
-  await loadGitStatus(st);
-}
-
-async function gitUnstage(st, paths) {
-  const r = await api.git(st.pid, 'unstage-paths', paths);
+async function gitStage(st, paths, unstage = false) {
+  const r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths);
   if (r && r.error) { toast(r.error, true); return; }
   await loadGitStatus(st);
 }
 
 async function gitCommit(st) {
   const msg = st.commitMsg.trim();
-  if (!msg) return;
-  const r = await api.git(st.pid, 'commit', msg);
-  if (r && r.error) { toast(r.error, true); return; }
+  if (!msg || st.committing) return;
+  st.committing = true;
+  bump();
+  let r;
+  try { r = await api.git(st.pid, 'commit', msg); } catch (e) { r = { error: String(e) }; }
+  st.committing = false;
+  if (r && r.error) { toast(r.error, true); bump(); return; }
   st.commitMsg = '';
   toast(r && r.commit ? `Committed ${r.commit}` : 'Committed');
   await loadGitStatus(st);
@@ -221,16 +220,9 @@ async function openGitDiff(st, path, staged, from) {
   t.staged = Boolean(staged);
   t.from = staged && from ? from : undefined;
   if (isDeleted && t.text === undefined) t.error = 'This file was deleted. Changes shows what was removed.';
-  t.mode = 'changes';
-  t.diff = undefined;
   const seq = (t.diffSeq || 0) + 1;
-  t.diffSeq = seq;
-  bump();
-  const text = await api.git(st.pid, staged ? 'diff-staged' : 'diff', path);
-  if (t.diffSeq !== seq) return;
-  t.diff = typeof text === 'string' ? text : '';
-  bump();
-  if (!isDeleted) await readTab(st, t, path);
+  await showChanges(st, path);
+  if (!isDeleted && t.diffSeq === seq) await readTab(st, t, path);
 }
 
 // ref is a tab or a path; a tab keeps working after a rename
@@ -465,7 +457,7 @@ async function showChanges(st, path) {
   const owner = ownerOf(path, t.owner);
   const text = t.gitDiff ? await api.git(st.pid, t.staged ? 'diff-staged' : 'diff', path) : owner ? await api.sessionDiffFile(owner, path, 'uncommitted') : null;
   if (t.diffSeq !== seq) return;
-  t.diff = text || '';
+  t.diff = typeof text === 'string' ? text : '';
   bump();
 }
 
@@ -549,7 +541,6 @@ function askReload(st, path) {
 }
 
 function dropTab(st, path) {
-  const t = tabOf(st, path);
   st.tabs = st.tabs.filter((x) => x.path !== path);
   if (st.right?.includes(path)) closeRight(st, path);
   if (st.active === path) st.active = st.tabs.length ? st.tabs[st.tabs.length - 1].path : null;
@@ -585,10 +576,14 @@ globalThis.addEventListener?.('beforeunload', (e) => {
 
 async function runFind(st, q) {
   st.q = q;
-  if (!q.trim()) { st.hits = []; bump(); return; }
+  if (!q.trim()) { st.hits = []; st.finding = false; bump(); return; }
+  st.finding = true;
   bump();
-  const hits = (await api.fsFind(st.pid, q)) || [];
-  if (st.q !== q || cur !== st || ui.projectId !== st.pid) return;
+  let hits = [];
+  try { hits = (await api.fsFind(st.pid, q)) || []; } catch {}
+  if (st.q !== q) return;
+  st.finding = false;
+  if (cur !== st || ui.projectId !== st.pid) return;
   st.hits = hits.map(slashed);
   bump();
 }
@@ -600,10 +595,11 @@ async function runSearch(st) {
   st.sseq = seq;
   st.searching = true;
   bump();
-  const r = await api.fsSearch(st.pid, q);
+  let r = null;
+  try { r = await api.fsSearch(st.pid, q); } catch (e) { r = { error: String(e) }; }
   if (st.sseq !== seq) return;
   st.searching = false;
-  st.sres = { q, hits: ((r && r.hits) || []).map((h) => ({ ...h, path: slashed(h.path) })), more: Boolean(r && r.more) };
+  st.sres = { q, error: r && r.error, hits: ((r && r.hits) || []).map((h) => ({ ...h, path: slashed(h.path) })), more: Boolean(r && r.more) };
   bump();
 }
 
@@ -648,11 +644,7 @@ const LANGS = {
   html: 'HTML', htm: 'HTML', svg: 'SVG', xml: 'XML', py: 'Python', rb: 'Ruby',
   rs: 'Rust', go: 'Go', sh: 'Shell', bash: 'Shell', zsh: 'Shell', yml: 'YAML', yaml: 'YAML', toml: 'TOML',
 };
-const langOf = (path) => {
-  if (!path) return '';
-  const ext = path.split('.').pop().toLowerCase();
-  return LANGS[ext] || ext.toUpperCase();
-};
+const langOf = (path) => (path ? LANGS[ext(path)] || ext(path).toUpperCase() : '');
 
 const KINDS = [
   ['ts', Sc.TsIcon, 'ts tsx mts cts'], ['js', Sc.JsIcon, 'js jsx mjs cjs'], ['json', Sc.JsonIcon, 'json jsonc'],
@@ -663,7 +655,7 @@ const KINDS = [
 const KIND = new Map(KINDS.flatMap(([k, I, exts]) => exts.split(' ').map((e) => [e, [k, I]])));
 
 function FileIcon({ path, isDir }) {
-  const [k, F] = isDir ? ['folder', Ic.FolderIcon] : KIND.get(path ? path.split('.').pop().toLowerCase() : '') || ['file', Sc.FileIcon];
+  const [k, F] = isDir ? ['folder', Ic.FolderIcon] : KIND.get(path ? ext(path) : '') || ['file', Sc.FileIcon];
   return <span className={`ou-ide-ficon ou-ide-lang-${k}`}><F size={16} /></span>;
 }
 
@@ -815,7 +807,7 @@ function Files({ st, changed }) {
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
             <FileIcon path={h} /><span className={`ou-ide-name ${fileLabelClass(st, h)}`}>{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
           </button>
-        )) : <p className="ou-ide-muted">No file matches.</p>) : (
+        )) : <p className="ou-ide-muted">{st.finding ? 'Looking.' : 'No file matches.'}</p>) : (
           <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
             onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
             onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
@@ -828,6 +820,7 @@ function Files({ st, changed }) {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
                 if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
               }} />
+            {st.rootOpen && !st.dirs.get('')?.length ? <p className="ou-ide-muted">{st.dirs.has('') ? 'This folder is empty.' : 'Loading.'}</p> : null}
           </ContextMenu>
         )}
       </div>
@@ -864,15 +857,15 @@ function Search({ st }) {
                   <span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><FileIcon path={path} /><span className="ou-ide-name">{base(path)}</span><span className="ou-ide-dir">{folder(path)}</span><span className="ou-ide-count">{hits.length}</span>
                 </button>
                 {st.sfold?.has(path) ? null : hits.map((h, i) => (
-                  <button key={i} className="ou-ide-match" onClick={() => void openFile(st, path, { line: h.line })}>
-                    <span className="ou-ide-ln">{h.line}</span><span className="ou-ide-mtext"><Marked text={String(h.text).trim()} q={st.sres.q} /></span>
+                  <button key={i} type="button" className="ou-ide-match" title={`Line ${h.line}`} onClick={() => void openFile(st, path, { line: h.line })}>
+                    <span className="ou-ide-mtext"><Marked text={String(h.text).trim()} q={st.sres.q} /></span>
                   </button>
                 ))}
               </div>
             ))}
             {st.sres.more ? <p className="ou-ide-muted">Showing the first 200 matches.</p> : null}
           </>
-        ) : <p className="ou-ide-muted">No matches.</p>) : null}
+        ) : <p className="ou-ide-muted">{st.sres.error || 'No matches.'}</p>) : ok ? <p className="ou-ide-muted">Type two or more letters, then press Enter.</p> : null}
       </div>
     </>
   );
@@ -883,7 +876,7 @@ function ScRow({ st, file, staged }) {
     <div className="ou-ide-scrow" role="button" tabIndex={0} title={file.path}
       onClick={() => void openGitDiff(st, file.path, staged, file.from)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           void openGitDiff(st, file.path, staged, file.from);
         }
@@ -893,7 +886,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={staged ? <Sc.MinusIcon size={12} /> : <Ic.PlusIcon size={12} />}
-        onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path, file.from].filter(Boolean)) : gitStage(st, [file.path])); }} />
+        onClick={(e) => { e.stopPropagation(); void gitStage(st, staged ? [file.path, file.from].filter(Boolean) : [file.path], staged); }} />
       {fileErrors(st, file.path) ? <span className="ou-ide-error-count">{fileErrors(st, file.path)},</span> : null}
       <span className={`ou-ide-scletter ou-ide-git-${file.letter.toLowerCase()}`}>{file.letter}</span>
     </div>
@@ -916,7 +909,7 @@ function SourceControl({ st }) {
   }
 
   const { staged, unstaged } = gitFiles(st);
-  const canCommit = staged.length > 0;
+  const canCommit = staged.length > 0 && !st.committing;
   const commit = () => { if (st.commitMsg.trim()) void gitCommit(st); else message.current?.focus(); };
   const fold = st.scFold || (st.scFold = {});
   const toggle = (k) => { fold[k] = !fold[k]; bump(); };
@@ -928,7 +921,7 @@ function SourceControl({ st }) {
           onChange={(value) => { st.commitMsg = value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" variant="primary" label="Commit" icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
+          <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
           <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: commit }))}
             renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
         </div>
@@ -960,6 +953,8 @@ function SourceControl({ st }) {
   );
 }
 
+const keepTyping = (e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); };
+
 function EditorHost({ st, tab, hidden }) {
   const ref = useRef(null);
   const ready = tab.text !== undefined;
@@ -975,7 +970,7 @@ function EditorHost({ st, tab, hidden }) {
     bump();
     return () => { tab.state = view.state; tab.view = null; view.destroy(); if (st.dropped || !st.tabs.includes(tab)) { tab.state.dispose(); tab.state = null; } };
   }, [ready, st, tab]);
-  return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
+  return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={keepTyping} />;
 }
 
 const crlf = (s) => (typeof s === 'string' ? s.replace(/\r\n?/g, '\n') : s);
@@ -1067,7 +1062,7 @@ function CommentBox({ st, tab, draft, setDraft, place, send }) {
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); if (!draft.busy) void send(); }
     else if (e.key === 'Escape') { e.preventDefault(); setDraft(null); }
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation();
+    keepTyping(e);
   };
   return (
     <div className="ou-ide-cbox" style={place} onKeyDown={onKeyDown}>
@@ -1132,12 +1127,13 @@ function StatusBar({ st, active, problems, onProblems }) {
   const col = active ? (active.col ?? 1) : null;
   const lang = active ? langOf(active.path) : '';
   const { errors, warnings } = countProblems(problems);
+  const indent = active?.view?.state?.model?.getOptions?.();
 
   return (
     <footer className="ou-ide-status">
       <div className="ou-ide-status-left">
         {branch ? (
-          <span className="ou-ide-status-item" title={`Branch: ${branch}`}>
+          <span className="ou-ide-status-item ou-ide-status-branch" title={`Branch: ${branch}`}>
             <Ic.Branch size={12} />
             <span>{branch}</span>
           </span>
@@ -1151,7 +1147,7 @@ function StatusBar({ st, active, problems, onProblems }) {
         {active ? (
           <>
             <span className="ou-ide-status-item">Ln {line}, Col {col}</span>
-            <span className="ou-ide-status-item">{`Spaces: ${active.view?.state?.model?.getOptions?.().tabSize ?? 2}`}</span>
+            <span className="ou-ide-status-item">{`${indent && !indent.insertSpaces ? 'Tab Size' : 'Spaces'}: ${indent?.tabSize ?? 2}`}</span>
             <span className="ou-ide-status-item">UTF-8</span>
             <span className="ou-ide-status-item">{active.view?.state?.crlf ? 'CRLF' : 'LF'}</span>
             {lang ? <span className="ou-ide-status-item"><Sc.BracesIcon size={13} />{lang}</span> : null}
@@ -1279,11 +1275,14 @@ export function ideFiles(file = defaultFile) {
 }
 
 function tabItem(st, t, changed, close) {
+  const errors = fileErrors(st, t.path);
+  const letter = gitStatusOf(st, t.path);
+  const labelClass = fileLabelClass(st, t.path);
   return (
-    <Tab key={t.path} value={t.path} label={base(t.path)} className={fileLabelClass(st, t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
+    <Tab key={t.path} value={t.path} label={base(t.path)} className={labelClass} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
       <span className={t.dirty ? 'ou-ide-tabend ou-ide-tabdirty' : 'ou-ide-tabend'}>
-        {fileErrors(st, t.path) ? <span className="ou-ide-error-count">{fileErrors(st, t.path)}{gitStatusOf(st, t.path) ? ',' : ''}</span> : null}
-        {gitStatusOf(st, t.path) ? <span className={fileLabelClass(st, t.path)}>{gitStatusOf(st, t.path)}</span> : null}
+        {errors ? <span className="ou-ide-error-count">{errors}{letter ? ',' : ''}</span> : null}
+        {letter ? <span className={labelClass}>{letter}</span> : null}
         {t.dirty ? <span className="ou-ide-dirty" title="Unsaved" /> : changed.has(t.path) ? <Ring /> : null}
         <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={<Sc.CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); close(); }} />
       </span>
@@ -1325,7 +1324,7 @@ function MirrorHost({ st, tab, hidden }) {
     const view = openEditor(ref.current, doc, tab.path, onFor(st, tab));
     return () => view.destroy();
   }, [doc, st, tab]);
-  return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
+  return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={keepTyping} />;
 }
 
 function RightGroup({ st, right, changed }) {
@@ -1346,7 +1345,7 @@ function RightGroup({ st, right, changed }) {
         </TabList>
         <GroupActions items={items} />
       </div>
-      <Crumb st={st} tab={act} changed={changed} />
+      <Crumb st={st} tab={act} />
       <div className="ou-ide-view">
         {right.map((p) => <MirrorHost key={`${st.pid}:r:${p}`} st={st} tab={tabOf(st, p)} hidden={p !== act.path} />)}
       </div>
@@ -1439,10 +1438,10 @@ export function Ide() {
             </TabList>
           ) : null}
           <TabActions st={st} tab={leftActive} changed={changed} />
-          <GroupActions st={st} items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
+          <GroupActions items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
         </div>
         </ContextMenu>
-        <Crumb st={st} tab={leftActive} changed={changed} />
+        <Crumb st={st} tab={leftActive} />
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== leftActive || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
           {!leftActive ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
