@@ -437,7 +437,8 @@ function RailCard({ sel, kids }) {
           onAction={async () => {
             setMerging(false);
             setBusy(true);
-            const r = await Promise.resolve(api.prMerge(sel.id)).catch((err) => ({ error: String(err?.message || err) })).finally(() => setBusy(false));
+            let r;
+            try { r = await api.prMerge(sel.id); } catch (err) { r = { error: String(err?.message || err) }; } finally { setBusy(false); }
             if (r && r.ok) toast(`Merged PR #${pr.number}`); else toast((r && r.error) || 'Could not merge', true);
           }} />
       ) : null}

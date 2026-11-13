@@ -36,7 +36,6 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-slimsub { align-items: center; gap: var(--sp-2); }
 .ou-hm-latest { margin: 0; font-size: 14px; font-weight: 400; color: color-mix(in srgb, var(--ink) 91%, var(--canvas-deep)); }
 .ou-hm-waiton { margin-top: var(--sp-2); gap: var(--sp-2); }
-:is(.ou-hm-worked, .ou-hm-slimrow)[role="button"]:active, .ou-hm-stop:active, .ou-hm-startitem:active, .ou-hm-pclick:active, .ou-hm-pact:active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
 
 /* Docked inspector */
 .ou-hm-rail { position: relative; align-self: stretch; height: 100%; min-height: 0; padding: 0; overflow-y: auto; border-left: 1px solid var(--hairline); background: var(--canvas-deep); }
@@ -73,4 +72,7 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-dock { padding: 0; background: none; }
 .ou-hm-dock > .ou-hm-composerwrap { max-width: none; margin: 0; }
 .ou-hm .ou-cmp-status { font-variant-numeric: tabular-nums; }
-@media (max-width: 1100px) { .ou-hm .ou-cmp-ctx { gap: var(--sp-2); } }
+@media (max-width: 1100px) { .ou-hm-dock .ou-cmp-ctx { gap: var(--sp-2); } }
+
+/* Pressed, after every hover rule above */
+:is(.ou-hm-worked, .ou-hm-slimrow)[role="button"]:active, .ou-hm-stop:active, .ou-hm-startitem:active, .ou-hm-pclick:active, .ou-hm-pact:active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
