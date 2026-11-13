@@ -64,7 +64,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const newerHook = db.prepare(`SELECT 1 FROM event WHERE session_id = ? AND seq < ? AND julianday(at) > julianday(?) AND kind IN (${hookKinds.map(() => '?').join(', ')}) LIMIT 1`);
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const setOutcome = db.prepare('UPDATE session SET outcome = ? WHERE id = ? AND outcome IS NULL');
-  const latestProof = db.prepare('SELECT exit_code FROM done_proof WHERE session_id = ? ORDER BY at DESC LIMIT 1');
+  const latestProof = db.prepare('SELECT exit_code FROM done_proof WHERE session_id = ? ORDER BY julianday(at) DESC LIMIT 1');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);

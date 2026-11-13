@@ -20,7 +20,7 @@ export function sessionStats(db: DatabaseSync, o: StatsOpts = {}) {
   const project = o.project_id === undefined ? '' : ' AND s.project_id = ?';
   const args = o.project_id === undefined ? [] : [o.project_id];
   const outcomes = db.prepare(`SELECT CASE WHEN p.id IS NULL THEN 'unchecked' WHEN p.exit_code = 0 THEN 'succeeded' ELSE 'failed' END AS outcome, COUNT(*) AS n
-    FROM session s LEFT JOIN done_proof p ON p.id = (SELECT id FROM done_proof WHERE session_id = s.id ORDER BY at DESC, id DESC LIMIT 1)
+    FROM session s LEFT JOIN done_proof p ON p.id = (SELECT id FROM done_proof WHERE session_id = s.id ORDER BY julianday(at) DESC, id DESC LIMIT 1)
     WHERE s.ended_at >= ? AND s.ended_at < ?${project} GROUP BY 1`);
   const starts = db.prepare(`SELECT s.state, COUNT(*) AS n FROM session s WHERE s.started_at >= ? AND s.started_at < ?${project} GROUP BY s.state`);
   return { days: buckets.map(({ day, start, end }) => {
