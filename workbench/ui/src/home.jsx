@@ -10,6 +10,7 @@ import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
+import { NOT_SENT } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
 import { PanelToggle } from './icons/index.js';
@@ -257,7 +258,7 @@ function TaskView({ x, kids, openList, toggle }) {
   const send = async () => {
     const t = answer.trim();
     if (!t || !here) return;
-    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${engineName(x.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
+    try { if (!(await troop.termInput(x.id, t + '\r'))) return toast(NOT_SENT, true); setAnswer(''); toast(`Sent to ${engineName(x.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
@@ -268,7 +269,7 @@ function TaskView({ x, kids, openList, toggle }) {
   const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const s = statusOf(x);
   const stop = async () => {
-    try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${engineName(x.engine_id)} to stop`); } catch (err) { toast(String(err?.message || err), true); }
+    try { if (!(await troop.termInput(x.id, '\u001b'))) return toast(NOT_SENT, true); toast(`Asked ${engineName(x.engine_id)} to stop`); } catch (err) { toast(String(err?.message || err), true); }
   };
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>

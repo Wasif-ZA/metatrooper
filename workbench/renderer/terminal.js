@@ -328,7 +328,7 @@ const termView = (() => {
 
   /** Types text into the selected session without Enter, for drag and drop. */
   function type(text, id = selected) {
-    if (id && terms.has(id)) troop.termInput(id, text);
+    if (id && terms.has(id)) void troop.termInput(id, text).then((ok) => { if (!ok) toast('Not sent: this agent has no live terminal.', true); });
   }
 
   /** Scrolls a tile to the line containing `text` nearest row `near`, waiting up to 2 s for its snapshot. */

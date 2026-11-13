@@ -9,6 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
+import { NOT_SENT } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
@@ -311,7 +312,7 @@ function DetailAsk({ x }) {
     const textToSend = answer.trim();
     if (!textToSend) return;
     try {
-      await troop.termInput(x.id, textToSend + '\r');
+      if (!(await troop.termInput(x.id, textToSend + '\r'))) return toast(NOT_SENT, true);
       setAnswer('');
       toast(`Sent to ${Ic.engineName(x.engine_id)}`);
     } catch (err) {

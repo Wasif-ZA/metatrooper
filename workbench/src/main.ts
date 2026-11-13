@@ -34,7 +34,7 @@ import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt,
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { formatComment } from './editor-comment.js';
-import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
+import { attachTerm, detachAll, detachTerm, termInput, termResize, type TermMessage } from './terminals.ts';
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
 import { ghIssues, ghPr, mergePr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
@@ -598,9 +598,10 @@ function handlers(): void {
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const toWindow = (sid: string, msg: TermMessage) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); };
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
-    attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
+    void attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), toWindow);
     return { windows_build: windowsBuild() };
   });
   on('uiSettings', () => ({ approval: settings().sessions.approval, terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()), home: app.getPath('home') }));
@@ -717,7 +718,13 @@ function handlers(): void {
     layoutWrites = layoutWrites.catch(() => null).then(() => writeSetting('ui.layout', { ...settings().ui.layout, [projectId]: layout }));
     return layoutWrites.then((error) => (error ? { error } : { ok: true }));
   });
-  on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
+  on('termInput', async (sessionId: unknown, data: unknown) => {
+    if (typeof sessionId !== 'string' || typeof data !== 'string') return false;
+    if (termInput(sessionId, data)) return true;
+    // no tile holds this session's terminal (folded, never shown, or after a reload): attach here so the text is not dropped
+    if (!(await attachTerm(sessionId, undefined, undefined, toWindow))) return false;
+    return termInput(sessionId, data);
+  });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
   on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });

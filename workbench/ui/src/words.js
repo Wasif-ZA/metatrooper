@@ -22,3 +22,5 @@ export const STATUS_WORD = { running: 'Running', waiting: 'Needs you', done: 'Do
 export const statusWord = (x) => STATUS_WORD[statusOf(x)];
 
 globalThis.ccWords = { engineName, statusOf, statusWord, STATUS_WORD };
+
+export const NOT_SENT = 'Not sent: this agent has no live terminal. Open it on the Wall to check it.';
