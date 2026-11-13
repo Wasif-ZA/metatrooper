@@ -799,10 +799,11 @@ function Files({ st, changed }) {
                 if (st.q) { st.q = ''; st.hits = []; bump(); }
                 else { st.findOpen = false; bump(); }
               }
+              else walk(e, '.ou-ide-hit');
             }} />
         </div>
       ) : null}
-      <div className="ou-ide-tree">
+      <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-hit')}>
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
             <FileIcon path={h} /><span className={`ou-ide-name ${fileLabelClass(st, h)}`}>{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
@@ -828,6 +829,19 @@ function Files({ st, changed }) {
   );
 }
 
+// Up/Down walk the side's search box and its result buttons; Enter clicks the focused one; Esc goes back to the box.
+function walk(e, sel) {
+  if (!e.target.matches(`.ou-ide-findrow input, ${sel}`)) return;
+  const box = e.currentTarget.closest('.ou-ide-side');
+  const items = [box.querySelector('.ou-ide-findrow input'), ...box.querySelectorAll(sel)];
+  const i = items.indexOf(e.target);
+  const next = e.key === 'ArrowDown' ? items[i + 1] : e.key === 'ArrowUp' ? items[i - 1] : e.key === 'Escape' && i > 0 ? items[0] : null;
+  if (!next) return;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus();
+}
+
 function Marked({ text, q }) {
   const at = text.toLowerCase().indexOf(q.toLowerCase());
   if (!q || at < 0) return text;
@@ -843,10 +857,10 @@ function Search({ st }) {
       <div className="ou-ide-findrow">
         <input id="ide-search" className="ou-ide-input" value={st.sq} placeholder="Search in files (Ctrl+Shift+F)" aria-label="Search in files" autoComplete="off" spellCheck="false" disabled={!ok}
           onChange={(e) => { st.sq = e.target.value; bump(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch(st); } else if (e.key === 'Escape' && st.sq) { e.preventDefault(); e.stopPropagation(); st.sq = ''; st.sres = null; st.searching = false; st.sseq = (st.sseq || 0) + 1; bump(); } }} />
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch(st); } else if (e.key === 'Escape' && st.sq) { e.preventDefault(); e.stopPropagation(); st.sq = ''; st.sres = null; st.searching = false; st.sseq = (st.sseq || 0) + 1; bump(); } else walk(e, '.ou-ide-sfile, .ou-ide-match'); }} />
         {ok ? null : <div className="ou-ide-badge"><NotBuilt /></div>}
       </div>
-      <div className="ou-ide-tree">
+      <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-sfile, .ou-ide-match')}>
         {st.searching ? <p className="ou-ide-muted">Searching.</p> : st.sres ? (groups.size ? (
           <>
             <p className="ou-ide-muted ou-ide-ssum">{`${st.sres.hits.length} ${st.sres.hits.length === 1 ? 'result' : 'results'} in ${groups.size} ${groups.size === 1 ? 'file' : 'files'}`}</p>
