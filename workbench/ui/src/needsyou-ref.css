@@ -100,7 +100,6 @@
 .ou-inbox .ou-ny-link > svg { flex: none; }
 
 /* round 3 */
-.ou-inbox { --ny-pri-hot: #f2994a; }
 .ou-inbox .ou-ny-pri-high, .ou-inbox .ou-ny-pri-urgent { color: var(--ny-pri-hot); }
 .ou-inbox .ou-ny-bar .astryx-selector { width: auto; min-width: 0; background: transparent; border: 1px solid var(--hairline-strong); border-radius: 4px; }
 .ou-inbox .ou-ny-bar .astryx-selector, .ou-inbox .ou-ny-bar .astryx-selector * { font-size: 12px; font-weight: 400; color: var(--body); }

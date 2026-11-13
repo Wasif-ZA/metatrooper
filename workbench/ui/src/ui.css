@@ -136,16 +136,14 @@ html { font-size: 16px; }
 .ou-ny-ring[width="12"] { width: 12px; height: 12px; }
 .ou-ny-ring-needs { color: var(--st-wait); }
 .ou-ny-ring-working { color: var(--st-run); }
-.ou-ny-ring-review { color: #a78bfa; }
+.ou-ny-ring-review { color: var(--st-review); }
 .ou-ny-ring-blocked { color: var(--st-bad); }
 .ou-ny-ring-failed { color: var(--st-bad); }
 .ou-ny-ring-done { color: var(--st-ok); }
 .ou-ny-pri { flex: none; color: var(--mute); }
 .ou-ny-pri-high, .ou-ny-pri-medium { color: var(--body); }
-.ou-ny-pri-urgent { color: #f2994a; }
-.ou-ny-avatar { flex: none; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--canvas-soft); border: 1px solid var(--ny-line); font-size: 9px; font-weight: 600; line-height: 1; color: var(--ink); }
+.ou-ny-pri-urgent { color: var(--ny-pri-hot); }
 .ou-ny-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st-run); }
-.ou-ny-dot-label { background: #a78bfa; }
 .ou-ny-muted { color: var(--mute); font-size: 12px; }
 .ou-ny-mono { font-family: var(--mono); font-size: 12px; }
 .ou-ny-inline { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
@@ -595,8 +593,8 @@ html { font-size: 16px; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 
-:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-other: #6b7280; }
-:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; }
+:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
+:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; }
 
 /* Home: task box, session rows with sub-agents and steps, floating right panel, automations. */
 .ou-home.ou-hm { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0; padding: 0; min-height: 100%; align-items: start; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }
