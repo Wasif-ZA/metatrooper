@@ -803,12 +803,12 @@ test('wire-08 Remove waits for confirmation and calls only plugin.remove with pl
   g.ui.view = 'addons';
   addonsStore.set({ rows: [{ id: 'demo', version: '1', enabled: true, permissions: [], description: 'Demo' }] });
   const h = harness(Addons); h.draw(); calls.length = 0;
-  h.one(label('Remove')).props.onClick(); h.draw();
+  h.one((n: any) => n.props.label === 'Remove' && typeof n.props.onClick === 'function').props.onClick(); h.draw();
   assert.deepEqual(calls, []);
   const dialog = h.one((n: any) => n.props.actionLabel === 'Remove');
   assert.equal(dialog.props.isOpen, true);
   dialog.props.onOpenChange(false); h.draw(); assert.deepEqual(calls, []);
-  h.one(label('Remove')).props.onClick(); h.draw();
+  h.one((n: any) => n.props.label === 'Remove' && typeof n.props.onClick === 'function').props.onClick(); h.draw();
   await h.one((n: any) => n.props.actionLabel === 'Remove').props.onAction();
   assert.deepEqual(calls.filter(c => c[0] === 'rpc'), [['rpc', 'plugin.remove', { plugin_id: 'demo' }]]);
 });
@@ -979,13 +979,16 @@ test('chat box project selector switches the real project', () => {
   assert.deepEqual(switched, ['p2']);
 });
 // Protects automations.jsx:49 Remove onClick: the renderer sends only the stored automation id.
-test('wire-07 Remove sends automation.delete with that id only', async () => {
+test('wire-07 Remove asks first, then sends automation.delete with that id only', async () => {
+  own.add('DeleteAutomation');
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
   const row = { id: 'a1', name: 'Nightly', every_min: 30, runner: ['node'], script: 'check.mjs', engine_id: 'codex', enabled: true, runs: [] };
   g.rpc = async (...args: any[]) => { calls.push(args); return { result: { automations: [row] } }; };
   const h = harness(screens.Automations, true); h.draw(); await flush(); h.draw(); calls.length = 0;
-  await h.one(label('Remove')).props.onClick();
-  assert.deepEqual(calls, [['automation.delete', { id: 'a1' }], ['automation.list', { project_id: 'p1' }, true]]);
+  h.one((n: any) => n.props.label === 'Remove' && typeof n.props.onClick === 'function').props.onClick(); h.draw();
+  assert.deepEqual(calls.filter((c) => c[0] === 'automation.delete'), [], 'nothing is deleted before the confirm');
+  await h.one((n: any) => n.props.actionLabel === 'Delete').props.onAction(); await flush();
+  assert.deepEqual(calls.filter((c) => c[0] !== 'toast'), [['automation.delete', { id: 'a1' }], ['automation.list', { project_id: 'p1' }, true]]);
 });
 
 test('Settings Reliability page shows the False alarms so far value', () => {

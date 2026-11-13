@@ -21,6 +21,9 @@ export function statusOf(x) {
 export const STATUS_WORD = { running: 'Running', waiting: 'Needs you', done: 'Done', failed: 'Failed', stopped: 'Stopped' };
 export const statusWord = (x) => STATUS_WORD[statusOf(x)];
 
-globalThis.ccWords = { engineName, statusOf, statusWord, STATUS_WORD };
+/** An agent cc started and that still runs can be stopped from the UI; outside sessions and shells cannot. */
+export const canStop = (x) => Boolean(x) && x.host !== 'external' && x.state !== 'exited' && !String(x.id).startsWith('sh_');
+
+globalThis.ccWords = { engineName, statusOf, statusWord, STATUS_WORD, canStop };
 
 export const NOT_SENT = 'Not sent: this agent has no live terminal. Open it on the Wall to check it.';

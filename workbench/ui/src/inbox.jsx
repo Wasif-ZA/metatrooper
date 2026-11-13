@@ -9,7 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT } from './words.js';
+import { NOT_SENT, canStop } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';

@@ -78,12 +78,12 @@ const expected = [
   'session.search', 'session.list', 'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check', 'engines.models',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove', 'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
-  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'session.read', 'session.handoff',
+  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable', 'session.stop', 'session.read', 'session.handoff',
   'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
   'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ];
 // Protects main.ts:57-66 and the call handler: exact capability set and the actual IPC gate.
-test('wire-00 exact 69 IPC methods pass with UI authentication; other methods are refused', async () => {
+test('wire-00 exact 71 IPC methods pass with UI authentication; other methods are refused', async () => {
   const calls: any[] = []; let handler: Function = () => {};
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });

@@ -29,7 +29,7 @@ const wallSide = (() => {
       const k = kindOf(x.state);
       return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> <span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
     }).join('');
-    const terms = (cur ? shellRows() : []).map((x) => `<button class="hag${x.id === ui.shellSel ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}" title="${esc(x.task || '')}"><span class="hg hk-${x.state === 'exited' ? 'idle' : 'work'}">&gt;</span><span class="hname"><span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(x.task || '')}</span></span></button>`).join('');
+    const terms = (cur && typeof shellRows === 'function' ? shellRows() : []).map((x) => `<button class="hag${x.id === ui.shellSel ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}" title="${esc(x.task || '')}"><span class="hg hk-${x.state === 'exited' ? 'idle' : 'work'}">&gt;</span><span class="hname"><span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(x.task || '')}</span></span></button>`).join('');
     const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents}</div>${terms ? `<div class="hag-head">terminals</div><div class="hag-list">${terms}</div>` : ''}`;
     if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
   }

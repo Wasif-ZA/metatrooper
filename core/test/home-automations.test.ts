@@ -53,7 +53,7 @@ async function fixture(t: TestContext) {
   db.exec(readFileSync(schemaFile, 'utf8'));
   const iso = '2026-11-11T00:00:00.000Z';
   db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', dir, 'test', iso, iso);
-  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)').run('codex', '{}', 1, 'local-cli');
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)').run('codex', JSON.stringify({ approval_profiles: { edits: [] } }), 1, 'local-cli');
   db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p1', 'codex', 'pty', 'working', ?, ?)").run(iso, iso);
   writeFileSync(join(dir, 'check.txt'), 'check');
   let now = Date.parse('2026-11-12T23:00:30.000Z');

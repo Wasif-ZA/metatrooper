@@ -416,7 +416,7 @@ globalThis.frameView = (() => {
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
       const agent = e.target.closest('.fth[data-id], .fthkid[data-id], .fagent[data-id]');
       const x = agent && [...(ui.snap.sessions || []), ...(ui.snap.live || [])].find((s) => s.id === agent.dataset.id);
-      if (agent && canStop(x)) { e.preventDefault(); rowMenu(x.id, e.clientX, e.clientY); return; }
+      if (agent && ccWords.canStop(x)) { e.preventDefault(); rowMenu(x.id, e.clientX, e.clientY); return; }
       const row = e.target.closest('.fproj, [data-proj]');
       if (!row) return;
       e.preventDefault();

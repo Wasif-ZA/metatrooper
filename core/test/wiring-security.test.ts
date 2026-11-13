@@ -64,7 +64,7 @@ function launchHarness() {
   const db = { prepare: (sql: string) => ({ get: () => sql.includes('FROM project') ? { id: 'p1', path: '/project', name: 'test' } : undefined }) };
   const c = vm.createContext({ m: { set: (_: string, v: any) => { handler = v.handler; } }, db, E, RpcError,
     getEngine: () => engine, path: { join: (...v: string[]) => v.join('/') }, homeDir: () => '/home', canonicalPath: (p: string) => p,
-    settings: () => ({ sessions: { approval: 'ask' } }), fs: { readFileSync: () => { throw Error('no config'); } },
+    settings: () => ({ sessions: { approval: 'ask' } }), fs: { readFileSync: () => { throw Error('no config'); }, existsSync: () => true },
     launchSession: (_: unknown, opts: any) => { launched.push(opts); return { session_id: 'recorded' }; }, isPreset: () => true,
   });
   const strSource = methodSource.match(/^function str\([^]*?^}/m); assert.ok(strSource);

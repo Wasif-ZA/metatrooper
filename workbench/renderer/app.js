@@ -479,7 +479,7 @@ function seedLayout() {
   if (!ui.settingsLook || !ui.projectId || ui.seeded === ui.projectId || !ui.snap.core.online) return;
   ui.seeded = ui.projectId;
   ui.corePid = ui.snap.core.pid;
-  if (!ui.shellKinds.length) void loadShells();
+  if (!ui.shellKinds.length && typeof loadShells === 'function') void loadShells();
   const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
   wall.restore(saved);
   const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
@@ -1059,9 +1059,6 @@ function setMode(mode) {
   save('mode', mode);
   render();
 }
-
-/** An agent cc started and that still runs can be stopped from the UI; outside sessions cannot. */
-function canStop(x) { return Boolean(x) && x.host !== 'external' && x.state !== 'exited' && !String(x.id).startsWith('sh_'); }
 
 /** session.stop: Ctrl+C, then the process tree after 3 s; the row turns Stopped when it exits. */
 async function stopAgent(id) {

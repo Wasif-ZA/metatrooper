@@ -10,7 +10,7 @@ import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT } from './words.js';
+import { NOT_SENT, canStop } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
 import { PanelToggle } from './icons/index.js';
