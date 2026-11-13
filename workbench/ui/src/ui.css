@@ -15,8 +15,8 @@ html { font-size: 16px; }
   --color-icon-warning: var(--wait);
   --color-icon-success: var(--ink);
   --color-icon-error: var(--del);
-  --font-family-body: 'Geist', 'Segoe UI', sans-serif;
-  --font-family-heading: 'Geist', 'Segoe UI', sans-serif;
+  --font-family-body: var(--font-app);
+  --font-family-heading: var(--font-app);
   --font-family-code: var(--mono);
   --radius-container: 0;
   --radius-element: 4px;
@@ -24,7 +24,7 @@ html { font-size: 16px; }
   --text-body-size: 13px;
   --text-label-size: 13px;
   --text-supporting-size: 12px;
-  font-family: 'Geist', 'Segoe UI', sans-serif;
+  font-family: var(--font-app);
   font-size: 13px;
   line-height: 1.45;
   color: var(--body-strong);
@@ -404,7 +404,7 @@ html { font-size: 16px; }
 .ou-col.ou-addons { max-width: none; gap: 0; --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0; }
 
 /* IDE: Herdr's code layout. Full-height explorer, tabs over breadcrumb over editor, agents side by side in a bottom panel. */
-.ide { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13px; color: var(--body-strong); }
+.ide { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: var(--font-app); font-size: 13px; color: var(--body-strong); }
 .ou-ide {
   --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0;
   --shadow-low: none; --shadow-med: none; --shadow-high: none;
@@ -595,7 +595,8 @@ html { font-size: 16px; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 
-:root { --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-other: #6b7280; }
+:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-other: #6b7280; }
+:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; }
 
 /* Home: task box, session rows with sub-agents and steps, floating right panel, automations. */
 .ou-home.ou-hm { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0; padding: 0; min-height: 100%; align-items: start; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }

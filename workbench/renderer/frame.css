@@ -2,7 +2,7 @@
 :root:is(.side-rail, .side-auto) { --side: 56px; }
 .stage { position: absolute; inset: var(--top) 0 0 var(--side); }
 
-.frame { position: absolute; z-index: 30; left: 0; top: 0; bottom: 0; width: var(--side); display: flex; flex-direction: column; overflow: hidden; background: var(--canvas-deep); border-right: 1px solid var(--hairline); font: 13.5px 'Geist', 'Segoe UI', sans-serif; color: var(--body); }
+.frame { position: absolute; z-index: 30; left: 0; top: 0; bottom: 0; width: var(--side); display: flex; flex-direction: column; overflow: hidden; background: var(--canvas-deep); border-right: 1px solid var(--hairline); font: 13.5px var(--font-app); color: var(--body); }
 .fhead { flex: none; height: var(--top); display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--hairline); -webkit-app-region: drag; }
 .fhead > * { -webkit-app-region: no-drag; }
 .fhead .brand { flex: 1; min-width: 0; }
@@ -154,7 +154,7 @@
 .fuse .fbar { width: 18px; }
 
 /* cc wordmark in the sidebar head; project icons; the Change icon menu and panel. */
-.fhead .ccmark { font: 500 15px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: -0.01em; color: var(--body); }
+.fhead .ccmark { font: 500 15px/1 var(--font-app); letter-spacing: -0.01em; color: var(--body); }
 .picon { flex: none; display: inline-block; vertical-align: middle; }
 :root[data-theme='light'] .picon.pmono { color: var(--ink) !important; }
 .ficonmenu { position: fixed; z-index: 60; padding: 4px; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; }
@@ -181,10 +181,10 @@
 .fpickfoot button { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-size: 12px; }
 .fpickfoot .fprimary { background: var(--ink); color: var(--canvas-deep); border-color: var(--ink); }
 :root:is(.side-rail, .side-auto) .fhead .ccmark { font-size: 13px; }
-.ficonmenu, .ficonmenu button, .ficonpick, .ficonpick button, .ficonpick .fghhead { font-family: 'Geist', 'Segoe UI', sans-serif; }
+.ficonmenu, .ficonmenu button, .ficonpick, .ficonpick button, .ficonpick .fghhead { font-family: var(--font-app); }
 
 /* Review 3: one icon family. Wordmark, nav density, header icons, hierarchy, ring/logo spacing, neutral picker. */
-.fhead .ccmark { font: 600 18px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: -0.01em; color: var(--ink); }
+.fhead .ccmark { font: 600 18px/1 var(--font-app); letter-spacing: -0.01em; color: var(--ink); }
 :root:not(.side-rail):not(.side-auto) .fnav.ficons .fi { width: 16px; }
 :root:not(.side-rail):not(.side-auto) .fnav.ficons .fpill { top: -3px; right: -5px; height: 14px; min-width: 8px; padding: 0 4px; font-size: 9.5px; line-height: 14px; box-shadow: 0 0 0 2px var(--canvas-deep); }
 .fsec.fprojects .fic { width: 28px; height: 28px; color: var(--mute); }
