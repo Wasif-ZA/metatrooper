@@ -479,6 +479,7 @@ function seedLayout() {
   if (!ui.settingsLook || !ui.projectId || ui.seeded === ui.projectId || !ui.snap.core.online) return;
   ui.seeded = ui.projectId;
   ui.corePid = ui.snap.core.pid;
+  if (!ui.shellKinds.length) void loadShells();
   const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
   wall.restore(saved);
   const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
@@ -1999,7 +2000,8 @@ void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   applyLook(look);
   render();
 });
-void rpc('shell.list', {}, true).then((r) => { if (r.result) { ui.shellKinds = r.result.shells; render(); } });
+function loadShells() { return rpc('shell.list', {}, true).then((r) => { if (r.result) { ui.shellKinds = r.result.shells; render(); } }); }
+void loadShells();
 setView();
 
 function paneTitle(p) {
