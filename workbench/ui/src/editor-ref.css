@@ -66,3 +66,7 @@
 
 /* One count-badge shape across the Editor: round, like the rail, search and Problems tab counts */
 .ou-ide-schead .ou-ide-count, .ou-ip-pcount { border-radius: 8px; }
+
+/* A hidden button cannot take focus, so a tab's close button fades out instead and shows on keyboard focus */
+.ou-ide-tabend button { visibility: visible; opacity: 0; }
+.ou-ide-tabs .astryx-tab:is([data-selected], :hover) .ou-ide-tabend:not(.ou-ide-tabdirty) button, .ou-ide-tabs .astryx-tab:hover .ou-ide-tabdirty button, .ou-ide-tabend button:focus-visible { opacity: 1; }
