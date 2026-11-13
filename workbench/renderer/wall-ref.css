@@ -71,4 +71,5 @@
 @container (max-width: 340px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: contents; } }
 @container (max-width: 240px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph .act { display: none; } }
 @container (max-width: 340px) { :root[data-view="wall"] #centre .ph .r1 > .tile-engine { display: none; } }
+@container (max-width: 420px) { :root[data-view="wall"] #centre .tile:not(.shell) .ph:has(.stp:not([hidden])) .act [data-tab="handback"] { display: none; } }
 :root[data-view="wall"] #frame .fcore { display: none; }
