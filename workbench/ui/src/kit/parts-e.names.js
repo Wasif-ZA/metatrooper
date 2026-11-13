@@ -1,1 +1,1 @@
-export default [];
+export default ['pipe', 'timeline', 'trace', 'diff'];

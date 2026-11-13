@@ -1,0 +1,16 @@
+.ou-pe-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ou-pe-tl { display: grid; grid-template-columns: minmax(80px, 22%) 1fr; align-items: center; gap: 12px; width: 100%; }
+.ou-pe-scale { display: flex; justify-content: space-between; }
+.ou-pe-lane { position: relative; display: block; height: 12px; background: var(--hairline); }
+.ou-pe-span { position: absolute; top: 0; bottom: 0; background: var(--st-other); }
+.ou-pe-ok { background: var(--st-ok); }
+.ou-pe-fail { background: var(--st-bad); }
+.ou-pe-run { background: var(--st-run); }
+.ou-pe-cut { background: var(--st-review); }
+.ou-pe-play { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--st-run); }
+.ou-pe-err { color: var(--st-bad); font-weight: 600; }
+.ou-pe-diffhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--hairline); }
+.ou-pe-grow { flex: 1; }
+.ou-pe-add { color: var(--st-ok); }
+.ou-pe-del { color: var(--st-bad); }
+.ou-pe-diff { width: 100%; }
