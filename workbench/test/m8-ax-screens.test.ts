@@ -1166,3 +1166,16 @@ test('fix 7: Run now toasts what really happened', async (t) => {
     assert.deepEqual(calls.filter((c) => c[0] === 'toast').map((c) => c.slice(1)), [[want, ...(error ? [true] : [])]]);
   }
 });
+
+test('fix 14: a licence link opens in the system browser', async () => {
+  own.add('Notices');
+  const opened: string[] = [];
+  g.api.notices = async () => 'See [GSAP](https://gsap.com/standard-license).';
+  g.api.openLink = async (href: string) => { opened.push(href); };
+  const h = harness(screens.Notices, true);
+  h.draw(); await flush(); h.draw();
+  let prevented = false;
+  h.one((n: any) => n.props.className === 'ou-notices').props.onClick({ target: { closest: () => ({ href: 'https://gsap.com/standard-license' }) }, preventDefault() { prevented = true; } });
+  assert.deepEqual(opened, ['https://gsap.com/standard-license']);
+  assert.ok(prevented);
+});

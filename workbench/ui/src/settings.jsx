@@ -93,12 +93,13 @@ const SECTIONS = [
   { id: 'licences', label: 'Licences and trademarks', note: 'Third-party software in cc, and the trademarks of the engines it runs.', groups: [], body: Notices },
 ];
 
-function Notices() {
+export function Notices() {
   const [text, setText] = useState(undefined);
   useEffect(() => { void api.notices().then(setText); }, []);
   if (text === undefined) return null;
   if (!text) return <Text color="secondary">THIRD_PARTY_NOTICES.md was not found next to the app.</Text>;
-  return <article className="ou-notices" dangerouslySetInnerHTML={{ __html: marked.parse(text) }} />;
+  const open = (e) => { const a = e.target.closest?.('a[href^="http"]'); if (a) { e.preventDefault(); void api.openLink(a.href); } };
+  return <article className="ou-notices" onClick={open} dangerouslySetInnerHTML={{ __html: marked.parse(text) }} />;
 }
 
 const reload = async () => settingsStore.set({ data: await api.settingsPage() });

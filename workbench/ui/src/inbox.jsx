@@ -824,7 +824,7 @@ export function Inbox() {
         ) : none('Not watched'))}
         <div className="ou-ny-props-rule" />
         {prop('Service', serviceUrl ? (
-          <button type="button" className="ou-ny-link" title={serviceUrl} onClick={() => openTermLink(serviceUrl)}><span>{serviceUrl}</span>{I.open}</button>
+          <button type="button" className="ou-ny-link" title={serviceUrl} onClick={() => { homeView.set('wall'); openTermLink(serviceUrl); }}><span>{serviceUrl}</span>{I.open}</button>
         ) : none())}
         {prop('Workspace', sessionObj?.cwd && sessionObj?.id ? (
           <button type="button" className="ou-ny-link ou-ny-wslink" title={sessionObj.cwd} onClick={() => openWorkspace(sessionObj)}><span>View workspace</span>{I.open}</button>

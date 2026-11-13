@@ -10,7 +10,7 @@ const recentErrors = [];
 const keepError = (text) => { recentErrors.push(`${new Date().toISOString()} ${text}`.slice(0, 300)); if (recentErrors.length > 20) recentErrors.shift(); };
 globalThis.addEventListener?.('error', (e) => keepError(`${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`));
 globalThis.addEventListener?.('unhandledrejection', (e) => keepError(`unhandled rejection: ${e.reason?.message ?? e.reason}`));
-const VIEW_NAMES = { home: 'Home', ide: 'IDE', wall: 'Wall', inbox: 'Inbox', addons: 'Add-ons' };
+const VIEW_NAMES = { home: 'Home', ide: 'IDE', wall: 'Wall', inbox: 'Needs you', automations: 'Automations', addons: 'Add-ons' };
 function reportIssue() {
   const view = globalThis.settingsView?.isOpen() ? 'Settings' : VIEW_NAMES[ui.view || 'wall'] || ui.view;
   void api.reportIssue({ view, project: project()?.name || '', errors: recentErrors });
@@ -1942,6 +1942,7 @@ document.addEventListener('keydown', (e) => {
     void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });
     return;
   }
+  if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); return; }
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
   const active = document.activeElement;
   const inTerm = Boolean(active && active.classList && active.classList.contains('xterm-helper-textarea'));
