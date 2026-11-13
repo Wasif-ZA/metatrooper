@@ -9,7 +9,7 @@ Status: his words 2026-10-31, "Metatrooper is becoming ororus". Reverses the 202
 
 ## Every place the name lives
 
-- Display name, README, site, CHANGELOG, THIRD-PARTY-NOTICES, package names and headers.
+- Display name, README, site, CHANGELOG, THIRD_PARTY_NOTICES, package names and headers.
 - GitHub repo Wasif-ZA/metatrooper and its links and badges.
 - The `troop` CLI, `troop.db`, the `~/.metatrooper` home, the `.troop/` project folder, pipe names, env vars such as TROOP_SESSION_ID.
 - MCP tool and shim names; the `metatrooper-browser` and `metatrooper-desktop` servers.

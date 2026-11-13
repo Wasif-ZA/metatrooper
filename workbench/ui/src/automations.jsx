@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
+import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
 
@@ -185,7 +185,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
           onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey && ready) { e.preventDefault(); void save(); } },
           field: <TextArea label="Prompt" isLabelHidden rows={4} value={form.prompt} placeholder="What work do you want to automate?" onChange={set('prompt')} />,
           attach: (paths) => set('prompt')(atRefs(form.prompt, paths, (s.projects || []).find((p) => p.id === form.project_id)?.path)),
-          engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: engineName(e.id) })), onChange: set('engine_id') },
+          engine: { id: form.engine_id, options: engines.map((e) => ({ value: e.id, label: engineName(e.id), icon: <EngineMark id={e.id} size={16} /> })), onChange: set('engine_id') },
           send: { label: initial?.id ? 'Save' : 'Create automation', tooltip: `${initial?.id ? 'Save' : 'Create automation'} (Ctrl+Enter)`, isDisabled: !ready, onClick: save },
           context: [{ key: 'project', plain: true, icon: <FolderIcon size={16} />, node: <Selector size="sm" variant="ghost" placement="above" label="Project" isLabelHidden value={form.project_id} onChange={set('project_id')} options={(s.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
             { key: 'machine', icon: <LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
@@ -329,7 +329,7 @@ export function AutomationsPage() {
         <span className="ou-ap-chips">
           <span className="ou-ap-chip">{projIcon(a.project_id) ? <ProjectIcon icon={projIcon(a.project_id)} size={14} /> : folderIcon}{projName(a.project_id)}</span>
           <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
-          <span className="ou-ap-chip">{a.engine_id ? engineName(a.engine_id) : 'agent'}</span>
+          <span className="ou-ap-chip">{a.engine_id ? <><EngineMark id={a.engine_id} size={14} />{engineName(a.engine_id)}</> : 'agent'}</span>
           {(a.labels || []).map((l) => {
             const c = labelColour(l, colours);
             return <span key={labelName(l)} className="ou-ap-chip ou-ap-label"><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{labelName(l)}</span>;

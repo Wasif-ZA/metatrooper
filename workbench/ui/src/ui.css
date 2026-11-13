@@ -1193,3 +1193,14 @@ html { font-size: 16px; }
 .ou-cmp-strip .ou-cmp-expand { top: var(--sp-2, 8px); right: var(--sp-3, 16px); }
 .ou-cmp-strip .ou-cmp-bar.ou-hm-cbar { padding: var(--sp-1, 4px) var(--sp-3, 16px) var(--sp-1, 4px) var(--sp-4, 24px); }
 .ou-cmp-strip .ou-cmp-ctx { gap: var(--sp-4, 24px); padding: 0 var(--sp-3, 16px) var(--sp-2, 8px) var(--sp-4, 24px); }
+
+/* Settings > Licences and trademarks: the shipped THIRD_PARTY_NOTICES.md. */
+.ou-notices { max-width: 760px; font-size: 13px; line-height: 1.6; color: var(--body); }
+.ou-notices :is(h1, h2) { margin: 24px 0 8px; font-size: 15px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.ou-notices h1 { display: none; }
+.ou-notices p, .ou-notices ul { margin: 0 0 8px; }
+.ou-notices pre { max-height: 240px; overflow: auto; margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--hairline); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; }
+.ou-notices code { font: 12px var(--mono); }
+.ou-notices table { width: 100%; max-width: 760px; table-layout: fixed; border-collapse: collapse; margin: 0 0 16px; font-size: 12px; }
+.ou-notices :is(th, td), .ou-notices :is(th, td) * { white-space: normal; overflow-wrap: anywhere; }
+.ou-notices :is(th, td) { padding: 4px 8px; border-bottom: 1px solid var(--hairline); text-align: left; vertical-align: top; }

@@ -64,7 +64,7 @@ VS Code" covers real editing.
    committed, like `vendor/gsap.min.js`. Versions are exact (no `^`), taken from npm on the day work starts.
    `workbench/package-lock.json` pins the resolved versions; rebuilding with
    `npm ci && npm run vendor:cm` must give the same sha256. No CSP change: no workers, no inline script. Add the MIT notice to
-   `THIRD-PARTY-NOTICES.md`.
+   `THIRD_PARTY_NOTICES.md`.
 
 2. **Main process IPC (`workbench/src/main.ts`, new `workbench/src/files.ts`).** Every call takes a `sessionId`;
    main resolves the root from the session row's `cwd`. The renderer never sends a root.
@@ -263,7 +263,7 @@ Review and two-engine checks are counted once for the milestone in `spec.md` (15
 | `workbench/renderer/files.js`, `files.css` | New panel |
 | `workbench/renderer/index.html:50-57` | Load `vendor/codemirror.js`, `files.js`, `files.css` |
 | `workbench/renderer/app.js` | Tile `Files` button, Diff row `Open`, `Ctrl+Shift+E` |
-| `THIRD-PARTY-NOTICES.md` | CodeMirror MIT notice |
+| `THIRD_PARTY_NOTICES.md` | CodeMirror MIT notice |
 | `workbench/test/files.test.ts` | New (Codex) |
 
 ## Out of scope

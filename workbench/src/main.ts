@@ -755,6 +755,7 @@ function handlers(): void {
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
   on('setDirty', (dirty: unknown, summary: unknown) => { dirtyFiles = dirty === true; dirtySummary = dirtyFiles && typeof summary === 'string' ? summary.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 300) : ''; return true; });
+  on('notices', async () => fs.promises.readFile(NOTICES, 'utf8').catch(() => null));
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
   on('reportIssue', async (raw: unknown) => {
     const r = cleanReport(raw);
@@ -879,6 +880,7 @@ function createWindow(): void {
 }
 
 const CORE_MAIN = path.join(here, '..', '..', 'core', 'src', 'main.ts');
+const NOTICES = path.join(here, '..', '..', 'THIRD_PARTY_NOTICES.md');
 const APP_DIR = path.resolve(here, '..');
 const APP_VERSION = String((JSON.parse(fs.readFileSync(path.join(APP_DIR, '..', 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
 

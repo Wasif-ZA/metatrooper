@@ -305,7 +305,8 @@ test('Add-ons loads once, clears on leave, reloads and ignores a stale response'
 test('Home start box appears only with a non-red engine and ends with the Start arrow', () => {
   g.ui.snap.engines = [{ id: 'bad', light: 'red' }]; const h = harness(Home); h.draw(); assert.equal(h.all(label('Start')).length, 0);
   g.ui.snap.engines.push({ id: 'ready', light: 'yellow' }); h.draw(); assert.equal(h.all(label('Start')).length, 1);
-  assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options[0], { type: 'section', title: 'Agent', options: [{ value: 'ready', label: 'ready' }] });
+  assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options[0], { type: 'section', title: 'Agent', options: [{ value: 'ready', label: 'ready', icon: h.one((n: any) => n.props.label === 'Agent').props.options[0].options[0].icon }] });
+  assert.equal(h.one((n: any) => n.props.label === 'Agent').props.options[0].options[0].icon.type.name, 'EngineMark', 'each engine option carries its logo');
   assert.equal(h.one(label('Start')).props.tooltip, 'Start (Ctrl+Enter)');
   const bar = React.Children.toArray(h.one(hasClass('ou-hm-cbar')).props.children) as any[];
   assert.deepEqual([bar[0].props.items.map((i: any) => i.label), bar[bar.length - 1].props.label], [['Attach files', 'Branch and model'], 'Start']);
@@ -372,9 +373,10 @@ test('Home task view: prompt bubble, worked line, a collapsed subagents trigger 
   assert.ok(open.includes('<span class="ou-hm-slimsteps">1/2</span>'), 'orchestrator row keeps its step count');
   assert.equal((open.match(/ou-hm-slimsteps"/g) || []).length, 1, 'only the orchestrator row shows a step count');
   assert.deepEqual([...open.matchAll(/<li class="ou-hm-slim( ou-hm-lead)?" data-id="([^"]+)" data-status="([^"]+)"/g)].map(m => [m[2], m[3]]), [['lead', 'running'], ['a', 'done'], ['b', 'running'], ['c', 'failed']]);
-  assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-st ou-st-running">Running<\/span><span class="ou-hm-eng">synthetic<\/span><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
-  assert.match(open, /<span class="ou-hm-eng">Claude<\/span>/, 'the orchestrator row names its engine as text');
-  assert.doesNotMatch(open + html, /<svg[^>]*role="img"[^>]*aria-label="(Claude|Codex)"|emark|ouros-ring/, 'no engine logo or progress ring');
+  assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-st ou-st-running">Running<\/span><span class="ou-hm-eng"><svg[^>]*aria-label="synthetic"[^]*?<\/svg>synthetic<\/span><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
+  assert.match(open, /<span class="ou-hm-eng"><svg[^>]*role="img" aria-label="Claude"[^>]*><title>Claude<\/title><path fill="#d97757"[^]*?<\/svg>Claude<\/span>/, 'the orchestrator row shows the Claude logo and its name');
+  assert.match(html, /<span class="ou-hm-engs"><svg[^>]*aria-label="synthetic"/, 'the collapsed sub-agent stack shows logos');
+  assert.doesNotMatch(open + html, /ouros-ring/, 'no progress ring');
   assert.match(open, /<span class="ou-hm-bad">tests broke<\/span>/);
   assert.doesNotMatch(open, /Build/);
   homeStore.set({ open: ['lead', 'steps:b'] }); h.draw();
@@ -525,9 +527,9 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
   const groups = h.all(hasClass('ou-navgroup'));
   assert.deepEqual(groups.map(textContent), ['App', 'Agents', 'Extend', 'System']);
-  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced']]);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced', 'Licences and trademarks']]);
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
-  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced', 'Licences and trademarks']);
   assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
   assert.ok(navs.every(n => typeof n.props.icon?.type === 'function')); assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);

@@ -2,7 +2,7 @@
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Selector } from '@astryxdesign/core/Selector';
-import { PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
+import { EngineMark, PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
 
 const plusIcon = <PlusIcon size={16} />;
 const expandIcon = <ExpandIcon size={20} />;
@@ -40,10 +40,11 @@ export function composer({ field, opts, plus, attach, engine, send, context, sta
         <div className="ou-cmp-bar ou-hm-cbar">
           {items ? <DropdownMenu size="sm" menuWidth={200} items={items} renderTrigger={(p) => <IconButton {...p} size="sm" variant="ghost" icon={plusIcon} label="Add" />} /> : null}
           {engine?.readOnly ? (
-            <span className="ou-cmp-engine ou-cmp-ro" title={`Answering ${engineName(engine.id)}`}><b>{engineName(engine.id)}</b></span>
+            <span className="ou-cmp-engine ou-cmp-ro" title={`Answering ${engineName(engine.id)}`}><EngineMark id={engine.id} size={16} /><b>{engineName(engine.id)}</b></span>
           ) : engine ? (
             <span className="ou-cmp-engine">
               <Selector label="Agent" isLabelHidden size="sm" variant="ghost" placement="above" options={engine.options} value={engine.id} onChange={engine.onChange}
+                startIcon={<EngineMark id={engine.id} size={16} />}
                 renderValue={(o) => <span className="ou-cmp-pick"><b>{engineName(engine.id)}</b><span className="ou-cmp-model">{engine.model || 'default'}</span></span>} />
             </span>
           ) : null}

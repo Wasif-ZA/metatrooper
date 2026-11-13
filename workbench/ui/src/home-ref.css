@@ -83,3 +83,8 @@ header.title .ou-hm-head .ou-hm-headtitle { font: 400 14px/1 'Geist', 'Segoe UI'
 
 .ou-hm-dock { padding: 0; background: none; }
 .ou-hm-dock > .ou-hm-composerwrap { max-width: none; margin: 0; }
+.ou-hm-eng { display: inline-flex; align-items: center; gap: 4px; }
+.ou-hm-eng > svg, .ou-hm-engs > svg { flex: none; }
+.ou-hm-engs { display: inline-flex; flex: none; align-items: center; gap: 2px; }
+.ou-hm-engs .ou-hm-more { font-size: 11px; color: var(--hm-quiet); margin-left: 2px; }
+.ou-hm-linmeta, .ou-hm-slimsub { align-items: center; }

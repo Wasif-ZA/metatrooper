@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import * as ccWords from '../ui/src/words.js';
+import { engineMarkSvg } from '../ui/src/icons/engine-marks.js';
 
 function readSrc(name: string): string {
   const candidates = [
@@ -129,6 +130,7 @@ function createFrameHarness(initialStorage: Record<string, string> = {}) {
     },
     needsCount: () => 0,
     ccWords,
+    engineMarkSvg,
     project: () => ({ id: 'p1' }),
     STATE_ORDER: ['waiting_for_you', 'working', 'starting', 'idle', 'done', 'unknown', 'exited'],
     STATE_WORDS: { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle', unknown: 'state unknown', exited: 'exited' },
@@ -419,9 +421,9 @@ test('thread list: recent finished tasks on top, Working and older Settled shelv
   const ids = [...html.matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(ids, ['fresh', 'busy', 'lead'], 'recent finished on top, then Working newest first; the sub-agent has no row of its own; Settled starts closed');
   assert.ok(html.indexOf('class="fthreads"') < html.indexOf('class="fshelves"'), 'recent list above the shelves');
-  assert.match(html, /data-id="lead"[^]*?<span class="fth1"><span class="ft">Lead task<\/span><span class="fthtime">18s<\/span><\/span><span class="fth2"><span class="ou-st ou-st-waiting">Needs you<\/span><span class="fthsep">·<\/span><span class="fthpn" data-proj="p1">shop<\/span><span class="fthsep">·<\/span><span class="fthbr">feat\/share<\/span><\/span><span class="fth3"><span class="fthmks">Claude, Codex<\/span><\/span>/);
-  assert.match(html, /data-id="fresh"[^]*?<span class="ou-st ou-st-done">Done<\/span>[^]*?<span class="fthmks">Gemini<\/span>/);
-  assert.doesNotMatch(html, /<svg|fring|fthmk"/, 'engines and status are text, not logos or rings');
+  assert.match(html, /data-id="lead"[^]*?<span class="fth1"><span class="ft">Lead task<\/span><span class="fthtime">18s<\/span><\/span><span class="fth2"><span class="ou-st ou-st-waiting">Needs you<\/span><span class="fthsep">·<\/span><span class="fthpn" data-proj="p1">shop<\/span><span class="fthsep">·<\/span><span class="fthbr">feat\/share<\/span><\/span><span class="fth3"><span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Claude"[^]*?<\/svg><\/span><span class="fthmk"><svg[^>]*aria-label="Codex"[^]*?<\/svg><\/span><\/span><\/span>/);
+  assert.match(html, /data-id="fresh"[^]*?<span class="ou-st ou-st-done">Done<\/span>[^]*?<span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Gemini"><title>Gemini<\/title>/);
+  assert.doesNotMatch(html, /fring|ouros-ring/, 'status is a word, not a ring');
   assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">2<\/span>/);
   assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">1<\/span>/);
   assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);

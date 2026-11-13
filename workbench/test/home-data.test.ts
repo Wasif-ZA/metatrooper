@@ -8,7 +8,8 @@ import vm from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import { snapshot } from '../src/queries.ts';
 import { checksOf, refreshRowGit, rowGit } from '../src/rowgit.ts';
-import { engineList, engineName, statusOf, statusWord } from '../ui/src/words.js';
+import { engineName, statusOf, statusWord } from '../ui/src/words.js';
+import { ENGINE_MARKS, engineMarkSvg } from '../ui/src/icons/engine-marks.js';
 
 const wb = resolve(import.meta.dirname, '..');
 const schema = readFileSync(resolve(wb, '../contracts/schema.sql'), 'utf8');
@@ -127,13 +128,15 @@ test('checksOf reads a statusCheckRollup as fail, pass, pending or null', () => 
   assert.equal(checksOf([{ status: 'IN_PROGRESS' }, { conclusion: 'FAILURE' }]), 'fail');
 });
 
-test('engines show as plain names: known ids get their name, others keep their id, a crowd lists two then +n', () => {
+test('engine logos: each named engine has its own mark, titled and labelled with its name', () => {
   assert.deepEqual(['claude', 'codex', 'agy', 'gemini', 'CLAUDE '].map(engineName), ['Claude', 'Codex', 'Antigravity', 'Gemini', 'Claude']);
-  assert.equal(engineName('Some<Tool>'), 'Some<Tool>', 'unknown engines keep their own id as text; React and esc() escape it');
   assert.equal(engineName(''), 'Unknown engine');
-  assert.equal(engineList(['claude', 'agy', 'claude', 'codex']), 'Claude, Antigravity +1', 'names are deduped before counting');
-  assert.equal(engineList(['codex']), 'Codex');
-  for (const id of ['claude', 'codex', 'agy']) assert.doesNotMatch(engineName(id) + engineList([id]), /<svg|<path|<image|#d97757/i);
+  const ids = ['claude', 'codex', 'agy', 'gemini', 'copilot', 'opencode', 'pi'];
+  assert.deepEqual(Object.keys(ENGINE_MARKS).sort(), [...ids].sort());
+  assert.equal(new Set(ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].inner)).size, ids.length, 'marks differ');
+  for (const id of ids) assert.match(engineMarkSvg(id), new RegExp(`role="img" aria-label="${engineName(id)}"><title>${engineName(id)}</title>`), id);
+  assert.match(engineMarkSvg('CLAUDE '), /<title>Claude<\/title><path fill="#d97757"/);
+  assert.match(engineMarkSvg('Some<Tool>'), /<title>Some&#60;Tool&#62;<\/title>.*>S<\/text>/);
 });
 
 test('status words come from the real state and outcome', () => {
@@ -144,4 +147,14 @@ test('status words come from the real state and outcome', () => {
   ];
   for (const [x, want] of cases) assert.equal(statusWord(x), want, JSON.stringify(x));
   assert.equal(statusOf({ state: 'waiting_for_you' }), 'waiting');
+});
+
+test('one third-party notice ships at the repo root with the trademarks and every adapted source', () => {
+  const text = readFileSync(resolve(wb, '../THIRD_PARTY_NOTICES.md'), 'utf8');
+  for (const h of ['## Trademarks', '## t3code', '## bb', '## herdr', '## Simple Icons', '## monaco-editor', '## Electron']) assert.ok(text.includes(h), h);
+  assert.match(text, /Anthropic PBC[^]*OpenAI[^]*Google LLC[^]*not affiliated/);
+  assert.match(text, /Copyright \(c\) 2026 T3 Tools Inc\.[^]*Permission is hereby granted/);
+  assert.match(text, /Copyright \(c\) 2026 Michael Yong[^]*Permission is hereby granted/);
+  assert.match(text, /Apache License\s+Version 2.0, January 2004[^]*END OF TERMS AND CONDITIONS/);
+  for (const f of ['renderer/wall-side.js', 'renderer/wall-ref.css', '../engines/plugins/opencode-state.js']) assert.match(readFileSync(resolve(wb, f), 'utf8').split('\n')[0], /Modified from herdr/, f);
 });

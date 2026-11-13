@@ -8,7 +8,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { engineName, engineList, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
+import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
@@ -133,7 +133,7 @@ function StartBox({ ready, strip }) {
       { label: more ? 'Hide branch and model' : 'Branch and model', onClick: () => setMore(!more) },
     ],
     engine: { id: chosen, model: model.trim(), options: [
-      { type: 'section', title: 'Agent', options: ready.map((e) => ({ value: e.id, label: engineName(e.id) })) },
+      { type: 'section', title: 'Agent', options: ready.map((e) => ({ value: e.id, label: engineName(e.id), icon: <EngineMark id={e.id} size={16} /> })) },
       { type: 'section', title: 'Model', options: [{ value: 'model:', label: 'Agent default' }, ...(models[chosen] || []).map((m) => ({ value: `model:${m}`, label: m })), { value: 'custom', label: 'Custom model...' }] },
     ], onChange: (v) => {
       if (v === 'custom') { setMore(true); return; }
@@ -169,6 +169,7 @@ const ACTIVE_STATES = new Set(['waiting_for_you', 'working', 'starting', 'unknow
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
 const settled = (k) => ['done', 'failed', 'stopped'].includes(statusOf(k));
+const Engine = ({ id }) => <span className="ou-hm-eng"><EngineMark id={id} size={14} />{engineName(id)}</span>;
 const Status = ({ k }) => <span className={`ou-st ou-st-${statusOf(k)}`}>{STATUS_WORD[statusOf(k)]}</span>;
 
 // From t3code (MIT), apps/web/src/components/chat/AgentElapsed.tsx
@@ -225,7 +226,7 @@ function SlimRow({ k, lead, openList, toggle }) {
       <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
         <span className="ou-hm-slimtext">
           <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
-          <span className="ou-hm-slimsub"><Status k={k} /><span className="ou-hm-eng">{engineName(k.engine_id)}</span>{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
+          <span className="ou-hm-slimsub"><Status k={k} /><Engine id={k.engine_id} />{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
       </div>
       {st ? <Drop open={open} className="ou-hm-drop ou-hm-slimsteps-list"><Steps st={st} /></Drop> : null}
@@ -241,7 +242,7 @@ function Trigger({ x, kids, open, toggle }) {
   return (
     <div className="ou-hm-trigger" data-active={working || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(() => toggle(x.id))}>
       <span className="ou-hm-ttext">
-        <span className="ou-hm-tline"><span className="ou-hm-tlabel">{label}</span><span className="ou-hm-eng">{engineList(kids.map((k) => k.engine_id))}</span></span>
+        <span className="ou-hm-tline"><span className="ou-hm-tlabel">{label}</span><span className="ou-hm-engs">{kids.slice(0, 3).map((k) => <EngineMark key={k.id} id={k.engine_id} size={14} />)}{kids.length > 3 ? <span className="ou-hm-more">+{kids.length - 3}</span> : null}</span></span>
         <StatusCounts statuses={statuses} />
       </span>
       <span className="ou-hm-elapsed">{elapsedOf(kids)}</span>
@@ -412,7 +413,7 @@ function RailCard({ sel, kids }) {
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
                   <li key={k.id} className="ou-hm-prow ou-hm-pclick ou-hm-linrow" data-status={statusOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
-                    <span className="ou-hm-lintext"><span className="ou-hm-plabel">{nameOf(k)}</span><span className="ou-hm-linmeta"><Status k={k} /><span className="ou-hm-eng">{engineName(k.engine_id)}</span></span></span>
+                    <span className="ou-hm-lintext"><span className="ou-hm-plabel">{nameOf(k)}</span><span className="ou-hm-linmeta"><Status k={k} /><Engine id={k.engine_id} /></span></span>
                     <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
                   </li>
                 ))}

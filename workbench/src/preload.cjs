@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('troop', {
   stopCore: () => ipcRenderer.invoke('stopCore'),
   setDirty: (...args) => ipcRenderer.invoke('setDirty', ...args.slice(0, 2)),
   openLogs: () => ipcRenderer.invoke('openLogs'),
+  notices: () => ipcRenderer.invoke('notices'),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),

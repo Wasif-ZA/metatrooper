@@ -196,7 +196,7 @@ function PriorityIcon({ level }) {
 }
 
 function Avatar({ name, big }) {
-  return <span className={`ou-ny-avatar${big ? ' ou-ny-avatar-big' : ''}`} aria-hidden="true">{(name || '?').slice(0, big ? 2 : 1).toUpperCase()}</span>;
+  return <Ic.EngineMark id={name} size={big ? 20 : 16} className={`ou-ny-mark${big ? ' ou-ny-mark-big' : ''}`} />;
 }
 
 function NoteActions({ n }) {

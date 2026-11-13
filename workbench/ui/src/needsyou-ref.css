@@ -164,3 +164,4 @@
 .ou-ny-composer .ou-cmp-strip .ou-composer.ou-cmp :is(textarea, input) { padding-left: 0 !important; }
 .ou-ny-composer .ou-cmp-strip :is(.ou-cmp-bar.ou-hm-cbar, .ou-cmp-ctx) { padding-left: 0; padding-right: 0; }
 .ou-ny-composer .ou-cmp-strip .ou-cmp-expand { right: 0; }
+.ou-inbox .ou-ny-mark { flex: none; }

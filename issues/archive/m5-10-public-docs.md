@@ -19,7 +19,7 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 C
    (M5-4); uninstall (M5-1); known limits (browser.hello trusts a self-reported pid; spool drops an unfinished last
    line; printFailure loses the last line after a core restart); the launch pipelines as built-ins and the rest as
    preview templates (M5-18). First three lines on every page: Windows and Linux, local, no account, no telemetry.
-2. Root `LICENSE` (AGPL-3.0) and a licence map; `LICENSE` (MIT) in each plugin; `THIRD-PARTY-NOTICES.md` with
+2. Root `LICENSE` (AGPL-3.0) and a licence map; `LICENSE` (MIT) in each plugin; `THIRD_PARTY_NOTICES.md` with
    Electron and Chromium, xterm, node-pty, GSAP, and the OFL fonts with their licence text.
 3. GSAP: GSAP's standard licence has allowed free use in any project since 2025 (Webflow); confirm the current
    text in `vendor/gsap.min.js` permits redistribution inside an AGPL app. If it does not, replace the glide with
@@ -36,7 +36,7 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 C
 
 - M5-10a. A grep for the old literal path in `core/src` and `workbench/src` returns nothing; with `ask_paths` set to a folder, a session
   there starts in `ask` (the existing D46 tests pass against the setting).
-- M5-10b. Every folder that ships code holds a LICENSE, and THIRD-PARTY-NOTICES names every vendored file under
+- M5-10b. Every folder that ships code holds a LICENSE, and THIRD_PARTY_NOTICES names every vendored file under
   `workbench/renderer/vendor/`.
 - M5-10c. No README line says the installer, the wall or the plugins are unbuilt.
 

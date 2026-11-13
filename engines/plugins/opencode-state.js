@@ -1,3 +1,4 @@
+// Modified from herdr (https://github.com/herdrdev/herdr), Apache-2.0; changed for cc. See THIRD_PARTY_NOTICES.md.
 // Ouros state plugin for opencode, after herdr's opencode agent-state plugin (Apache-2.0).
 import { spawn } from 'node:child_process';
 

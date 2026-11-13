@@ -12,6 +12,7 @@ import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import { Automations } from './automations.jsx';
+import { marked } from 'marked';
 
 export const settingsStore = createStore({ data: null, section: 'general' });
 
@@ -19,7 +20,7 @@ const NAV = [
   { title: 'App', ids: ['general'] },
   { title: 'Agents', ids: ['reliability', 'savings', 'safety', 'automations'] },
   { title: 'Extend', ids: ['addons', 'notify'] },
-  { title: 'System', ids: ['advanced'] },
+  { title: 'System', ids: ['advanced', 'licences'] },
 ];
 
 const SECTIONS = [
@@ -89,7 +90,16 @@ const SECTIONS = [
   ] }, { title: 'Diagnostics', rows: [
     { run: () => api.openLogs(), button: 'Open', label: 'Logs folder' },
   ] }] },
+  { id: 'licences', label: 'Licences and trademarks', note: 'Third-party software in cc, and the trademarks of the engines it runs.', groups: [], body: Notices },
 ];
+
+function Notices() {
+  const [text, setText] = useState(undefined);
+  useEffect(() => { void api.notices().then(setText); }, []);
+  if (text === undefined) return null;
+  if (!text) return <Text color="secondary">THIRD_PARTY_NOTICES.md was not found next to the app.</Text>;
+  return <article className="ou-notices" dangerouslySetInnerHTML={{ __html: marked.parse(text) }} />;
+}
 
 const reload = async () => settingsStore.set({ data: await api.settingsPage() });
 const valueOf = (data, key) => key.split('.').reduce((o, k) => (o ? o[k] : undefined), data);
@@ -111,6 +121,7 @@ const NAV_ICON = {
   notify: Sc.BellIcon,
   advanced: Sc.TerminalIcon,
   automations: Ic.ScheduleIcon,
+  licences: Ic.LearnIcon,
 };
 const nav = (id, size = 16) => { const Nav = NAV_ICON[id]; return <Nav size={size} />; };
 

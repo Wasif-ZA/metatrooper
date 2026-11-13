@@ -99,6 +99,8 @@ globalThis.frameView = (() => {
   const I = (name, size = 16) => globalThis.ourosIcon?.(name, size) || '';
   const cw = () => globalThis.ccWords;
   const engineText = (id) => esc(cw()?.engineName(id) ?? id ?? '');
+  const mark = (id) => `<span class="fthmk">${globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 14) : ''}</span>`;
+  const engineHtml = (id) => `<span class="feng">${mark(id)}<span class="fengn">${engineText(id)}</span></span>`;
   const statusHtml = (x) => {
     const w = cw();
     const key = w ? w.statusOf(x) : 'running';
@@ -145,7 +147,7 @@ globalThis.frameView = (() => {
     const sel = k.id === selectedId();
     return `<button class="fthkid${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(k.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${k.model || k.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(k.model || k.engine_id)}, ${esc(words)}">`
       + `<span class="fth1"><span class="ft">${esc(name)}</span><span class="fthtime">${esc(ago(k.state_at || k.started_at))}</span></span>`
-      + `<span class="fth2">${statusHtml(k)}<span class="fthsep">·</span><span class="fthmks">${engineText(k.engine_id)}</span></span></button>`;
+      + `<span class="fth2">${statusHtml(k)}<span class="fthsep">·</span>${engineHtml(k.engine_id)}</span></button>`;
   }
 
   function threadHtml(t, rows) {
@@ -154,7 +156,8 @@ globalThis.frameView = (() => {
     const words = cw()?.statusWord(x) ?? x.state;
     const sel = x.id === selectedId();
     const when = esc(ago(x.state_at || x.started_at));
-    const engines = esc(cw()?.engineList([x, ...t.kids].map((k) => k.engine_id)) ?? x.engine_id);
+    const crew = [x, ...t.kids];
+    const engines = crew.slice(0, 3).map((k) => mark(k.engine_id)).join('') + (crew.length > 3 ? `<span class="fthmore">+${crew.length - 3}</span>` : '');
     const open = openKids.has(x.id);
     const n = t.kids.length;
     const toggle = n ? `<button class="fthx" data-kids="${esc(x.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${n} sub-agent${n === 1 ? '' : 's'} of ${esc(name)}" title="${n} sub-agent${n === 1 ? '' : 's'}">${I('chevronRight', 14)}</button>` : '';
@@ -224,7 +227,7 @@ globalThis.frameView = (() => {
     el.innerHTML = [...by.entries()].map(([provider, list]) => {
       const rows = list.slice().sort((a, b) => ORDER.indexOf(a.window) - ORDER.indexOf(b.window));
       const top = rows.reduce((a, b) => (pctOf(b) > pctOf(a) ? b : a));
-      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${engineText(provider)}</span><span class="fbar"><i style="width:${pctOf(top)}%"></i></span><span class="fmeta fslot"><b>${pctOf(top)}%</b> ${esc(whenOf(top))}</span></div>`;
+      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${engineHtml(provider)}</span><span class="fbar"><i style="width:${pctOf(top)}%"></i></span><span class="fmeta fslot"><b>${pctOf(top)}%</b> ${esc(whenOf(top))}</span></div>`;
     }).join('');
   }
 

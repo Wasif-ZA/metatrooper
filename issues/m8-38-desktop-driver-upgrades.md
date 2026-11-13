@@ -52,5 +52,5 @@ messages. The spec promises an honest refusal, not a fix.
 
 - **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Codex writes the tests for any part Claude builds, and the other way round.
-- Record any mechanism taken from an Apache-2.0 source in `THIRD-PARTY-NOTICES.md`.
+- Record any mechanism taken from an Apache-2.0 source in `THIRD_PARTY_NOTICES.md`.
 - No em dashes; comments say what the code does, not why.

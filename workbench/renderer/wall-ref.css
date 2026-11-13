@@ -1,3 +1,4 @@
+/* Modified from herdr (https://github.com/herdrdev/herdr), Apache-2.0; changed for cc. See THIRD_PARTY_NOTICES.md. */
 /* Wall in the herdr layout: thin top bar, workspace + agents sidebar, bordered panes, no strip. */
 :root[data-view="wall"]:not(.side-rail) { --side: 205px; }
 :root[data-view="wall"] { --top: 36px; }

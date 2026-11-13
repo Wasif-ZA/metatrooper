@@ -353,7 +353,7 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 | `core/`, `workbench/`, `sandbox/`, and anything without its own file (root `LICENSE`) | AGPL-3.0-only |
 | `sdk/`, `plugins/*/`, `skills/`, `engines/`, `router/` | MIT |
 | `contracts/` | MIT for the public formats listed in `contracts/LICENSE-MIT`; the rest follows the root licence |
-| Third-party code and fonts in the app | their own licences, listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) |
+| Third-party code and fonts in the app | their own licences, listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) |
 
 Security reports: [`SECURITY.md`](SECURITY.md). Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md). Changes:
 [`CHANGELOG.md`](CHANGELOG.md).

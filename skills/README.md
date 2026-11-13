@@ -38,4 +38,4 @@ Copied unchanged. Each folder keeps its upstream licence file.
 | `skill-creator` | anthropics/skills at dbd4588 | Apache-2.0 |
 
 To refresh a vendored skill, copy its folder again from the upstream commit and update the commit
-here and in `THIRD-PARTY-NOTICES.md`.
+here and in `THIRD_PARTY_NOTICES.md`.

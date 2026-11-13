@@ -155,3 +155,12 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 /* Usage meters: the engine's name, then its bar. */
 .fusage { grid-template-columns: max-content 48px minmax(0, 1fr); column-gap: var(--sp-2); }
 .fuse .fmk { width: auto; height: 18px; font-size: 11.5px; color: color-mix(in srgb, var(--ink) 70%, var(--canvas-deep)); }
+
+/* Engine logos: alone in tight spots, beside the name where there is room. */
+.fthmks { flex: none; display: inline-flex; align-items: center; gap: 2px; overflow: visible; }
+.fthmk { width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
+.fthmk svg { width: 14px; height: 14px; }
+.fthmore { font-size: 10.5px; color: var(--mute); }
+.feng { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.fengn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fuse .fmk .feng { gap: 6px; }

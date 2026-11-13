@@ -1,3 +1,4 @@
+// Modified from herdr (https://github.com/herdrdev/herdr), Apache-2.0; changed for cc. See THIRD_PARTY_NOTICES.md.
 'use strict';
 
 // Wall sidebar: numbered workspaces, then the agents in this one. Glyphs and state colours from herdr (Apache-2.0), src/client/shell.rs status_icon/status_color.
