@@ -30,7 +30,7 @@
 .fshelfh:hover { background: var(--canvas); color: var(--ink); }
 .fshelfh .fl { flex: 1; }
 .fcount { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--mute); }
-.fchev { display: grid; place-items: center; color: var(--mute); transition: transform 150ms ease-out; }
+.fchev { display: grid; place-items: center; color: var(--mute); transition: transform var(--ease-fast); }
 .fshelfh[aria-expanded="true"] .fchev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .fchev { transition: none; } }
 
@@ -71,7 +71,7 @@
 .fthw { position: relative; display: flex; flex-direction: column; }
 .fthw.haskids .fth3 { padding-right: 22px; }
 .fthx:hover { background: var(--canvas); color: var(--ink); }
-.fthx svg { transition: transform 150ms ease-out; }
+.fthx svg { transition: transform var(--ease-fast); }
 .fthx[aria-expanded="true"] svg { transform: rotate(90deg); }
 .fthx:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
 .fthkids { display: flex; flex-direction: column; gap: 1px; margin: 2px 8px 4px 22px; padding-left: 6px; border-left: 1px solid var(--hairline); }
