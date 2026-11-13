@@ -46,8 +46,8 @@ function commentHarness() {
   d.exec("CREATE TABLE session (id TEXT, project_id TEXT, host TEXT); INSERT INTO session VALUES ('s1', 'p1', 'local'), ('s2', 'p2', 'local'), ('s3', 'p1', 'external')");
   const calls: any[] = [];
   const c: any = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; }, db: () => d, view: { projectId: 'p1' }, namedPaths,
-    formatComment, schedulePush() {}, result: { kind: 'reply', reply: { result: { sent: true } } },
-    call: async (...args: any[]) => { calls.push(args); return c.result; } });
+    formatComment, schedulePush() {}, ulid: () => 'C1', result: { ok: true, comment_id: 'C1', copied: false },
+    saveComment: async (...args: any[]) => { calls.push(args); return c.result; } });
   const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
   const code = source.match(/  on\('comment', async[^]*?\n  \}\);/);
   assert.ok(code);
@@ -95,17 +95,14 @@ test('preload exposes comment IPC', async () => {
   assert.deepEqual(calls, [['comment', { ...args, session_id: 's1' }]]);
 });
 
-test('comment IPC formats in main and preserves core refusal and offline errors', async () => {
+test('fix 10: comment IPC formats in main and saves a comment row, so a waiting agent gets it too', async () => {
   const h = commentHarness();
   try {
     const args = { session_id: 's1', path: 'a.ts', line: 1, text: 'hi\nthere' };
     assert.equal((await h.send(args)).ok, true);
-    assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), [['session.send', { session_id: 's1', text: 'hi / there / File: a.ts:1 (new side)' }, { ui: true }]]);
-    const message = 'the session is waiting on a person; only the user can answer it';
-    h.c.result = { kind: 'reply', reply: { error: { code: -32602, message } } };
-    assert.equal((await h.send({ ...args, projectId: 'p1' })).error, message);
-    h.c.result = { kind: 'offline' };
-    assert.equal((await h.send(args)).error, 'The core is offline.');
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), [['C1', 's1', 'diff-line', '[comment C1] hi / there / File: a.ts:1 (new side)', null]]);
+    h.c.result = { ok: false, error: 'disk full' };
+    assert.equal((await h.send(args)).error, 'disk full');
   } finally { h.close(); }
 });
 

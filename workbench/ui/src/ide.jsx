@@ -997,7 +997,7 @@ export async function diffSides(st, t) {
   return patchSides(t.diff, t.text);
 }
 
-const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid && x.state !== 'exited' && !ui.pendingHide.has(x.id))
+const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid && x.host !== 'external' && x.state !== 'exited' && !ui.pendingHide.has(x.id))
   .sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')));
 const agentName = (id) => ui.snap.sessions.find((x) => x.id === id)?.engine_id || 'the agent';
 

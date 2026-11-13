@@ -363,15 +363,11 @@ function handlers(): void {
     if (!namedPaths([c.path]) || typeof c.line !== 'number' || !Number.isSafeInteger(c.line) || c.line < 1 ||
         (c.endLine !== undefined && (typeof c.endLine !== 'number' || !Number.isSafeInteger(c.endLine) || c.endLine < c.line)) ||
         (c.side !== undefined && c.side !== 'old' && c.side !== 'new') || (c.excerpt !== undefined && typeof c.excerpt !== 'string')) return { ok: false, error: 'Pick a file and line.' };
-    try {
-      const out = await call('session.send', { session_id: c.session_id, text: formatComment(c) }, { ui: true });
-      schedulePush();
-      if (out.kind !== 'reply') return { ok: false, error: 'The core is offline.' };
-      const err = out.reply.error;
-      return err ? { ok: false, error: err.message } : { ok: true };
-    } catch (e) {
-      return { ok: false, error: String((e as Error)?.message || e) };
-    }
+    // a comment row, like a Wall diff note, so an agent that is waiting for you still gets it in its next prompt
+    const id = ulid();
+    const r = await saveComment(id, c.session_id, 'diff-line', `[comment ${id}] ${formatComment(c)}`, null);
+    schedulePush();
+    return r;
   });
 
   on('pickFolder', async () => {
