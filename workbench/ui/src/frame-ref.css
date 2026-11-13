@@ -9,8 +9,8 @@
 .fsearchrow .fic { width: 28px; height: 28px; }
 
 .fagents { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
-.fthreads { display: flex; flex-direction: column; gap: 2px; }
-.fth { flex: none; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0 8px; padding: 8px; border-radius: 8px; color: var(--body); text-align: left; }
+.fthreads { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0; min-height: 0; padding-top: var(--sp-1); overflow-y: auto; scrollbar-width: none; }
+.fth { flex: none; display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: 0; color: var(--body); text-align: left; }
 .fth:hover { background: var(--canvas); }
 .fth.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); }
 .fth:focus-visible, .fshelfh:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
@@ -24,7 +24,7 @@
 .fthbr { flex: 1; }
 .fthmks { flex: none; display: inline-flex; align-items: center; gap: 2px; }
 
-.fshelves { margin-top: auto; padding-top: 8px; }
+.fshelves { flex: none; max-height: 60%; margin-top: auto; padding-top: var(--sp-3); overflow-y: auto; scrollbar-width: none; }
 .fshelf { display: flex; flex-direction: column; gap: 2px; }
 .fshelfh { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 8px; padding: 0 8px; border-radius: 6px; color: var(--body); font-size: 14px; text-align: left; }
 .fshelfh:hover { background: var(--canvas); color: var(--ink); }
@@ -34,7 +34,7 @@
 .fshelfh[aria-expanded="true"] .fchev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .fchev { transition: none; } }
 
-.fusage { border-top: 0; }
+.fusage { grid-template-columns: max-content 48px minmax(0, 1fr); column-gap: var(--sp-2); row-gap: 6px; border-top: 0; }
 .ffoot { flex-direction: row; align-items: center; gap: 2px; padding: 6px 8px 8px; border-top: 0; }
 .ffoot button { width: 32px; height: 32px; margin: 0; padding: 0; justify-content: center; color: var(--mute); }
 .ffoot button:hover { color: var(--ink); }
@@ -65,9 +65,8 @@
 .ou-hm-paneltog:hover, .ou-hm-paneltog[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
 .ou-hm-paneltog:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
 
-/* Round 3: darker status colours in light, sub-agent rows, shelves from the top. */
+/* Round 3: darker status colours in light, sub-agent rows. */
 :root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #a16207; }
-.fshelves { margin-top: 0; padding-top: 2px; }
 .fthw { position: relative; display: flex; flex-direction: column; }
 .fthw.haskids .fth3 { padding-right: 22px; }
 .fthx:hover { background: var(--canvas); color: var(--ink); }
@@ -82,29 +81,22 @@
 @media (prefers-reduced-motion: reduce) { .fthx svg { transition: none; } }
 :root:is(.side-rail, .side-auto) .frame :is(.fthx, .fthkids) { display: none; }
 .fslot { font-size: 11px; }
-.fusage { grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); row-gap: 6px; }
 header.title .ou-hm-head .ou-hm-headtitle, .title .kpick#project-pick { font-family: var(--font-app); }
 header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 
 /* 9.5 round: Geist is the cc UI token; t3code sizes and weights on it. Shelves pinned above the footer, recent tasks on top. */
 .frame, .frame button { font-family: var(--font-app); }
-.fthreads { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
-.fshelves { margin-top: auto; padding-top: 8px; }
-.fth { padding: 11px 8px; }
 .fth2 .ft { font-weight: 400; color: color-mix(in srgb, var(--ink) 77%, var(--canvas-deep)); }
 .fth.sel .fth2 .ft, .fth:hover .fth2 .ft { color: var(--ink); }
 .fsearch { font-size: 14px; color: color-mix(in srgb, var(--ink) 83%, var(--canvas-deep)); }
 .fsearchrow .fpill, .tnav .fpill { top: -1px; right: -3px; height: 12px; min-width: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; font: 500 10.5px/12px var(--font-app); color: var(--mute); }
 .ffoot svg, .tnav svg, .fsearchrow svg, .fhead .ftog svg { width: 18px; height: 18px; stroke-width: 1.33; }
-.fusage { grid-template-columns: 14px 48px minmax(0, 1fr); column-gap: 8px; row-gap: 6px; }
 .fuse .fbar { width: 48px; }
 .fusage .fslot { font-size: 11px; }
 .fhead .ccmark, :root[data-theme='light'] .fhead .ccmark { font: 600 18px/1 var(--font-app); }
 :root { --top: 35px; }
 .fagents { overflow: hidden; scrollbar-gutter: auto; }
-.fthreads { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .fthreads::-webkit-scrollbar { width: 0; }
-.fshelves { flex: none; max-height: 60%; overflow-y: auto; scrollbar-width: none; }
 .fshelves::-webkit-scrollbar { width: 0; }
 
 /* 9.5 round 6: search row and thread list move down inside the sidebar; brighter small text. */
@@ -123,8 +115,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .ou-st-stopped { color: var(--mute); }
 
 /* Thread rows: title and time, then status, project and branch, then the engine names. */
-.fthreads { gap: 0; padding-top: var(--sp-1); }
-.fth { margin: 0; padding: var(--sp-2) var(--sp-3); gap: var(--sp-1); border-radius: 0; }
 .fth1, .fth2, .fth3 { gap: var(--sp-2); }
 .fth1 .ft { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: color-mix(in srgb, var(--ink) 80%, var(--canvas-deep)); }
 .fth.sel .fth1 .ft, .fth:hover .fth1 .ft { color: var(--ink); }
@@ -141,7 +131,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fthkid { flex-direction: column; align-items: stretch; gap: 2px; height: auto; padding: var(--sp-1) var(--sp-2); border-radius: 4px; }
 .fthkid .fth1 .ft { font-size: 13px; }
 .fthkid .fth2 { font-size: 11.5px; }
-.fshelves { padding-top: var(--sp-3); }
 .fshelf { gap: 0; }
 .fshelfh { margin: 0; padding: 0 var(--sp-3); border-radius: 0; }
 :root:is(.side-rail, .side-auto) .frame :is(.fth1, .fth3, .fthsep, .fthpn, .fthbr) { display: none; }
@@ -149,7 +138,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 :root:is(.side-rail, .side-auto) .fth .ou-st::before { width: 8px; height: 8px; background: currentColor; opacity: 1; }
 
 /* Usage meters: the engine's name, then its bar. */
-.fusage { grid-template-columns: max-content 48px minmax(0, 1fr); column-gap: var(--sp-2); }
 .fuse .fmk { width: auto; height: 18px; font-size: 11.5px; color: color-mix(in srgb, var(--ink) 70%, var(--canvas-deep)); }
 
 /* Engine logos: alone in tight spots, beside the name where there is room. */
