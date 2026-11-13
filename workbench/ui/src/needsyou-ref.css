@@ -69,6 +69,7 @@
 
 /* properties panel */
 .ou-inbox .ou-ny-props { width: 300px; }
+.ou-inbox .ou-ny-props[data-open="false"] { width: 0; border-left-width: 0; }
 .ou-inbox .ou-ny-props > * { min-width: 300px; }
 .ou-inbox .ou-ny-props-head { height: 48px; font-size: 14px; border-bottom: 1px solid var(--hairline); }
 .ou-inbox .ou-ny-props-body { padding: 8px 0 24px; }
@@ -173,6 +174,6 @@
 /* narrow window: the list slims and Properties floats over the item, under its bar */
 .ou-inbox { container-type: inline-size; position: relative; }
 @container (max-width: 1100px) {
-  .ou-inbox .ou-inbox-list { width: 280px; }
+  .ou-inbox .ou-inbox-list { width: 296px; }
   .ou-inbox .ou-ny-props { position: absolute; top: 48px; right: 0; bottom: 0; z-index: 3; height: auto; }
 }
