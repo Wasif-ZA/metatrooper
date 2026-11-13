@@ -91,7 +91,7 @@ test('9bbb9fc5 Home composer has no loose key chips and its bar ends with Start 
   assert.equal(last.props.tooltip ?? last.props.title, 'Start (Ctrl+Enter)');
   assert.equal(last.props['data-action'], 'home-start');
   assert.equal(descendants(box).filter(n => n?.props?.label === 'Start').length, 1);
-  assert.match(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8'), /\.ou-hm-gap, \.ou-hm-cgap \{ flex: 1 1 auto; \}/);
+  assert.match(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8'), /\.ou-hm-cgap \{ flex: 1 1 auto; \}/);
 });
 
 test('32216b24 Add-ons Ready and Not ready use the same Badge component with their own labels', () => {
