@@ -8,7 +8,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
+import { engineName, engineList, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
@@ -65,8 +65,6 @@ const prIcon = <PullRequest size={16} />;
 
 const projectOf = (x) => (ui.snap?.projects || []).find((p) => p.id === (x?.project_id || ui.projectId)) || null;
 const nameOf = (x) => (x.title && !/[\\/]/.test(x.title) ? x.title : '') || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
-const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
-const DONE_STATES = ['done', 'exited', 'idle'];
 
 const hostIcon = <Workspace size={16} />;
 const editorIcon = <OpenOnWall size={16} />;
@@ -76,7 +74,7 @@ const branchSmall = <Branch size={14} />;
 const circle = <StepOpen size={14} className="ou-hm-cbox" />;
 const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
-function StartBox({ ready }) {
+function StartBox({ ready, strip }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
   const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
@@ -121,6 +119,7 @@ function StartBox({ ready }) {
   const active = new Map([...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].map((x) => [x.id, x])).values().filter((x) => x.project_id === ui.projectId && ACTIVE_STATES.has(x.state)).toArray().length;
   return composer({
     className: 'ou-hm-composerwrap ou-hm-task',
+    strip,
     filled: Boolean(task.trim()),
     onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } },
     field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask an agent to do something. @ to mention files, / for commands" onChange={edit} />,
@@ -134,7 +133,7 @@ function StartBox({ ready }) {
       { label: more ? 'Hide branch and model' : 'Branch and model', onClick: () => setMore(!more) },
     ],
     engine: { id: chosen, model: model.trim(), options: [
-      { type: 'section', title: 'Agent', options: ready.map((e) => ({ value: e.id, label: e.id })) },
+      { type: 'section', title: 'Agent', options: ready.map((e) => ({ value: e.id, label: engineName(e.id) })) },
       { type: 'section', title: 'Model', options: [{ value: 'model:', label: 'Agent default' }, ...(models[chosen] || []).map((m) => ({ value: `model:${m}`, label: m })), { value: 'custom', label: 'Custom model...' }] },
     ], onChange: (v) => {
       if (v === 'custom') { setMore(true); return; }
@@ -146,7 +145,7 @@ function StartBox({ ready }) {
       edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
     },
-    ring: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
+    status: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
     context: [
       { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
@@ -169,14 +168,8 @@ const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', is
 const ACTIVE_STATES = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
-const statusOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
-  : isWorking(k) ? 'running'
-    : k.state === 'failed' || /fail/.test(String(k.outcome || '')) ? 'failed'
-      : k.state === 'exited' && /cancel/.test(String(k.outcome || '')) ? 'stopped'
-        : DONE_STATES.includes(k.state) ? 'completed' : 'running');
-const STATUS_WORD = { running: 'Running', waiting: 'Waiting', completed: 'Completed', failed: 'Failed', stopped: 'Stopped' };
-export const progressOf = (k) => ({ running: 'working', waiting: 'waiting', completed: 'done', failed: 'failed', stopped: 'done' })[statusOf(k)];
-const settled = (k) => ['completed', 'failed', 'stopped'].includes(statusOf(k));
+const settled = (k) => ['done', 'failed', 'stopped'].includes(statusOf(k));
+const Status = ({ k }) => <span className={`ou-st ou-st-${statusOf(k)}`}>{STATUS_WORD[statusOf(k)]}</span>;
 
 // From t3code (MIT), apps/web/src/components/chat/AgentElapsed.tsx
 function formatElapsedSeconds(totalSeconds) {
@@ -195,50 +188,24 @@ const elapsedOf = (list) => {
   return formatElapsedSeconds(((ends.length ? Math.max(...ends) : Date.now()) - Math.min(...starts)) / 1000);
 };
 
-// From t3code (MIT), packages/client-runtime/src/state/subagentDisplay.ts (waiting counted on its own)
 export function countSubagentStatuses(statuses) {
-  const counts = { working: 0, waiting: 0, done: 0, failed: 0, stopped: 0 };
-  for (const status of statuses) {
-    if (status === 'running') counts.working += 1;
-    else if (status === 'waiting') counts.waiting += 1;
-    else if (status === 'completed') counts.done += 1;
-    else if (status === 'failed') counts.failed += 1;
-    else counts.stopped += 1;
-  }
-  return Object.keys(counts).filter((key) => counts[key] > 0).map((key) => [key, counts[key]]);
+  return Object.keys(STATUS_WORD).map((key) => [key, statuses.filter((s) => s === key).length]).filter(([, n]) => n > 0);
 }
-export const summarizeSubagentStatuses = (statuses) => countSubagentStatuses(statuses).map(([key, n]) => `${n} ${key}`).join(' · ');
+export const summarizeSubagentStatuses = (statuses) => countSubagentStatuses(statuses).map(([key, n]) => `${n} ${STATUS_WORD[key].toLowerCase()}`).join(' · ');
 
 function StatusCounts({ statuses }) {
   const parts = countSubagentStatuses(statuses);
-  return <span className="ou-hm-tsum">{parts.map(([key, n], i) => <span key={key}>{i ? ' · ' : ''}<span className={`ou-hm-c-${key}`}>{n} {key}</span></span>)}</span>;
+  return <span className="ou-hm-tsum">{parts.map(([key, n], i) => <span key={key}>{i ? ' · ' : ''}<span className={`ou-st-${key}`}>{n} {STATUS_WORD[key].toLowerCase()}</span></span>)}</span>;
 }
 
 const detailOf = (k) => String((settled(k) ? k.reason || k.last_line : k.last_line || k.reason) || '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
-const tipOf = (k) => [nameOf(k), [k.model || k.engine_id, STATUS_WORD[statusOf(k)], elapsedOf([k])].filter(Boolean).join(' · '), detailOf(k)].filter(Boolean).join('\n');
+const tipOf = (k) => [nameOf(k), [engineName(k.engine_id), k.model, STATUS_WORD[statusOf(k)], elapsedOf([k])].filter(Boolean).join(' · '), detailOf(k)].filter(Boolean).join('\n');
 
 const press = (fn) => ({
   role: 'button', tabIndex: 0,
   onClick: (e) => { e.stopPropagation(); fn(); },
   onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); fn(); } },
 });
-
-function Avatar({ k, status = true }) {
-  if (!status) return <span className="ou-hm-av" aria-hidden="true"><EngineMark id={k.engine_id} size={14} title={k.engine_id} /></span>;
-  return (
-    <span className="ou-hm-mark" aria-hidden="true">
-      <Ring k={k} size={12} />
-      <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
-    </span>
-  );
-}
-
-function Ring({ k, size = 12, className }) {
-  const st = stepsOf(k);
-  const s = statusOf(k);
-  return <ProgressRing state={progressOf(k)} done={st?.done} total={st?.total} size={size} className={className} title={STATUS_WORD[s]} />;
-}
-const Dot = ({ k }) => <Ring k={k} size={14} className="ou-hm-dot" />;
 
 function Steps({ st }) {
   return (
@@ -254,12 +221,11 @@ function SlimRow({ k, lead, openList, toggle }) {
   const open = Boolean(st) && openList.includes(key);
   const doing = detailOf(k);
   return (
-    <li className={`ou-hm-slim${lead ? ' ou-hm-lead' : ''}`} data-id={k.id} data-progress={progressOf(k)}>
+    <li className={`ou-hm-slim${lead ? ' ou-hm-lead' : ''}`} data-id={k.id} data-status={statusOf(k)}>
       <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
-        <Avatar k={k} />
         <span className="ou-hm-slimtext">
           <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
-          <span className="ou-hm-slimsub">{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
+          <span className="ou-hm-slimsub"><Status k={k} /><span className="ou-hm-eng">{engineName(k.engine_id)}</span>{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
       </div>
       {st ? <Drop open={open} className="ou-hm-drop ou-hm-slimsteps-list"><Steps st={st} /></Drop> : null}
@@ -274,12 +240,8 @@ function Trigger({ x, kids, open, toggle }) {
   const summary = summarizeSubagentStatuses(statuses);
   return (
     <div className="ou-hm-trigger" data-active={working || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(() => toggle(x.id))}>
-      <span className="ou-hm-stack" aria-hidden="true">
-        {kids.slice(0, 3).map((k) => <Avatar key={k.id} k={k} status={false} />)}
-        {kids.length > 3 ? <span className="ou-hm-av ou-hm-more">+{kids.length - 3}</span> : null}
-      </span>
       <span className="ou-hm-ttext">
-        <span className="ou-hm-tlabel">{label}</span>
+        <span className="ou-hm-tline"><span className="ou-hm-tlabel">{label}</span><span className="ou-hm-eng">{engineList(kids.map((k) => k.engine_id))}</span></span>
         <StatusCounts statuses={statuses} />
       </span>
       <span className="ou-hm-elapsed">{elapsedOf(kids)}</span>
@@ -294,7 +256,7 @@ function TaskView({ x, kids, openList, toggle }) {
   const send = async () => {
     const t = answer.trim();
     if (!t || !here) return;
-    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${x.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
+    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${engineName(x.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
@@ -305,15 +267,15 @@ function TaskView({ x, kids, openList, toggle }) {
   const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const s = statusOf(x);
   const stop = async () => {
-    try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
+    try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${engineName(x.engine_id)} to stop`); } catch (err) { toast(String(err?.message || err), true); }
   };
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
       {x.prompt ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
-          <Ring k={x} size={14} />
-          <span>{settled(x) ? 'Worked for' : s === 'waiting' ? 'Waiting for you after' : 'Working for'} {elapsedOf([x])}</span>
+          <Status k={x} />
+          <span className="ou-hm-worktime">{settled(x) ? 'after' : 'for'} {elapsedOf([x])}</span>
           {st ? <span className="ou-hm-chevbox" data-open={workOpen ? 'true' : 'false'}>{chev}</span> : null}
         </div>
         {st ? <Drop open={workOpen} className="ou-hm-drop ou-hm-worklist"><Steps st={st} /></Drop> : null}
@@ -334,7 +296,6 @@ function TaskView({ x, kids, openList, toggle }) {
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">
-            <span className="ou-hm-waitspin" aria-hidden="true" />
             <span className="ou-hm-waitlabel">Waiting on {pending.length} {pending.length === 1 ? 'subagent' : 'subagents'}</span>
             <span className="ou-hm-waitnames">{pending.map(nameOf).join(', ')}</span>
             {isWorking(x) || pending.some(isWorking) ? <button type="button" className="ou-hm-stop" title="Interrupt the orchestrator (sends Esc)" onClick={stop}><Stop size={12} />Stop</button> : null}
@@ -450,9 +411,8 @@ function RailCard({ sel, kids }) {
             <PanelSection title={lineageTitle(kids)} heading>
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
-                  <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
-                    <span className="ou-hm-bare"><EngineMark id={k.engine_id} size={16} title={k.engine_id} /><span className={`ou-hm-avdot ou-hm-st-${statusOf(k)}`} /></span>
-                    <span className="ou-hm-plabel">{nameOf(k)}</span>
+                  <li key={k.id} className="ou-hm-prow ou-hm-pclick ou-hm-linrow" data-status={statusOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
+                    <span className="ou-hm-lintext"><span className="ou-hm-plabel">{nameOf(k)}</span><span className="ou-hm-linmeta"><Status k={k} /><span className="ou-hm-eng">{engineName(k.engine_id)}</span></span></span>
                     <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
                   </li>
                 ))}
@@ -525,7 +485,7 @@ export function Home() {
   if (task && !selected) ui.homeSel = task.id;
   if (!task && selected !== '') ui.homeSel = '';
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
-  const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
+  const composer = ready.length ? <StartBox ready={ready} strip={Boolean(task)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
     <div className={`ou-home ou-hm${task && details ? '' : ' ou-hm-solo'}`}>
       <div className="ou-hm-main">

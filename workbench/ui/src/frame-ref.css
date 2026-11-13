@@ -17,18 +17,13 @@
 .fth:focus-visible, .fshelfh:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
 .fth1, .fth2, .fth3 { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .fth1 { font-size: 12.5px; color: var(--mute); }
-.fthproj { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; }
 .fthpn, .fthbr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fthtime { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mute); }
-.fthwait { color: var(--wait); }
 .fth2 .ft { flex: 1; min-width: 0; font-size: 14.5px; color: var(--ink); }
 .fth.fgone .fth2 .ft { color: var(--body); }
 .fth3 { min-height: 14px; font-size: 12px; color: var(--mute); }
 .fthbr { flex: 1; }
 .fthmks { flex: none; display: inline-flex; align-items: center; gap: 2px; }
-.fthmk { width: 14px; height: 14px; display: grid; place-items: center; }
-.fthmk svg { width: 14px; height: 14px; }
-.fthmore { font-size: 10.5px; color: var(--mute); }
 
 .fshelves { margin-top: auto; padding-top: 8px; }
 .fshelf { display: flex; flex-direction: column; gap: 2px; }
@@ -71,15 +66,11 @@
 .ou-hm-paneltog:hover, .ou-hm-paneltog[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
 .ou-hm-paneltog:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
 
-/* Round 3: rings read as progress (14px, 2px stroke, visible track), darker status colours in light, sub-agent rows, shelves from the top. */
-.fring, .ftree .fring { width: 14px; height: 14px; color: var(--body); }
-.ouros-ring { stroke-width: 2; }
-.ouros-ring circle[stroke-opacity] { stroke-opacity: .32; }
+/* Round 3: darker status colours in light, sub-agent rows, shelves from the top. */
 :root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #a16207; }
 .fshelves { margin-top: 0; padding-top: 2px; }
 .fthw { position: relative; display: flex; flex-direction: column; }
 .fthw.haskids .fth3 { padding-right: 22px; }
-.fthx { position: absolute; right: 12px; top: 49px; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--mute); cursor: pointer; }
 .fthx:hover { background: var(--canvas); color: var(--ink); }
 .fthx svg { transition: transform 150ms ease-out; }
 .fthx[aria-expanded="true"] svg { transform: rotate(90deg); }
@@ -89,7 +80,6 @@
 .fthkid:hover { background: var(--canvas); }
 .fthkid.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); }
 .fthkid .ft { flex: 1; min-width: 0; font-size: 13px; }
-.fthkid .fthmk { flex: none; }
 @media (prefers-reduced-motion: reduce) { .fthx svg { transition: none; } }
 :root:is(.side-rail, .side-auto) .frame :is(.fthx, .fthkids) { display: none; }
 .fslot { font-size: 11px; }
@@ -118,14 +108,50 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fshelves { flex: none; max-height: 60%; overflow-y: auto; scrollbar-width: none; }
 .fshelves::-webkit-scrollbar { width: 0; }
 
-/* 9.5 round 6: search row and thread list move down inside the sidebar; brighter small text; 16px ring box draws a 14px ring. */
+/* 9.5 round 6: search row and thread list move down inside the sidebar; brighter small text. */
 .fsec.fsearchrow { margin-top: 25px; }
 .fth1, .fth3 { color: color-mix(in srgb, var(--ink) 63%, var(--canvas-deep)); }
-.fthwait { color: var(--hm-waiting); }
-.fring, .ftree .fring, .fring svg { width: 16px; height: 16px; }
 .fcore { padding: 4px; cursor: default; }
 .fthreads { padding-top: 5px; }
 
-/* 9.5 round 8: hollow waiting mark in the sidebar time; chip line 2px higher. */
-.fthwait::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 4px 1px 0; border: 1.5px solid currentColor; border-radius: 50%; vertical-align: middle; }
 .fthreads { padding-top: 3px; }
+
+/* Spacing scale and status words, shared by the sidebar and Home. A status is a word; colour only reinforces it. */
+:root { --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px; }
+.ou-st { display: inline-flex; flex: none; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.ou-st::before { content: ''; width: 6px; height: 6px; flex: none; background: var(--mute); opacity: .7; }
+.ou-st-running { color: var(--hm-working, #e3b341); }
+.ou-st-waiting { color: var(--hm-waiting, #f0a429); }
+.ou-st-done { color: var(--hm-done, #3fb950); }
+.ou-st-failed { color: var(--hm-failed, #f0524f); }
+.ou-st-stopped { color: var(--mute); }
+
+/* Thread rows: title and time, then status, project and branch, then the engine names. */
+.fthreads { gap: 0; padding-top: var(--sp-1); }
+.fth { margin: 0; padding: var(--sp-2) var(--sp-3); gap: var(--sp-1); border-radius: 0; }
+.fth1, .fth2, .fth3 { gap: var(--sp-2); }
+.fth1 .ft { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: color-mix(in srgb, var(--ink) 80%, var(--canvas-deep)); }
+.fth.sel .fth1 .ft, .fth:hover .fth1 .ft { color: var(--ink); }
+.fth1 .fthtime { color: color-mix(in srgb, var(--ink) 55%, var(--canvas-deep)); }
+.fth2, .fth3 { font-size: 12px; color: color-mix(in srgb, var(--ink) 60%, var(--canvas-deep)); }
+.fth2 .fthpn, .fth2 .fthbr { flex: 0 1 auto; }
+.fth2 .fthbr { flex: 0 10 auto; }
+.fthsep { flex: none; gap: 0; color: var(--mute); }
+.fth2 { gap: 6px; }
+.fthmks { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.fthw.haskids .fth3 { padding-right: var(--sp-4); }
+.fthx { position: absolute; right: var(--sp-3); top: 48px; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--mute); cursor: pointer; }
+.fthkids { gap: 0; margin: 0 0 var(--sp-1) var(--sp-3); padding-left: 0; }
+.fthkid { flex-direction: column; align-items: stretch; gap: 2px; height: auto; padding: var(--sp-1) var(--sp-2); border-radius: 4px; }
+.fthkid .fth1 .ft { font-size: 13px; }
+.fthkid .fth2 { font-size: 11.5px; }
+.fshelves { padding-top: var(--sp-3); }
+.fshelf { gap: 0; }
+.fshelfh { margin: 0; padding: 0 var(--sp-3); border-radius: 0; }
+:root:is(.side-rail, .side-auto) .frame :is(.fth1, .fth3, .fthsep, .fthpn, .fthbr) { display: none; }
+:root:is(.side-rail, .side-auto) .fth .ou-st { font-size: 0; gap: 0; }
+:root:is(.side-rail, .side-auto) .fth .ou-st::before { width: 8px; height: 8px; background: currentColor; opacity: 1; }
+
+/* Usage meters: the engine's name, then its bar. */
+.fusage { grid-template-columns: max-content 48px minmax(0, 1fr); column-gap: var(--sp-2); }
+.fuse .fmk { width: auto; height: 18px; font-size: 11.5px; color: color-mix(in srgb, var(--ink) 70%, var(--canvas-deep)); }

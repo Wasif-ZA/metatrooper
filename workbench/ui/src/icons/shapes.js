@@ -92,31 +92,6 @@ export function iconSvg(name, size = 16, title = '') {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 16 16" ${ATTRS} ${title ? `role="img" aria-label="${esc(title)}"` : 'aria-hidden="true"'} focusable="false">${title ? `<title>${esc(title)}</title>` : ''}${inner}</svg>`;
 }
 
-// One status palette with Home (.ou-hm --hm-*): working yellow, waiting orange, done green, failed red.
-export const STATUS_COLOURS = { working: 'var(--hm-working, #e3b341)', waiting: 'var(--hm-waiting, var(--wait, #f97316))', done: 'var(--hm-done, #3fb950)', failed: 'var(--hm-failed, #f0524f)' };
-
-/**
- * A progress ring (1.5 stroke): arc = done/total; state picks the colour and ending (done = full ring with a check, failed =
- * ring with an x, waiting with no total = full ring); working with no total = a still quarter arc.
- */
-export function progressRingSvg({ state, done = 0, total = 0, size = 14, title = '' }) {
-  const colour = STATUS_COLOURS[state] ?? 'currentColor';
-  const pct = total > 0 ? Math.max(0, Math.min(100, (done / total) * 100)) : 0;
-  const track = '<circle cx="7" cy="7" r="5.25" stroke="currentColor" stroke-opacity=".22"/>';
-  const paint = `style="stroke:${colour}"`;
-  const ring = (dash) => `<circle cx="7" cy="7" r="5.25" ${paint} pathLength="100" stroke-dasharray="${dash} 100" transform="rotate(-90 7 7)"/>`;
-  let body;
-  if (state === 'done') body = `${ring(100)}<path d="m4.75 7.1 1.5 1.5 3-3" ${paint}/>`;
-  else if (state === 'failed') body = `${ring(100)}<path d="m5.25 5.25 3.5 3.5m0-3.5-3.5 3.5" ${paint}/>`;
-  else if (total > 0) body = track + (pct > 0 ? ring(pct) : '');
-  else if (state === 'waiting') body = ring(100);
-  else body = track + ring(25);
-  const label = title || `${state}${total > 0 ? `, ${done} of ${total}` : ''}`;
-  return `<svg class="ouros-ring" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${body}</svg>`;
-}
-
 globalThis.ourosIcon = iconSvg;
-globalThis.progressRingSvg = progressRingSvg;
-globalThis.statusColours = STATUS_COLOURS;
 globalThis.projectIconHtml = projectIconHtml;
 globalThis.projectIconChoices = { PROJECT_COLOURS, PICK_ICONS };

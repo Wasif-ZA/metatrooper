@@ -2,7 +2,7 @@
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Selector } from '@astryxdesign/core/Selector';
-import { EngineMark, PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
+import { PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
 
 const plusIcon = <PlusIcon size={16} />;
 const expandIcon = <ExpandIcon size={20} />;
@@ -26,11 +26,11 @@ export function atRefs(text, paths, root) {
 }
 
 // A render function, not a component: callers keep their own labelled fields and the test harnesses see every control.
-export function composer({ field, opts, plus, attach, engine, send, context, ring, filled, className = '', onKeyDown }) {
+export function composer({ field, opts, plus, attach, engine, send, context, status, filled, strip = false, className = '', onKeyDown }) {
   const key = className.split(' ')[0] || 'cmp';
   const items = attach ? [{ label: 'Attach files', onClick: () => document.querySelector(`input[data-attach="${key}"]`)?.click() }, ...(plus || [])] : plus;
   return (
-    <div className={`ou-cmp-wrap ${className}`}>
+    <div className={`ou-cmp-wrap${strip ? ' ou-cmp-strip' : ''} ${className}`}>
       <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}
         onDragOver={attach ? (e) => e.preventDefault() : undefined} onDrop={attach ? (e) => { e.preventDefault(); attach(api.filePaths([...e.dataTransfer.files])); } : undefined}>
         {field}
@@ -40,11 +40,10 @@ export function composer({ field, opts, plus, attach, engine, send, context, rin
         <div className="ou-cmp-bar ou-hm-cbar">
           {items ? <DropdownMenu size="sm" menuWidth={200} items={items} renderTrigger={(p) => <IconButton {...p} size="sm" variant="ghost" icon={plusIcon} label="Add" />} /> : null}
           {engine?.readOnly ? (
-            <span className="ou-cmp-engine ou-cmp-ro" title={`Answering ${engineName(engine.id)}`}><EngineMark id={engine.id} size={16} /><b>{engineName(engine.id)}</b></span>
+            <span className="ou-cmp-engine ou-cmp-ro" title={`Answering ${engineName(engine.id)}`}><b>{engineName(engine.id)}</b></span>
           ) : engine ? (
             <span className="ou-cmp-engine">
               <Selector label="Agent" isLabelHidden size="sm" variant="ghost" placement="above" options={engine.options} value={engine.id} onChange={engine.onChange}
-                startIcon={<EngineMark id={engine.id} size={16} />}
                 renderValue={(o) => <span className="ou-cmp-pick"><b>{engineName(engine.id)}</b><span className="ou-cmp-model">{engine.model || 'default'}</span></span>} />
             </span>
           ) : null}
@@ -57,13 +56,7 @@ export function composer({ field, opts, plus, attach, engine, send, context, rin
           {context.filter(Boolean).map((c) => (c.gap ? <span key={c.key} className="ou-hm-cgap" /> : (
             <span key={c.key} className={`ou-cmp-item${c.plain ? ' ou-cmp-plain' : ''}${c.accent ? ' ou-cmp-accent' : ''}`} title={c.title}>{c.icon}{c.node || <span className="ou-cmp-text">{c.text}</span>}</span>
           )))}
-          {ring ? (
-            <svg className="ou-cmp-ring" data-state={ring.state} viewBox="0 0 16 16" width="16" height="16" role="status" aria-label={ring.label}>
-              <title>{ring.label}</title>
-              <circle className="ou-cmp-track" cx="8" cy="8" r="7" />
-              {ring.state === 'idle' ? null : <path className="ou-cmp-arc" d={ring.state === 'waiting' ? 'M8 1a7 7 0 0 1 0 14' : 'M8 1a7 7 0 0 1 7 7'} />}
-            </svg>
-          ) : null}
+          {status ? <span className="ou-cmp-status" data-state={status.state} role="status">{status.label}</span> : null}
         </div>
       ) : null}
     </div>

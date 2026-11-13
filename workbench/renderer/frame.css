@@ -26,21 +26,6 @@
 .fsec { flex: none; margin: 8px 8px 0; padding: 14px 10px 6px; border-top: 1px solid var(--hairline); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .fagents { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 8px; }
 .fagent { flex: none; height: 40px; font-size: 13px; }
-.fagent::before {
-  content: attr(data-mono);
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  font: 600 9px/1 var(--mono);
-  color: var(--body);
-  pointer-events: none;
-  z-index: 1;
-}
 .fdot {
   width: 20px;
   height: 20px;
@@ -142,7 +127,6 @@
 :root:is(.side-rail, .side-auto) .ftree .fst { position: absolute; right: 8px; top: 2px; }
 :root:is(.side-rail, .side-auto) :is(.fnav, .ffoot, .fnew) button, :root:is(.side-rail, .side-auto) .fagent { justify-content: center; padding: 0; }
 :root:is(.side-rail, .side-auto) .fagent { height: 32px; }
-:root:is(.side-rail, .side-auto) .fagent::before { left: 50%; transform: translate(-50%, -50%); }
 :root:is(.side-rail, .side-auto) .fsec { padding: 8px 0 0; font-size: 0; }
 :root:is(.side-rail, .side-auto) .fpill { position: absolute; top: 6px; right: 10px; width: 6px; height: 6px; min-width: 6px; padding: 0; font-size: 0; overflow: hidden; }
 
@@ -162,8 +146,6 @@
 .tcore.off { background: #ef4444; cursor: pointer; }
 .title .tnew { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: 6px; font-size: 13px; }
 
-/* Progress ring per agent row. */
-.fring { width: 14px; height: 14px; flex: none; display: inline-flex; color: var(--mute); }
 .search.icon-only:not(.open) { display: none; }
 
 /* Age shows on hover only, so titles use the full width. */
@@ -213,7 +195,6 @@
 .fwtb { padding-left: 32px; opacity: .7; }
 .ftree { gap: 8px; padding: 0 4px 0 calc(12px + var(--depth, 0) * 12px); }
 .ftree .ft { font-size: 13px; font-weight: 400; }
-.fring { width: 12px; height: 12px; }
 .ftree .fmk { width: 16px; height: 16px; }
 .fst.done { --st: var(--hm-done, #3fb950); }
 .fst.work { --st: var(--hm-working, #e3b341); }

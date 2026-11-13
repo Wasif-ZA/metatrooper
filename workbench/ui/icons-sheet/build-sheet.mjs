@@ -12,7 +12,6 @@ const groups = [
   ['Priority', ['None', 'Low', 'Medium', 'High', 'Urgent']],
   ['Properties', ['Parent', 'SubTasks', 'BlockedBy', 'Blocking', 'Reviewer', 'Approver', 'Monitor', 'Workspace', 'Branch', 'Service', 'RunLedger', 'Label', 'Assignee', 'Project']],
   ['Actions', ['Answer', 'HandOver', 'Approve', 'Reject', 'NewSubTask', 'OpenOnWall', 'PanelToggle']],
-  ['Engines', ['claude', 'codex', 'gemini', 'other', 'fallback'].map(id => ({ name: `EngineMark / ${id}`, component: 'EngineMark', props: { id: id === 'other' ? 'ouros' : id === 'fallback' ? '' : id } }))],
   ['Empty state', ['NothingNeedsYou']],
 ];
 
@@ -42,11 +41,8 @@ const sections = groups.map(([name, items], index) => {
   return `<section><h2><span class="number">0${index + 1}</span>${name}<small>${items.length} marks</small></h2><div class="grid">${cards}</div></section>`;
 }).join('\n');
 
-// Check accessible title escaping and the engine mapping through the actual components.
+// Check accessible title escaping through the actual components.
 assert.match(svgFor('NeedsYou', 16, 'A & B'), /<title>A &amp; B<\/title>/);
-for (const [id, expected] of [['claude', 'C'], ['codex', 'X'], ['gemini', 'G'], ['ouros', 'O'], ['  ', '?']]) {
-  assert.match(svgFor({ component: 'EngineMark', props: { id } }, 16), new RegExp(`>${expected === '?' ? '\\?' : expected}<\\/text>`));
-}
 assert.equal(Object.keys(icons).length, 35, 'Public barrel should contain only the 35 requested components');
 const empty = renderToStaticMarkup(React.createElement(icons.NothingNeedsYou));
 assert.match(empty, /width="64" height="64"/);

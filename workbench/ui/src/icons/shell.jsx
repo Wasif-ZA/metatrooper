@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from './_icon.jsx';
-import { SHAPES, progressRingSvg, projectIconHtml } from './shapes.js';
+import { SHAPES, projectIconHtml } from './shapes.js';
 
 const shape = (name) => function ShellIcon({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><g dangerouslySetInnerHTML={{ __html: SHAPES[name] }} /></Icon>;
@@ -40,10 +40,6 @@ export const StepOpenIcon = shape('stepOpen');
 export const StopIcon = shape('stop');
 export const EngineIcon = shape('engine');
 
-/** The sidebar's progress ring: arc = done/total, coloured by state (working, waiting, done, failed). */
-export function ProgressRing({ state, done, total, size = 14, className, title }) {
-  return <span className={className} style={{ display: 'inline-flex', flex: 'none' }} dangerouslySetInnerHTML={{ __html: progressRingSvg({ state, done, total, size, title }) }} />;
-}
 
 /** A project's icon from snapshot projects[].icon (favicon, monogram, emoji or line icon); the same markup the sidebar draws. */
 export function ProjectIcon({ icon, size = 14, className }) {

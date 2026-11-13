@@ -313,7 +313,7 @@ function DetailAsk({ x }) {
     try {
       await troop.termInput(x.id, textToSend + '\r');
       setAnswer('');
-      toast(`Sent to ${x.engine_id}`);
+      toast(`Sent to ${Ic.engineName(x.engine_id)}`);
     } catch (err) {
       toast(String((err && err.message) || err), true);
     }
@@ -323,9 +323,10 @@ function DetailAsk({ x }) {
       {composer({
         filled: Boolean(here && answer.trim()),
         onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing && e.target?.tagName === 'TEXTAREA') { e.preventDefault(); void send(); } },
-        field: <AnswerArea label="Answer" isLabelHidden rows={2} placeholder={here ? `Answer ${x.engine_id || 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} isDisabled={!here} />,
+        field: <AnswerArea label="Answer" isLabelHidden rows={2} placeholder={here ? `Answer ${x.engine_id ? Ic.engineName(x.engine_id) : 'the agent'}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} isDisabled={!here} />,
         engine: x.engine_id ? { id: x.engine_id, readOnly: true } : undefined,
-        ring: { state: x.state === 'waiting_for_you' ? 'waiting' : ['working', 'starting', 'unknown'].includes(x.state) ? 'active' : 'idle', label: x.state === 'waiting_for_you' ? `${x.engine_id || 'The agent'} is waiting for you` : `${x.engine_id || 'The agent'} is ${x.state || 'idle'}` },
+        strip: true,
+        status: { state: Ic.statusOf(x), label: Ic.statusWord(x) },
         attach: here ? (paths) => setAnswer(atRefs(answer, paths, ui.snap?.projects?.find((p) => p.id === (x.project_id || ui.projectId))?.path)) : undefined,
         send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
         context: [
@@ -628,7 +629,7 @@ export function Inbox() {
       >
         <div className="ou-ny-row-main">
           <span className="ou-ititle"><span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
-          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap"><StatusRing status={st} size={14} /></span>}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
+          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap"><StatusRing status={st} size={14} /></span>}<span>{who ? `${Ic.engineName(who)} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
           <StatusRing status={st} />
@@ -698,7 +699,7 @@ export function Inbox() {
               <span className="ou-ny-sub-n">{i + 1}.</span>
               <span className="ou-ny-mono ou-ny-sub-id">{sid(x.id)}</span>
               <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{nameOf(x)}</button>
-              <span className="ou-ny-muted">{x.engine_id}</span>
+              <span className="ou-ny-muted">{Ic.engineName(x.engine_id)}</span>
               <span className="ou-ny-row-age">{ago(x.state_at || x.started_at) || ''}</span>
             </li>
           ))}
@@ -712,11 +713,11 @@ export function Inbox() {
       <div className="ou-ny-h">Activity</div>
       <ol className="ou-ny-thread">
         {sessionObj ? (
-          <li className="ou-ny-event"><Avatar name={engine} /><span><b>{engine || 'An agent'}</b> started this</span><span className="ou-ny-muted">{ago(sessionObj.started_at || sessionObj.state_at) || ''}</span></li>
+          <li className="ou-ny-event"><Avatar name={engine} /><span><b>{engine ? Ic.engineName(engine) : 'An agent'}</b> started this</span><span className="ou-ny-muted">{ago(sessionObj.started_at || sessionObj.state_at) || ''}</span></li>
         ) : null}
         {activeRow.isSession && item.state === 'waiting_for_you' ? (
           <li className="ou-ny-entry ou-ipane-question">
-            <div className="ou-ny-entry-head"><Avatar name={engine} /><span className="ou-ny-entry-who">{engine} asked</span><span className="ou-ny-muted">{ago(item.state_at) || ''}</span></div>
+            <div className="ou-ny-entry-head"><Avatar name={engine} /><span className="ou-ny-entry-who">{Ic.engineName(engine)} asked</span><span className="ou-ny-muted">{ago(item.state_at) || ''}</span></div>
             <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{item.last_line || taskOf(item)}</div>
           </li>
         ) : null}
@@ -767,7 +768,7 @@ export function Inbox() {
           </div>
         ))}
         {prop('Assignee', engine ? (
-          <span className="ou-ny-inline"><Avatar name={engine} big /><span>{engine}</span>
+          <span className="ou-ny-inline"><Avatar name={engine} big /><span>{Ic.engineName(engine)}</span>
             {sessionObj?.id ? <button type="button" className="ou-ny-arrow" aria-label={`Open ${engine} on the Wall`} title={`Open ${engine} on the Wall`} onClick={() => openOnWall(sessionObj)}>{I.arrow}</button> : null}
           </span>
         ) : none('Unassigned'))}
@@ -896,7 +897,7 @@ export function Inbox() {
                 </div>
                 <div className="ou-ny-chips ou-ny-top-chips ou-ny-meta">
                   {chip('status', <><StatusRing status={status} size={12} /><span>{WORD[status]}</span></>, `ou-ny-chip-${status}`)}
-                  {chip('assignee', engine ? <><Avatar name={engine} /><span>{engine}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
+                  {chip('assignee', engine ? <><Avatar name={engine} /><span>{Ic.engineName(engine)}</span></> : <span>Unassigned</span>, engine ? '' : 'ou-ny-chip-quiet')}
                   {chip('priority', <><PriorityIcon level={priority} /><span>{priority === 'none' ? 'No priority' : PRIORITIES.find(([v]) => v === priority)[1]}</span></>, priority === 'none' ? 'ou-ny-chip-quiet' : '')}
                   {projectName ? chip('project', <><span className="ou-ny-dot" style={projectColour ? { background: projectColour } : undefined} /><span>{projectName}</span></>) : null}
                   {userLabels.length ? userLabels.map((lbl) => chip('l-' + lbl, <><span className={`ou-ny-dot${labelColour(lbl) ? '' : ` ou-ny-tone-${toneOf(lbl)}`}`} style={labelColour(lbl) ? { background: labelColour(lbl) === 'var(--hairline-strong)' ? 'var(--mute)' : labelColour(lbl) } : undefined} /><span>{lbl}</span></>)) : chip('labels', <>{I.label}<span>No label</span></>, 'ou-ny-chip-quiet')}
