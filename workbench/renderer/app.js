@@ -425,6 +425,7 @@ function applyLook(look) {
   root.style.colorScheme = look.theme.scheme || 'dark';
   root.dataset.scheme = look.theme.scheme || 'dark';
   termView.setLook(look);
+  globalThis.ideTermLook?.();
   globalThis.setUiScheme?.();
 }
 

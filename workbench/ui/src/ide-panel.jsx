@@ -5,13 +5,16 @@ const shells = new Map();
 let listening = false;
 
 function look() {
-  const l = ui.settingsLook || { terminal: {}, theme: {} };
+  const l = ui.look || ui.settingsLook || { terminal: {}, theme: {} };
   const t = l.theme || {};
   return {
     fontFamily: t.font_mono, fontSize: l.terminal?.font_size || 14, letterSpacing: 0, lineHeight: 1.0,
     theme: { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: t.accent ? `${t.accent}55` : undefined },
   };
 }
+
+// renderer/app.js applyLook calls this so open Editor terminals take a new look.
+globalThis.ideTermLook = () => { for (const t of shells.values()) Object.assign(t.term.options, look()); };
 
 function listen() {
   if (listening) return;
