@@ -1,29 +1,27 @@
 // Inner markup of the sidebar and top bar icons on the set's 16 px grid (1.5 stroke, round caps and joins, currentColor),
 // shared by the React components (shell.jsx) and the plain-script screens (frame.js, app.js) through globalThis.ourosIcon.
+const FOLDER = '<path d="M2.5 4.5a1 1 0 0 1 1-1h3l1.5 2h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-7.5z"/>';
+const BOX = '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/>';
+
 export const SHAPES = {
   home: '<path d="M2.5 7 8 2.5 13.5 7v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M6.5 13.5v-4h3v4"/>',
   code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',
-  wall: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M8 2.5v11M2.5 8h11"/>',
+  wall: `${BOX}<path d="M8 2.5v11M2.5 8h11"/>`,
   inbox: '<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 9h3l1 1.5h3l1-1.5h3"/>',
   calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 7h11M5.5 2v3M10.5 2v3"/>',
   search: '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>',
   filter: '<path d="M2.5 4h11M4.5 8h7M6.5 12h3"/>',
-  folder: '<path d="M2.5 4.5a1 1 0 0 1 1-1h3l1.5 2h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-7.5z"/>',
-  folderAdd: '<path d="M2.5 4.5a1 1 0 0 1 1-1h3l1.5 2h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-7.5z"/><path d="M8 7.5v3.5M6.25 9.25h3.5"/>',
+  folder: FOLDER,
+  folderAdd: `${FOLDER}<path d="M8 7.5v3.5M6.25 9.25h3.5"/>`,
   pullRequest: '<circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="12.5" r="1.5"/><path d="M4.5 5v6M11.5 11V6.5a2 2 0 0 0-2-2H7.5m1.5-1.5L7.5 4.5 9 6"/>',
   plus: '<path d="M8 3.5v9M3.5 8h9"/>',
   chevronDown: '<path d="m4.5 6.5 3.5 3.5 3.5-3.5"/>',
-  panel: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M6 2.5v11"/>',
-  coreDot: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor"/>',
-  usage: '<path d="M2.75 11.5a5.25 5.25 0 1 1 10.5 0"/><path d="M8 11.5 10.5 7.5"/>',
+  panel: `${BOX}<path d="M6 2.5v11"/>`,
   addOns: '<path d="M6 2.5h4v3h3v4h-3v4H6v-4H3v-4h3z"/>',
   flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.75 2.75L11.5 8.5h-8"/>',
   settings: '<circle cx="8" cy="8" r="2"/><path d="M8 1.75v1.5M8 12.75v1.5M14.25 8h-1.5M3.25 8h-1.5M12.4 3.6l-1.06 1.06M4.66 11.34 3.6 12.4M12.4 12.4l-1.06-1.06M4.66 4.66 3.6 3.6"/><circle cx="8" cy="8" r="4.25"/>',
   chevronRight: '<path d="m6.5 4.5 3.5 3.5-3.5 3.5"/>',
-  orchestrator: '<rect x="5.5" y="2" width="5" height="3.5" rx="1"/><path d="M8 5.5V8M4 11V9a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="12.5" r="1.5"/>',
-  attach: '<path d="m13 7.5-5.25 5.25a3 3 0 0 1-4.25-4.25L9 3a2 2 0 0 1 2.85 2.85l-5.4 5.4a1 1 0 0 1-1.42-1.42L9.75 5.1"/>',
   options: '<path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6"/><circle cx="10" cy="4.5" r="1.5"/><circle cx="6" cy="11.5" r="1.5"/>',
-  send: '<path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/>',
   commit: '<circle cx="8" cy="8" r="2.5"/><path d="M1.5 8h4M10.5 8h4"/>',
   changes: '<path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-7z"/><path d="M9.5 2.5v3h3M8 6.75v3M6.5 8.25h3M6.5 11.25h3"/>',
   run: '<path d="M5 3.25v9.5a.5.5 0 0 0 .77.42l7.1-4.75a.5.5 0 0 0 0-.84l-7.1-4.75A.5.5 0 0 0 5 3.25z"/>',
@@ -36,7 +34,6 @@ export const SHAPES = {
   learn: '<path d="M8 4.25C6.75 3.25 4.75 3 2.5 3.25v9c2.25-.25 4.25 0 5.5 1 1.25-1 3.25-1.25 5.5-1v-9C11.25 3 9.25 3.25 8 4.25zM8 4.25v9"/>',
   stepOpen: '<circle cx="8" cy="8" r="5.5"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1.5"/>',
-  engine: '<path d="M8 2.5c.4 2.75 1.75 4.1 4.5 4.5-2.75.4-4.1 1.75-4.5 4.5-.4-2.75-1.75-4.1-4.5-4.5 2.75-.4 4.1-1.75 4.5-4.5zM12.5 11v2.5M11.25 12.25h2.5"/>',
   // Pickable project icons; the names follow Orca's repo icon picker (MIT), mobile/src/components/MobileRepoIcon.tsx, drawn in this set's style.
   terminal: '<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="m5 6.5 2 1.5-2 1.5M8.5 10h2.5"/>',
   bot: '<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 5.5V3M6 9v.5M10 9v.5M1.5 9v1.5M14.5 9v1.5"/><circle cx="8" cy="2.5" r=".5"/>',
@@ -45,7 +42,7 @@ export const SHAPES = {
   globe: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11"/><ellipse cx="8" cy="8" rx="2.5" ry="5.5"/>',
   server: '<rect x="2.5" y="2.5" width="11" height="4.5" rx="1"/><rect x="2.5" y="9" width="11" height="4.5" rx="1"/><path d="M5 4.75h.5M5 11.25h.5"/>',
   layers: '<path d="M8 2.5 13.5 5.5 8 8.5 2.5 5.5z"/><path d="m2.5 8.25 5.5 3 5.5-3M2.5 11 8 14l5.5-3"/>',
-  box: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/>',
+  box: BOX,
   braces: '<path d="M5.5 2.5c-1.5 0-2 .75-2 2v1.5c0 .75-.5 1.5-1.25 2 .75.5 1.25 1.25 1.25 2v1.5c0 1.25.5 2 2 2M10.5 2.5c1.5 0 2 .75 2 2v1.5c0 .75.5 1.5 1.25 2-.75.5-1.25 1.25-1.25 2v1.5c0 1.25-.5 2-2 2"/>',
   briefcase: '<rect x="2.5" y="5" width="11" height="8.5" rx="1.5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5M2.5 8.5h11"/>',
   building: '<path d="M3.5 13.5v-10a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10M10.5 7h1.5a1 1 0 0 1 1 1v5.5M2 13.5h12M6 5.5h1.5M6 8h1.5M6 10.5h1.5"/>',
@@ -83,7 +80,7 @@ export function projectIconHtml(icon, size = 14) {
 }
 
 const ATTRS = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
-const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+export const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 /** A whole SVG string for one icon; an unknown name gives ''. */
 export function iconSvg(name, size = 16, title = '') {
