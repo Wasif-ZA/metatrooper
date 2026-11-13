@@ -291,7 +291,6 @@ globalThis.frameView = (() => {
 
   /** One compact icon row (views, Automations, Search, Tasks), the Projects header and the usage meters, added to the static sidebar markup once. */
 
-  const projIcon = (id, size = 14) => (globalThis.projectIconHtml ? globalThis.projectIconHtml((ui.snap.projects || []).find((p) => p.id === id)?.icon, size) : I('folder'));
   // From t3code (MIT), apps/web/src/projectIconOptions.ts: the emoji offered for a project.
   const PROJECT_EMOJIS = ['💻', '🛠️', '🚀', '🤖', '✨', '⚡', '🌐', '📱', '🖥️', '⌨️', '⚙️', '🗄️', '☁️', '📦', '📚', '🧪', '🔒', '🎮', '🎵', '🎬', '🖼️', '🛍️', '🔥', '💡'];
 
