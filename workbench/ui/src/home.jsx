@@ -8,12 +8,11 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon } from './icons/index.js';
+import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { NOT_SENT, canStop } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
-import { PanelToggle } from './icons/index.js';
 import './home-ref.css';
 import './frame-ref.css';
 
@@ -93,6 +92,7 @@ function StartBox({ ready, strip }) {
   }, [chosen]);
 
   const start = async () => {
+    if (starting) return;
     setStarting(true);
     try { await launch(); } finally { setStarting(false); }
   };
@@ -143,7 +143,7 @@ function StartBox({ ready, strip }) {
       if (v.startsWith('model:')) { setModel(v.slice(6)); return; }
       ui.drafts['home-engine'] = v; setEngine(v); setModel('');
     } },
-    send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, onClick: start },
+    send: { label: 'Start', tooltip: 'Start (Ctrl+Enter)', 'data-action': 'home-start', 'data-engine': chosen, isDisabled: starting, onClick: start },
     attach: (paths) => {
       edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
@@ -206,7 +206,7 @@ const tipOf = (k) => [nameOf(k), [engineName(k.engine_id), k.model, STATUS_WORD[
 const press = (fn) => ({
   role: 'button', tabIndex: 0,
   onClick: (e) => { e.stopPropagation(); fn(); },
-  onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); fn(); } },
+  onKeyDown: (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); fn(); } },
 });
 
 function Steps({ st }) {
@@ -226,7 +226,7 @@ function SlimRow({ k, lead, openList, toggle }) {
     <li className={`ou-hm-slim${lead ? ' ou-hm-lead' : ''}`} data-id={k.id} data-status={statusOf(k)}>
       <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
         <span className="ou-hm-slimtext">
-          <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
+          <span className="ou-hm-slimname"><span className="ou-hm-slimlabel">{nameOf(k)}</span>{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
           <span className="ou-hm-slimsub"><Status k={k} /><Engine id={k.engine_id} />{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
       </div>
@@ -266,9 +266,8 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   const workKey = `work:${x.id}`;
   const workOpen = openList.includes(workKey);
   const pending = kids.filter((k) => !settled(k));
-  const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
+  const proj = projectOf(x)?.name || 'No project';
   const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
-  const s = statusOf(x);
   const stop = async () => {
     try { if (!(await troop.termInput(x.id, '\u001b'))) return toast(NOT_SENT, true); toast(`Asked ${engineName(x.engine_id)} to stop`); } catch (err) { toast(String(err?.message || err), true); }
   };
@@ -389,6 +388,7 @@ function PanelRow({ icon, label, value, onClick, chevron = false, mono = false, 
 
 function RailCard({ sel, kids }) {
   const [merging, setMerging] = useState(false);
+  const [busy, setBusy] = useState(false);
   const g = (sel && ui.snap?.git?.[sel.id]) || {};
   const branch = sel ? g.branch || sel.branch || null : null;
   const pr = g.pr || null;
@@ -412,7 +412,7 @@ function RailCard({ sel, kids }) {
               {pr ? (
                 <PanelRow icon={prIcon} label={`PR #${pr.number}`} onClick={pr.url && typeof openTermLink === 'function' ? () => openTermLink(pr.url) : undefined}
                   value={<span className={`ou-hm-checks ou-hm-ck-${pr.checks || 'none'}`}>{[pr.checks ? `checks ${pr.checks}` : null, String(pr.state || '').toLowerCase()].filter(Boolean).join(' · ')}</span>}>
-                  {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" variant="ghost" label="Merge" onClick={(e) => { e?.stopPropagation?.(); setMerging(true); }} /> : null}
+                  {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" variant="ghost" label="Merge" isLoading={busy} onClick={(e) => { e?.stopPropagation?.(); setMerging(true); }} /> : null}
                 </PanelRow>
               ) : null}
             </PanelSection>
@@ -436,7 +436,8 @@ function RailCard({ sel, kids }) {
           description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from cc.`} actionLabel="Merge"
           onAction={async () => {
             setMerging(false);
-            const r = await api.prMerge(sel.id);
+            setBusy(true);
+            const r = await Promise.resolve(api.prMerge(sel.id)).catch((err) => ({ error: String(err?.message || err) })).finally(() => setBusy(false));
             if (r && r.ok) toast(`Merged PR #${pr.number}`); else toast((r && r.error) || 'Could not merge', true);
           }} />
       ) : null}
