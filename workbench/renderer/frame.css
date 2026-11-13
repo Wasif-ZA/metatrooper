@@ -65,38 +65,20 @@
 .fagents::-webkit-scrollbar-track { background: transparent; }
 .fagents::-webkit-scrollbar-thumb { border-radius: 3px; background: var(--hairline); }
 .fagents:hover::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
-.fsrc { flex: none; display: grid; place-items: center; color: var(--mute); }
 .fsec.fprojects { display: flex; align-items: center; gap: 2px; padding: 12px 4px 4px 10px; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; }
 .fic { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 6px; color: var(--mute); }
 .fic:hover, .fic[aria-pressed="true"] { background: var(--canvas); color: var(--ink); }
 .fproj { flex: none; display: flex; align-items: center; gap: 8px; height: 28px; margin: 4px 8px 0; padding: 0 8px; border-radius: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-align: left; }
 .fproj .fi { color: var(--mute); }
 .fproj:hover { background: var(--canvas); }
-.fwt { flex: none; display: flex; flex-direction: column; margin: 2px 8px; padding: 4px 0; border-radius: 6px; }
-.ftree.sel { background: var(--canvas); }
-.ftree.sel .ft { color: var(--ink); }
-.fwthead { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; font-size: 13.5px; color: var(--ink); }
-.fwtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fwtb { padding: 0 8px 2px 32px; font: 12px var(--mono); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fsd { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--hairline-strong); }
-.fsd.wait { background: var(--wait); }
-.fsd.work { background: var(--ink); }
-.fsd.done { background: none; box-shadow: inset 0 0 0 1.5px var(--done); }
-.ftree { height: 28px; margin: 0; padding: 0 6px 0 calc(14px + var(--depth, 0) * 14px); gap: 4px; }
-.ftree .fmeta { margin-left: 2px; }
-.ftree .ft { font-size: 12.5px; }
 .fst { --st: var(--mute); width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
 .fst > span { width: 9px; height: 9px; border-radius: 50%; background: var(--st); }
-.fwthead .fst > span { width: 8px; height: 8px; }
 .fst.done { --st: #10b981; }
 .fst.work { --st: #eab308; }
 .fst.fail { --st: #ef4444; }
 .fst.wait { --st: #f97316; }
 .fst > span { opacity: 1; }
 .fmk { width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
-.fmono { font: 600 8px/1 var(--mono); color: var(--mute); }
-.ftree .ft { flex: 1; min-width: 0; }
-.ftree.fgone .ft { color: var(--mute); }
 .fmeta { flex: none; font: 11px var(--mono); color: var(--mute); }
 .fusage { flex: none; display: grid; grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); align-items: center; gap: 4px 6px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--hairline); }
 .fusage[hidden] { display: none; }
@@ -120,11 +102,8 @@
 
 :root:is(.side-rail, .side-auto) .fhead { height: auto; flex-direction: column; justify-content: flex-start; gap: 6px; padding: 10px 0 4px; }
 :root:is(.side-rail, .side-auto) .frame .brand { padding: 0; }
-:root:is(.side-rail, .side-auto) .frame :is(.brand b, .fl, .ftx, .ft, .fe, .fempty, .fmeta, .fsrc, .fwthead, .fwtb, .fic, .fusage) { display: none; }
-:root:is(.side-rail, .side-auto) .fwt { margin: 0; padding: 0; background: none; }
+:root:is(.side-rail, .side-auto) .frame :is(.brand b, .fl, .ftx, .ft, .fe, .fempty, .fmeta, .fic, .fusage) { display: none; }
 :root:is(.side-rail, .side-auto) .fproj { height: 1px; margin: 6px 12px; padding: 0; background: var(--hairline); }
-:root:is(.side-rail, .side-auto) .ftree { gap: 0; }
-:root:is(.side-rail, .side-auto) .ftree .fst { position: absolute; right: 8px; top: 2px; }
 :root:is(.side-rail, .side-auto) :is(.fnav, .ffoot, .fnew) button, :root:is(.side-rail, .side-auto) .fagent { justify-content: center; padding: 0; }
 :root:is(.side-rail, .side-auto) .fagent { height: 32px; }
 :root:is(.side-rail, .side-auto) .fsec { padding: 8px 0 0; font-size: 0; }
@@ -149,8 +128,6 @@
 .search.icon-only:not(.open) { display: none; }
 
 /* Age shows on hover only, so titles use the full width. */
-.ftree .fmeta { display: none; }
-.ftree:is(:hover, :focus-visible) .fmeta { display: inline; }
 .fuse .fbar { width: 18px; }
 
 /* cc wordmark in the sidebar head; project icons; the Change icon menu and panel. */
@@ -165,6 +142,7 @@
 .ficonpick .fprev { display: inline-flex; }
 .ftabs { display: flex; gap: 2px; padding: 8px 8px 0; }
 .ftabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--mute); font-size: 12px; }
+.ftabs button:hover { color: var(--ink); }
 .ftabs button[aria-selected="true"] { background: var(--canvas); color: var(--ink); }
 .fpickbody { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
 .flabel { display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 12px; }
@@ -179,7 +157,9 @@
 .fpickfoot { display: flex; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid var(--hairline); }
 .fpickfoot .sp { flex: 1; }
 .fpickfoot button { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-size: 12px; }
+.fpickfoot button:not(.fprimary):hover { background: var(--canvas); color: var(--ink); }
 .fpickfoot .fprimary { background: var(--ink); color: var(--canvas-deep); border-color: var(--ink); }
+.ficonpick[inert] .fpickfoot { opacity: .6; }
 :root:is(.side-rail, .side-auto) .fhead .ccmark { font-size: 13px; }
 .ficonmenu, .ficonmenu button, .ficonpick, .ficonpick button, .ficonpick .fghhead { font-family: var(--font-app); }
 
@@ -190,12 +170,6 @@
 .fsec.fprojects .fic { width: 28px; height: 28px; color: var(--mute); }
 .fproj { font-size: 13px; font-weight: 600; }
 .fproj .fi { width: 18px; }
-.fwt { margin: 2px 4px; }
-.fwthead { font-size: 13px; font-weight: 500; padding-left: 12px; gap: 8px; }
-.fwtb { padding-left: 32px; opacity: .7; }
-.ftree { gap: 8px; padding: 0 4px 0 calc(12px + var(--depth, 0) * 12px); }
-.ftree .ft { font-size: 13px; font-weight: 400; }
-.ftree .fmk { width: 16px; height: 16px; }
 .fst.done { --st: var(--hm-done, #3fb950); }
 .fst.work { --st: var(--hm-working, #e3b341); }
 .fst.fail { --st: var(--hm-failed, #f0524f); }
