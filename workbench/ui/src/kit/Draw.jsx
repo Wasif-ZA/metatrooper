@@ -7,12 +7,17 @@ import { Table } from '@astryxdesign/core/Table';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { expand, isFallback } from './check.js';
+import PA from './parts-a.jsx';
+import PB from './parts-b.jsx';
+import PC from './parts-c.jsx';
 import './kit.css';
+
+const MORE = { ...PA, ...PB, ...PC };
 
 const TONE = { plain: 'primary', mute: 'secondary', ok: 'accent', error: 'primary' };
 const LEVEL = { h1: 1, h2: 2 };
 
-function Plain({ f }) {
+export function Plain({ f }) {
   return (
     <div className="ou-drawn-plain" role="note">
       <Text type="label">{f.name}</Text>
@@ -43,7 +48,7 @@ function Grid({ p }) {
   );
 }
 
-function Part({ p }) {
+export function Part({ p }) {
   if (isFallback(p)) return <Plain f={p} />;
   switch (p.type) {
     case 'page': return <VStack gap={4}>{p.children.map((c, i) => <Part key={i} p={c} />)}</VStack>;
@@ -74,7 +79,10 @@ function Part({ p }) {
           {p.actions.map((a, i) => (isFallback(a) ? <Plain key={i} f={a} /> : <Button key={i} label={a.label} variant={a.primary ? 'primary' : 'secondary'} />))}
         </ButtonGroup>
       );
-    default: return <Plain f={{ name: String(p.type), why: 'not drawn yet', text: '' }} />;
+    default: {
+      const X = MORE[p.type];
+      return X ? <Guard name={p.type}><X p={p} Part={Part} /></Guard> : <Plain f={{ name: String(p.type), why: 'not drawn yet', text: '' }} />;
+    }
   }
 }
 
