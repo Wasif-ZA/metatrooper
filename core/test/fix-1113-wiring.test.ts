@@ -64,3 +64,22 @@ test('fix 18: automation.list carries created_at so Newest can sort', { timeout:
     assert.match(String(list.result.automations[0].created_at), /^\d{4}-\d\d-\d\dT/);
   } finally { await c.close(); }
 });
+
+test('fix 26: a read-only settings.json gives a plain message and leaves no temp file', async () => {
+  const { mkdtempSync, writeFileSync: write, chmodSync, readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'fix26-'));
+  const before = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = home;
+  try {
+    const { setSetting } = await import('../src/settings.ts');
+    write(join(home, 'settings.json'), JSON.stringify({ sessions: { approval: 'ask' } }));
+    chmodSync(join(home, 'settings.json'), 0o444);
+    assert.throws(() => setSetting('ui', 'toast_ms', 4000), /^Error: settings\.json is read-only or open in another program/);
+    assert.deepEqual(readdirSync(home), ['settings.json']);
+  } finally {
+    process.env.METATROOPER_HOME = before;
+    try { chmodSync(join(home, 'settings.json'), 0o666); } catch {}
+    rmSync(home, { recursive: true, force: true });
+  }
+});

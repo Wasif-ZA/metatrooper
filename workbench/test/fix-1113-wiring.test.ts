@@ -50,3 +50,23 @@ test('fix 2: the termInput IPC attaches before giving up, and Home and Needs you
   assert.equal((home.match(/if \(!\(await troop\.termInput\([^)]*\)\)\) return toast\(NOT_SENT, true\)/g) || []).length, 2);
   assert.match(src('ui/src/inbox.jsx'), /if \(!\(await troop\.termInput\(x\.id, textToSend \+ '\\r'\)\)\) return toast\(NOT_SENT, true\);\s*setAnswer\(''\)/);
 });
+
+test('fix 26: merging with no gh on PATH says gh is missing', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { dirname } = await import('node:path');
+  const { mergePr } = await import('../src/rowgit.ts');
+  const repo = mkdtempSync(join(tmpdir(), 'fix26-gh-'));
+  const g = (...a: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...a], { stdio: 'pipe' });
+  g('init', '-q', '-b', 'main'); writeFileSync(join(repo, 'a'), 'a'); g('add', 'a'); g('commit', '-qm', 'a'); g('checkout', '-qb', 'feat');
+  const gitDir = dirname(execFileSync('where', ['git'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim());
+  const empty = join(repo, 'nobin'); mkdirSync(empty);
+  const path = process.env.PATH;
+  process.env.PATH = `${gitDir};${empty}`;
+  try {
+    assert.deepEqual(await mergePr(repo, null), { error: 'GitHub CLI (gh) is not installed or not on PATH' });
+  } finally {
+    process.env.PATH = path;
+    rmSync(repo, { recursive: true, force: true });
+  }
+});

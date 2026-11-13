@@ -68,6 +68,7 @@ export async function mergePr(cwd: string, demoFile: string | null): Promise<{ o
   if (!demoFile) {
     const r = await runOut('gh', cwd, ['pr', 'merge', branch, '--merge']);
     if (r.ok) fresh();
+    if (!r.ok && /ENOENT/.test(r.out)) return { error: 'GitHub CLI (gh) is not installed or not on PATH' };
     return r.ok ? { ok: true } : { error: r.out.split('\n')[0] || 'gh pr merge failed' };
   }
   const main = (await git(cwd, ['worktree', 'list', '--porcelain'])).match(/^worktree (.+)$/m)?.[1];

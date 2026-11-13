@@ -193,7 +193,13 @@ export function setSetting(section: string, key: string, value: unknown): void {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(tmp, file);
+  try {
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    const code = (e as NodeJS.ErrnoException).code;
+    throw new Error(code === 'EPERM' || code === 'EACCES' || code === 'EBUSY' ? 'settings.json is read-only or open in another program, so the change was not saved' : `settings.json was not saved: ${(e as Error).message}`);
+  }
   cache = null;
 }
 
