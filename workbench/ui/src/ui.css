@@ -37,8 +37,8 @@ html { font-size: 16px; }
 .ou-split { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .ou-actions { display: inline-flex; align-items: center; gap: 8px; flex: none; }
 /* Section labels: uppercase, tracked, muted (Paperclip dashboard). */
-.ou-col h2, .ou-group h3, .ou-navhead { margin: 0; font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
-.ou-col h2 { margin-bottom: -12px; }
+.ou-col h2:not(dialog h2), .ou-group h3, .ou-navhead { margin: 0; font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.ou-col h2:not(dialog h2) { margin-bottom: -12px; }
 .ou-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--hairline-strong); }
 .ou-dot-wait { background: var(--wait); }
 .ou-dot-work { background: var(--ink); }
