@@ -1,10 +1,11 @@
 /* Home: title in the bar, thread in the centre, a docked inspector on the right, the composer as a bottom strip. Spacing scale 4/8/16/24 (--sp-*). */
 .ou-home.ou-hm { grid-template-columns: minmax(0, 1fr) 300px; }
-.ou-hm-center, .ou-hm-rail, header.title .ou-hm-head .ou-hm-headtitle, .ou-hm-card .ou-hm-mono.ou-hm-plabel { font-family: 'Geist', 'Segoe UI', sans-serif; }
+.ou-hm-center, .ou-hm-rail, .ou-hm-card .ou-hm-mono.ou-hm-plabel { font-family: 'Geist', 'Segoe UI', sans-serif; }
 
 .ou-hm-head { display: inline-flex; align-items: center; gap: 10px; min-width: 0; margin-left: 2px; }
+header.title .ou-hm-head { flex: 0 1 auto; }
 .ou-hm-headsep { color: var(--mute); opacity: 0.7; font-size: 15px; }
-header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 400; line-height: 1; letter-spacing: 0; text-transform: none; color: var(--ink); }
+header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 14px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: 0; text-transform: none; color: var(--ink); }
 
 /* Waiting is amber, not the theme's orange. */
 :root, :root .ou-hm { --hm-waiting: #f0a429; }
@@ -22,16 +23,20 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-subs .ou-hm-trigger { padding: var(--sp-2) 0; gap: var(--sp-3); }
 .ou-hm-tline { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .ou-hm-tlabel { font-size: 13px; font-weight: 600; }
-.ou-hm-tsum { font-size: 12px; }
+.ou-hm-tsum { font-size: 12px; font-variant-numeric: tabular-nums; }
 .ou-hm-eng { display: inline-flex; flex: none; align-items: center; gap: var(--sp-1); font-size: 12px; font-weight: 400; color: var(--hm-quiet); white-space: nowrap; }
 .ou-hm-tline .ou-hm-eng { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ou-hm-eng > svg, .ou-hm-engs > svg { flex: none; }
 .ou-hm-engs { display: inline-flex; flex: none; align-items: center; gap: 2px; }
 .ou-hm-engs .ou-hm-more { font-size: 11px; color: var(--hm-quiet); margin-left: 2px; }
 .ou-hm-slimrow { padding: var(--sp-2) 0; }
+.ou-hm-slimtext { flex: 1 1 auto; }
+.ou-hm-slimlabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ou-hm-slimname > :not(.ou-hm-slimlabel) { flex: none; }
 .ou-hm-slimsub { align-items: center; gap: var(--sp-2); }
 .ou-hm-latest { margin: 0; font-size: 14px; font-weight: 400; color: color-mix(in srgb, var(--ink) 91%, var(--canvas-deep)); }
 .ou-hm-waiton { margin-top: var(--sp-2); gap: var(--sp-2); }
+:is(.ou-hm-worked, .ou-hm-slimrow)[role="button"]:active, .ou-hm-stop:active, .ou-hm-startitem:active, .ou-hm-pclick:active, .ou-hm-pact:active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
 
 /* Docked inspector */
 .ou-hm-rail { position: relative; align-self: stretch; height: 100%; min-height: 0; padding: 0; overflow-y: auto; border-left: 1px solid var(--hairline); background: var(--canvas-deep); }
@@ -46,7 +51,11 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-card .ou-hm-prow > .ou-hm-plabel:has(+ .ou-hm-pvalue .ou-hm-checks) { flex: none; }
 .ou-hm-card .ou-hm-checks { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-hm-card .ou-hm-prow > .ou-hm-pvalue:has(.ou-hm-checks) { flex: 1 1 auto; min-width: 0; text-align: right; }
-.ou-hm-card .ou-hm-prow > :last-child { flex: none; }
+.ou-hm-card .ou-hm-prow > :last-child:where(:not(.ou-hm-plabel)) { flex: none; }
+.ou-hm-card .ou-hm-pvalue { font-variant-numeric: tabular-nums; }
+/* The theme-aware greens and reds, so +/- counts and checks read on a light canvas too. */
+.ou-hm-card :is(.ou-hm-add, .ou-hm-ck-pass) { color: var(--hm-done); }
+.ou-hm-card :is(.ou-hm-del, .ou-hm-ck-fail) { color: var(--hm-failed); }
 .ou-hm-pact { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: auto; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mute); cursor: pointer; }
 .ou-hm-pact:hover { color: var(--ink); background: var(--row-hover); }
 .ou-hm-pact:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
@@ -63,3 +72,5 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 /* Composer strip */
 .ou-hm-dock { padding: 0; background: none; }
 .ou-hm-dock > .ou-hm-composerwrap { max-width: none; margin: 0; }
+.ou-hm .ou-cmp-status { font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .ou-hm .ou-cmp-ctx { gap: var(--sp-2); } }
