@@ -637,7 +637,7 @@ export function Inbox() {
         className={`ou-irow ${isUnread ? 'ou-unread' : ''} ${isSelected ? 'ou-irow-selected' : ''}`}
         tabIndex={0}
         role="button"
-        aria-selected={isSelected}
+        aria-pressed={isSelected}
         data-action={isSession ? 'pick' : 'inbox-open'}
         data-id={row.id}
         onClick={(e) => {
