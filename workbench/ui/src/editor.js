@@ -69,8 +69,8 @@ function theme() {
     return '#' + (a === 255 ? [r, g, b] : [r, g, b, a]).map((x) => x.toString(16).padStart(2, '0')).join('');
   };
   const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong',
-    'syn-keyword', 'syn-string', 'syn-number', 'syn-fn', 'syn-type', 'add-bg', 'del-bg'].map((k) => [k, hex(`var(--${k})`)]));
-  for (const k of ['add', 'del']) { c[`${k}-text`] = hex(`color-mix(in srgb, var(--${k}) 30%, transparent)`); c[`${k}-mark`] = hex(`color-mix(in srgb, var(--${k}) 50%, transparent)`); }
+    'syn-keyword', 'syn-string', 'syn-number', 'syn-fn', 'syn-type', 'ide-add-bg', 'del-bg'].map((k) => [k, hex(`var(--${k})`)]));
+  for (const [k, v] of [['add', 'ide-add'], ['del', 'del']]) { c[`${k}-text`] = hex(`color-mix(in srgb, var(--${v}) 30%, transparent)`); c[`${k}-mark`] = hex(`color-mix(in srgb, var(--${v}) 50%, transparent)`); }
   probe.remove();
   const fg = (k) => c[k].slice(1, 7);
   const dark = parseInt(fg('pane').slice(0, 2), 16) + parseInt(fg('pane').slice(2, 4), 16) + parseInt(fg('pane').slice(4, 6), 16) < 384;
@@ -103,10 +103,10 @@ function theme() {
       'editor.findMatchBackground': '#00000000', 'editor.findMatchBorder': c['hairline-strong'], 'editor.findMatchHighlightBorder': c.hairline,
       'editorWidget.background': c.canvas, 'editorWidget.border': c.hairline, 'editorHoverWidget.background': c.canvas, 'editorHoverWidget.border': c.hairline,
       'input.background': c['canvas-deep'], 'input.foreground': c.ink, 'input.border': c.hairline, 'focusBorder': c['hairline-strong'],
-      'diffEditor.insertedLineBackground': c['add-bg'], 'diffEditor.removedLineBackground': c['del-bg'],
+      'diffEditor.insertedLineBackground': c['ide-add-bg'], 'diffEditor.removedLineBackground': c['del-bg'],
       'diffEditor.insertedTextBackground': c['add-text'], 'diffEditor.removedTextBackground': c['del-text'],
       'diffEditorOverview.insertedForeground': c['add-mark'], 'diffEditorOverview.removedForeground': c['del-mark'],
-      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': c['add-bg'], 'diffEditorGutter.removedLineBackground': c['del-bg'],
+      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': c['ide-add-bg'], 'diffEditorGutter.removedLineBackground': c['del-bg'],
       ...(dark ? {
         'scrollbarSlider.background': '#79797933', 'scrollbarSlider.hoverBackground': '#64646459', 'scrollbarSlider.activeBackground': '#bfbfbf66',
         'editorOverviewRuler.border': '#00000000',
