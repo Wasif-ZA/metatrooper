@@ -38,6 +38,10 @@ if (typeof Document === 'function' && typeof document !== 'undefined' && documen
 }
 export const motionOn = () => Boolean(gsap) && !calm;
 
+const focusEl = (selector) => { if (typeof document !== 'undefined') document.querySelector(`.ou-inbox ${selector}`)?.focus(); };
+const focusSoon = (selector) => setTimeout(() => focusEl(selector));
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const errText = (r, fallback) => r?.error?.message || (typeof r?.error === 'string' ? r.error : fallback);
 const rowEl = (id) => (typeof document === 'undefined' ? null : document.querySelector(`.ou-inbox .ou-irow[data-id="${CSS.escape(id)}"]`));
 
 export function leaveRow(id, then) {
@@ -137,7 +141,8 @@ function Slide({ open, children }) {
     if (first.current) { first.current = false; return; }
     const el = ref.current;
     if (!el || !motionOn()) return;
-    gsap.fromTo(el, { width: open ? 0 : 280 }, { width: open ? 280 : 0, duration: 0.25, ease: open ? 'power2.out' : 'power2.inOut', overwrite: true, clearProps: 'width' });
+    const width = el.scrollWidth;
+    gsap.fromTo(el, { width: open ? 0 : width }, { width: open ? width : 0, duration: 0.25, ease: open ? 'power2.out' : 'power2.inOut', overwrite: true, clearProps: 'width' });
     if (open) gsap.fromTo(el.children, { opacity: 0 }, { opacity: 1, duration: 0.15, delay: 0.1, overwrite: true, clearProps: 'opacity' });
   }, [open]);
   return <aside className="ou-ny-props" ref={ref} data-open={open ? 'true' : 'false'} inert={!open}>{children}</aside>;
@@ -167,7 +172,6 @@ const I = {
   chev: <Ic.ChevronRightIcon size={12} className="ou-ny-gchev" />,
   branch: <Ic.Branch size={12} />,
   arrow: <Sc.ExternalLinkIcon size={12} />,
-  folder: <Ic.Workspace size={12} />,
   search: <Ic.Search size={14} />,
   label: <Ic.Label size={14} />,
 };
@@ -281,7 +285,7 @@ function formatCost(usd, usdEstimated, unpriced) {
 function RunLedger({ sessionId }) {
   const { value: data, error } = useRpcResult('usage.session', { session_id: sessionId }, sessionId, (res) => (res && res.result ? { value: res.result, error: false } : { value: null, error: true }));
   const total = data ? (Number(data.tokens_in) || 0) + (Number(data.tokens_out) || 0) : 0;
-  if (!sessionId || error || !data || total === 0) return <span className="ou-ny-muted" data-slot="run-ledger">{sessionId && !data && !error ? 'Loading usage.' : 'No usage yet'}</span>;
+  if (!sessionId || error || !data || total === 0) return <span className="ou-ny-muted" data-slot="run-ledger">{error ? 'Usage unavailable' : sessionId && !data ? 'Loading usage' : 'No usage yet'}</span>;
   return (
     <div className="ou-ny-ledger" data-slot="run-ledger">
       <div className="ou-ny-ledger-head">
@@ -304,19 +308,23 @@ const AnswerArea = ({ onEnter, ...props }) => <TextArea {...props} />;
 
 function DetailAsk({ x }) {
   const [answer, setAnswer] = useState('');
+  const [sending, setSending] = useState(false);
   const here = !x.project_id || x.project_id === ui.projectId;
   const projectName = ui.snap?.projects?.find((p) => p.id === x.project_id)?.name || 'another project';
   const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const send = async () => {
-    if (!here) return;
+    if (!here || sending) return;
     const textToSend = answer.trim();
     if (!textToSend) return;
+    setSending(true);
     try {
       if (!(await troop.termInput(x.id, textToSend + '\r'))) return toast(NOT_SENT, true);
       setAnswer('');
       toast(`Sent to ${Ic.engineName(x.engine_id)}`);
     } catch (err) {
       toast(String((err && err.message) || err), true);
+    } finally {
+      setSending(false);
     }
   };
   return (
@@ -329,7 +337,7 @@ function DetailAsk({ x }) {
         strip: true,
         status: { state: Ic.statusOf(x), label: Ic.statusWord(x) },
         attach: here ? (paths) => setAnswer(atRefs(answer, paths, ui.snap?.projects?.find((p) => p.id === (x.project_id || ui.projectId))?.path)) : undefined,
-        send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || !answer.trim(), onClick: send },
+        send: { size: 'sm', label: 'Send', tooltip: 'Send (Enter)', isDisabled: !here || sending || !answer.trim(), onClick: send },
         context: [
           { key: 'project', icon: <Ic.FolderIcon size={16} />, text: here ? ui.snap?.projects?.find((p) => p.id === ui.projectId)?.name || 'This project' : projectName },
           { key: 'machine', icon: <Ic.LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
@@ -389,11 +397,11 @@ const WORD = { needs: 'Needs you', working: 'Working', review: 'In review', fail
 async function write(method, params, apply, undo, failText) {
   apply();
   inboxStore.set({ tick: inboxStore.get().tick + 1 });
-  const r = await rpc(method, params);
+  const r = await rpc(method, params, true);
   if (!r || r.error) {
     undo();
     inboxStore.set({ tick: inboxStore.get().tick + 1 });
-    toast((r && r.error && r.error.message) || failText, true);
+    toast(errText(r, failText), true);
     return false;
   }
   return true;
@@ -480,6 +488,12 @@ export function Inbox() {
   };
   const toggleGroup = (key) => setCollapsed(key, !(inboxStore.get().collapsed || []).includes(key));
   const select = (id) => inboxStore.set({ selectedId: id });
+  const close = () => {
+    if (activeId && typeof document !== 'undefined' && document.activeElement?.closest('.ou-ipane, .ou-ny-props')) rowEl(activeId)?.focus();
+    select(null);
+  };
+  const goTo = (x) => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x));
+  const ringOf = (x) => (!x || DONE_STATES.includes(x.state) ? 'done' : blockedNow(x) ? 'blocked' : x.state === 'waiting_for_you' ? 'needs' : 'working');
   const step = (by) => {
     const at = visibleRows.findIndex((r) => r.id === activeId);
     const next = visibleRows[at + by];
@@ -534,15 +548,14 @@ export function Inbox() {
     if (!sessionObj.id) { sessionObj.labels = updated; inboxStore.set({ tick: inboxStore.get().tick + 1 }); return; }
     await write('session.labels-set', { session_id: sessionObj.id, labels: updated }, () => { sessionObj.labels = updated; }, () => { sessionObj.labels = before; }, 'Could not save labels');
   };
+  const closeLabel = () => { setAddingLabel(false); setNewLabel(''); focusSoon('.ou-ny-prop-labels .ou-ny-addpill'); };
   const handleAddLabel = async () => {
     const val = newLabel.trim().slice(0, 32);
-    const current = Array.isArray(sessionObj?.labels) ? sessionObj.labels : [];
-    setAddingLabel(false);
-    setNewLabel('');
-    if (!val || current.length >= 8 || current.includes(val)) return;
-    await saveLabels([...current, val]);
+    closeLabel();
+    if (!val || userLabels.length >= 8 || userLabels.includes(val)) return;
+    await saveLabels([...userLabels, val]);
   };
-  const handleRemoveLabel = (lbl) => saveLabels((Array.isArray(sessionObj?.labels) ? sessionObj.labels : []).filter((l) => l !== lbl));
+  const handleRemoveLabel = (lbl) => saveLabels(userLabels.filter((l) => l !== lbl));
   const setPriority = (value) => {
     const before = sessionObj.priority;
     return write('session.priority-set', { session_id: sessionObj.id, priority: value }, () => { sessionObj.priority = value; }, () => { sessionObj.priority = before; }, 'Could not set priority');
@@ -575,17 +588,16 @@ export function Inbox() {
     setSubDraft(null);
     const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: engine || (s.engines || [])[0]?.id, prompt, parent_id: sessionObj.id });
     if (r && r.result) toast('Sub-task started');
-    else toast((r && r.error && (r.error.message || r.error)) || 'Could not start the sub-task', true);
+    else if (inboxStore.get().selectedId === selectedId) setSubDraft(prompt);
   };
 
   const chip = (key, content, extra = '') => <span key={key} className={`ou-ny-chip ${extra}`}>{content}</span>;
   const sessionChip = (id, onRemove) => {
     const x = byId(id);
-    const st = !x ? 'done' : DONE_STATES.includes(x.state) ? 'done' : x.state === 'waiting_for_you' ? 'needs' : 'working';
     return (
       <span key={id} className="ou-ny-chip ou-ny-pill" title={x ? nameOf(x) : id}>
-        <StatusRing status={st} size={12} />
-        <button type="button" className="ou-ny-chip-link ou-ny-mono" onClick={() => allRows.some((r) => r.id === id) ? select(id) : x && openOnWall(x)}>{sid(id)}</button>
+        <StatusRing status={ringOf(x)} size={12} />
+        <button type="button" className="ou-ny-chip-link ou-ny-mono" onClick={() => x && goTo(x)}>{sid(id)}</button>
         {onRemove ? <button type="button" className="ou-ny-chip-remove" aria-label={`Remove ${x ? taskOf(x) : id}`} onClick={(e) => { e.stopPropagation(); onRemove(); }}>{I.close}</button> : null}
       </span>
     );
@@ -692,7 +704,7 @@ export function Inbox() {
           </div>
           <Bar key={sessionObj.id} done={subDone} total={children.length} />
         </div>
-        <div className="ou-ny-sub-state">{!children.length ? 'No sub-tasks yet' : subDone === children.length ? 'All sub-tasks done' : `${children.length - subDone} sub-task${children.length - subDone === 1 ? '' : 's'} open`}</div>
+        <div className="ou-ny-sub-state">{!children.length ? 'No sub-tasks yet' : subDone === children.length ? 'All sub-tasks done' : `${plural(children.length - subDone, 'sub-task')} open`}</div>
       </div>
       <div className="ou-ny-sub-tools">
         <Button size="sm" icon={I.plus} label="New sub-task" isDisabled={!sessionObj} onClick={() => setSubDraft('')} />
@@ -700,16 +712,16 @@ export function Inbox() {
       </div>
       {subDraft !== null ? (
         <TextInput size="sm" label="New sub-task" isLabelHidden placeholder={`Task for a new ${engine || 'agent'} sub-task, Enter starts it`} value={subDraft} onChange={setSubDraft} onEnter={launchSub} hasAutoFocus width="100%"
-          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSubDraft(null); } }} />
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSubDraft(null); focusSoon('.ou-ny-sub-tools .astryx-button'); } }} />
       ) : null}
       {subShown.length ? (
         <ul className="ou-ny-sub-list">
           {subShown.map((x, i) => (
-            <li key={x.id} className="ou-ny-sub-row" data-id={x.id}>
-              <StatusRing status={DONE_STATES.includes(x.state) ? 'done' : blockedNow(x) ? 'blocked' : x.state === 'waiting_for_you' ? 'needs' : 'working'} />
+            <li key={x.id} className="ou-ny-sub-row" data-id={x.id} onClick={() => goTo(x)}>
+              <StatusRing status={ringOf(x)} />
               <span className="ou-ny-sub-n">{i + 1}.</span>
               <span className="ou-ny-mono ou-ny-sub-id">{sid(x.id)}</span>
-              <button type="button" className="ou-ny-sub-title" onClick={() => (allRows.some((r) => r.id === x.id) ? select(x.id) : openOnWall(x))}>{nameOf(x)}</button>
+              <button type="button" className="ou-ny-sub-title">{nameOf(x)}</button>
               <span className="ou-ny-muted">{Ic.engineName(x.engine_id)}</span>
               <span className="ou-ny-row-age">{ago(x.state_at || x.started_at) || ''}</span>
             </li>
@@ -756,7 +768,7 @@ export function Inbox() {
     <>
       <div className="ou-ny-props-head">
         <span>Properties</span>
-        <IconButton size="sm" variant="ghost" icon={I.close} label="Hide properties" title="Hide properties" onClick={() => inboxStore.set({ props: false })} />
+        <IconButton size="sm" variant="ghost" icon={I.close} label="Hide properties" title="Hide properties" onClick={() => { focusEl('.ou-ny-bar [aria-pressed]'); inboxStore.set({ props: false }); }} />
       </div>
       <div className="ou-ny-props-body">
         {prop('Status', <span className="ou-ny-inline"><StatusRing status={status} size={12} /><span>{WORD[status]}</span></span>)}
@@ -770,7 +782,7 @@ export function Inbox() {
             {userLabels.map((lbl) => labelPill(lbl, () => handleRemoveLabel(lbl)))}
             {addingLabel ? (
               <TextInput size="sm" label="New label" isLabelHidden placeholder="Label, Enter adds" value={newLabel} onChange={setNewLabel} onEnter={handleAddLabel} hasAutoFocus width={140}
-                onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAddingLabel(false); setNewLabel(''); } }} />
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeLabel(); } }} />
             ) : (
               <button type="button" className="ou-ny-addpill" aria-label="Add label" disabled={!hasLabelsArray} title={!hasLabelsArray ? 'Labels need a core update' : undefined} onClick={() => setAddingLabel(true)}>
                 + Add label
@@ -789,7 +801,7 @@ export function Inbox() {
           </span>
         ) : none())}
         {prop('Parent', parent ? (
-          <button type="button" className="ou-ny-parent" title={taskOf(parent)} onClick={() => (allRows.some((r) => r.id === parent.id) ? select(parent.id) : openOnWall(parent))}>
+          <button type="button" className="ou-ny-parent" title={taskOf(parent)} onClick={() => goTo(parent)}>
             <span className="ou-ny-mono">{sid(parent.id)}</span> {taskOf(parent)} {I.arrow}
           </button>
         ) : none())}
@@ -849,16 +861,16 @@ export function Inbox() {
     <div
       className="ou-inbox"
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], input, textarea, select, [contenteditable]')) {
+        if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], [role="listbox"], [role="combobox"][aria-expanded="true"], input, textarea, select, [contenteditable]')) {
           e.preventDefault();
-          inboxStore.set({ selectedId: null });
+          close();
         }
       }}
     >
       <div className="ou-inbox-list">
         <header className="ou-inbox-head">
           <h1 className="ou-ny-title">Needs you</h1>
-          <span className="ou-ny-counts">{waitingAll().length} waiting {'·'} {workingSessions.length} working {'·'} {needsYou.length} notices</span>
+          <span className="ou-ny-counts">{waitingAll().length} waiting {'·'} {workingSessions.length} working {'·'} {plural(needsYou.length, 'notice')}</span>
         </header>
         <div className="ou-ny-filters" role="group" aria-label="Filter">
           <Selector size="sm" variant="ghost" label="Show" isLabelHidden value={filter} onChange={(v) => inboxStore.set({ filter: v })}
@@ -908,7 +920,7 @@ export function Inbox() {
                   onClick={() => (activeRow.isSession ? openOnWall(item) : openNotice(item))} />
               ) : null}
               <IconButton size="sm" variant="ghost" icon={I.panel} label={propsOpen ? 'Hide properties' : 'Show properties'} title={propsOpen ? 'Hide properties' : 'Show properties'} aria-pressed={propsOpen} onClick={() => inboxStore.set({ props: !propsOpen })} />
-              <IconButton size="sm" variant="ghost" icon={I.close} label="Close details" title="Close details" onClick={() => select(null)} />
+              <IconButton size="sm" variant="ghost" icon={I.close} label="Close details" title="Close details" onClick={close} />
             </div>
             <div className="ou-ny-body">
               <Swap k={activeId}>
@@ -945,7 +957,6 @@ export function Inbox() {
               setHandoverTarget(null);
               const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: chosen, prompt: sessionObj.prompt });
               if (r && r.result) toast(`Handed to ${chosen}`);
-              else toast((r && r.error && (r.error.message || r.error)) || 'Failed to hand over', true);
             }}
           />
         ) : null}
