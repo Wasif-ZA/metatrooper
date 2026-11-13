@@ -80,7 +80,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
-globalThis.ideView = { draw: () => { void syncDrawn(); return drawIde(); }, shown: ideShown, open: openAt, dirtyIn, dropProject };
+globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn, dropProject };
+globalThis.ideView.draw = () => { void syncDrawn(); return drawIde(); };
 globalThis.paletteView = paletteView;
 
 document.addEventListener('keydown', (e) => {

@@ -1,13 +1,16 @@
+import { useSyncExternalStore } from 'react';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Text } from '@astryxdesign/core/Text';
-import { createStore } from '../store.js';
 import { Drawn } from './Draw.jsx';
+import { CloseIcon } from '../icons/screens.jsx';
 
-const store = createStore({ tick: 0 });
+const subs = new Set();
+let tick = 0;
+const bump = () => { tick++; for (const fn of subs) fn(); };
+const useTick = () => useSyncExternalStore((fn) => { subs.add(fn); return () => subs.delete(fn); }, () => tick, () => tick);
 const states = new Map();
-const bump = () => store.set({ tick: store.get().tick + 1 });
 const of = (pid) => states.get(pid) || states.set(pid, { tabs: [], active: null, seen: new Map(), fresh: true }).get(pid);
 
 /** Reads the surfaces the snapshot names for the open project and opens or refreshes one tab each; a closed tab stays closed until the agent redraws it. */
@@ -32,7 +35,7 @@ export async function syncDrawn() {
 
 /** The drawn screens over the editor area; the Files tab hands the area back to the editor. */
 export function DrawnTabs({ pid }) {
-  store.use();
+  useTick();
   const st = states.get(pid);
   if (!st || !st.tabs.length) return null;
   const cur = st.tabs.find((t) => t.id === st.active);
@@ -44,7 +47,7 @@ export function DrawnTabs({ pid }) {
         <TabList size="sm" layout="hug" overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v || null; bump(); }}>
           {st.tabs.map((t) => (
             <Tab key={t.id} value={t.id} label={t.title} title={t.title}
-              endContent={<IconButton size="sm" variant="ghost" label={`Close ${t.title}`} onClick={(e) => { e.stopPropagation(); close(t.id); }} />} />
+              endContent={<IconButton size="sm" variant="ghost" label={`Close ${t.title}`} icon={<CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); close(t.id); }} />} />
           ))}
         </TabList>
         <Button size="sm" variant="ghost" label="Back to files" onClick={() => { st.active = null; bump(); }} />
