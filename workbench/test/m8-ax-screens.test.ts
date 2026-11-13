@@ -509,7 +509,7 @@ for (const [kind, id, rowLabel, rowAction] of [
   assert.equal(stopped, 1); assert.equal(focused, 1);
   assert.equal(inboxStore.get().selectedId, id);
   h.draw();
-  assert.equal(h.one((n: any) => n.type === 'li' && n.props['data-id'] === id).props['aria-selected'], true);
+  assert.equal(h.one((n: any) => n.type === 'li' && n.props['data-id'] === id).props['aria-pressed'], true);
   assert.equal(textContent(h.one(hasClass(kind === 'waiting' ? 'ou-ipane-task' : 'ou-ipane-noticetext'))), rowLabel);
 });
 

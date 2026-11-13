@@ -134,7 +134,7 @@ test('ad63319c clicking an answer row selects its question without opening the W
   asks(); const h = harness(Inbox); h.draw();
   h.one(row('s-b')).props.onClick(event());
   const markup = h.html();
-  assert.equal(h.one(row('s-b')).props['aria-selected'], true);
+  assert.equal(h.one(row('s-b')).props['aria-pressed'], true);
   assert.equal(text(h.one(hasClass('ou-ipane-lastline'))), 'Which branch for beta?');
   assert.ok(markup.includes('Which branch for beta?')); assert.ok(!markup.includes('Which branch for alpha?'));
   assert.equal(g.ui.view, 'inbox'); assert.deepEqual(calls.filter(c => ['pick', 'view'].includes(c[0])), []);
