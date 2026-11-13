@@ -922,7 +922,7 @@ function SourceControl({ st }) {
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
           <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
-          <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: commit }))}
+          <DropdownMenu size="sm" menuWidth={160} items={[{ label: 'Commit staged', isDisabled: !canCommit, onClick: commit }]}
             renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
         </div>
       </div>
