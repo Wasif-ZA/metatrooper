@@ -74,7 +74,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'automation.set', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"|"edits"|"contained", id?}', result: '{id, next_due}; `approval` is the woken agent\'s approval level (null or missing means ask); `cron` is a 5-field local-time cron that wins over `every_min` (default 60); a non-empty `script` (relative to the project folder) is hashed and pinned on every save, run on schedule, and wakes the engine only when it exits 1; an empty script launches the engine on schedule; unknown labels are created with a default colour' },
   { name: 'automation.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{id, enabled}', result: '{}; enabling restarts the schedule from now' },
   { name: 'automation.delete', needsUi: true, errors: [E.INVALID_PARAMS], params: '{id}', result: '{}; its runs go too' },
-  { name: 'automation.list', params: '{project_id?}', result: '{automations: [{id, project_id, name, icon, cron, words, every_min, runner, script, engine_id, prompt, approval, timeout_ms, enabled, next_due, labels: [{name, colour}], runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]}; `words` is the schedule in words' },
+  { name: 'automation.list', params: '{project_id?}', result: '{automations: [{id, project_id, name, icon, cron, words, every_min, runner, script, engine_id, prompt, approval, timeout_ms, enabled, next_due, created_at, labels: [{name, colour}], runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]}; `words` is the schedule in words' },
   { name: 'automation.run', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{id}', result: '{run_id, outcome, session_id, detail}; runs it now (check script, then the engine on exit 1, or the engine straight away when it has no script) and records an automation_run; the schedule is unchanged; -32003 when it is already running' },
   { name: 'automation.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{id, names: string[]}', result: '{labels: [{name, colour}]}; replaces its labels; unknown names are created with a default colour' },
   { name: 'label.list', params: '{}', result: '{labels: [{name, colour, count}]}; every label across sessions and automations; `count` is how many use it' },
@@ -604,7 +604,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const id = str(p, 'session_id');
       if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
-      const row = db.prepare('SELECT id, session_id, parent_id, at, cwd, summary, files, transcript FROM handoff WHERE session_id = ? ORDER BY at DESC LIMIT 1').get(id) as
+      const row = db.prepare('SELECT id, session_id, parent_id, at, cwd, summary, files, transcript FROM handoff WHERE session_id = ? ORDER BY julianday(at) DESC LIMIT 1').get(id) as
         | { id: string; session_id: string; parent_id: string | null; at: string; cwd: string | null; summary: string | null; files: string; transcript: string | null }
         | undefined;
       return { handoff: row ? { ...row, files: JSON.parse(row.files) } : null };
@@ -1079,7 +1079,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         automations: rows.map((a) => ({
           id: a.id, project_id: a.project_id, name: a.name, icon: a.icon ?? null, cron: a.cron ?? null,
           words: a.cron ? cronWords(a.cron as string) : `Every ${a.every_min} min`, every_min: a.every_min, runner: JSON.parse(a.runner as string), script: a.script,
-          engine_id: a.engine_id, prompt: a.prompt, approval: a.approval ?? null, timeout_ms: a.timeout_ms, enabled: a.enabled === 1, next_due: a.next_due, labels: labelsOf(a.id as string), runs: runs.all(a.id as string),
+          engine_id: a.engine_id, prompt: a.prompt, approval: a.approval ?? null, timeout_ms: a.timeout_ms, enabled: a.enabled === 1, next_due: a.next_due, created_at: a.created_at, labels: labelsOf(a.id as string), runs: runs.all(a.id as string),
         })),
       };
     },

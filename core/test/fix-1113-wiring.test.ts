@@ -55,3 +55,12 @@ test('fix 3: automation.set refuses an approval level the engine has no profile 
     assert.ok(ok.result?.id, JSON.stringify(ok));
   } finally { await c.close(); }
 });
+
+test('fix 18: automation.list carries created_at so Newest can sort', { timeout: 60_000 }, async () => {
+  const c = await core();
+  try {
+    await c.pipe.request('automation.set', { project_id: c.projectId, name: 'n', engine_id: 'claude', prompt: 'p', cron: '0 9 * * *' });
+    const list = await c.pipe.request('automation.list', {});
+    assert.match(String(list.result.automations[0].created_at), /^\d{4}-\d\d-\d\dT/);
+  } finally { await c.close(); }
+});
