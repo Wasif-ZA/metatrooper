@@ -117,6 +117,14 @@ function hideLater(ids, text) {
 
 const ONE_AT_A_TIME = new Set(['session.launch', 'session.resume']);
 
+/** Runs a click's async work once per key; the button shows disabled until it settles, so a double click sends nothing twice. */
+async function busyClick(el, key, run) {
+  if ((ui.clicking ||= new Set()).has(key)) return;
+  ui.clicking.add(key);
+  el.disabled = true;
+  try { await run(); } finally { ui.clicking.delete(key); if (el.isConnected) el.disabled = false; }
+}
+
 async function rpc(method, params, quiet = false) {
   if (!ONE_AT_A_TIME.has(method)) return rpcOnce(method, params, quiet);
   if ((ui.inFlight ||= {})[method]) { toast('Still working on the last click.'); return { error: { message: 'busy' } }; }
@@ -1483,13 +1491,14 @@ async function onClick(e) {
       renderSinks();
       return;
     case 'sink-save':
-      await saveSink();
+      await busyClick(el, a, saveSink);
       return;
-    case 'sink-test': {
-      const r = await rpc('notify.sink.test', { id });
-      if (r.result) toast(r.result.ok ? 'Test sent.' : `Test failed: ${r.result.error}`, !r.result.ok);
+    case 'sink-test':
+      await busyClick(el, `${a}:${id}`, async () => {
+        const r = await rpc('notify.sink.test', { id });
+        if (r.result) toast(r.result.ok ? 'Test sent.' : `Test failed: ${r.result.error}`, !r.result.ok);
+      });
       return;
-    }
     case 'sink-remove':
       if ((await rpc('notify.sink.remove', { id })).result) await openSinks();
       return;
@@ -1660,11 +1669,13 @@ async function onClick(e) {
       const note = (document.getElementById('hb-note') || {}).value || '';
       const session_id = (document.getElementById('hb-session') || {}).value;
       if (!l || !note.trim()) { toast('Write a note first.', true); return; }
-      const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
-      if (!r.ok) { toast(r.error, true); return; }
-      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
-      ui.hbLine = null;
-      render();
+      await busyClick(el, a, async () => {
+        const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
+        if (!r.ok) { toast(r.error, true); return; }
+        toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
+        ui.hbLine = null;
+        render();
+      });
       return;
     }
     case 'pane':
@@ -1768,11 +1779,13 @@ async function onClick(e) {
       const note = document.getElementById('comment-note').value.trim();
       const session_id = document.getElementById('comment-session').value;
       if (!note) return toast('Write a note first.', true);
-      const r = await api.commentSave({ ...ui.comment, session_id, note });
-      if (!r.ok) return toast(r.error, true);
-      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
-      ui.comment = null;
-      render();
+      await busyClick(el, a, async () => {
+        const r = await api.commentSave({ ...ui.comment, session_id, note });
+        if (!r.ok) return toast(r.error, true);
+        toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
+        ui.comment = null;
+        render();
+      });
       return;
     }
     case 'dismiss':
@@ -1781,10 +1794,12 @@ async function onClick(e) {
     case 'approval': {
       const decision = el.dataset.decision;
       const note = decision === 'reject' ? (el.closest('.gate').querySelector('.ga-note')?.value || '').trim() : '';
-      if ((await rpc('approval.resolve', { approval_id: id, decision, ...(el.dataset.scope ? { scope: el.dataset.scope } : {}), ...(note ? { instruction: note } : {}) })).result) {
-        delete ui.drafts[`approval-note:${id}`];
-        wall.verdict(el.closest('.gate'), decision === 'approve');
-      }
+      await busyClick(el, `${a}:${id}`, async () => {
+        if ((await rpc('approval.resolve', { approval_id: id, decision, ...(el.dataset.scope ? { scope: el.dataset.scope } : {}), ...(note ? { instruction: note } : {}) })).result) {
+          delete ui.drafts[`approval-note:${id}`];
+          wall.verdict(el.closest('.gate'), decision === 'approve');
+        }
+      });
       return;
     }
   }
