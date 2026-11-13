@@ -748,8 +748,6 @@ html { font-size: 16px; }
 .ou-ae-emojis { position: absolute; top: 36px; left: 0; z-index: 5; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas-soft); }
 .ou-ae-emojis button { width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; font-size: 16px; cursor: pointer; }
 .ou-ae-emojis button:hover, .ou-ae-emojis button[aria-selected="true"] { background: var(--canvas-deep); }
-.ou-ae-lab { cursor: pointer; background: none; }
-.ou-ae-lab.ou-on { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-soft); }
 .ou-ae-freq { margin-top: 8px; }
 .ou-ae-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--canvas-soft); }
 .ou-ae-seg button { height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--mute); font-size: 13px; cursor: pointer; }
@@ -999,7 +997,7 @@ html { font-size: 16px; }
 
 .ou-ap { max-width: 980px; margin: 0 auto; padding: 48px 40px 64px; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }
 .ou-hm .ou-ap-title, .ou-ap .ou-ap-title { margin: 0 0 20px; font-size: 26px; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); text-transform: none; }
-.ou-ap-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ou-ap-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ou-ap-tabs { display: inline-flex; gap: 2px; }
 .ou-ap-tabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--mute); font: inherit; cursor: pointer; }
 .ou-ap-tabs button[aria-selected="true"] { background: var(--canvas-soft); color: var(--ink); }
@@ -1019,10 +1017,10 @@ html { font-size: 16px; }
 .ou-ap-state { border: 0; background: none; padding: 0; font: inherit; color: var(--mute); cursor: pointer; }
 .ou-ap-state.ou-on { color: var(--st-ok); }
 .ou-ap-label { font-size: 12px; }
-.ou-ap-items.ou-ap-list .ou-ap-item { flex-direction: row; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 0; background: none; border-bottom: 1px solid var(--hairline); }
+.ou-ap-items.ou-ap-list .ou-ap-item { flex-flow: row wrap; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 0; background: none; border-bottom: 1px solid var(--hairline); }
 .ou-ap-items.ou-ap-list .ou-ap-item:hover { background: var(--canvas-soft); }
-.ou-ap-items.ou-ap-list .ou-ap-itop { flex: 0 1 280px; }
-.ou-ap-items.ou-ap-list .ou-ap-prompt { flex: 1 1 auto; -webkit-line-clamp: 1; padding: 0; }
+.ou-ap-items.ou-ap-list :is(.ou-ap-itop, .ou-ap-prompt, .ou-ap-chips) { flex: 1 1 100%; }
+.ou-ap-items.ou-ap-list .ou-ap-prompt { -webkit-line-clamp: 1; padding: 0 0 0 28px; }
 .ou-ap-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6vh 0 0; }
 .ou-ap-emptyicon { color: var(--mute); margin-bottom: 10px; }
 .ou-ap .ou-ap-empty h2 { margin: 0 0 6px; font-size: 18px; font-weight: 500; color: var(--ink); text-transform: none; letter-spacing: 0; }
@@ -1054,7 +1052,6 @@ html { font-size: 16px; }
 
 .ou-ap-titlerow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .ou-hm .ou-ap-titlerow .ou-ap-title, .ou-ap .ou-ap-titlerow .ou-ap-title { margin: 0; }
-.ou-ap-bar { gap: 10px; }
 .ou-ap-search { display: inline-flex; align-items: center; gap: 4px; color: var(--mute); }
 .ou-ap-group + .ou-ap-group { margin-top: 26px; }
 .ou-ap .ou-ap-gtitle { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--ink); text-transform: none; letter-spacing: 0; }
@@ -1063,18 +1060,13 @@ html { font-size: 16px; }
 .ou-ap-itop > :last-child { flex: none; }
 .ou-ap-itop .astryx-button, .ou-ap-itop button { font-weight: 400 !important; color: var(--mute); }
 .ou-ap-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 28px; margin-top: 4px; }
-.ou-ap-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: none; font: inherit; font-size: 12px; color: var(--body); white-space: nowrap; }
-.ou-ap-chip > svg { color: var(--mute); flex: none; }
-.ou-ap-ldot { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); flex: none; }
+.ou-ap-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: none; font: inherit; font-size: 12px; color: var(--body); white-space: nowrap; }
+.ou-ap-chip > svg { width: 14px; height: 14px; color: var(--mute); flex: none; }
+.ou-ap-ldot { width: 7px; height: 7px; border-radius: 50%; background: var(--mute); flex: none; }
 .ou-ap-chip.ou-ap-state { cursor: pointer; color: var(--mute); }
 .ou-ap-chip.ou-ap-state.ou-on { color: var(--st-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
-.ou-ap-items.ou-ap-list .ou-ap-item { flex-wrap: wrap; }
-.ou-ap-items.ou-ap-list .ou-ap-itop { flex: 1 1 100%; }
-.ou-ap-items.ou-ap-list .ou-ap-prompt { flex: 1 1 100%; padding-left: 28px; }
-.ou-ap-items.ou-ap-list .ou-ap-chips { flex: 1 1 100%; }
 .ou-ae input:focus, .ou-ae textarea:focus, .ou-ae input:focus-visible { outline: none !important; box-shadow: none !important; }
 .ou-hm-crumbbranch { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-family: var(--mono); font-size: 12px; color: var(--hm-quiet); white-space: nowrap; }
-.ou-ae-lab { cursor: pointer; }
 
 /* Review 3: card pinned full height, 16px icon column, ring beside the logo, 24px chips, 12px minimum type, equal-height automation cards. */
 .ou-home.ou-hm { align-items: stretch; }
@@ -1094,11 +1086,8 @@ html { font-size: 16px; }
 .ou-hm-more, .ou-hm-role, .ou-hm-pilltext span, .ou-hm-model, .ou-hm-tsum, .ou-hm-olabel, .ou-hm-oagents, .ou-hm .ou-hm-phase,
 .ou-hm-mdetail, .ou-hm .ou-hm-psech, .ou-hm-small, .ou-hm-slimsteps, .ou-hm-slim .ou-hm-role, .ou-hm-crumbbranch { font-size: 12px; }
 
-.ou-ap-chips { gap: 6px; }
-.ou-ap-chip { height: 24px; gap: 6px; padding: 0 8px; font-size: 12px; }
-.ou-ap-chip > svg { width: 14px; height: 14px; }
 .ou-ap-label, .ou-ap-chip.ou-ap-label { color: var(--body); border-color: var(--hairline-strong); background: none; }
-.ou-ap-ldot { width: 7px; height: 7px; }
+.ou-ae-lab { cursor: pointer; }
 .ou-ae-lab.ou-on { color: var(--ink); border-color: var(--body); background: var(--canvas-soft); }
 
 .ou-ap-items.ou-ap-box { align-items: stretch; }
