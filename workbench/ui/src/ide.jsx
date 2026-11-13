@@ -937,9 +937,7 @@ function SourceControl({ st }) {
           onChange={(value) => { st.commitMsg = value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
-          <DropdownMenu size="sm" menuWidth={160} items={[{ label: 'Commit staged', isDisabled: !canCommit, onClick: commit }]}
-            renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
+          <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} tooltip="Commit staged changes" isDisabled={!canCommit} onClick={commit} />
         </div>
       </div>
       <div className="ou-ide-tree">
