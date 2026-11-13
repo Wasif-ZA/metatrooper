@@ -303,8 +303,8 @@ globalThis.frameView = (() => {
     back?.focus?.();
   }
 
-  /** Right-click on a sidebar row: a one-item menu at the pointer. */
-  function rowMenu(label, x, y, pick) {
+  /** Right-click on a sidebar row: a menu of [label, pick] items at the pointer. */
+  function rowMenu(items, x, y) {
     closeIconUi();
     opener = document.activeElement;
     const m = document.createElement('div');
@@ -313,8 +313,13 @@ globalThis.frameView = (() => {
     m.setAttribute('role', 'menu');
     m.style.left = `${x}px`;
     m.style.top = `${y}px`;
-    m.innerHTML = `<button role="menuitem">${label}</button>`;
-    m.querySelector('button').addEventListener('click', () => { closeIconUi(); pick(); });
+    m.innerHTML = items.map(([label]) => `<button role="menuitem" style="width:100%">${label}</button>`).join('');
+    const bs = [...m.querySelectorAll('button')];
+    bs.forEach((b, i) => b.addEventListener('click', () => { closeIconUi(); items[i][1](); }));
+    m.addEventListener('keydown', (e) => {
+      const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+      if (d) { e.preventDefault(); bs[(bs.indexOf(document.activeElement) + d + bs.length) % bs.length].focus(); }
+    });
     document.body.appendChild(m);
     m.querySelector('button').focus();
   }
@@ -347,7 +352,7 @@ globalThis.frameView = (() => {
           ? `<div class="fgrid">${PROJECT_EMOJIS.map((e) => `<button class="fcell${st.emoji === e ? ' on' : ''}" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}</div>`
           : `<div class="fgrid">${names.map((n) => `<button class="fcell${st.name === n ? ' on' : ''}" data-icon-name="${n}" title="${n}" aria-label="${n}"${st.name === n ? ` style="color:${colours[st.colour]}"` : ''}>${I(n, 16)}</button>`).join('')}</div>${swatches()}`;
       box.innerHTML = `<div class="fghhead"><span>Change icon</span><span class="fprev">${globalThis.projectIconHtml?.(preview(), 20) ?? ''}</span></div>`
-        + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
+        + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" tabindex="${st.tab === t ? 0 : -1}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
         + `<div class="fpickbody">${body}</div><div class="fpickfoot"><button data-act="reset">Reset</button><span class="sp"></span><button data-act="cancel">Cancel</button><button class="fprimary" data-act="save">Save</button></div>`;
       box.querySelector('.fletters')?.addEventListener('input', (e) => { st.text = e.target.value.toUpperCase(); box.querySelector('.fprev').innerHTML = globalThis.projectIconHtml?.(preview(), 20) ?? ''; });
     };
@@ -373,6 +378,17 @@ globalThis.frameView = (() => {
       render();
       box.querySelector(b.dataset.tab ? '[aria-selected="true"]' : b.dataset.colour ? '.fswatch.on' : '.fcell.on')?.focus();
     });
+    box.addEventListener('keydown', (e) => {
+      if (!e.target.closest('[role="tab"]')) return;
+      const tabs = ['monogram', 'emoji', 'icon'];
+      const i = tabs.indexOf(st.tab);
+      const n = { ArrowRight: i + 1, ArrowLeft: i - 1 + tabs.length, Home: 0, End: tabs.length - 1 }[e.key];
+      if (n === undefined) return;
+      e.preventDefault();
+      st.tab = tabs[n % tabs.length];
+      render();
+      box.querySelector('[aria-selected="true"]').focus();
+    });
     render();
     document.body.appendChild(box);
     box.querySelector('[aria-selected="true"]').focus();
@@ -389,7 +405,7 @@ globalThis.frameView = (() => {
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
       sec.classList.add('fprojects', 'fsearchrow');
-      sec.innerHTML = `<button class="fsearch" data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${I('search', 16)}</span><span class="fl">Search</span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}<span class="fpill" id="frameGhCount" hidden></span></button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('compose', 16) || I('plus', 16)}</button>`;
+      sec.innerHTML = `<button class="fsearch" data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${I('search', 16)}</span><span class="fl">Search</span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}<span class="fpill" id="frameGhCount" hidden></span></button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 16)}</button>`;
       document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;
@@ -415,11 +431,13 @@ globalThis.frameView = (() => {
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
       const agent = e.target.closest('.fth[data-id], .fthkid[data-id], .fagent[data-id]');
       const x = agent && [...(ui.snap.sessions || []), ...(ui.snap.live || [])].find((s) => s.id === agent.dataset.id);
-      if (agent && ccWords.canStop(x)) { e.preventDefault(); rowMenu('Stop agent', e.clientX, e.clientY, () => void stopAgent(x.id)); return; }
       const row = e.target.closest('.fproj, [data-proj]');
-      if (!row) return;
+      const items = [];
+      if (agent && ccWords.canStop(x)) items.push(['Stop agent', () => void stopAgent(x.id)]);
+      if (row) items.push(['Change icon…', () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY)]);
+      if (!items.length) return;
       e.preventDefault();
-      rowMenu('Change icon…', e.clientX, e.clientY, () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY));
+      rowMenu(items, e.clientX, e.clientY);
     });
     const closeGh = () => document.getElementById('frameGhPanel')?.remove();
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); if (!e.target.closest?.('#frameGhPanel, #frameGh')) closeGh(); });

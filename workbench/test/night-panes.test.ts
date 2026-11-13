@@ -443,7 +443,7 @@ test('3796944f notice Open follows its target and targetless notices have no Ope
   g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-git' }); h.draw(); calls.length = 0;
   assert.equal(h.all(label('Open')).length, 1);
   h.one(label('Open')).props.onClick(); await flush();
-  assert.deepEqual(calls, [['view', 'wall'], ['rpc', 'needs_you.mark-read', { id: 'n-git' }, true], ['openTab', 'git']]);
+  assert.deepEqual(calls, [['view', 'wall'], ['rpc', 'needs_you.mark-read', { id: 'n-git' }], ['openTab', 'git']]);
   g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-empty' }); h.draw(); calls.length = 0;
   assert.equal(h.all(label('Open')).length, 0);
   assert.deepEqual(calls, []);
