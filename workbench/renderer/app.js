@@ -796,8 +796,8 @@ async function openNeedsYou(id, fallback = true) {
     return;
   }
   if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
-  else if (n.kind === 'uncommitted') { await rpc('needs_you.mark-read', { id }, true); await openTab('git'); }
-  else { await rpc('needs_you.mark-read', { id }, true); homeView.set('inbox'); }
+  else if (n.kind === 'uncommitted') { await rpc('needs_you.mark-read', { id }); await openTab('git'); }
+  else { await rpc('needs_you.mark-read', { id }); homeView.set('inbox'); }
 }
 
 const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'];
