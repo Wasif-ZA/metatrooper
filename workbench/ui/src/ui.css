@@ -1204,3 +1204,10 @@ html { font-size: 16px; }
 .ou-notices table { width: 100%; max-width: 760px; table-layout: fixed; border-collapse: collapse; margin: 0 0 16px; font-size: 12px; }
 .ou-notices :is(th, td), .ou-notices :is(th, td) * { white-space: normal; overflow-wrap: anywhere; }
 .ou-notices :is(th, td) { padding: 4px 8px; border-bottom: 1px solid var(--hairline); text-align: left; vertical-align: top; }
+
+/* @ file and / command picker over the composer box. */
+.ou-cmp-mention { position: absolute; left: 8px; bottom: calc(100% + 4px); z-index: 20; min-width: 260px; max-width: min(560px, 90%); }
+.ou-cmp-mention [role="listbox"] { display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas-soft); box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--canvas-deep) 70%, transparent); }
+.ou-cmp-mention [role="option"] { padding: 5px 8px; border-radius: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.ou-cmp-mention [role="option"][aria-selected="true"], .ou-cmp-mention [role="option"]:hover { background: var(--canvas-deep); color: var(--ink); }
+.ou-cmp-mention-hint { padding: 5px 8px; font-size: 12px; color: var(--mute); }
