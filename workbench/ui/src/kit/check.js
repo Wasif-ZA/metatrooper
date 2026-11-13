@@ -23,8 +23,9 @@ const textOf = (p) => {
 };
 
 /** The plain-text box a part becomes: it has no `type`, so it can never pass for a catalogue part. */
-export const fallback = (p, why) => ({ fallback: true, name: nameOf(p), why, text: textOf(p) });
-export const isFallback = (p) => isObj(p) && p.fallback === true && !('type' in p);
+const MADE = new WeakSet();
+export const fallback = (p, why) => { const f = { fallback: true, name: nameOf(p), why, text: textOf(p) }; MADE.add(f); return f; };
+export const isFallback = (p) => MADE.has(p);
 
 /** A stand-in the flattener leaves where it stopped; only this module can make one. */
 const cut = (p, why) => {

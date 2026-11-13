@@ -22,7 +22,7 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   const spec = p.spec;
   if (!spec || typeof spec !== 'object') throw new RpcError(E.INVALID_PARAMS, 'spec must be an object, usually { type: "page", children: [...] }');
   const text = JSON.stringify(spec);
-  if (text.length > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
+  if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;
   if (owner && owner.session_id !== sessionId) throw new RpcError(E.VALIDATION, 'that surface belongs to another session; pick a different surface id');
   const { root, fellBack } = expand(spec);
