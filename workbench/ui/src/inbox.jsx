@@ -409,8 +409,7 @@ async function write(method, params, apply, undo, failText) {
 
 // Properties starts closed while the Needs you area is at most 1100px wide (where the CSS floats it), until the button is used.
 export function Inbox() {
-  const boxRef = useRef(null);
-  const { collapsed = [], selectedId, props: propsOpen = (boxRef.current?.clientWidth || globalThis.innerWidth) > 1100, filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
+  const { collapsed = [], selectedId, props: propsOpen = (globalThis.document?.querySelector?.('.ou-inbox')?.clientWidth || globalThis.innerWidth) > 1100, filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
   const [addingLabel, setAddingLabel] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [handoverTarget, setHandoverTarget] = useState(null);
@@ -862,7 +861,6 @@ export function Inbox() {
   return (
     <div
       className="ou-inbox"
-      ref={boxRef}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], [role="listbox"], [role="combobox"][aria-expanded="true"], input, textarea, select, [contenteditable]')) {
           e.preventDefault();
