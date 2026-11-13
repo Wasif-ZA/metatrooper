@@ -8,6 +8,7 @@ const wall = (() => {
   const TOP = 8, BOT = 8, G = 8, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
+  const MX_TITLE = 'Maximize this pane (double-click the header; Esc restores)';
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [], MAX = null;
   let SEED = null, KEY = {}, changed = () => {};
   let touchAt = -Infinity, want = [], wantNext = false, holdT, wake = () => {};
@@ -183,7 +184,12 @@ const wall = (() => {
       const el = pane(id), r = R[id];
       if (!el) continue;
       el.hidden = !r;
-      el.querySelector('.mx')?.setAttribute('aria-pressed', String(id === MAX));
+      const mx = el.querySelector('.mx');
+      if (mx) {
+        mx.setAttribute('aria-pressed', String(id === MAX));
+        mx.title = id === MAX ? 'Restore this pane (Esc)' : MX_TITLE;
+        mx.setAttribute('aria-label', id === MAX ? 'Restore this pane' : 'Maximize this pane');
+      }
       if (!r) continue;
       const big = mode !== 'grid' && BIG.includes(id);
       el.classList.toggle('big', big);
@@ -289,7 +295,7 @@ const wall = (() => {
   }
 
   const T = (open, d) => (RM ? 0.15 : open ? d : d * 0.6);
-  let listOpen = false, sheetOpen = false, sheetByKey = false;
+  let listOpen = false, sheetOpen = false;
   function setList(open) {
     listOpen = open;
     const l = $('#list');
@@ -301,9 +307,8 @@ const wall = (() => {
     } else gsap.to(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.26), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
     gsap.to('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.22) });
   }
-  function setSheet(open, byKey) {
+  function setSheet(open) {
     sheetOpen = open;
-    sheetByKey = open && Boolean(byKey);
     const sh = $('#sheet');
     if (open) sh.classList.add('up');
     sh.querySelector('.tab').setAttribute('aria-expanded', open);
@@ -372,6 +377,5 @@ const wall = (() => {
     isFolded: (id) => Boolean(S[id]) && folded(S[id]) && !BIG.includes(id),
     listOpen: () => listOpen,
     sheetOpen: () => sheetOpen,
-    sheetByHand: () => sheetOpen && !sheetByKey,
   };
 })();

@@ -21,6 +21,8 @@
 .hws { display: grid; grid-template-columns: 20px auto 1fr; column-gap: 0; padding: 0 8px 0 6px; color: var(--faint); }
 .hws.on { background: var(--canvas); color: var(--ink); font-weight: 600; }
 .hws:hover { background: var(--canvas-soft); }
+.hside button:focus-visible { outline-offset: -2px; }
+.hside button:active { background: var(--hairline); }
 .hws .hn { color: var(--mute); font-weight: 400; }
 .hws .hname, .hag .hname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hws .hsdot { width: 8px; height: 8px; margin: 6px 0 0 8px; border-radius: 50%; background: currentColor; font-size: 0; }
@@ -29,10 +31,11 @@
 .hnew { flex: none; margin-bottom: 6px; padding: 0 6px; color: var(--mute); }
 .hnew:hover, .hnew:focus-visible { background: var(--canvas); color: var(--ink); box-shadow: inset 2px 0 var(--accent); }
 .hag-head { flex: none; padding: 12px 8px 20px; border-top: 1px solid var(--hairline); color: var(--mute); font-weight: 600; }
-.hag-list { flex: none; display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; }
-.hag { display: grid; grid-template-columns: 18px 1fr auto; padding: 0 10px 0 8px; color: var(--body); }
-.hag { opacity: .5; }
-.hag.on, .hag:hover { opacity: 1; }
+.hag-list { flex: 0 1 auto; min-height: 20px; display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; }
+.hws-list, .hag-list { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
+.hempty { padding: 0 8px; color: var(--faint); }
+.hag { display: grid; grid-template-columns: 18px 1fr auto; padding: 0 10px 0 8px; color: var(--body); opacity: .5; }
+.hag.on, .hag:hover, .hag:focus-visible { opacity: 1; }
 .hag .hname { color: var(--ink); }
 .hag .hst { color: var(--mute); padding-left: 6px; }
 .hag .hnum { color: var(--mute); font-weight: 400; }

@@ -1,7 +1,7 @@
 /* Review panel (Diff, Git, Hand-back) for the plain look. */
-:root:not([data-look="dither"]) #split { font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; }
+:root:not([data-look="dither"]) #split { font-family: var(--ui); font-size: 13.5px; }
 :root:not([data-look="dither"]) #split .tabs { height: 40px; align-items: center; flex-wrap: nowrap; gap: 4px; padding: 0 12px; overflow: hidden; }
-:root:not([data-look="dither"]) #split .tabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; font: 500 13px 'Geist', 'Segoe UI', sans-serif; color: var(--mute); display: inline-flex; align-items: center; }
+:root:not([data-look="dither"]) #split .tabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; font: 500 13px var(--ui); color: var(--mute); display: inline-flex; align-items: center; }
 :root:not([data-look="dither"]) #split .tabs button:hover { background: var(--canvas); color: var(--ink); }
 :root:not([data-look="dither"]) #split .tabs button.on { background: var(--canvas-soft); color: var(--ink); font-weight: 500; }
 :root:not([data-look="dither"]) #split .tabs .n { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--canvas-soft); font: 500 11px/18px 'Geist Mono', ui-monospace, monospace; color: var(--body-strong); }
@@ -10,18 +10,18 @@
 :root:not([data-look="dither"]) #split .tabs button:focus-visible, :root:not([data-look="dither"]) #split .view button:focus-visible, :root:not([data-look="dither"]) #split .view textarea:focus-visible, :root:not([data-look="dither"]) #split .view select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 :root:not([data-look="dither"]) #split .view { padding: 16px; font-size: 13.5px; line-height: 1.5; color: var(--body); }
 :root:not([data-look="dither"]) #split .view .panel { background: none; border: 0; border-radius: 0; padding: 0; margin: 0; }
-:root:not([data-look="dither"]) #split .view h3 { margin: 20px 0 8px; font: 500 12px/1.2 'Geist', 'Segoe UI', sans-serif; color: var(--mute); }
+:root:not([data-look="dither"]) #split .view h3 { margin: 20px 0 8px; font: 500 12px/1.2 var(--ui); color: var(--mute); }
 :root:not([data-look="dither"]) #split .view .toolbar { gap: 8px; margin-bottom: 12px; min-height: 32px; }
 :root:not([data-look="dither"]) #split .view .toolbar h3 { margin: 0; color: var(--ink); font-size: 13.5px; font-weight: 600; }
-:root:not([data-look="dither"]) #split .view .meta { font: 12px 'Geist', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; color: var(--mute); }
+:root:not([data-look="dither"]) #split .view .meta { font: 12px var(--ui); font-variant-numeric: tabular-nums; color: var(--mute); }
 :root:not([data-look="dither"]) #split .view .empty { margin: 0 0 12px; padding: 20px 16px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); color: var(--mute); font-style: normal; line-height: 1.5; text-align: center; }
 :root:not([data-look="dither"]) #split .view .empty .link { text-decoration: underline; color: var(--body-strong); }
-:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip) { height: 32px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--canvas); color: var(--body-strong); font: 500 13px 'Geist', 'Segoe UI', sans-serif; display: inline-flex; align-items: center; }
+:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip) { height: 32px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--canvas); color: var(--body-strong); font: 500 13px var(--ui); display: inline-flex; align-items: center; }
 :root:not([data-look="dither"]) #split .view button:not(.link):not(.chip):hover:not(:disabled) { background: var(--canvas-soft); color: var(--ink); }
 :root:not([data-look="dither"]) #split .view button.sm { height: 28px; padding: 0 10px; font-size: 12px; }
 :root:not([data-look="dither"]) #split .view button.primary, :root:not([data-look="dither"]) #split .view button.acc { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
 :root:not([data-look="dither"]) #split .view button.primary:hover:not(:disabled), :root:not([data-look="dither"]) #split .view button.acc:hover:not(:disabled) { background: var(--ink); color: var(--canvas-deep); opacity: .9; }
-:root:not([data-look="dither"]) #split .view .chip { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--mute); font: 500 12.5px 'Geist', 'Segoe UI', sans-serif; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+:root:not([data-look="dither"]) #split .view .chip { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--mute); font: 500 12.5px var(--ui); display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
 :root:not([data-look="dither"]) #split .view .chip:hover { background: var(--canvas); color: var(--ink); }
 :root:not([data-look="dither"]) #split .view .chip.on { background: var(--canvas-soft); border-color: var(--hairline-strong); color: var(--ink); font-weight: 500; }
 :root:not([data-look="dither"]) #split .view .actions { display: flex; gap: 8px; margin: 12px 0; }

@@ -21,17 +21,22 @@ const wallSide = (() => {
       const kinds = on ? ui.snap.sessions.filter((x) => x.state !== 'exited').map((x) => kindOf(x.state)) : live.filter((x) => x.project_id === p.id).map((x) => kindOf(x.state));
       const k = kinds.length ? worst(kinds) : null;
       const branch = on && ui.git && ui.git.project === p.id ? ui.git.branch : '';
-      return `<button class="hws${on ? ' on' : ''}" data-action="project" data-id="${esc(p.id)}" title="${esc(p.path || p.name)}"><span class="hn">${i + 1}</span><span class="hname">${esc(p.name)}</span>${k ? `<span class="hsdot hk-${k}">●</span>` : ''}${branch ? `<span class="hbr">${esc(branch)}</span>` : ''}</button>`;
+      return `<button class="hws${on ? ' on' : ''}" data-action="project" data-id="${esc(p.id)}" title="${esc(p.path || p.name)}"${on ? ' aria-current="true"' : ''}><span class="hn">${i + 1}</span><span class="hname">${esc(p.name)}</span>${k ? `<span class="hsdot hk-${k}">●</span>` : ''}${branch ? `<span class="hbr">${esc(branch)}</span>` : ''}</button>`;
     }).join('');
     const mine = cur ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)) : [];
     const sel = mine.some((x) => x.id === focused) ? focused : ui.snap.selected;
     const agents = mine.map((x, i) => {
       const k = kindOf(x.state);
-      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> <span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
+      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"${x.id === sel ? ' aria-current="true"' : ''}><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> <span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
     }).join('');
     const terms = (cur && typeof shellRows === 'function' ? shellRows() : []).map((x) => `<button class="hag${x.id === ui.shellSel ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}" title="${esc(x.task || '')}"><span class="hg hk-${x.state === 'exited' ? 'idle' : 'work'}">&gt;</span><span class="hname"><span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(x.task || '')}</span></span></button>`).join('');
-    const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents}</div>${terms ? `<div class="hag-head">terminals</div><div class="hag-list">${terms}</div>` : ''}`;
-    if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
+    const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents || '<div class="hempty">No agents running</div>'}</div>${terms ? `<div class="hag-head">terminals</div><div class="hag-list">${terms}</div>` : ''}`;
+    if (el.dataset.html === html) return;
+    const at = el.contains?.(document.activeElement) ? document.activeElement.dataset : null;
+    el.dataset.html = html;
+    el.innerHTML = html;
+    // a redraw replaces the buttons, so the one that had focus gets it back
+    if (at) [...el.querySelectorAll(`[data-action="${at.action}"]`)].find((b) => b.dataset.id === at.id)?.focus();
   }
 
   let focused = null;
