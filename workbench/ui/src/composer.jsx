@@ -61,7 +61,7 @@ function Mentions({ actions }) {
         if (n !== seq) return;
         const list = [...new Set((files || []).map((p) => String(p).replace(/\\/g, '/')))].slice(0, 8).map((p) => ({ label: p, path: p }));
         setSt(list.length ? { ...t, list, i: 0 } : { ...t, list: [], i: 0, hint: 'No file matches' });
-      }, () => {});
+      }, () => { if (n === seq) setSt({ ...t, list: [], i: 0, hint: 'Could not search files' }); });
     };
     const put = (next, caret) => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, next);
