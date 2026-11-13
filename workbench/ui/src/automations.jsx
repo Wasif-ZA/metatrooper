@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
 import { Selector } from '@astryxdesign/core/Selector';
@@ -8,6 +9,21 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
+
+/** Delete with a confirm step; `done` runs after the core removed it. */
+function DeleteAutomation({ a, label = 'Delete', done }) {
+  const [asking, setAsking] = useState(false);
+  return <>
+    <Button variant="ghost" size="sm" label={label} onClick={() => setAsking(true)} />
+    {asking ? <AlertDialog isOpen onOpenChange={(o) => { if (!o) setAsking(false); }} title={`Delete ${a.name}?`}
+      description="It stops running and its run history goes with it. This cannot be undone." actionLabel="Delete"
+      onAction={async () => {
+        setAsking(false);
+        const r = await rpc('automation.delete', { id: a.id });
+        if (r && r.result) { toast(`Deleted ${a.name}`); done(); }
+      }} /> : null}
+  </>;
+}
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
 
@@ -50,7 +66,7 @@ export function Automations() {
             <Field key={a.id} label={a.name} hint={`Every ${a.every_min} min · ${a.runner.join(' ')} ${a.script} · starts ${a.engine_id} · ${last(a)}`}>
               <span className="ou-actions">
                 <Switch size="sm" label={`${a.name} is on`} isLabelHidden value={a.enabled} onChange={async (on) => { await rpc('automation.enable', { id: a.id, enabled: on }); await load(); }} />
-                <Button size="sm" label="Remove" onClick={async () => { await rpc('automation.delete', { id: a.id }); await load(); }} />
+                <DeleteAutomation a={a} label="Remove" done={() => void load()} />
               </span>
             </Field>
           ))}
@@ -172,6 +188,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <span className="ou-ae-sep">/</span>
         <h1 className="ou-ae-heading">{initial?.id ? 'Edit automation' : 'New automation'}</h1>
         <span className="ou-ap-gap" />
+        {initial?.id ? <DeleteAutomation a={initial} done={onSaved} /> : null}
         <Button variant="ghost" size="sm" label="Cancel" onClick={onClose} />
         <Button variant="primary" size="sm" label={initial?.id ? 'Save' : 'Create automation'} isDisabled={!ready} onClick={save} />
       </header>
