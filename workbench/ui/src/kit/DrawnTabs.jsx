@@ -28,9 +28,20 @@ export async function syncDrawn() {
     if (!r) { st.seen.delete(s.id); continue; }
     let t = st.tabs.find((x) => x.id === s.id);
     if (!t) { t = { id: s.id }; st.tabs.push(t); if (!fresh) st.active = s.id; }
-    Object.assign(t, { title: s.title, spec: r.spec, session: s.session_id });
+    Object.assign(t, { title: s.title, spec: r.spec, session: s.session_id, seq: r.seq, said: '' });
     bump();
   }
+}
+
+const SAID = { session: 'sent to the agent', inbox: 'session ended; kept in Needs you' };
+const DROP = { stale: 'not sent: the agent redrew this screen', repeat: 'not sent: already sent' };
+
+/** Sends a click on a drawn screen to core with the seq the tab drew; the reply line shows under the tab bar. */
+async function send(t, e) {
+  const out = await api.call('ui.event', { surface: t.id, seq: t.seq, event: e.event, context: e.context });
+  const r = out.kind === 'reply' ? out.reply.result : null;
+  t.said = r ? (r.dropped ? DROP[r.dropped] : SAID[r.to]) || '' : 'not sent: core did not take it';
+  bump();
 }
 
 /** The drawn screens over the editor area; the Files tab hands the area back to the editor. */
@@ -51,9 +62,9 @@ export function DrawnTabs({ pid }) {
           ))}
         </TabList>
         <Button size="sm" variant="ghost" label="Back to files" onClick={() => { st.active = null; bump(); }} />
-        <Text className="ou-drawn-who" color="secondary" size="sm">drawn by session {cur.session.slice(-6)}</Text>
+        <Text className="ou-drawn-who" color="secondary" size="sm">{`drawn by session ${cur.session.slice(-6)}${cur.said ? ` · ${cur.said}` : ''}`}</Text>
       </div>
-      <Drawn spec={cur.spec} />
+      <Drawn key={`${cur.id}:${cur.seq}`} spec={cur.spec} onEvent={(e) => send(cur, e)} />
     </div>
   );
 }

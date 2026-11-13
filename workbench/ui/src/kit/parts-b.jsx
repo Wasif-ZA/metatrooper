@@ -1,6 +1,5 @@
 import { Badge } from '@astryxdesign/core/Badge';
 import { Blockquote } from '@astryxdesign/core/Blockquote';
-import { Button } from '@astryxdesign/core/Button';
 import { ButtonGroup } from '@astryxdesign/core/ButtonGroup';
 import { Card } from '@astryxdesign/core/Card';
 import { Citation } from '@astryxdesign/core/Citation';
@@ -16,7 +15,7 @@ import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
 import { FileIcon } from '../icons/screens.jsx';
 import { fallback } from './check.js';
-import { Plain } from './Draw.jsx';
+import { Act, Plain } from './Draw.jsx';
 import './parts-b.css';
 
 const isStr = (v) => typeof v === 'string' || typeof v === 'number';
@@ -35,7 +34,7 @@ const ASSET = /^asset:[a-z0-9-]{1,40}$/;
 function Actions({ list, name }) {
   return (
     <ButtonGroup label="Actions">
-      {list.slice(0, 12).map((a, i) => (isObj(a) && isStr(a.label) ? <Button key={i} label={String(a.label)} variant={a.primary === true ? 'primary' : 'secondary'} /> : <span key={i}>{bad(name, a, 'bad button')}</span>))}
+      {list.slice(0, 12).map((a, i) => (isObj(a) && isStr(a.label) ? <Act key={i} a={a} /> : <span key={i}>{bad(name, a, 'bad button')}</span>))}
     </ButtonGroup>
   );
 }

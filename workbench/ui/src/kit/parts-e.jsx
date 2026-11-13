@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Code } from '@astryxdesign/core/Code';
 import { HStack } from '@astryxdesign/core/HStack';
@@ -11,7 +10,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { openDiff, patchSides } from '../editor.js';
 import { MAX_ROWS } from './check.js';
-import { Plain } from './Draw.jsx';
+import { Act, Plain } from './Draw.jsx';
 import './parts-e.css';
 
 const isStr = (v) => typeof v === 'string' || typeof v === 'number';
@@ -141,7 +140,7 @@ function Diff({ p }) {
         {p.add == null ? null : <Text size="sm" className="ou-pe-add">{String(p.add)}</Text>}
         {p.del == null ? null : <Text size="sm" className="ou-pe-del">{String(p.del)}</Text>}
         <span className="ou-pe-grow" />
-        {actions.map((a, i) => (a && isStr(a.label) ? <Button key={i} label={String(a.label)} variant={a.primary ? 'primary' : 'secondary'} size="sm" /> : bad('diff action', a, i)))}
+        {actions.map((a, i) => (a && isStr(a.label) ? <Act key={i} a={a} size="sm" /> : bad('diff action', a, i)))}
         {typeof p.viewed === 'boolean' ? <Badge variant={p.viewed ? 'success' : 'neutral'} label={p.viewed ? 'Viewed' : 'Not viewed'} /> : null}
       </div>
       {sides ? <Monaco sides={sides} lang={m ? m[1].toLowerCase() : 'txt'} rows={rows} /> : null}
