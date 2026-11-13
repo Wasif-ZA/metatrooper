@@ -15,7 +15,7 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (!row) throw new RpcError(E.NOT_FOUND, 'session not found; ouros_ui can only be called from an Ouros session');
   const surface = p.surface;
   if (typeof surface !== 'string' || !ID.test(surface)) throw new RpcError(E.INVALID_PARAMS, 'surface must be 1 to 64 letters, digits, dots, dashes or underscores');
-  const zone = p.zone ?? 'tab';
+  const zone = p.zone === undefined ? 'tab' : p.zone;
   if (zone !== 'tab') throw new RpcError(E.INVALID_PARAMS, 'zone must be "tab"; the other zones are not built yet');
   const title = typeof p.title === 'string' && p.title.trim() ? p.title.trim().slice(0, 80) : surface;
   const catalogue = typeof p.catalogue === 'string' ? p.catalogue.slice(0, 20) : VERSION;
