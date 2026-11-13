@@ -6,26 +6,17 @@ const shape = (name) => function ShellIcon({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><g dangerouslySetInnerHTML={{ __html: SHAPES[name] }} /></Icon>;
 };
 
-export const HomeIcon = shape('home');
 export const CodeIcon = shape('code');
 export const WallIcon = shape('wall');
-export const InboxIcon = shape('inbox');
 export const CalendarIcon = shape('calendar');
 export const FolderIcon = shape('folder');
 export const FolderAddIcon = shape('folderAdd');
 export const PullRequestIcon = shape('pullRequest');
 export const PlusIcon = shape('plus');
 export const ChevronDownIcon = shape('chevronDown');
-export const CoreDotIcon = shape('coreDot');
-export const UsageIcon = shape('usage');
 export const AddOnsIcon = shape('addOns');
-export const FlagIcon = shape('flag');
-export const SettingsIcon = shape('settings');
 export const ChevronRightIcon = shape('chevronRight');
-export const OrchestratorIcon = shape('orchestrator');
-export const AttachIcon = shape('attach');
 export const OptionsIcon = shape('options');
-export const SendIcon = shape('send');
 export const CommitIcon = shape('commit');
 export const ChangesIcon = shape('changes');
 export const RunIcon = shape('run');
@@ -38,8 +29,10 @@ export const ApprovalIcon = shape('approval');
 export const LearnIcon = shape('learn');
 export const StepOpenIcon = shape('stepOpen');
 export const StopIcon = shape('stop');
-export const EngineIcon = shape('engine');
-
+export const Search = shape('search');
+export const Filter = shape('filter');
+export const Workspace = FolderIcon;
+export const OpenOnWall = WallIcon;
 
 /** A project's icon from snapshot projects[].icon (favicon, monogram, emoji or line icon); the same markup the sidebar draws. */
 export function ProjectIcon({ icon, size = 14, className }) {
