@@ -654,7 +654,7 @@ for (const [cron, reply, shows] of [
   await h.one(label('Create automation')).props.onClick(); await flush(); h.draw();
   const set = seen.find((c) => c[0] === 'automation.set');
   assert.equal(set[1].cron, cron); assert.equal(set[1].icon, '\u{1F9EA}'); assert.deepEqual(set[1].labels, ['tests']);
-  assert.match(h.html(), /<b class="ou-ae-error" role="alert">cron never matches a date<\/b>/);
+  assert.match(h.html(), /<b class="ou-error" role="alert">cron never matches a date<\/b>/);
 });
 
 test('Home Ctrl+Enter launches the current draft and selected engine like Start', async () => {

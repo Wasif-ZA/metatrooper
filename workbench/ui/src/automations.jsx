@@ -261,7 +261,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         </div>
         <div className="ou-ae-preview" data-valid={valid && !saveError ? 'true' : 'false'}>
           {preview === null ? <span>Reading the schedule.</span> : valid ? <><b>{preview.words}</b><span className="ou-ae-cron">{cron}</span><span>Next: {runs.map(runWords).join(' · ') || 'no run found'}</span></> : <b>{preview.error || 'Not a valid schedule. Five fields: minute hour day month weekday.'}</b>}
-          {saveError ? <b className="ou-ae-error" role="alert">{saveError}</b> : null}
+          {saveError ? <b className="ou-error" role="alert">{saveError}</b> : null}
           <span className="ou-hm-muted">Local time. Runs while cc is open.</span>
         </div>
         <button type="button" className="ou-hm-fold" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span className="ou-hm-chevbox" data-open={advanced ? 'true' : 'false'}>{chevSmall}</span><span>Advanced: check script</span></button>
