@@ -1017,6 +1017,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (icon !== null && (typeof icon !== 'string' || icon.length > 16)) throw new RpcError(E.VALIDATION, 'icon must be a short string');
       const approval = p.approval ?? null;
       if (approval !== null && !['ask', 'edits', 'contained'].includes(approval as string)) throw new RpcError(E.VALIDATION, 'approval must be ask, edits or contained');
+      if (approval !== null && approval !== 'ask' && !getEngine(db, str(p, 'engine_id'))?.approval_profiles?.[approval as string]) throw new RpcError(E.VALIDATION, `${str(p, 'engine_id')} has no approval profile ${approval}`);
       const script = typeof p.script === 'string' ? p.script.trim() : '';
       const runner = p.runner ?? [];
       if (!Array.isArray(runner) || runner.some((r) => typeof r !== 'string' || !r)) throw new RpcError(E.VALIDATION, 'runner must be a list of strings');

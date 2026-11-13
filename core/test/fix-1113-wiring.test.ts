@@ -43,3 +43,15 @@ test('fix 5: launch and shell.open into a deleted project folder say the folder 
     assert.match(shell.error.message, /project folder is gone/);
   } finally { await c.close(); }
 });
+
+test('fix 3: automation.set refuses an approval level the engine has no profile for', { timeout: 60_000 }, async () => {
+  const c = await core();
+  try {
+    const base = { project_id: c.projectId, name: 'n', engine_id: 'claude', prompt: 'p', cron: '0 9 * * *' };
+    const bad = await c.pipe.request('automation.set', { ...base, approval: 'contained' });
+    assert.equal(bad.error?.code, -32003, JSON.stringify(bad));
+    assert.match(bad.error.message, /no approval profile contained/);
+    const ok = await c.pipe.request('automation.set', { ...base, approval: 'edits' });
+    assert.ok(ok.result?.id, JSON.stringify(ok));
+  } finally { await c.close(); }
+});

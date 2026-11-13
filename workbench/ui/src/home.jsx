@@ -82,7 +82,9 @@ function StartBox({ ready, strip }) {
   const [more, setMore] = useState(false);
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');
-  const [approval, setApproval] = useState('default');
+  const [picked, setApproval] = useState('default');
+  const can = ready.find((e) => e.id === chosen)?.approvals || ['ask', 'edits', 'contained'];
+  const approval = picked === 'default' || can.includes(picked) ? picked : 'default';
   const [starting, setStarting] = useState(false);
   const [models, setModels] = useState({});
   useEffect(() => {
@@ -156,9 +158,7 @@ function StartBox({ ready, strip }) {
       { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" placement="above" value={approval} onChange={setApproval}
         renderValue={() => ACCESS[approval === 'default' ? ui.settingsLook?.approval || 'ask' : approval] || 'Ask first'} options={[
         { value: 'default', label: `${ACCESS[ui.settingsLook?.approval] || 'Ask first'} (from Settings)` },
-        { value: 'ask', label: 'Ask first' },
-        { value: 'edits', label: 'Edits allowed' },
-        { value: 'contained', label: 'Auto' },
+        ...[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }].filter((o) => can.includes(o.value)),
       ]} /> },
     ],
   });

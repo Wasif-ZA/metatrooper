@@ -136,6 +136,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const [newLabel, setNewLabel] = useState('');
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   const cron = cronOf(form);
+  const canRun = engines.find((e) => e.id === form.engine_id)?.approvals || ['ask', 'edits', 'contained'];
   const [preview, setPreview] = useState(null);
   const [saveError, setSaveError] = useState('');
   useEffect(() => {
@@ -152,7 +153,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
     if (!ready) return;
     const r = await rpc('automation.set', {
       ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), cron, every_min: 1440,
-      labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(), approval: form.approval,
+      labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(), approval: canRun.includes(form.approval) ? form.approval : 'ask',
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
     if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); return; }
@@ -191,8 +192,8 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
             { key: 'machine', icon: <LaptopIcon size={16} />, text: 'Local', title: 'Agents run on this computer' },
             form.project_id === ui.projectId && ui.git && ui.git.project === ui.projectId && ui.git.branch ? { key: 'branch', icon: <Branch size={14} />, text: ui.git.branch } : null,
             { key: 'gap', gap: true },
-            { key: 'access', accent: true, node: <Selector size="sm" variant="ghost" placement="above" label="Approval for each run" isLabelHidden value={form.approval} onChange={set('approval')}
-              options={[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }]} /> },
+            { key: 'access', accent: true, node: <Selector size="sm" variant="ghost" placement="above" label="Approval for each run" isLabelHidden value={canRun.includes(form.approval) ? form.approval : 'ask'} onChange={set('approval')}
+              options={[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }].filter((o) => canRun.includes(o.value))} /> },
           ],
         })}
         <label className="ou-ae-label">Labels</label>
