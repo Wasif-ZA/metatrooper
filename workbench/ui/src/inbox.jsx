@@ -41,7 +41,10 @@ export const motionOn = () => Boolean(gsap) && !calm;
 const focusEl = (selector) => { if (typeof document !== 'undefined') document.querySelector(`.ou-inbox ${selector}`)?.focus(); };
 const focusSoon = (selector) => setTimeout(() => focusEl(selector));
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const errText = (r, fallback) => r?.error?.message || (typeof r?.error === 'string' ? r.error : fallback);
+const errText = (r, fallback) => {
+  const lines = Array.isArray(r?.error?.data?.errors) ? r.error.data.errors : [];
+  return [r?.error?.message || (typeof r?.error === 'string' ? r.error : fallback), ...lines].join('\n');
+};
 const rowEl = (id) => (typeof document === 'undefined' ? null : document.querySelector(`.ou-inbox .ou-irow[data-id="${CSS.escape(id)}"]`));
 
 export function leaveRow(id, then) {
@@ -501,7 +504,10 @@ export function Inbox() {
     if (next) select(next.id);
   };
   const dismiss = (id) => leaveRow(id, () => rpc('needs.dismiss', { id }));
-  const toggleRead = (n) => rpc(n.read_at ? 'needs_you.mark-unread' : 'needs_you.mark-read', { id: n.id }, true);
+  const toggleRead = async (n) => {
+    const r = await rpc(n.read_at ? 'needs_you.mark-unread' : 'needs_you.mark-read', { id: n.id }, true);
+    if (!r || r.error) toast(errText(r, n.read_at ? 'Could not mark unread' : 'Could not mark read'), true);
+  };
   const statusOf = (item, isSession, groupStatus) => (blockedNow(sessionOf(item, isSession)) ? 'blocked' : groupStatus);
 
   let status = null;
