@@ -8,7 +8,7 @@ const wall = (() => {
   const TOP = 8, BOT = 8, G = 8, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
-  let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];
+  let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [], MAX = null;
   let SEED = null, KEY = {}, changed = () => {};
   let touchAt = -Infinity, want = [], wantNext = false, holdT, wake = () => {};
   const pane = (id) => termView.tile(id);
@@ -122,6 +122,12 @@ const wall = (() => {
   function rects() {
     const st = $('#stage'), W = st?.clientWidth || innerWidth, H = (st?.clientHeight || innerHeight) - TOP - BOT;
     const R = {};
+    // one maximized pane takes the whole stage (or the left column beside an open panel); the others stay mounted and keep running
+    if (MAX && S[MAX]) {
+      const C = document.body.classList.contains('no-split') ? W - 16 : colW(W);
+      R[MAX] = { left: 8, top: TOP, width: C, height: H };
+      return { R, C, RX: 8 + C + G, H };
+    }
     const ids = [...BIG, ...ORDER].filter((id) => S[id]);
     if (mode === 'grid') {
       const cols = Math.ceil(Math.sqrt(ids.length)), rows = Math.ceil(ids.length / cols);
@@ -177,6 +183,7 @@ const wall = (() => {
       const el = pane(id), r = R[id];
       if (!el) continue;
       el.hidden = !r;
+      el.querySelector('.mx')?.setAttribute('aria-pressed', String(id === MAX));
       if (!r) continue;
       const big = mode !== 'grid' && BIG.includes(id);
       el.classList.toggle('big', big);
@@ -347,8 +354,17 @@ const wall = (() => {
     $('#palette-input').focus();
   });
 
+  /** Maximizes one pane, or restores the layout when it is already maximized or `id` is null. */
+  function maximize(id) {
+    MAX = id && MAX !== id ? id : null;
+    layout(true, 0.6);
+    return MAX;
+  }
+
   return {
     promote: setBig,
+    maximize,
+    maximized: () => (MAX && S[MAX] ? MAX : null),
     onWake: (fn) => { wake = fn; },
     decide, apply, layout, pair, unpair, toggleOpen, restore, state, onChange: (fn) => { changed = fn; }, output, roll, verdict, setList, setSheet, openSearch, closeSearch,
     big: () => BIG[0] || null,

@@ -272,3 +272,5 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 #watch .wdot[hidden] { display: none; }
 #watch .wthumb img { width: 100%; min-height: 60px; display: block; border: 1px var(--bstyle) var(--line); background: var(--panel); }
 #watch .wthumb figcaption { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.ph .ou-ah-acts .mx { flex: none; width: 24px; min-width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 2px; background: none; color: var(--mute); cursor: pointer; }
+.ph .ou-ah-acts .mx:hover, .ph .ou-ah-acts .mx[aria-pressed="true"] { background: var(--canvas-soft); color: var(--ink); }

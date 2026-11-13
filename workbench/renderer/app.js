@@ -1351,6 +1351,9 @@ async function onClick(e) {
     case 'unpair':
       wall.unpair();
       return;
+    case 'maximize':
+      wall.maximize(id);
+      return;
     case 'stop-agent':
       await stopAgent(id);
       return;
@@ -1962,7 +1965,8 @@ document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active && active.tagName);
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Escape' && (!typing || inTerm)) {
-    if (wall.sheetOpen()) wall.setSheet(false);
+    if (wall.maximized() && !inTerm) wall.maximize(null);
+    else if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
     else if (ui.split && !inTerm) { ui.split = false; save('split', '0'); render(); }
     return;

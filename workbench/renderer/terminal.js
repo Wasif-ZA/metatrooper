@@ -10,6 +10,7 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <button class="btn stp" data-action="stop-agent" title="Stop this agent (Ctrl+C, then end it)" hidden>Stop</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
+  <button class="mx" data-action="maximize" aria-pressed="false" title="Maximize this pane (double-click the header; Esc restores)" aria-label="Maximize this pane"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
   <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button>
   <details class="tile-more"><summary class="tx" aria-label="More actions" title="More actions">...</summary><menu><span class="tile-previews"></span><span class="tile-desk"></span><button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button></menu></details></span></div>
   <div class="r2"><span class="tile-info"><span class="tile-last fl"></span><button class="tile-changed link" data-action="changed-menu" hidden></button><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></span></div>
@@ -88,6 +89,7 @@ const termView = (() => {
     el.role = 'group';
     el.innerHTML = TILE_HTML;
     el.querySelector('.tile-head').addEventListener('click', (e) => { if (!e.target.closest('button, summary, .tile-more')) onPick(sessionId, e); });
+    el.querySelector('.tile-head').addEventListener('dblclick', (e) => { if (!e.target.closest('button, summary, .tile-more')) wall.maximize(sessionId); });
     // a UI Automation invoke clicks the tile itself, not a point inside it
     el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
