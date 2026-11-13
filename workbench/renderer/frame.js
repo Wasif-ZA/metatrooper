@@ -295,34 +295,27 @@ globalThis.frameView = (() => {
   // From t3code (MIT), apps/web/src/projectIconOptions.ts: the emoji offered for a project.
   const PROJECT_EMOJIS = ['💻', '🛠️', '🚀', '🤖', '✨', '⚡', '🌐', '📱', '🖥️', '⌨️', '⚙️', '🗄️', '☁️', '📦', '📚', '🧪', '🔒', '🎮', '🎵', '🎬', '🖼️', '🛍️', '🔥', '💡'];
 
-  function closeIconUi() { document.getElementById('frameIconMenu')?.remove(); document.getElementById('frameIconPick')?.remove(); }
-
-  /** Right-click on a project row: a one-item menu, "Change icon". */
-  function iconMenu(projectId, x, y) {
-    closeIconUi();
-    const m = document.createElement('div');
-    m.id = 'frameIconMenu';
-    m.className = 'ficonmenu';
-    m.setAttribute('role', 'menu');
-    m.style.left = `${x}px`;
-    m.style.top = `${y}px`;
-    m.innerHTML = '<button role="menuitem">Change icon…</button>';
-    m.querySelector('button').addEventListener('click', () => iconPicker(projectId, x, y));
-    document.body.appendChild(m);
-    m.querySelector('button').focus();
+  let opener = null;
+  /** Closes the row menu and the icon panel; focus goes back to what opened them if it was inside one. */
+  function closeIconUi() {
+    const open = ['frameIconMenu', 'frameIconPick'].map((id) => document.getElementById(id)).filter(Boolean);
+    const back = open.some((el) => el.contains(document.activeElement)) ? opener : null;
+    for (const el of open) el.remove();
+    back?.focus?.();
   }
 
-  /** Right-click on a running agent row: "Stop agent". */
-  function rowMenu(id, x, y) {
+  /** Right-click on a sidebar row: a one-item menu at the pointer. */
+  function rowMenu(label, x, y, pick) {
     closeIconUi();
+    opener = document.activeElement;
     const m = document.createElement('div');
     m.id = 'frameIconMenu';
     m.className = 'ficonmenu';
     m.setAttribute('role', 'menu');
     m.style.left = `${x}px`;
     m.style.top = `${y}px`;
-    m.innerHTML = '<button role="menuitem">Stop agent</button>';
-    m.querySelector('button').addEventListener('click', () => { closeIconUi(); void stopAgent(id); });
+    m.innerHTML = `<button role="menuitem">${label}</button>`;
+    m.querySelector('button').addEventListener('click', () => { closeIconUi(); pick(); });
     document.body.appendChild(m);
     m.querySelector('button').focus();
   }
@@ -330,6 +323,7 @@ globalThis.frameView = (() => {
   /** The Change icon panel: a monogram (letters + colour), an emoji, or a line icon with a colour; Reset goes back to the favicon or the plain folder icon. */
   function iconPicker(projectId, x, y) {
     closeIconUi();
+    opener = document.activeElement;
     const { PROJECT_COLOURS: colours, PICK_ICONS: names } = globalThis.projectIconChoices || { PROJECT_COLOURS: {}, PICK_ICONS: [] };
     const p = (ui.snap.projects || []).find((q) => q.id === projectId);
     const cur = p?.icon || {};
@@ -359,8 +353,10 @@ globalThis.frameView = (() => {
       box.querySelector('.fletters')?.addEventListener('input', (e) => { st.text = e.target.value.toUpperCase(); box.querySelector('.fprev').innerHTML = globalThis.projectIconHtml?.(preview(), 20) ?? ''; });
     };
     const save = async (icon) => {
-      const r = await troop.call('project.icon-set', { project_id: projectId, icon });
-      if (r?.reply?.error) { globalThis.toast?.(r.reply.error.message, true); return; }
+      box.inert = true;
+      const r = await troop.call('project.icon-set', { project_id: projectId, icon }).catch((e) => ({ reply: { error: e } }));
+      box.inert = false;
+      if (r?.reply?.error) { globalThis.toast?.(r.reply.error.message || 'Could not save the icon', true); return; }
       closeIconUi();
     };
     box.addEventListener('click', (e) => {
@@ -374,9 +370,11 @@ globalThis.frameView = (() => {
       else if (b.dataset.act === 'reset') return void save(null);
       else if (b.dataset.act === 'save') return void save(preview());
       render();
+      box.querySelector(b.dataset.tab ? '[aria-selected="true"]' : b.dataset.colour ? '.fswatch.on' : '.fcell.on')?.focus();
     });
     render();
     document.body.appendChild(box);
+    box.querySelector('[aria-selected="true"]').focus();
   }
 
   function mount() {
@@ -416,11 +414,11 @@ globalThis.frameView = (() => {
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
       const agent = e.target.closest('.fth[data-id], .fthkid[data-id], .fagent[data-id]');
       const x = agent && [...(ui.snap.sessions || []), ...(ui.snap.live || [])].find((s) => s.id === agent.dataset.id);
-      if (agent && ccWords.canStop(x)) { e.preventDefault(); rowMenu(x.id, e.clientX, e.clientY); return; }
+      if (agent && ccWords.canStop(x)) { e.preventDefault(); rowMenu('Stop agent', e.clientX, e.clientY, () => void stopAgent(x.id)); return; }
       const row = e.target.closest('.fproj, [data-proj]');
       if (!row) return;
       e.preventDefault();
-      iconMenu(row.dataset.id || row.dataset.proj, e.clientX, e.clientY);
+      rowMenu('Change iconâ€¦', e.clientX, e.clientY, () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY));
     });
     const closeGh = () => document.getElementById('frameGhPanel')?.remove();
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); if (!e.target.closest?.('#frameGhPanel, #frameGh')) closeGh(); });

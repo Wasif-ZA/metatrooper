@@ -1,6 +1,5 @@
 ﻿/* Sidebar and top bar laid out like the reference window: search row, thread rows, Working/Settled shelves, icon footer. */
 :root:not(.side-rail):not(.side-auto) { --side: 255px; }
-.frame { font-family: var(--font-family-body, 'Geist', sans-serif); }
 .fhead { justify-content: flex-start; gap: 6px; padding: 0 12px 0 10px; border-bottom: 0; }
 .fhead .ftog { order: -1; }
 
@@ -53,7 +52,7 @@
 /* Top bar: no rule under it; views as one icon cluster on the right; search, core and New live in the sidebar. */
 :root:not([data-view="wall"]) header.title { border-bottom: 0; }
 :root:not([data-view="wall"]) header.title > :is([data-action="palette"], #core, #newagent) { display: none !important; }
-.title .kpick#project-pick { font-family: var(--font-family-body, sans-serif); font-weight: 400; color: var(--body); }
+.title .kpick#project-pick { font-weight: 400; color: var(--body); }
 .tnav { flex: none; display: flex; flex-direction: row; align-items: center; gap: 2px; padding: 0; }
 .tnav button { position: relative; width: 28px; height: 28px; margin: 0; padding: 0; justify-content: center; border-radius: 6px; color: var(--mute); }
 .tnav button:hover { background: var(--canvas); color: var(--ink); }
@@ -95,7 +94,7 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fth2 .ft { font-weight: 400; color: color-mix(in srgb, var(--ink) 77%, var(--canvas-deep)); }
 .fth.sel .fth2 .ft, .fth:hover .fth2 .ft { color: var(--ink); }
 .fsearch { font-size: 14px; color: color-mix(in srgb, var(--ink) 83%, var(--canvas-deep)); }
-.fsearchrow .fpill, .tnav .fpill { top: -1px; right: -3px; height: 12px; min-width: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; font: 500 10.5px/12px 'Geist', sans-serif; color: var(--mute); }
+.fsearchrow .fpill, .tnav .fpill { top: -1px; right: -3px; height: 12px; min-width: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; font: 500 10.5px/12px var(--font-app); color: var(--mute); }
 .ffoot svg, .tnav svg, .fsearchrow svg, .fhead .ftog svg { width: 18px; height: 18px; stroke-width: 1.33; }
 .fusage { grid-template-columns: 14px 48px minmax(0, 1fr); column-gap: 8px; row-gap: 6px; }
 .fuse .fbar { width: 48px; }
@@ -112,9 +111,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .fsec.fsearchrow { margin-top: 25px; }
 .fth1, .fth3 { color: color-mix(in srgb, var(--ink) 63%, var(--canvas-deep)); }
 .fcore { padding: 4px; cursor: default; }
-.fthreads { padding-top: 5px; }
-
-.fthreads { padding-top: 3px; }
 
 /* Spacing scale and status words, shared by the sidebar and Home. A status is a word; colour only reinforces it. */
 :root { --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px; }
@@ -164,3 +160,6 @@ header.title .ou-hm-head .ou-hm-headtitle { font-weight: 400; }
 .feng { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .fengn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fuse .fmk .feng { gap: 6px; }
+
+/* Pressed: one step past hover, on every sidebar and top bar button. */
+:is(.fth, .fthkid, .fshelfh, .fsearch, .fic, .ftog, .fthx, .tnav button, .ffoot button, .title .ib, .fcell, .ftabs button, .fpickfoot button:not(.fprimary), .ficonmenu button):active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
