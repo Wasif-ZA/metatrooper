@@ -267,6 +267,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | { id: string; path: string; name: string }
         | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      if (!fs.existsSync(project.path)) throw new RpcError(E.NOT_FOUND, `the project folder is gone: ${project.path}`);
       for (const k of ['approval', 'model']) if (p[k] != null && typeof p[k] !== 'string') throw new RpcError(E.INVALID_PARAMS, `${k} must be a string`);
       const requested = str(p, 'approval', false);
       const host = str(p, 'host', false) || (requested === 'isolated' ? 'sandbox' : 'pty');
@@ -559,8 +560,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!shell) throw new RpcError(E.ENGINE_UNAVAILABLE, `${kind} is not available on this machine`);
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
-      if (!fs.existsSync(project.path)) throw new RpcError(E.NOT_FOUND, `the project folder is gone: ${project.path}`);
       if (beingRemoved(project.path)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
+      if (!fs.existsSync(project.path)) throw new RpcError(E.NOT_FOUND, `the project folder is gone: ${project.path}`);
       const id = `sh_${ulid()}`;
       term.open(id, shell.argv, project.path, process.env);
       return { shell_id: id, label: shell.label, cwd: project.path };
