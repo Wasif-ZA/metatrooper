@@ -200,13 +200,13 @@ test('f2d37124 Add-ons result count is quiet metadata inside the capped results 
   const results = oneClass(screen(Addons), 'ou-results');
   const count = oneClass(results, 'ou-addons-count');
   assert.equal(count.type, 'div');
-  assert.equal(renderToStaticMarkup(count), '<div class="ou-addons-count">3 result(s)</div>');
+  assert.equal(renderToStaticMarkup(count), '<div class="ou-addons-count" role="status">3 results</div>');
   assert.equal(children(results)[0], count);
   const css = readFileSync(join(wb, 'ui/src/ui.css'), 'utf8');
   assert.match(cssBody(css, '.ou-results'), /max-width:\s*(?:[\d.]+(?:px|rem|em|%)|var\([^)]+\))\s*;/);
   assert.ok(cssBody(css, '.ou-addons-count'));
   g.ui.snap.engines = []; addonsStore.set({ rows: [] });
-  assert.equal(renderToStaticMarkup(oneClass(screen(Addons), 'ou-addons-count')), '<div class="ou-addons-count">0 result(s)</div>');
+  assert.equal(renderToStaticMarkup(oneClass(screen(Addons), 'ou-addons-count')), '<div class="ou-addons-count" role="status">0 results</div>');
 });
 
 test('60704072 Needs you has exactly one empty message, in the list, and none in the detail pane', () => {
