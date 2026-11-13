@@ -303,8 +303,8 @@ globalThis.frameView = (() => {
     back?.focus?.();
   }
 
-  /** Right-click on a sidebar row: a one-item menu at the pointer. */
-  function rowMenu(label, x, y, pick) {
+  /** Right-click on a sidebar row: a menu of [label, pick] items at the pointer. */
+  function rowMenu(items, x, y) {
     closeIconUi();
     opener = document.activeElement;
     const m = document.createElement('div');
@@ -313,8 +313,13 @@ globalThis.frameView = (() => {
     m.setAttribute('role', 'menu');
     m.style.left = `${x}px`;
     m.style.top = `${y}px`;
-    m.innerHTML = `<button role="menuitem">${label}</button>`;
-    m.querySelector('button').addEventListener('click', () => { closeIconUi(); pick(); });
+    m.innerHTML = items.map(([label]) => `<button role="menuitem" style="width:100%">${label}</button>`).join('');
+    const bs = [...m.querySelectorAll('button')];
+    bs.forEach((b, i) => b.addEventListener('click', () => { closeIconUi(); items[i][1](); }));
+    m.addEventListener('keydown', (e) => {
+      const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+      if (d) { e.preventDefault(); bs[(bs.indexOf(document.activeElement) + d + bs.length) % bs.length].focus(); }
+    });
     document.body.appendChild(m);
     m.querySelector('button').focus();
   }
@@ -426,11 +431,13 @@ globalThis.frameView = (() => {
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
       const agent = e.target.closest('.fth[data-id], .fthkid[data-id], .fagent[data-id]');
       const x = agent && [...(ui.snap.sessions || []), ...(ui.snap.live || [])].find((s) => s.id === agent.dataset.id);
-      if (agent && ccWords.canStop(x)) { e.preventDefault(); rowMenu('Stop agent', e.clientX, e.clientY, () => void stopAgent(x.id)); return; }
       const row = e.target.closest('.fproj, [data-proj]');
-      if (!row) return;
+      const items = [];
+      if (agent && ccWords.canStop(x)) items.push(['Stop agent', () => void stopAgent(x.id)]);
+      if (row) items.push(['Change icon…', () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY)]);
+      if (!items.length) return;
       e.preventDefault();
-      rowMenu('Change icon…', e.clientX, e.clientY, () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY));
+      rowMenu(items, e.clientX, e.clientY);
     });
     const closeGh = () => document.getElementById('frameGhPanel')?.remove();
     document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); if (!e.target.closest?.('#frameGhPanel, #frameGh')) closeGh(); });
