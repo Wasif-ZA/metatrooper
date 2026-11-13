@@ -11,10 +11,9 @@
 .ou-inbox ::-webkit-scrollbar { width: 6px; height: 6px; }
 .ou-inbox ::-webkit-scrollbar-track { background: transparent; }
 .ou-inbox ::-webkit-scrollbar-thumb { background: var(--hairline-strong); border-radius: 3px; }
-.ou-inbox ::-webkit-scrollbar-button { display: none; height: 0; }
+.ou-inbox ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 
 /* list column */
-.ou-inbox .ou-inbox-list { width: 360px; }
 .ou-inbox .ou-inbox-head { height: 48px; min-height: 48px; padding: 0 16px 0 24px; }
 .ou-inbox .ou-ny-title { font-size: 14px; font-weight: 500; }
 .ou-inbox .ou-ihead.ou-ny-ghead { height: 32px; min-height: 32px; padding: 0 16px 0 20px; }
@@ -25,7 +24,6 @@
 .ou-inbox .ou-ny-row-sub { font-size: 13px; gap: 8px; }
 .ou-inbox .ou-ny-row-side { justify-content: space-between; padding: 2px 0; }
 .ou-inbox .ou-ny-row-side .ou-ny-ring { width: 16px; height: 16px; }
-.ou-inbox .ou-ny-row-age { font-size: 12px; }
 
 /* open item: top bar */
 .ou-inbox .ou-ny-bar { height: 48px; min-height: 48px; gap: 8px; padding: 0 16px 0 24px; }
@@ -39,22 +37,20 @@
 .ou-inbox .ou-ny-top-chips { gap: 6px; padding-bottom: 0; border-bottom: 0; }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet { color: var(--mute); }
 .ou-inbox .ou-ny-top-chips .ou-ny-chip-quiet svg { color: var(--mute); }
-.ou-inbox h2.ou-ny-doc-title { margin: 4px 0 0; font-size: 24px; font-weight: 500; line-height: 1.3; }
+.ou-inbox h2.ou-ny-doc-title { margin: 4px 0 0; font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 24px; font-weight: 500; line-height: 1.3; }
 .ou-inbox .ou-ny-doc-task { font-size: 15px; line-height: 1.6; }
 
 /* GitHub-style label pill, tinted from the status tokens */
-.ou-inbox .ou-ny-label { --lc: var(--mute); display: inline-flex; align-items: center; gap: 4px; height: 22px; max-width: 100%; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--lc) 60%, transparent); border-radius: var(--ny-pill); font-size: 12px; font-weight: 400; line-height: 1; white-space: nowrap; color: var(--body); background: color-mix(in srgb, var(--lc) 16%, transparent); }
+.ou-inbox .ou-ny-label { --lc: var(--mute); display: inline-flex; align-items: center; gap: 4px; height: 22px; max-width: 100%; padding: 0 8px; border: 1px solid var(--lc); border-radius: var(--ny-pill); font-size: 12px; font-weight: 400; line-height: 1; white-space: nowrap; color: var(--body); background: transparent; }
 .ou-inbox .ou-ny-label > span { overflow: hidden; text-overflow: ellipsis; }
 .ou-inbox .ou-ny-label .ou-ny-chip-remove { color: var(--mute); }
 .ou-inbox .ou-ny-tone-run { --lc: var(--st-run); }
 .ou-inbox .ou-ny-tone-ok { --lc: var(--st-ok); }
 .ou-inbox .ou-ny-tone-wait { --lc: var(--st-wait); }
 .ou-inbox .ou-ny-tone-bad { --lc: var(--st-bad); }
-.ou-inbox .ou-ny-tone-review { --lc: var(--body); }
 
 /* sub-tasks block */
 .ou-inbox .ou-ny-subtasks { gap: 12px; }
-.ou-inbox .ou-ny-subtasks > .ou-ny-h { font-size: 14px; font-weight: 400; color: var(--mute); }
 .ou-inbox .ou-ny-sub-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 44%); align-items: center; gap: 12px; padding: 6px 8px 6px 10px; border-radius: 4px; }
 .ou-inbox .ou-ny-sub-left { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .ou-inbox .ou-ny-sub-summary { font-size: 12px; gap: 12px; white-space: nowrap; }
@@ -67,9 +63,8 @@
 .ou-inbox .ou-ny-search { position: relative; display: flex; align-items: center; }
 .ou-inbox .ou-ny-search > svg { position: absolute; left: 8px; z-index: 1; color: var(--mute); pointer-events: none; }
 .ou-inbox .ou-ny-search input { padding-left: 26px; }
-.ou-inbox .ou-ny-sub-row { height: 32px; gap: 8px; padding: 0 8px; font-size: 12px; cursor: pointer; }
+.ou-inbox .ou-ny-sub-row { padding: 0 8px; font-size: 12px; cursor: pointer; }
 .ou-inbox .ou-ny-sub-row .ou-ny-ring { width: 14px; height: 14px; }
-.ou-inbox .ou-ny-sub-n { font-size: 12px; }
 .ou-inbox .ou-ny-sub-id { color: var(--mute); }
 
 /* properties panel */
@@ -79,7 +74,6 @@
 .ou-inbox .ou-ny-props-body { padding: 8px 0 24px; }
 .ou-inbox .ou-ny-prop { grid-template-columns: 66px minmax(0, 1fr); gap: 12px; min-height: 34px; padding: 4px 16px; }
 .ou-inbox .ou-ny-prop-label { padding-top: 4px; line-height: 16px; }
-.ou-inbox .ou-ny-prop-val { font-size: 13px; }
 .ou-inbox .ou-ny-prop-val [role="combobox"] { margin-left: 0; }
 .ou-inbox .ou-ny-prop-val .astryx-selector { padding-left: 0; padding-right: 4px; }
 .ou-inbox .ou-ny-prisel { gap: 4px; }
@@ -92,7 +86,6 @@
 .ou-inbox .ou-ny-addpick [role="combobox"] * { font-size: 12px; color: var(--mute); }
 .ou-inbox .ou-ny-addpick svg { display: none; }
 .ou-inbox .ou-ny-addpill:hover, .ou-inbox .ou-ny-addpick [role="combobox"]:hover { color: var(--ink); background: var(--canvas-soft); }
-.ou-inbox .ou-ny-avatar-big { width: 24px; height: 24px; font-size: 10px; font-weight: 500; letter-spacing: .02em; }
 .ou-inbox .ou-ny-arrow, .ou-inbox .ou-ny-parent { all: unset; display: inline-flex; align-items: center; color: var(--mute); cursor: pointer; }
 .ou-inbox .ou-ny-arrow:hover { color: var(--ink); }
 .ou-inbox .ou-ny-parent { display: inline; color: var(--body); line-height: 1.45; }
@@ -112,16 +105,13 @@
 .ou-inbox .ou-ny-bar .astryx-selector, .ou-inbox .ou-ny-bar .astryx-selector * { font-size: 12px; font-weight: 400; color: var(--body); }
 .ou-inbox .ou-ny-bar [role="combobox"] { min-width: 0; }
 .ou-inbox .ou-ny-terminal-block { padding: 0; border: 0; background: transparent; }
-.ou-inbox .ou-ny-avatar-gap { flex: none; width: 16px; height: 16px; }
-.ou-inbox .ou-ny-ledger-row { grid-template-columns: minmax(0, 1fr) 36px 36px 44px; }
+.ou-inbox .ou-ny-avatar-gap { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; }
 .ou-inbox .ou-ny-ledger-model { grid-column: 1 / -1; white-space: normal; overflow: visible; word-break: break-all; color: var(--body); }
 .ou-inbox .ou-ny-ledger-row > :nth-child(2) { grid-column: 2; }
 /* scrollbar-width/color switch off ::-webkit-scrollbar in Chromium, and thin still draws arrow buttons on Windows */
 .ou-inbox .ou-ny-body, .ou-inbox .ou-inbox-list, .ou-inbox .ou-ny-props { scrollbar-width: auto; scrollbar-color: auto; }
-.ou-inbox ::-webkit-scrollbar-button { width: 0; height: 0; display: none; }
 
 /* 9.5 round 1 */
-.ou-inbox .ou-ny-label { background: transparent; border: 1px solid var(--lc); color: var(--body); }
 .ou-inbox .ou-ny-tone-review { --lc: var(--mute); }
 .ou-inbox .ou-ny-meta .ou-ny-chip { height: 22px; padding: 0; border: 0; background: transparent; color: var(--body); }
 .ou-inbox .ou-ny-meta { gap: 14px; }
@@ -133,7 +123,6 @@
 .ou-inbox .ou-ny-h, .ou-inbox .ou-ny-subtasks > .ou-ny-h, .ou-inbox .ou-ny-activity > .ou-ny-h { font-size: 14px; font-weight: 400; color: var(--mute); margin-bottom: 4px; }
 .ou-inbox .ou-ny-question { font-family: var(--font-family-body); font-size: 14px; line-height: 1.5; color: var(--body); }
 .ou-inbox .ou-ny-ledger-one { color: var(--mute); }
-.ou-inbox .ou-ny-avatar-gap { display: inline-grid; place-items: center; }
 .ou-inbox .ou-ny-wslink { font-family: var(--font-family-body); font-size: 13px; color: var(--body); }
 .ou-inbox .ou-ny-answer-pin { position: sticky; bottom: 0; z-index: 2; padding: 8px 0 12px; background: var(--canvas-deep); }
 /* rows: title runs to 12px short of the status ring; the age sits under the ring */
@@ -149,13 +138,11 @@
 .ou-inbox .ou-ny-search .astryx-field > div { height: var(--ny-ctl); min-height: 0; }
 .ou-inbox .ou-ny-search input { height: calc(var(--ny-ctl) - 2px); }
 .ou-inbox .ou-ny-meta .ou-ny-dot[class*="ou-ny-tone-"] { background: var(--lc); }
-.ou-inbox h2.ou-ny-doc-title { font-weight: 500; }
 
 /* 9.5 round 3: one 24px height for chips and controls; meta row never clips descenders */
 .ou-inbox .ou-ny-chip, .ou-inbox .ou-ny-pill, .ou-inbox .ou-ny-label, .ou-inbox .ou-ny-addpill, .ou-inbox .ou-ny-addpick [role="combobox"] { height: var(--ny-ctl); line-height: 22px; }
 .ou-inbox .ou-ny-meta, .ou-inbox .ou-ny-meta .ou-ny-chip, .ou-inbox .ou-ny-meta .ou-ny-chip > span:not(.ou-ny-avatar) { overflow: visible; line-height: 20px; }
 .ou-inbox .ou-ny-meta { min-height: var(--ny-ctl); align-items: center; }
-.ou-inbox h2.ou-ny-doc-title { font-family: 'Geist', 'Segoe UI', sans-serif; }
 
 /* 9.5 round 4: add pills share the chip border */
 .ou-inbox .ou-ny-addpill, .ou-inbox .ou-ny-addpick [role="combobox"] { border-color: var(--hairline-strong); }
