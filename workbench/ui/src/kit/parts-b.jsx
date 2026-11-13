@@ -25,10 +25,10 @@ const opt = (v) => (isStr(v) ? String(v) : null);
 const bad = (name, x, why = 'bad item') => <Plain f={{ ...fallback(x, why), name }} />;
 const one = (map, v, d) => (Object.hasOwn(map, v) ? map[v] : d);
 
-const PILL = { kept: 'success', dropped: 'neutral', ok: 'success', warn: 'warning', error: 'error', info: 'info', need: 'warning' };
+const PILL = { kept: 'success', dropped: 'neutral', ok: 'success', warn: 'neutral', error: 'error', info: 'info', need: 'neutral' };
 const LOG_STATE = { done: 'ok', run: 'run', fail: 'bad', todo: 'mute' };
 const LOG_MARK = { heal: '↻', fail: '✕' };
-const DOC_MARK = { added: 'added', flag: 'flag' };
+const DOC_MARK = { added: 'added', flag: 'noted' };
 const DIR = { up: '▲', down: '▼', flat: '' };
 const ASSET = /^asset:[a-z0-9-]{1,40}$/;
 
@@ -111,7 +111,7 @@ export default {
         return (
           <div key={i} className={`ou-pb-logrow${l.kind === 'fail' ? ' ou-pb-bad' : ''}`}>
             <span className="ou-pb-mute">{opt(l.time) ?? ''}</span>
-            <span className={`ou-pb-mark ou-pb-k-${l.kind === 'heal' || l.kind === 'fail' ? l.kind : 'plain'}`}>{l.kind === 'run' ? <Spinner size="sm" /> : one(LOG_MARK, l.kind, '·')}</span>
+            <span className={`ou-pb-mark ou-pb-k-${l.kind === 'heal' ? 'retry' : l.kind === 'fail' ? 'fail' : 'plain'}`}>{l.kind === 'run' ? <Spinner size="sm" /> : one(LOG_MARK, l.kind, '·')}</span>
             <span>{String(l.text)}{detail ? <span className="ou-pb-mute"> {detail}</span> : null}</span>
           </div>
         );

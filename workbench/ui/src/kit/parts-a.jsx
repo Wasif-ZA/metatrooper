@@ -42,8 +42,8 @@ function split(a, name, f) {
 const Kids = ({ a, Part }) => <VStack gap={3}>{a.map((c, i) => <Part key={i} p={c} />)}</VStack>;
 const Aside = ({ t }) => (t == null ? null : <Text color="secondary" size="sm">{String(t)}</Text>);
 
-const BAR = { need: 'warning', fail: 'error', lead: 'success' };
-const DOT = { ok: 'success', fail: 'error', warn: 'warning', run: 'accent', none: 'neutral' };
+const BAR = { need: 'neutral', fail: 'error', lead: 'success' };
+const DOT = { ok: 'success', fail: 'error', warn: 'neutral', run: 'accent', none: 'neutral' };
 const STEP = { done: 'success', fail: 'error' };
 const CALL = { info: 'info', ok: 'success', error: 'error' };
 
