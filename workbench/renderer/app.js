@@ -1901,6 +1901,7 @@ document.addEventListener('contextmenu', (e) => {
   showMenu(menu);
 });
 document.addEventListener('dragover', (e) => {
+  if (e.target.closest?.('.ou-cmp')) return;
   e.preventDefault();
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
@@ -1909,6 +1910,7 @@ document.addEventListener('dragover', (e) => {
   e.dataTransfer.dropEffect = card || onTerm ? 'copy' : 'none';
 });
 document.addEventListener('drop', async (e) => {
+  if (e.target.closest?.('.ou-cmp')) return;
   e.preventDefault();
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
   if (onTerm && e.dataTransfer.files.length) {
