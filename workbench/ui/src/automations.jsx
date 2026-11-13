@@ -98,7 +98,8 @@ const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekday
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const EMOJI = ['⚙️', '\u{1F319}', '\u{1F9EA}', '\u{1F4DA}', '\u{1F50D}', '\u{1F41B}', '\u{1F9F9}', '\u{1F4E6}', '\u{1F512}', '\u{1F680}', '\u{1F4CA}', '\u{1F4DD}', '\u{1F514}', '\u{1F9ED}', '\u{1F527}', '✅'];
 
-export function presetOf(cron) {
+export function presetOf(cron, every) {
+  if (!cron && every) return { preset: 'every', minute: 0, time: '09:00', day: 1 };
   const p = String(cron || '').trim().split(/\s+/);
   const num = (v) => /^\d+$/.test(v);
   if (p.length === 5 && num(p[0]) && p[1] === '*' && p.slice(2).every((v) => v === '*')) return { preset: 'hourly', minute: Number(p[0]), time: '09:00', day: 1 };
@@ -117,6 +118,7 @@ export function cronOf({ preset, minute, time, day, custom }) {
   if (preset === 'daily') return `${mm} ${hh} * * *`;
   if (preset === 'weekdays') return `${mm} ${hh} * * 1-5`;
   if (preset === 'weekly') return `${mm} ${hh} * * ${day}`;
+  if (preset === 'every') return '';
   return String(custom || '').trim();
 }
 
@@ -125,7 +127,8 @@ const runWords = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'sh
 export function AutomationEditor({ initial, labelNames, colours = {}, onClose, onSaved }) {
   const s = ui.snap || {};
   const engines = (s.engines || []).filter((e) => e.light !== 'red');
-  const start = presetOf(initial?.cron);
+  const start = presetOf(initial?.cron, initial?.every_min);
+  const every = !initial?.cron && initial?.every_min ? initial.every_min : null;
   const [form, setForm] = useState({
     icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
     prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
@@ -142,9 +145,10 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   useEffect(() => {
     let live = true;
     setSaveError('');
+    if (form.preset === 'every') { setPreview({ ok: true, words: `Every ${every} minutes`, runs: [] }); return; }
     rpc('cron.next', { cron, n: 3 }, true).then((r) => { if (live) setPreview(r && r.result ? r.result : { ok: false, error: (r && r.error && r.error.message) || 'Could not read the schedule' }); });
     return () => { live = false; };
-  }, [cron]);
+  }, [cron, form.preset]);
   const valid = Boolean(preview && preview.ok);
   const runs = valid ? preview.runs || [] : [];
   const ready = valid && form.name.trim() && form.prompt.trim() && form.engine_id && form.project_id && (!form.script.trim() || form.runner.trim());
@@ -152,7 +156,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const save = async () => {
     if (!ready) return;
     const r = await rpc('automation.set', {
-      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), cron, every_min: 1440,
+      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), ...(form.preset === 'every' ? { cron: null, every_min: every } : { cron, every_min: 1440 }),
       labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(), approval: canRun.includes(form.approval) ? form.approval : 'ask',
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
@@ -210,7 +214,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <div className="ou-ae-row ou-ae-freq">
           <label className="ou-ae-label">Frequency</label>
           <span className="ou-ae-seg" role="radiogroup" aria-label="Frequency">
-            {PRESETS.map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={form.preset === k} onClick={() => setForm((f) => ({ ...f, preset: k, custom: k === 'custom' ? cronOf(f) || f.custom : f.custom }))}>{label}</button>)}
+            {[...(every ? [['every', `Every ${every} min`]] : []), ...PRESETS].map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={form.preset === k} onClick={() => setForm((f) => ({ ...f, preset: k, custom: k === 'custom' ? cronOf(f) || f.custom : f.custom }))}>{label}</button>)}
           </span>
         </div>
         <div className="ou-ae-row ou-ae-when">
@@ -303,7 +307,13 @@ export function AutomationsPage() {
   const pickView = (v) => { setView(v); try { save('auto-view', v); } catch {} };
   const runNow = async (a) => {
     const r = await rpc('automation.run', { id: a.id });
-    if (r && r.result) { toast(`Ran ${a.name}`); void refresh(); } else toast((r && r.error && (r.error.message || r.error)) || 'Could not run it', true);
+    const o = r && r.result;
+    if (o) {
+      if (o.outcome === 'woke') toast(`${a.name}: agent started`);
+      else if (o.outcome === 'skip') toast(`${a.name}: check passed, no agent started`);
+      else toast(`${a.name} failed: ${o.detail || o.outcome}`, true);
+      void refresh();
+    } else toast((r && r.error && (r.error.message || r.error)) || 'Could not run it', true);
   };
   const flip = async (a) => { await rpc('automation.enable', { id: a.id, enabled: !a.enabled }); void refresh(); };
   const fresh = (a) => { const t = Date.parse(a.runs?.[0]?.at || ''); return !Number.isNaN(t) && Date.now() - t < 86400000; };

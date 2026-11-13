@@ -17,7 +17,7 @@ export type AutomationDeps = {
 export const LATE_MS = 120_000;
 
 type Row = { id: string; project_id: string; name: string; every_min: number; cron: string | null; runner: string; script: string; script_sha256: string; timeout_ms: number; engine_id: string; prompt: string; next_due: string; path: string; approval: string | null };
-export type RunResult = { run_id: string; outcome: string; session_id: string | null };
+export type RunResult = { run_id: string; outcome: string; session_id: string | null; detail: string | null };
 
 const running = new Set<string>();
 
@@ -92,7 +92,7 @@ async function runOne(db: DatabaseSync, deps: AutomationDeps, a: Row, now: numbe
   const run = async (outcome: string, exit: number | null, detail: string | null, session: string | null): Promise<RunResult> => {
     const id = record(db, a, dueAt, at, outcome, exit, detail, session);
     if (a.script && (outcome === 'woke' || outcome === 'failed')) await deliverMonitor(db, deps, a, id, (detail ?? `check exited ${exit}`) + (output ? `. Output: ${output}` : ''));
-    return { run_id: id, outcome, session_id: session };
+    return { run_id: id, outcome, session_id: session, detail };
   };
   const launch = async (exit: number | null) => {
     try {

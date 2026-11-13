@@ -142,7 +142,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `automation.enable` | `{id, enabled}` | {}; enabling restarts the schedule from now | -32002, -32602 |  | yes |
 | `automation.delete` | `{id}` | {}; its runs go too | -32602 |  | yes |
 | `automation.list` | `{project_id?}` | {automations: [{id, project_id, name, icon, cron, words, every_min, runner, script, engine_id, prompt, approval, timeout_ms, enabled, next_due, labels: [{name, colour}], runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]}; `words` is the schedule in words |  |  |  |
-| `automation.run` | `{id}` | {run_id, outcome, session_id}; runs it now (check script, then the engine on exit 1, or the engine straight away when it has no script) and records an automation_run; the schedule is unchanged; -32003 when it is already running | -32002, -32003 |  | yes |
+| `automation.run` | `{id}` | {run_id, outcome, session_id, detail}; runs it now (check script, then the engine on exit 1, or the engine straight away when it has no script) and records an automation_run; the schedule is unchanged; -32003 when it is already running | -32002, -32003 |  | yes |
 | `automation.labels-set` | `{id, names: string[]}` | {labels: [{name, colour}]}; replaces its labels; unknown names are created with a default colour | -32602, -32002 |  | yes |
 | `label.list` | `{}` | {labels: [{name, colour, count}]}; every label across sessions and automations; `count` is how many use it |  |  |  |
 | `label.set` | `{name, colour}` | {name, colour}; creates the label or changes its `#rrggbb` colour | -32602 |  | yes |

@@ -1132,3 +1132,37 @@ test('Real app isInfo and needsCount filter info notes and count lend notes', ()
   g.ui.snap.needs_you = [note('lend-read', 'other', { ref: 'lend:p1 https://alpha.example', read_at: '2026-11-10T00:00:00Z' })];
   assert.equal(g.needsCount(), 0);
 });
+
+test('fix 8: an every-N-minutes automation opens as "Every 30 min" and saves without a cron', async () => {
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+  const seen: any[] = [];
+  g.rpc = async (method: string, params: any) => { seen.push([method, params]); return { result: { id: 'a1' } }; };
+  const initial = { id: 'a1', name: 'Poll', prompt: 'Check it.', cron: null, every_min: 30, engine_id: 'ready', project_id: 'p1', approval: 'ask' };
+  const h = harness(function Screen() { return React.createElement(screens.AutomationEditor, { initial, labelNames: [], onClose() {}, onSaved() {} }); }, true);
+  h.draw(); await flush(); h.draw();
+  assert.equal(h.one((n: any) => n.props.role === 'radio' && n.props['aria-checked'] === true).props.children, 'Every 30 min');
+  await h.one(label('Save')).props.onClick(); await flush();
+  const set = seen.find((c) => c[0] === 'automation.set')[1];
+  assert.equal(set.cron, null);
+  assert.equal(set.every_min, 30);
+});
+
+test('fix 7: Run now toasts what really happened', async (t) => {
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+  const list = [{ id: 'a1', name: 'Nightly', project_id: 'p1', engine_id: 'ready', enabled: 1, labels: [], runs: [] }];
+  const every = g.setInterval;
+  g.setInterval = () => 0;
+  t.after(() => { g.setInterval = every; });
+  for (const [reply, want, error] of [
+    [{ outcome: 'woke', session_id: 's', detail: null }, 'Nightly: agent started', undefined],
+    [{ outcome: 'skip', session_id: null, detail: null }, 'Nightly: check passed, no agent started', undefined],
+    [{ outcome: 'failed', session_id: null, detail: 'launch failed: nope' }, 'Nightly failed: launch failed: nope', true],
+  ] as const) {
+    calls.length = 0;
+    g.rpc = async (method: string) => (method === 'automation.list' ? { result: { automations: list } } : method === 'label.list' ? { result: { labels: [] } } : method === 'automation.run' ? { result: reply } : { result: {} });
+    const h = harness(screens.AutomationsPage, true);
+    h.draw(); await flush(); h.draw();
+    await h.one(label('Run now')).props.onClick(); await flush();
+    assert.deepEqual(calls.filter((c) => c[0] === 'toast').map((c) => c.slice(1)), [[want, ...(error ? [true] : [])]]);
+  }
+});
