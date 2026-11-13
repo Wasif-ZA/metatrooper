@@ -58,36 +58,40 @@ function setup(m) {
 
 function theme() {
   const probe = document.createElement('span');
-  (document.getElementById('ide') || document.body).append(probe);
+  (document.querySelector('#ide .ou-ide') || document.getElementById('ide') || document.body).append(probe);
   const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
-  const hex = (name) => {
-    probe.style.color = `var(${name})`;
+  const hex = (css) => {
+    probe.style.color = css;
     ctx.clearRect(0, 0, 1, 1);
     ctx.fillStyle = getComputedStyle(probe).color;
     ctx.fillRect(0, 0, 1, 1);
     const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
     return '#' + (a === 255 ? [r, g, b] : [r, g, b, a]).map((x) => x.toString(16).padStart(2, '0')).join('');
   };
-  const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong'].map((k) => [k, hex(`--${k}`)]));
+  const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong',
+    'syn-keyword', 'syn-string', 'syn-number', 'syn-fn', 'syn-type', 'ide-add-bg', 'del-bg'].map((k) => [k, hex(`var(--${k})`)]));
+  for (const [k, v] of [['add', 'ide-add'], ['del', 'del']]) { c[`${k}-text`] = hex(`color-mix(in srgb, var(--${v}) 30%, transparent)`); c[`${k}-mark`] = hex(`color-mix(in srgb, var(--${v}) 50%, transparent)`); }
   probe.remove();
   const fg = (k) => c[k].slice(1, 7);
   const dark = parseInt(fg('pane').slice(0, 2), 16) + parseInt(fg('pane').slice(2, 4), 16) + parseInt(fg('pane').slice(4, 6), 16) < 384;
   monaco.editor.defineTheme('cc', {
     base: dark ? 'vs-dark' : 'vs',
     inherit: true,
-    rules: !dark ? [] : [
-      { token: 'keyword', foreground: '569cd6' },
-      { token: 'keyword.control', foreground: 'c586c0' },
-      { token: 'string', foreground: 'ce9178' },
-      { token: 'number', foreground: 'b5cea8' },
-      { token: 'comment', foreground: '6a9955' },
-      { token: 'function', foreground: 'dcdcaa' },
-      { token: 'type', foreground: '4ec9b0' },
-      { token: 'variable', foreground: '9cdcfe' },
-      { token: 'property', foreground: '9cdcfe' },
-      { token: 'identifier', foreground: '9cdcfe' },
-      { token: 'type.identifier', foreground: '4ec9b0' },
-      { token: 'delimiter', foreground: 'd4d4d4' },
+    rules: [
+      { token: 'keyword', foreground: fg('syn-keyword') },
+      { token: 'keyword.control', foreground: fg('syn-keyword') },
+      { token: 'string', foreground: fg('syn-string') },
+      { token: 'number', foreground: fg('syn-number') },
+      { token: 'function', foreground: fg('syn-fn') },
+      { token: 'type', foreground: fg('syn-type') },
+      { token: 'type.identifier', foreground: fg('syn-type') },
+      ...(dark ? [
+        { token: 'comment', foreground: '6a9955' },
+        { token: 'variable', foreground: '9cdcfe' },
+        { token: 'property', foreground: '9cdcfe' },
+        { token: 'identifier', foreground: '9cdcfe' },
+        { token: 'delimiter', foreground: 'd4d4d4' },
+      ] : []),
     ],
     colors: {
       'editor.background': c.pane, 'editor.foreground': dark ? c['body-strong'] : c.ink, 'editorGutter.background': c.pane,
@@ -99,12 +103,13 @@ function theme() {
       'editor.findMatchBackground': '#00000000', 'editor.findMatchBorder': c['hairline-strong'], 'editor.findMatchHighlightBorder': c.hairline,
       'editorWidget.background': c.canvas, 'editorWidget.border': c.hairline, 'editorHoverWidget.background': c.canvas, 'editorHoverWidget.border': c.hairline,
       'input.background': c['canvas-deep'], 'input.foreground': c.ink, 'input.border': c.hairline, 'focusBorder': c['hairline-strong'],
-      'diffEditor.insertedLineBackground': '#9bb95533', 'diffEditor.removedLineBackground': '#ff000033',
-      'diffEditor.insertedTextBackground': '#9ccc2c66', 'diffEditor.removedTextBackground': '#ff000066',
-      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': '#9bb95533', 'diffEditorGutter.removedLineBackground': '#ff000033',
+      'diffEditor.insertedLineBackground': c['ide-add-bg'], 'diffEditor.removedLineBackground': c['del-bg'],
+      'diffEditor.insertedTextBackground': c['add-text'], 'diffEditor.removedTextBackground': c['del-text'],
+      'diffEditorOverview.insertedForeground': c['add-mark'], 'diffEditorOverview.removedForeground': c['del-mark'],
+      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': c['ide-add-bg'], 'diffEditorGutter.removedLineBackground': c['del-bg'],
       ...(dark ? {
         'scrollbarSlider.background': '#79797933', 'scrollbarSlider.hoverBackground': '#64646459', 'scrollbarSlider.activeBackground': '#bfbfbf66',
-        'editorOverviewRuler.border': '#00000000', 'diffEditorOverview.insertedForeground': '#9bb95580', 'diffEditorOverview.removedForeground': '#ff000080',
+        'editorOverviewRuler.border': '#00000000',
       } : {}),
     },
   });
