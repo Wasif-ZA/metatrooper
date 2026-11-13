@@ -463,7 +463,10 @@ function HeadTitle({ x, details, toggleDetails }) {
   const label = details ? 'Hide details' : 'Show details';
   return <>
     {createPortal(<><span className="ou-hm-headsep" aria-hidden="true">/</span><h2 className="ou-hm-headtitle" title={nameOf(x)}>{nameOf(x)}</h2></>, hosts.title)}
-    {createPortal(<button type="button" className="ou-hm-paneltog" aria-pressed={details} aria-label={label} title={label} onClick={toggleDetails}><PanelToggle size={16} /></button>, hosts.acts)}
+    {createPortal(<>
+      {canStop(x) ? <button type="button" className="ou-hm-paneltog" aria-label="Stop this agent" title="Stop this agent (Ctrl+C, then end it)" onClick={() => void stopAgent(x.id)}><Stop size={14} /></button> : null}
+      <button type="button" className="ou-hm-paneltog" aria-pressed={details} aria-label={label} title={label} onClick={toggleDetails}><PanelToggle size={16} /></button>
+    </>, hosts.acts)}
   </>;
 }
 

@@ -882,6 +882,7 @@ export function Inbox() {
                 <Selector size="sm" variant="ghost" label="Hand to another agent" isLabelHidden options={handOptions} value="" isDisabled={!sessionObj.prompt}
                   disabledMessage={sessionObj.prompt ? undefined : 'The original task was not recorded, so it cannot be handed over'} onChange={(val) => { if (val) setHandoverTarget(val); }} />
               ) : null}
+              {sessionObj && canStop(sessionObj) ? <IconButton size="sm" variant="ghost" icon={<Ic.StopIcon size={14} />} label="Stop this agent" title="Stop this agent (Ctrl+C, then end it)" onClick={() => void stopAgent(sessionObj.id)} /> : null}
               {!activeRow.isSession ? <Button size="sm" label="Dismiss" data-action="dismiss" data-id={item.id} onClick={() => dismiss(item.id)} /> : null}
               {activeRow.isSession || item.ref ? (
                 <IconButton size="sm" variant="ghost" icon={I.wall} label="Open on Wall" title="Open on Wall" data-action="pick" data-id={activeRow.isSession ? item.id : item.ref}

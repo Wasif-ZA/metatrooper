@@ -1060,6 +1060,16 @@ function setMode(mode) {
   render();
 }
 
+/** An agent cc started and that still runs can be stopped from the UI; outside sessions cannot. */
+function canStop(x) { return Boolean(x) && x.host !== 'external' && x.state !== 'exited' && !String(x.id).startsWith('sh_'); }
+
+/** session.stop: Ctrl+C, then the process tree after 3 s; the row turns Stopped when it exits. */
+async function stopAgent(id) {
+  const r = await rpc('session.stop', { session_id: id });
+  if (r.result) toast(r.result.stopped ? 'Stopping the agent' : 'That agent had already stopped');
+  return r;
+}
+
 function selectShell(id) {
   toWall();
   ui.shellSel = id;
@@ -1340,6 +1350,9 @@ async function onClick(e) {
       return;
     case 'unpair':
       wall.unpair();
+      return;
+    case 'stop-agent':
+      await stopAgent(id);
       return;
     case 'resume-tile': {
       const r = await rpc('session.resume', { session_id: id });

@@ -312,6 +312,21 @@ globalThis.frameView = (() => {
     m.querySelector('button').focus();
   }
 
+  /** Right-click on a running agent row: "Stop agent". */
+  function rowMenu(id, x, y) {
+    closeIconUi();
+    const m = document.createElement('div');
+    m.id = 'frameIconMenu';
+    m.className = 'ficonmenu';
+    m.setAttribute('role', 'menu');
+    m.style.left = `${x}px`;
+    m.style.top = `${y}px`;
+    m.innerHTML = '<button role="menuitem">Stop agent</button>';
+    m.querySelector('button').addEventListener('click', () => { closeIconUi(); void stopAgent(id); });
+    document.body.appendChild(m);
+    m.querySelector('button').focus();
+  }
+
   /** The Change icon panel: a monogram (letters + colour), an emoji, or a line icon with a colour; Reset goes back to the favicon or the plain folder icon. */
   function iconPicker(projectId, x, y) {
     closeIconUi();
@@ -399,6 +414,9 @@ globalThis.frameView = (() => {
       if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall');
     });
     document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
+      const agent = e.target.closest('.fth[data-id], .fthkid[data-id], .fagent[data-id]');
+      const x = agent && [...(ui.snap.sessions || []), ...(ui.snap.live || [])].find((s) => s.id === agent.dataset.id);
+      if (agent && canStop(x)) { e.preventDefault(); rowMenu(x.id, e.clientX, e.clientY); return; }
       const row = e.target.closest('.fproj, [data-proj]');
       if (!row) return;
       e.preventDefault();

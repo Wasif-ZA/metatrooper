@@ -93,6 +93,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
+  { name: 'session.stop', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{session_id}', result: '{stopped: boolean}; sends Ctrl+C, then kills the process tree after 3 s if it still runs; the session exits with outcome cancelled and raises no failed item. false when it had already exited' },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
   { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
@@ -478,6 +479,18 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     }
   };
 
+  m.set('session.stop', {
+    needsUi: true,
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      const row = db.prepare('SELECT host, state FROM session WHERE id = ?').get(id) as { host: string; state: string } | undefined;
+      if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (row.host === 'external') throw new RpcError(E.VALIDATION, 'this agent was opened outside cc; stop it in its own terminal');
+      if (row.state === 'exited') return { stopped: false };
+      appendEvent('core.user-stop', id, {}, db);
+      return { stopped: term.stop(id) };
+    },
+  });
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
   m.set('session.live-text', {
     handler: () => {

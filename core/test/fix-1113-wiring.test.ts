@@ -83,3 +83,23 @@ test('fix 26: a read-only settings.json gives a plain message and leaves no temp
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('Tier B a: session.stop ends one agent as cancelled with no failed item, and refuses outside sessions', { timeout: 60_000 }, async () => {
+  const c = await core();
+  try {
+    const { DatabaseSync } = await import('node:sqlite');
+    const { until } = await import('./helpers.ts');
+    const a = (await c.pipe.request('session.launch', { project_id: c.projectId, engine_id: 'claude', prompt: 'x' })).result.session_id;
+    const b = (await c.pipe.request('session.launch', { project_id: c.projectId, engine_id: 'claude', prompt: 'y' })).result.session_id;
+    const db = new DatabaseSync(join(c.iso.home, 'troop.db'), { readOnly: true });
+    const row = (id: string) => db.prepare('SELECT state, outcome FROM session WHERE id = ?').get(id) as { state: string; outcome: string | null };
+    await until(() => row(a).state !== 'starting', 10_000).catch(() => {});
+    assert.deepEqual((await c.pipe.request('session.stop', { session_id: a })).result, { stopped: true });
+    await until(() => row(a).state === 'exited', 15_000);
+    assert.equal(row(a).outcome, 'cancelled');
+    assert.notEqual(row(b).state, 'exited', 'the other agent keeps running');
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM needs_you WHERE ref = ? AND kind = 'failed'").get(a) as { n: number }).n, 0);
+    assert.deepEqual((await c.pipe.request('session.stop', { session_id: a })).result, { stopped: false });
+    db.close();
+  } finally { await c.close(); }
+});

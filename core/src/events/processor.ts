@@ -64,6 +64,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const newerHook = db.prepare(`SELECT 1 FROM event WHERE session_id = ? AND seq < ? AND julianday(at) > julianday(?) AND kind IN (${hookKinds.map(() => '?').join(', ')}) LIMIT 1`);
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const setOutcome = db.prepare('UPDATE session SET outcome = ? WHERE id = ? AND outcome IS NULL');
+  const userStop = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind = 'core.user-stop' LIMIT 1");
   const latestProof = db.prepare('SELECT exit_code FROM done_proof WHERE session_id = ? ORDER BY julianday(at) DESC LIMIT 1');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
@@ -176,14 +177,15 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (next === 'exited') {
             setEnded.run(nowIso(), ev.session_id);
             const proof = latestProof.get(ev.session_id) as { exit_code: number | null } | undefined;
-            const outcome = proof ? (proof.exit_code === 0 ? 'succeeded' : 'failed') : typeof payload.code === 'number' && payload.code !== 0 ? 'failed' : s.state === 'done' ? 'succeeded' : 'cancelled';
+            const stopped = Boolean(userStop.get(ev.session_id));
+            const outcome = stopped ? 'cancelled' : proof ? (proof.exit_code === 0 ? 'succeeded' : 'failed') : typeof payload.code === 'number' && payload.code !== 0 ? 'failed' : s.state === 'done' ? 'succeeded' : 'cancelled';
             setOutcome.run(outcome, ev.session_id);
             removeSessionFiles(db, ev.session_id);
             turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq });
           }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
-          if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
+          if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0 && !userStop.get(ev.session_id)) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
       done.run(ev.seq);

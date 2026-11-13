@@ -7,6 +7,7 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <span class="ou-ah-state tile-state badge"></span>
   <span class="ou-ah-acts"><span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
   <button class="ub" data-action="unpair" title="Unpair">Unpair</button>
+  <button class="btn stp" data-action="stop-agent" title="Stop this agent (Ctrl+C, then end it)" hidden>Stop</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
   <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button>
@@ -263,6 +264,7 @@ const termView = (() => {
     t.el.dataset.state = x.state;
     const name = `${x.task || x.engine_id}, ${x.words || x.state}`;
     if (t.el.ariaLabel !== name) t.el.ariaLabel = name;
+    t.el.querySelector(".stp").hidden = Boolean(x.shell || x.outside || x.state === 'exited');
     const lr = t.el.querySelector('.lr');
     lr.hidden = x.shell || x.outside || t.engine !== 'claude';
     lr.ariaPressed = String(x.limitResume !== false);

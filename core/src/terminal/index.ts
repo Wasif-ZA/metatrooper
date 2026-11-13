@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -275,6 +276,19 @@ export function detach(id: string, viewer: Viewer): void {
   const t = terms.get(id);
   t?.viewers.delete(viewer);
   t?.attaching.delete(viewer);
+}
+
+/** Ctrl+C first; whatever still runs after `graceMs` is killed with its whole process tree. */
+export function stop(id: string, graceMs = 3000): boolean {
+  const t = terms.get(id);
+  if (!t || t.exitCode !== null) return false;
+  try { t.proc.write(String.fromCharCode(3)); } catch {}
+  setTimeout(() => {
+    if (t.exitCode !== null) return;
+    if (process.platform === 'win32') spawn('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true }).on('error', () => {});
+    kill(id);
+  }, graceMs).unref();
+  return true;
 }
 
 export function killAll(): void {
