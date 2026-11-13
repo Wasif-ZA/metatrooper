@@ -125,7 +125,7 @@ function StartBox({ ready, strip }) {
     strip,
     filled: Boolean(task.trim()),
     onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } },
-    field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask an agent to do something. @ to mention files, / for commands" onChange={edit} />,
+    field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask an agent to do something. @ for files, / for commands" onChange={edit} />,
     opts: more ? (
       <div className="ou-composerfoot ou-hm-opts">
         <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
