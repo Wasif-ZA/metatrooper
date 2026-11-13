@@ -216,6 +216,16 @@ const termView = (() => {
     }
   });
 
+  // the More menu closes on a click outside it, and on Esc with focus back on its button
+  document.addEventListener?.('click', (e) => { for (const d of centre.querySelectorAll('.tile-more[open]')) if (!d.contains(e.target)) d.open = false; });
+  document.addEventListener?.('keydown', (e) => {
+    const d = e.key === 'Escape' && e.target.closest?.('.tile-more[open]');
+    if (!d) return;
+    d.open = false;
+    d.querySelector('summary').focus();
+    e.stopPropagation();
+  }, true);
+
   function escapeAttr(v) {
     return String(v).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   }
@@ -224,7 +234,7 @@ const termView = (() => {
   function deskHtml(d) {
     if (!d) return '';
     const paused = d.paused ? '<button class="btn warn" data-action="takeover-resume" title="The take-over key paused this agent. Let it act again.">paused by you · Resume</button>' : '';
-    const ask = d.request !== null && d.request !== undefined && !d.paused ? `<button class="btn warn" data-action="takeover-accept" title="${escapeAttr(String(d.request).slice(0, 200))}">wants you to take over Â· Accept</button>` : '';
+    const ask = d.request !== null && d.request !== undefined && !d.paused ? `<button class="btn warn" data-action="takeover-accept" title="${escapeAttr(String(d.request).slice(0, 200))}">wants you to take over · Accept</button>` : '';
     const grants = d.grants.map((g) => `<button class="btn drive" data-action="grant-menu" data-grant="${escapeAttr(g.id)}" title="Stop driving this window">driving: ${escapeAttr(g.title.length > 40 ? `${g.title.slice(0, 39)}…` : g.title)}</button>`).join('');
     return ask + paused + (grants || '<button class="btn" data-action="grant-give" title="Give this agent one of your windows">Give window</button>');
   }
@@ -266,7 +276,7 @@ const termView = (() => {
     t.el.dataset.state = x.state;
     const name = `${x.task || x.engine_id}, ${x.words || x.state}`;
     if (t.el.ariaLabel !== name) t.el.ariaLabel = name;
-    t.el.querySelector(".stp").hidden = Boolean(x.shell || x.outside || x.state === 'exited');
+    t.el.querySelector('.stp').hidden = Boolean(x.shell || x.outside || x.state === 'exited');
     const lr = t.el.querySelector('.lr');
     lr.hidden = x.shell || x.outside || t.engine !== 'claude';
     lr.ariaPressed = String(x.limitResume !== false);
@@ -312,11 +322,6 @@ const termView = (() => {
   function tile(id) {
     const t = terms.get(id);
     return t ? t.el : null;
-  }
-
-  function refit(id) {
-    const t = terms.get(id);
-    if (t) resize(t);
   }
 
   function setLook(next) {
@@ -389,5 +394,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, reveal, tile, refit, links: linksFor, findLocalLinks, ids: () => [...terms.keys()] };
+  return { show, setLook, type, state, timeEcho, reveal, tile, links: linksFor, findLocalLinks, ids: () => [...terms.keys()] };
 })();
