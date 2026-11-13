@@ -1,0 +1,16 @@
+.ou-drawn { height: 100%; overflow: auto; padding: 20px 24px; box-sizing: border-box; background: var(--pane); color: var(--ink); }
+.ou-drawn > * { max-width: 920px; }
+.ou-drawn-section { border: 1px solid var(--hairline); border-radius: 8px; padding: 14px 16px; }
+.ou-drawn-sechead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.ou-drawn-header { display: flex; flex-direction: column; gap: 6px; }
+.ou-drawn-tabs { display: flex; gap: 6px; margin-top: 4px; }
+.ou-drawn-plain { border: 1px dashed var(--hairline); border-radius: 6px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ou-drawn-plain pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.4 var(--mono, monospace); color: var(--mute); max-height: 160px; overflow: auto; }
+.ou-drawn-ok { color: var(--st-ok); }
+.ou-drawn-error { color: var(--st-bad); }
+.ou-ide-groups { position: relative; }
+.ou-drawn-layer { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; background: var(--pane); min-height: 0; }
+.ou-drawn-layer .ou-drawn { flex: 1; min-height: 0; }
+.ou-drawn-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--hairline); }
+.ou-drawn-who { margin-left: auto; }
+.ou-drawn-chips { position: absolute; top: 6px; right: 10px; z-index: 3; display: flex; gap: 6px; }
