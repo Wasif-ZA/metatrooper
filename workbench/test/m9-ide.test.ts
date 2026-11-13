@@ -572,11 +572,11 @@ test('fix-05 a real unmerged row stays out of Stage all but retains its own plus
   assert.deepEqual(rows.unstaged.filter((f: any) => f.path === 'conflict.txt'), [{ path: 'conflict.txt', from: undefined, letter: 'C', conflict: true }]);
   g.api.git = async (...args: any[]) => { calls.push(args); return args[1] === 'stage-paths' ? {} : status; };
   const h = harness(() => React.createElement(ideModule.__SourceControl, { st })); h.draw(); calls.length = 0;
-  h.one((n: any) => n.props.label === 'Stage all').props.onClick();
+  h.one((n: any) => n.props.label === 'Stage all').props.clickAction();
   for (let i = 0; i < 5; i++) await new Promise(setImmediate);
   assert.deepEqual(calls.filter(c => c[1] === 'stage-paths'), [['p1', 'stage-paths', ['safe.txt']]]);
   h.draw(); calls.length = 0;
-  h.one((n: any) => n.props.label === 'Stage conflict.txt').props.onClick({ stopPropagation() {} });
+  h.one((n: any) => n.props.label === 'Stage conflict.txt').props.clickAction();
   for (let i = 0; i < 5; i++) await new Promise(setImmediate);
   assert.deepEqual(calls.filter(c => c[1] === 'stage-paths'), [['p1', 'stage-paths', ['conflict.txt']]]);
 });

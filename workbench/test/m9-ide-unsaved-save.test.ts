@@ -451,7 +451,7 @@ test('unstaging a staged rename calls gitUnstage with [file.path, file.from]', a
   gitCalls.length = 0;
 
   const unstageBtn = h.one((n: any) => n.props?.label === 'Unstage new-name.ts');
-  unstageBtn.props.onClick({ stopPropagation() {} });
+  unstageBtn.props.clickAction();
   for (let i = 0; i < 5; i++) await new Promise(setImmediate);
 
   const unstageCall = gitCalls.find((c: any) => c[1] === 'unstage-paths');
@@ -486,7 +486,7 @@ test('unstaging a plain staged file calls gitUnstage with [file.path] only', asy
   gitCalls.length = 0;
 
   const unstageBtn = h.one((n: any) => n.props?.label === 'Unstage plain.ts');
-  unstageBtn.props.onClick({ stopPropagation() {} });
+  unstageBtn.props.clickAction();
   for (let i = 0; i < 5; i++) await new Promise(setImmediate);
 
   const unstageCall = gitCalls.find((c: any) => c[1] === 'unstage-paths');
@@ -520,7 +520,7 @@ test('staging a file passes [file.path] only', async () => {
   gitCalls.length = 0;
 
   const stageBtn = h.one((n: any) => n.props?.label === 'Stage unstaged.ts');
-  stageBtn.props.onClick({ stopPropagation() {} });
+  stageBtn.props.clickAction();
   for (let i = 0; i < 5; i++) await new Promise(setImmediate);
 
   const stageCall = gitCalls.find((c: any) => c[1] === 'stage-paths');
