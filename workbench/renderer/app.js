@@ -121,8 +121,9 @@ const ONE_AT_A_TIME = new Set(['session.launch', 'session.resume']);
 async function busyClick(el, key, run) {
   if ((ui.clicking ||= new Set()).has(key)) return;
   ui.clicking.add(key);
+  const hadFocus = document.activeElement === el;
   el.disabled = true;
-  try { await run(); } finally { ui.clicking.delete(key); if (el.isConnected) el.disabled = false; }
+  try { await run(); } finally { ui.clicking.delete(key); if (el.isConnected) { el.disabled = false; if (hadFocus) el.focus(); } }
 }
 
 async function rpc(method, params, quiet = false) {
