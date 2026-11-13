@@ -228,7 +228,7 @@ test('openNeedsYou marks gates as read, opens Needs you, and falls back to Needs
 
   await openNeedsYou('gate-row-1');
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0], { method: 'needs_you.mark-read', params: { id: 'gate-row-1' }, quiet: true });
+  assert.deepEqual(calls[0], { method: 'needs_you.mark-read', params: { id: 'gate-row-1' }, quiet: false });
   assert.deepEqual(views, ['inbox']);
   assert.equal(wall.sheet, false);
   assert.equal(inbox.hidden, true);

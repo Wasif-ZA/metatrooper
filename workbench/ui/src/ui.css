@@ -479,8 +479,8 @@ html { font-size: 16px; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 
-:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
-:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; }
+:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --ease-fast: 150ms ease-out; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
+:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; --ny-pri-hot: #bc4c00; }
 
 /* Home: task box, session rows with sub-agents and steps, floating right panel, automations. */
 .ou-home.ou-hm { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0; padding: 0; min-height: 100%; align-items: start; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }
@@ -573,7 +573,7 @@ html { font-size: 16px; }
 
 /* Home agent list and right card, laid out from t3code's subagent group, workflow opening and thread details card. */
 .ou-hm { --info: #3b82f6; --ok: #10b981; --bad: #ef4444; --row-hover: color-mix(in srgb, var(--ink) 8%, transparent); }
-.ou-hm-trigger { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; padding: 8px 13px 8px 0; cursor: pointer; color: var(--mute); opacity: 0.55; transition: opacity 150ms ease-out; }
+.ou-hm-trigger { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; padding: 8px 13px 8px 0; cursor: pointer; color: var(--mute); opacity: 0.55; transition: opacity var(--ease-fast); }
 .ou-hm-trigger[data-active="true"], .ou-hm-trigger:hover { color: var(--ink); opacity: 1; }
 .ou-hm-trigger:focus-visible, .ou-hm-prow:focus-visible { outline: 2px solid color-mix(in srgb, var(--body) 70%, transparent); outline-offset: -2px; }
 .ou-hm-ttext { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; }
@@ -581,7 +581,7 @@ html { font-size: 16px; }
 .ou-hm-tsum { font-size: 10px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-hm-bad { color: var(--bad); }
 .ou-hm-elapsed { flex: none; font-size: 12px; color: var(--mute); font-variant-numeric: tabular-nums; }
-.ou-hm-chevdown { display: inline-flex; flex: none; color: var(--mute); transform: rotate(90deg); transition: transform 150ms ease-out; }
+.ou-hm-chevdown { display: inline-flex; flex: none; color: var(--mute); transform: rotate(90deg); transition: transform var(--ease-fast); }
 .ou-hm-chevdown[data-open="true"] { transform: rotate(270deg); }
 .ou-hm-members { list-style: none; margin: 0; padding: 0; }
 .ou-hm-model { flex: none; font-family: var(--mono); font-size: 11px; color: var(--mute); }
@@ -678,7 +678,7 @@ html { font-size: 16px; }
 .ou-ap-note { margin: 8px 0 18px; font-size: 12px; color: var(--mute); }
 .ou-ap-items { list-style: none; margin: 0; padding: 0; }
 .ou-ap-items.ou-ap-box { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
-.ou-ap-item { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 12px; border-radius: 8px; background: var(--canvas-soft); cursor: pointer; transition: background-color 150ms ease-out; }
+.ou-ap-item { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 12px; border-radius: 8px; background: var(--canvas-soft); cursor: pointer; transition: background-color var(--ease-fast); }
 .ou-ap-item:hover { background: color-mix(in srgb, var(--canvas-soft) 80%, var(--ink) 4%); }
 .ou-ap-item:focus-visible { outline: 1px solid var(--body); outline-offset: -1px; }
 .ou-ap-itop { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -698,7 +698,7 @@ html { font-size: 16px; }
 .ou-ap .ou-ap-empty h2 { margin: 0 0 6px; font-size: 18px; font-weight: 500; color: var(--ink); text-transform: none; letter-spacing: 0; }
 .ou-ap-empty > p { margin: 0 0 28px; font-size: 13px; color: var(--mute); }
 .ou-ap-templates { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; width: 100%; text-align: left; }
-.ou-ap-template { display: flex; align-items: flex-start; gap: 14px; width: 100%; height: 100%; padding: 18px 20px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 150ms ease-out; }
+.ou-ap-template { display: flex; align-items: flex-start; gap: 14px; width: 100%; height: 100%; padding: 18px 20px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color var(--ease-fast); }
 .ou-ap-template:hover { background: var(--canvas-soft); }
 .ou-ap-template .ou-ap-emoji { margin-top: 2px; }
 .ou-ap-ttext { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

@@ -1,11 +1,11 @@
 /* Home: title in the bar, thread in the centre, a docked inspector on the right, the composer as a bottom strip. Spacing scale 4/8/16/24 (--sp-*). */
 .ou-home.ou-hm { grid-template-columns: minmax(0, 1fr) 300px; }
-.ou-hm-center, .ou-hm-rail, .ou-hm-card .ou-hm-mono.ou-hm-plabel { font-family: 'Geist', 'Segoe UI', sans-serif; }
+.ou-hm-center, .ou-hm-rail, .ou-hm-card .ou-hm-mono.ou-hm-plabel { font-family: var(--font-app); }
 
 .ou-hm-head { display: inline-flex; align-items: center; gap: 10px; min-width: 0; margin-left: 2px; }
 header.title .ou-hm-head { flex: 0 1 auto; }
 .ou-hm-headsep { color: var(--mute); opacity: 0.7; font-size: 15px; }
-header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 14px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: 0; text-transform: none; color: var(--ink); }
+header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 14px/1 var(--font-app); letter-spacing: 0; text-transform: none; color: var(--ink); }
 
 /* Waiting is amber, not the theme's orange. */
 :root, :root .ou-hm { --hm-waiting: #f0a429; }

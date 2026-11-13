@@ -421,9 +421,11 @@ function RailCard({ sel, kids }) {
             <PanelSection title={lineageTitle(kids)} heading>
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
-                  <li key={k.id} className="ou-hm-prow ou-hm-pclick ou-hm-linrow" data-status={statusOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
-                    <span className="ou-hm-lintext"><span className="ou-hm-plabel">{nameOf(k)}</span><span className="ou-hm-linmeta"><Status k={k} /><Engine id={k.engine_id} /></span></span>
-                    <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
+                  <li key={k.id}>
+                    <button type="button" className="ou-hm-prow ou-hm-pclick ou-hm-linrow" style={{ width: 'calc(100% + 2 * var(--sp-2))', textAlign: 'left' }} data-status={statusOf(k)} title={tipOf(k)} onClick={(e) => { e.stopPropagation(); openOnWall(k); }}>
+                      <span className="ou-hm-lintext"><span className="ou-hm-plabel">{nameOf(k)}</span><span className="ou-hm-linmeta"><Status k={k} /><Engine id={k.engine_id} /></span></span>
+                      <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
+                    </button>
                   </li>
                 ))}
               </ul>

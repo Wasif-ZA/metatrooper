@@ -41,7 +41,10 @@ export const motionOn = () => Boolean(gsap) && !calm;
 const focusEl = (selector) => { if (typeof document !== 'undefined') document.querySelector(`.ou-inbox ${selector}`)?.focus(); };
 const focusSoon = (selector) => setTimeout(() => focusEl(selector));
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const errText = (r, fallback) => r?.error?.message || (typeof r?.error === 'string' ? r.error : fallback);
+const errText = (r, fallback) => {
+  const lines = Array.isArray(r?.error?.data?.errors) ? r.error.data.errors : [];
+  return [r?.error?.message || (typeof r?.error === 'string' ? r.error : fallback), ...lines].join('\n');
+};
 const rowEl = (id) => (typeof document === 'undefined' ? null : document.querySelector(`.ou-inbox .ou-irow[data-id="${CSS.escape(id)}"]`));
 
 export function leaveRow(id, then) {
@@ -501,7 +504,10 @@ export function Inbox() {
     if (next) select(next.id);
   };
   const dismiss = (id) => leaveRow(id, () => rpc('needs.dismiss', { id }));
-  const toggleRead = (n) => rpc(n.read_at ? 'needs_you.mark-unread' : 'needs_you.mark-read', { id: n.id }, true);
+  const toggleRead = async (n) => {
+    const r = await rpc(n.read_at ? 'needs_you.mark-unread' : 'needs_you.mark-read', { id: n.id }, true);
+    if (!r || r.error) toast(errText(r, n.read_at ? 'Could not mark unread' : 'Could not mark read'), true);
+  };
   const statusOf = (item, isSession, groupStatus) => (blockedNow(sessionOf(item, isSession)) ? 'blocked' : groupStatus);
 
   let status = null;
@@ -631,7 +637,7 @@ export function Inbox() {
         className={`ou-irow ${isUnread ? 'ou-unread' : ''} ${isSelected ? 'ou-irow-selected' : ''}`}
         tabIndex={0}
         role="button"
-        aria-selected={isSelected}
+        aria-pressed={isSelected}
         data-action={isSession ? 'pick' : 'inbox-open'}
         data-id={row.id}
         onClick={(e) => {
@@ -875,12 +881,12 @@ export function Inbox() {
         </header>
         <div className="ou-ny-filters" role="group" aria-label="Filter">
           <Selector size="sm" variant="ghost" label="Show" isLabelHidden value={filter} onChange={(v) => inboxStore.set({ filter: v })}
-            options={[{ value: 'all', label: 'All kinds' }, ...groups.map((g) => ({ value: g.key, label: g.title }))]} />
+            options={[{ value: 'all', label: 'Kinds' }, ...groups.map((g) => ({ value: g.key, label: g.title }))]} />
           <Selector size="sm" variant="ghost" label="Agent" isLabelHidden value={engineFilter} onChange={(v) => inboxStore.set({ engine: v })}
-            options={[{ value: '', label: 'All agents' }, ...[...new Set(everyone.map((x) => x.engine_id).filter(Boolean))].map((id) => ({ value: id, label: Ic.engineName(id) }))]} />
+            options={[{ value: '', label: 'Agents' }, ...[...new Set(everyone.map((x) => x.engine_id).filter(Boolean))].map((id) => ({ value: id, label: Ic.engineName(id) }))]} />
           <Selector size="sm" variant="ghost" label="Project" isLabelHidden value={projectFilter} onChange={(v) => inboxStore.set({ project: v })}
-            options={[{ value: '', label: 'All projects' }, ...(s.projects || []).map((p) => ({ value: p.id, label: p.name }))]} />
-          {filter !== 'all' || engineFilter || projectFilter ? <Button size="sm" variant="ghost" label="Clear filters" onClick={() => inboxStore.set({ filter: 'all', engine: '', project: '' })} /> : null}
+            options={[{ value: '', label: 'Projects' }, ...(s.projects || []).map((p) => ({ value: p.id, label: p.name }))]} />
+          {filter !== 'all' || engineFilter || projectFilter ? <IconButton size="sm" variant="ghost" icon={I.close} label="Clear filters" onClick={() => inboxStore.set({ filter: 'all', engine: '', project: '' })} /> : null}
         </div>
         {totalItems === 0 ? (
           <div className="ou-ny-empty">{filter !== 'all' || engineFilter || projectFilter ? <EmptyState title="Nothing matches these filters." isCompact /> : <EmptyState title="Nothing is waiting on you." description="Questions from agents and finished work show up here." isCompact />}</div>

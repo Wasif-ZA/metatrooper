@@ -200,7 +200,9 @@ const wall = (() => {
       if (el._r === key) continue;
       el._r = key;
       if (!animate || RM) {
-        gsap.set(el, { ...r, overwrite: 'auto' });
+        // a set leaves a running layout tween alive, and it would land at the old spot
+        gsap.killTweensOf?.(el, 'left,top,width,height');
+        gsap.set(el, r);
         if (animate && RM) gsap.fromTo(el, { opacity: 0.4 }, { opacity: 1, duration: 0.4 });
         continue;
       }
@@ -214,7 +216,10 @@ const wall = (() => {
     }
     for (const id of Object.keys(S)) { const el = pane(id); if (el) delete el.dataset.fresh; }
     const go = animate && !RM;
-    const to = (sel, v) => gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power2.inOut', overwrite: 'auto' } : {}) });
+    const to = (sel, v) => {
+      if (!go) gsap.killTweensOf?.(sel, Object.keys(v).filter((k) => k !== 'onComplete').join(','));
+      gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power2.inOut', overwrite: 'auto' } : {}) });
+    };
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
     const sp = $('#split');

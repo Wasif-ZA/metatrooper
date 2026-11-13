@@ -1,5 +1,5 @@
 // From bb (MIT), plugins/composer/src/PromptBoxInternal.tsx and apps/app/src/components/promptbox/ThreadEnvironmentSummary.tsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Selector } from '@astryxdesign/core/Selector';
@@ -43,6 +43,13 @@ function Mentions({ actions }) {
   const [st, setSt] = useState(null);
   const live = useRef(null);
   live.current = st;
+  const uid = useId();
+  useEffect(() => {
+    const ta = ref.current?.closest('.ou-cmp')?.querySelector('textarea');
+    if (!ta) return;
+    if (st?.list.length) { ta.setAttribute('aria-controls', `${uid}lb`); ta.setAttribute('aria-activedescendant', `${uid}o${st.i}`); }
+    else { ta.removeAttribute('aria-controls'); ta.removeAttribute('aria-activedescendant'); }
+  }, [st]);
   useEffect(() => {
     const ta = ref.current?.closest('.ou-cmp')?.querySelector('textarea');
     if (!ta) return undefined;
@@ -104,8 +111,8 @@ function Mentions({ actions }) {
   return (
     <span ref={ref} className="ou-cmp-mention" hidden={!st}>
       {st ? (
-        <span role="listbox" aria-label={st.kind === '@' ? 'Files' : 'Commands'}>
-          {st.list.map((x, i) => <span key={x.label} role="option" aria-selected={i === st.i} onMouseDown={(e) => { e.preventDefault(); ref.current.choose(i); }}>{st.kind === '/' ? `/${x.label}` : x.label}</span>)}
+        <span role="listbox" id={`${uid}lb`} aria-label={st.kind === '@' ? 'Files' : 'Commands'}>
+          {st.list.map((x, i) => <span key={x.label} id={`${uid}o${i}`} role="option" aria-selected={i === st.i} onMouseDown={(e) => { e.preventDefault(); ref.current.choose(i); }}>{st.kind === '/' ? `/${x.label}` : x.label}</span>)}
           {!st.list.length ? <span className="ou-cmp-mention-hint">{st.hint}</span> : null}
         </span>
       ) : null}

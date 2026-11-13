@@ -176,7 +176,8 @@ function gitFiles(st) {
 
 async function loadGitStatus(st) {
   const seq = ++st.gitSeq;
-  const r = await api.git(st.pid, 'status');
+  let r;
+  try { r = await api.git(st.pid, 'status'); } catch (e) { r = { error: String(e) }; }
   if (st.gitSeq !== seq) return;
   st.git = r && !r.error ? r : (r && r.error ? { error: r.error } : { error: 'Could not read git status.' });
   if (typeof rpc === 'function') void rpc('session.owners', { project_id: st.pid }, true).then((o) => {
@@ -188,7 +189,8 @@ async function loadGitStatus(st) {
 }
 
 async function gitStage(st, paths, unstage = false) {
-  const r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths);
+  let r;
+  try { r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths); } catch (e) { r = { error: String(e) }; }
   if (r && r.error) { toast(r.error, true); return; }
   await loadGitStatus(st);
 }
@@ -800,10 +802,11 @@ function Files({ st, changed }) {
                 if (st.q) { st.q = ''; st.hits = []; bump(); }
                 else { st.findOpen = false; bump(); }
               }
+              else walk(e, '.ou-ide-hit');
             }} />
         </div>
       ) : null}
-      <div className="ou-ide-tree">
+      <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-hit')}>
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
             <FileIcon path={h} /><span className={`ou-ide-name ${fileLabelClass(st, h)}`}>{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
@@ -829,6 +832,19 @@ function Files({ st, changed }) {
   );
 }
 
+// Up/Down walk the side's search box and its result buttons; Enter clicks the focused one; Esc goes back to the box.
+function walk(e, sel) {
+  if (!e.target.matches(`.ou-ide-findrow input, ${sel}`)) return;
+  const box = e.currentTarget.closest('.ou-ide-side');
+  const items = [box.querySelector('.ou-ide-findrow input'), ...box.querySelectorAll(sel)];
+  const i = items.indexOf(e.target);
+  const next = e.key === 'ArrowDown' ? items[i + 1] : e.key === 'ArrowUp' ? items[i - 1] : e.key === 'Escape' && i > 0 ? items[0] : null;
+  if (!next) return;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus();
+}
+
 function Marked({ text, q }) {
   const at = text.toLowerCase().indexOf(q.toLowerCase());
   if (!q || at < 0) return text;
@@ -844,10 +860,10 @@ function Search({ st }) {
       <div className="ou-ide-findrow">
         <input id="ide-search" className="ou-ide-input" value={st.sq} placeholder="Search in files (Ctrl+Shift+F)" aria-label="Search in files" autoComplete="off" spellCheck="false" disabled={!ok}
           onChange={(e) => { st.sq = e.target.value; bump(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch(st); } else if (e.key === 'Escape' && st.sq) { e.preventDefault(); e.stopPropagation(); st.sq = ''; st.sres = null; st.searching = false; st.sseq = (st.sseq || 0) + 1; bump(); } }} />
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runSearch(st); } else if (e.key === 'Escape' && st.sq) { e.preventDefault(); e.stopPropagation(); st.sq = ''; st.sres = null; st.searching = false; st.sseq = (st.sseq || 0) + 1; bump(); } else walk(e, '.ou-ide-sfile, .ou-ide-match'); }} />
         {ok ? null : <div className="ou-ide-badge"><NotBuilt /></div>}
       </div>
-      <div className="ou-ide-tree">
+      <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-sfile, .ou-ide-match')}>
         {st.searching ? <p className="ou-ide-muted">Searching.</p> : st.sres ? (groups.size ? (
           <>
             <p className="ou-ide-muted ou-ide-ssum">{`${st.sres.hits.length} ${st.sres.hits.length === 1 ? 'result' : 'results'} in ${groups.size} ${groups.size === 1 ? 'file' : 'files'}`}</p>
@@ -887,7 +903,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={staged ? <Sc.MinusIcon size={12} /> : <Ic.PlusIcon size={12} />}
-        onClick={(e) => { e.stopPropagation(); void gitStage(st, staged ? [file.path, file.from].filter(Boolean) : [file.path], staged); }} />
+        onClick={(e) => e.stopPropagation()} clickAction={() => gitStage(st, staged ? [file.path, file.from].filter(Boolean) : [file.path], staged)} />
       {fileErrors(st, file.path) ? <span className="ou-ide-error-count">{fileErrors(st, file.path)},</span> : null}
       <span className={`ou-ide-scletter ou-ide-git-${file.letter.toLowerCase()}`}>{file.letter}</span>
     </div>
@@ -922,9 +938,7 @@ function SourceControl({ st }) {
           onChange={(value) => { st.commitMsg = value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
-          <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: commit }))}
-            renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
+          <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} tooltip="Commit staged changes" isDisabled={!canCommit} onClick={commit} />
         </div>
       </div>
       <div className="ou-ide-tree">
@@ -942,7 +956,7 @@ function SourceControl({ st }) {
             <div className="ou-ide-schead">
               <button type="button" className="ou-ide-scfold" aria-expanded={!fold.changes} onClick={() => toggle('changes')}><span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={12} /></span><span>Changes</span></button>
               {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={<Ic.PlusIcon size={12} />}
-                onClick={() => void gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
+                clickAction={() => gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
               <span className="ou-ide-count">{unstaged.length}</span>
             </div>
             {fold.changes ? null : unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
@@ -1421,7 +1435,7 @@ export function Ide() {
                   { label: 'Commands', onClick: () => paletteView.open() },
                 ]} renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="Explorer actions" tooltip="Explorer actions" icon={<Sc.MoreIcon size={14} />} />} />
               ) : null}
-              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
+              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} clickAction={() => loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
             </span>
           </div>
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}

@@ -34,15 +34,16 @@
 .hag-list { flex: 0 1 auto; min-height: 20px; display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; }
 .hws-list, .hag-list { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
 .hempty { padding: 0 8px; color: var(--faint); }
-.hag { display: grid; grid-template-columns: 18px 1fr auto; padding: 0 10px 0 8px; color: var(--body); opacity: .5; }
-.hag.on, .hag:hover, .hag:focus-visible { opacity: 1; }
-.hag .hname { color: var(--ink); }
+.hag { display: grid; grid-template-columns: 18px 1fr auto; padding: 0 10px 0 8px; color: var(--body); }
+.hag.on { background: var(--canvas); }
+.hag .hname { color: var(--body); }
+.hag:is(.on, :hover, :focus-visible) .hname { color: var(--ink); }
 .hag .hst { color: var(--mute); padding-left: 6px; }
 .hag .hnum { color: var(--mute); font-weight: 400; }
 .hag .htask { color: var(--faint); font-weight: 400; }
 .hag:hover { background: var(--canvas); }
 .hsdot.hk-work, .hg.hk-work { color: var(--work); }
-.hsdot.hk-block, .hg.hk-block { color: var(--del); }
+.hsdot.hk-block, .hg.hk-block { color: var(--wait); }
 .hsdot.hk-done, .hg.hk-done { color: var(--done); }
 .hsdot.hk-idle, .hg.hk-idle { color: var(--add); }
 .hsdot.hk-unknown, .hg.hk-unknown { color: var(--mute); }
