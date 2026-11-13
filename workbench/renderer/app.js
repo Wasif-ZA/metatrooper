@@ -1957,6 +1957,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); return; }
+  if (e.key === 'Escape' && document.querySelector('#frameIconMenu, #frameIconPick, #frameGhPanel')) return;
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
   const active = document.activeElement;
   const inTerm = Boolean(active && active.classList && active.classList.contains('xterm-helper-textarea'));
