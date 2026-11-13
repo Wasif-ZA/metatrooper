@@ -1,0 +1,19 @@
+.ou-pc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ou-pc-sp { flex: 1; }
+.ou-pc-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--hairline); }
+.ou-pc-n1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.ou-pc-n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ou-pc-n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ou-pc-n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ou-pc-n5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ou-pc-n6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.ou-pc-day { display: flex; flex-direction: column; gap: 6px; padding: 8px; min-height: 96px; border-left: 1px solid var(--hairline); }
+.ou-pc-d0 { border-left: 0; }
+.ou-pc-ev { display: flex; flex-direction: column; padding: 4px 6px; border-left: 2px solid var(--hairline-strong); background: var(--canvas-soft); }
+.ou-pc-mark { border-left-color: var(--st-run); }
+.ou-pc-done { border-left-color: var(--st-ok); opacity: .7; }
+.ou-pc-cal { display: flex; flex-direction: column; gap: 6px; }
+.ou-pc-pvbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--hairline); }
+.ou-pc-stage { display: flex; flex-direction: column; gap: 6px; padding: 16px; min-height: 120px; background: var(--canvas-soft); }
+.ou-pc-wl { display: flex; align-items: center; gap: 8px; }
+.ou-pc-marks { padding: 8px 12px; border-top: 1px solid var(--hairline); }
