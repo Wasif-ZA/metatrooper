@@ -30,9 +30,9 @@ const wallTerm = (() => {
       : '<div class="item" role="menuitem" tabindex="-1" aria-disabled="true">No shells found on this machine</div>';
     m.innerHTML = `<div class="kmenu"><div class="mh">Terminal beside a pane</div>${items}</div>`;
     const r = btn.getBoundingClientRect();
-    m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 240))}px`;
     m.style.top = `${r.bottom + 4}px`;
     showMenu(m);
+    m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8))}px`;
   }
 
   const kindOf = (el) => el.dataset.wallTerm || (ui.shellKinds || [])[0]?.kind || '';
