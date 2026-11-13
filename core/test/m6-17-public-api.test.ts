@@ -74,6 +74,8 @@ const EXPECTED_METHODS = [
   'shell.open',
   'shell.close',
   'worktree.create',
+  'ui.show',
+  'ui.get',
   'ui.hello',
   'engines.check',
   'engines.models',

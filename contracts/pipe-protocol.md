@@ -193,6 +193,8 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `shell.open` | `{kind, project_id}` | {shell_id, label, cwd}: a shell tab in the project's folder | -32020, -32002, -32003 |  |  |
 | `shell.close` | `{shell_id}` | {} | -32602 |  |  |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS) | -32002, -32003, -32602 | yes | yes |
+| `ui.show` | `{session_id, surface, title?, zone?: "tab", catalogue?, spec}` | {surface, status: drawn \| partly \| rejected, fellBack: [{part, type, why}]}; stores or replaces the screen `session_id` drew and the workbench opens it as a tab. Every part is checked against the catalogue; a bad one is drawn as plain text and listed in `fellBack`. -32003 when another session owns `surface`; -32602 for a bad id, a zone other than `tab`, or a spec over 256 KB. Called by the `ouros_ui` MCP tool | -32602, -32002, -32003 |  |  |
+| `ui.get` | `{surface}` | {id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at}; -32002 when it does not exist |  |  |  |
 | `ui.hello` | `{ui_key}` | {ok}; marks this connection as a trusted UI connection (see Access) |  |  |  |
 | `engines.check` | `{}` | {} (results land in `engine_check`) |  |  |  |
 | `engines.models` | `{engine_id}` | {models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument | -32002 |  |  |

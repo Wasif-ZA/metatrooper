@@ -45,6 +45,8 @@ export interface Snapshot {
   live: Array<{ id: string; project_id: string; parent_id: string | null; reason: string | null; steps: Steps; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[] }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
+  /** Screens agents drew with ouros_ui in the open project; the spec is read with ui.get when `seq` changes. */
+  surfaces?: Array<{ id: string; session_id: string; project_id: string; title: string; seq: number }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
@@ -189,6 +191,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const dev_servers = projectId && hasDevServers
     ? (db.prepare("SELECT id, session_id, port, url, matched_by FROM session_dev_server WHERE project_id = ? AND status = 'ready' ORDER BY port").all(projectId) as Snapshot['dev_servers'])
     : [];
+  const hasSurfaces = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ui_surface'").get());
+  const surfaces = projectId && hasSurfaces
+    ? (db.prepare('SELECT id, session_id, project_id, title, seq FROM ui_surface WHERE project_id = ? ORDER BY seq DESC LIMIT 20').all(projectId) as NonNullable<Snapshot['surfaces']>)
+    : [];
   const snapshots = projectId
     ? (db.prepare(
         `SELECT s.id, s.pane_id, s.label, s.url, s.taken_at, s.w390_path, s.w1280_path FROM snapshot s JOIN browser_pane p ON p.id = s.pane_id
@@ -232,6 +238,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     tree_rows,
     panes,
     dev_servers,
+    surfaces,
     snapshots,
     git: {},
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,

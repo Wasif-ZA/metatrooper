@@ -525,3 +525,17 @@ CREATE TABLE automation_label (
   name TEXT NOT NULL,
   PRIMARY KEY (automation_id, name)
 );
+
+CREATE TABLE ui_surface (
+  id TEXT PRIMARY KEY,              -- the agent's surface id; the same id replaces the old screen
+  session_id TEXT NOT NULL REFERENCES session(id),  -- the session that drew it; only it may redraw
+  project_id TEXT NOT NULL REFERENCES project(id),
+  zone TEXT NOT NULL,               -- tab (the only zone built so far)
+  title TEXT NOT NULL,
+  catalogue TEXT NOT NULL,          -- catalogue version the agent wrote against
+  spec TEXT NOT NULL,               -- the agent's JSON, kept as sent
+  status TEXT NOT NULL,             -- drawn, partly or rejected
+  seq INTEGER NOT NULL,             -- rises on every draw; the workbench redraws when it changes
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX ui_surface_project_idx ON ui_surface (project_id, seq);

@@ -101,8 +101,43 @@ async function serveSteps(): Promise<void> {
   });
 }
 
+const UI_TOOL: ToolDef = {
+  name: 'ouros_ui',
+  description: 'Draw a screen for the user in Ouros as a tab. Send JSON naming catalogue parts; Ouros checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      surface: { type: 'string', description: 'Id, 1 to 64 letters, digits, dots, dashes or underscores, e.g. "run-r0412".' },
+      title: { type: 'string', description: 'The tab title.' },
+      zone: { type: 'string', enum: ['tab'], default: 'tab' },
+      catalogue: { type: 'string', description: 'Catalogue version you wrote against; "1".' },
+      spec: { type: 'object', description: 'Usually { "type": "page", "children": [ ... ] }.' },
+    },
+    required: ['surface', 'spec'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};
+
+/** The `ouros-ui` MCP server: ouros_ui sends the spec to the core's ui.show, which checks and stores it. */
+async function serveUi(): Promise<void> {
+  const { serveMcp } = await import('./mcp-stdio.ts');
+  const { findSession } = await import('./workbench-pipe.ts');
+  const { call } = await import('../pipe/client.ts');
+  serveMcp('ouros-ui', [UI_TOOL], async (name, args) => {
+    const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
+    if (name !== 'ouros_ui') return fail(`unknown tool ${name}`);
+    const sessionId = process.env.TROOP_SESSION_ID || findSession();
+    if (!sessionId) return fail('this process is not inside an Ouros session');
+    const out = await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
+    if (out.kind !== 'reply') return fail('the Ouros core is offline; nothing was drawn');
+    if (out.reply.error) return fail(out.reply.error.message);
+    return { content: [{ type: 'text', text: JSON.stringify(out.reply.result) }] };
+  });
+}
+
 async function main(): Promise<void> {
   if (process.argv[2] === 'steps') return serveSteps();
+  if (process.argv[2] === 'ui') return serveUi();
   if (process.argv[2] === 'headers') return printHeaders(process.argv[3] ?? '', process.argv[4] ?? '', process.argv[5] ?? '');
   const [pluginId, serverId, token = ''] = process.argv.slice(2);
   if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id> <token>');

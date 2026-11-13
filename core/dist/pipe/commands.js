@@ -28,7 +28,7 @@ export const NOT_QUEUED = new Set([
   'session.search',
   'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve', 'notify.sink.set',
   'session.launch', 'session.resume', 'session.wait', 'session.read', 'session.send', 'session.list', 'session.owners', 'worktree.create',
-  'approval.check', 'approval.resolve',
+  'approval.check', 'approval.resolve', 'ui.show', 'ui.get',
 ]);
 
 export function isQueueable(method        )          {
