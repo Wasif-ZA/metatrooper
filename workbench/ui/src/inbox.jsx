@@ -15,7 +15,7 @@ import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
 import { PROJECT_COLOURS } from './icons/shapes.js';
 
-export const inboxStore = createStore({ tick: 0, filter: 'all', engine: '', project: '', collapsed: [], selectedId: null, props: true });
+export const inboxStore = createStore({ tick: 0, filter: 'all', engine: '', project: '', collapsed: [], selectedId: null });
 
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 const PRIORITIES = [['none', 'No priority'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']];
@@ -407,8 +407,9 @@ async function write(method, params, apply, undo, failText) {
   return true;
 }
 
+// Properties starts closed in a window under 1100px wide, until the button is used.
 export function Inbox() {
-  const { collapsed = [], selectedId, props: propsOpen = true, filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
+  const { collapsed = [], selectedId, props: propsOpen = !(globalThis.innerWidth < 1100), filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
   const [addingLabel, setAddingLabel] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [handoverTarget, setHandoverTarget] = useState(null);
