@@ -480,7 +480,7 @@ html { font-size: 16px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 
 :root { --font-app: 'Geist', 'Segoe UI', sans-serif; --ease-fast: 150ms ease-out; --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
-:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; }
+:root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; --ny-pri-hot: #bc4c00; }
 
 /* Home: task box, session rows with sub-agents and steps, floating right panel, automations. */
 .ou-home.ou-hm { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0; padding: 0; min-height: 100%; align-items: start; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }

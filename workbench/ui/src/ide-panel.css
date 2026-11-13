@@ -30,8 +30,10 @@
 .ou-ip-prow:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
 .ou-ip-pmsg { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ou-ip-psrc, .ou-ip-ppos { flex: none; font-size: 12px; color: var(--mute); }
-.ou-ip-err { flex: none; color: #f14c4c; }
-.ou-ip-warn { flex: none; color: #cca700; }
+:root { --ou-ip-err: #f14c4c; --ou-ip-warn: #cca700; }
+:root[data-theme='light'] { --ou-ip-err: #cf222e; --ou-ip-warn: #9a6700; }
+.ou-ip-err { flex: none; color: var(--ou-ip-err); }
+.ou-ip-warn { flex: none; color: var(--ou-ip-warn); }
 .ou-ip-info { flex: none; color: var(--mute); }
 
 .ou-ip-sprob { gap: 4px; padding: 0 4px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }

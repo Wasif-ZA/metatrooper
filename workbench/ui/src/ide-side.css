@@ -7,6 +7,10 @@
   --row-hover: var(--canvas); --row-selected: var(--canvas-soft);
   font-family: var(--font-family-body);
 }
+:root[data-theme='light'] .ou-ide {
+  --lang-ts: #2f7fa3; --lang-js: #8a7d00; --lang-json: #a8650a; --lang-md: #617880; --lang-css: #8256a8;
+  --lang-html: #b5541c; --lang-py: #2f7fa3; --lang-image: #4f7f1c; --lang-code: #3f6fb5;
+}
 .ou-ide-lang-ts { color: var(--lang-ts); }
 .ou-ide-lang-js { color: var(--lang-js); }
 .ou-ide-lang-json { color: var(--lang-json); }
