@@ -252,13 +252,14 @@ function Trigger({ x, kids, open, toggle }) {
   );
 }
 
-function TaskView({ x, kids, openList, toggle }) {
+function TaskView({ x, kids, openList, toggle, picked }) {
   const [answer, setAnswer] = useState('');
-  const here = !x.project_id || x.project_id === ui.projectId;
+  const ask = picked && picked !== x && statusOf(picked) === 'waiting' ? picked : statusOf(x) === 'waiting' ? x : null;
+  const here = !ask?.project_id || ask.project_id === ui.projectId;
   const send = async () => {
     const t = answer.trim();
-    if (!t || !here) return;
-    try { if (!(await troop.termInput(x.id, t + '\r'))) return toast(NOT_SENT, true); setAnswer(''); toast(`Sent to ${engineName(x.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
+    if (!t || !here || !ask) return;
+    try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
@@ -293,8 +294,8 @@ function TaskView({ x, kids, openList, toggle }) {
           </div>
         ) : null}
         {x.last_line || x.reason ? <p className="ou-hm-latest">{x.last_line || x.reason}</p> : null}
-        {s === 'waiting' ? (
-          <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(x)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
+        {ask ? (
+          <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">
@@ -341,8 +342,15 @@ const openOnWall = (x) => {
   void pick(x.id);
 };
 
-const openInEditor = (x) => {
-  if (x.project_id && x.project_id !== ui.projectId) switchProject(x.project_id);
+const openInEditor = async (x) => {
+  const root = ui.snap?.git?.[x.id]?.root;
+  const proj = (ui.snap?.projects || []).find((p) => p.id === x.project_id);
+  let target = x.project_id;
+  if (root && proj && root.toLowerCase() !== String(proj.path).toLowerCase()) {
+    const r = await rpc('project.open', { path: root });
+    if (r && r.result) target = r.result.project_id;
+  }
+  if (target && target !== ui.projectId) switchProject(target);
   homeView.set('ide');
 };
 
@@ -494,7 +502,7 @@ export function Home() {
         {task ? (
           <>
             <HeadTitle x={task} details={details} toggleDetails={() => homeStore.set({ details: !details })} />
-            <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
+            <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} picked={picked} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
             <div className="ou-hm-dock">{composer}</div>
           </>
         ) : <StartState composer={composer} />}
