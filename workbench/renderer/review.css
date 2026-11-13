@@ -16,8 +16,8 @@
 :root:not([data-look="dither"]) #split .view .meta { font: 12px var(--ui); font-variant-numeric: tabular-nums; color: var(--mute); }
 :root:not([data-look="dither"]) #split .view .empty { margin: 0 0 12px; padding: 20px 16px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); color: var(--mute); font-style: normal; line-height: 1.5; text-align: center; }
 :root:not([data-look="dither"]) #split .view .empty .link { text-decoration: underline; color: var(--body-strong); }
-:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip) { height: 32px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--canvas); color: var(--body-strong); font: 500 13px var(--ui); display: inline-flex; align-items: center; }
-:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip):hover:not(:disabled) { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip):not(:where(.bstrip button)) { height: 32px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--canvas); color: var(--body-strong); font: 500 13px var(--ui); display: inline-flex; align-items: center; }
+:root:not([data-look="dither"]) #split .view button:not(.link):not(.chip):not(:where(.bstrip button)):hover:not(:disabled) { background: var(--canvas-soft); color: var(--ink); }
 :root:not([data-look="dither"]) #split .view button.sm { height: 28px; padding: 0 10px; font-size: 12px; }
 :root:not([data-look="dither"]) #split .view button.primary, :root:not([data-look="dither"]) #split .view button.acc { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
 :root:not([data-look="dither"]) #split .view button.primary:hover:not(:disabled), :root:not([data-look="dither"]) #split .view button.acc:hover:not(:disabled) { background: var(--ink); color: var(--canvas-deep); opacity: .9; }
