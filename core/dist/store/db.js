@@ -4,6 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { coreDir, dbFile, homeDir, schemaFile } from '../paths.js';
 import { nowIso } from '../time.js';
+import { ensureLabels } from '../labels.js';
 
                               
 
@@ -66,6 +67,12 @@ export function openCoreDb()               {
     db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   });
   migrate(db);
+  tx(db, () => {
+    for (const column of ['icon', 'cron', 'approval']) {
+      if (!(db.prepare('PRAGMA table_info(automation)').all()                           ).some((c) => c.name === column)) db.exec(`ALTER TABLE automation ADD COLUMN ${column} TEXT`);
+    }
+    ensureLabels(db);
+  });
   db.exec('PRAGMA busy_timeout = 200');
   return db;
 }

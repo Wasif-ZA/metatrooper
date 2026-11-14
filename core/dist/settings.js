@@ -65,6 +65,7 @@ export const DEFAULTS = {
       bash: process.platform === 'win32'
         ? { label: 'Git Bash', command: ['C:/Program Files/Git/bin/bash.exe', '--login', '-i'], fallback: []             }
         : { label: 'Bash', command: ['bash', '--login', '-i'], fallback: []             },
+      ...(process.platform === 'win32' ? { wsl: { label: 'WSL', command: ['wsl.exe'], fallback: []             } } : {}),
     }                                                                            ,
   },
   ui: {
@@ -193,7 +194,13 @@ export function setSetting(section        , key        , value         )       {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(tmp, file);
+  try {
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    const code = (e                         ).code;
+    throw new Error(code === 'EPERM' || code === 'EACCES' || code === 'EBUSY' ? 'settings.json is read-only or open in another program, so the change was not saved' : `settings.json was not saved: ${(e         ).message}`);
+  }
   cache = null;
 }
 
@@ -204,10 +211,11 @@ export function clearSettingsTemps()       {
   } catch {}
 }
 
-/** The active theme's values, falling back to the default theme for any missing key. */
+/** The active theme's values, falling back to the built-in theme of the same scheme for any missing key. */
 export function activeTheme(s = settings())                         {
-  const base = DEFAULTS.ui.themes[DEFAULTS.ui.theme];
-  return { ...base, ...(s.ui.themes[s.ui.theme] ?? {}), name: s.ui.themes[s.ui.theme] ? s.ui.theme : DEFAULTS.ui.theme };
+  const own = s.ui.themes[s.ui.theme];
+  const base = own?.scheme === 'light' ? DEFAULTS.ui.themes.light : DEFAULTS.ui.themes[DEFAULTS.ui.theme];
+  return { ...base, ...(own ?? {}), name: s.ui.themes[s.ui.theme] ? s.ui.theme : DEFAULTS.ui.theme };
 }
 
 function merge(base                         , over         )                          {
