@@ -26,8 +26,8 @@
 .slent { display: grid; grid-template-columns: auto auto; gap: 6px 8px; align-items: center; justify-items: end; }
 .snum { display: inline-flex; align-items: center; gap: 8px; color: var(--mute); }
 .settings .btn { height: 32px; border-radius: 6px; font-weight: 500; font-size: 13px; }
-.sw { flex: none; width: 36px; height: 20px; padding: 2px; border-radius: 999px; background: var(--hairline-strong); transition: background .12s; }
-.sw i { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--canvas-deep); transition: transform .12s; }
+.sw { flex: none; width: 36px; height: 20px; padding: 2px; border-radius: 999px; background: var(--hairline-strong); transition: background .15s cubic-bezier(.22,1,.36,1); }
+.sw i { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--canvas-deep); transition: transform .15s cubic-bezier(.22,1,.36,1); }
 .sw[aria-checked="true"] { background: var(--ink); }
 .sw[aria-checked="true"] i { transform: translateX(16px); }
 .settings :is(button, select, input):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
