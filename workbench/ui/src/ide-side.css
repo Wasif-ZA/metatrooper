@@ -4,7 +4,7 @@
 .ou-ide {
   --lang-ts: #519aba; --lang-js: #cbcb41; --lang-json: #e5a443; --lang-md: #8fa4ad; --lang-css: #a074c4;
   --lang-html: #e37933; --lang-py: #519aba; --lang-image: #8dc149; --lang-code: #8fb4e8;
-  --row-hover: var(--canvas); --row-selected: var(--canvas-soft);
+  --row-hover: var(--canvas); --row-selected: var(--hairline);
   font-family: var(--font-family-body);
 }
 :root[data-theme='light'] .ou-ide {
