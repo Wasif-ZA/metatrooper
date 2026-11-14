@@ -933,7 +933,7 @@ export function Inbox() {
               <Swap k={activeId}>
                 <div className="ou-ny-crumb">
                   <span>{projectName || 'No project'}</span>
-                  <span className="ou-ny-crumb-sep">{'›'}</span><span className="ou-ny-mono">{sid(sessionObj?.id || item.id)}</span>
+                  <span className="ou-ny-crumb-sep">{'›'}</span><span className="ou-ny-crumb-task" title={sessionObj?.id || item.id}>{title}</span>
                 </div>
                 <div className="ou-ny-chips ou-ny-top-chips ou-ny-meta">
                   {chip('status', <><StatusRing status={status} size={12} /><span>{WORD[status]}</span></>, `ou-ny-chip-${status}`)}

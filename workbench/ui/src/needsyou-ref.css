@@ -166,6 +166,7 @@
 .ou-inbox .ou-ny-crumb { min-width: 0; }
 .ou-inbox .ou-ny-crumb > span:first-child, .ou-inbox .ou-ny-inline > span:not(.ou-ny-dot) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-inbox .ou-ny-crumb > span:not(:first-child), .ou-inbox .ou-ny-inline > :is(svg, button) { flex: none; }
+.ou-inbox .ou-ny-crumb > span.ou-ny-crumb-task { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-inbox .ou-ny-muted { font-variant-numeric: tabular-nums; }
 .ou-inbox .ou-inbox-head { gap: 12px; }
 .ou-inbox .ou-ny-title { flex: none; }

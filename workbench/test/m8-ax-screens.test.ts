@@ -578,6 +578,16 @@ test('settingsPage returns every literal PAGE_KEYS default independently of curr
   assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
 });
 
+test('Needs you breadcrumb names the task, with the session id as its tooltip', () => {
+  g.ui.view = 'inbox'; g.ui.snap.needs_you = [];
+  g.ui.snap.live = [session('a1b2c3d4e5f6', 'waiting_for_you', { title: 'Preview the pager fix' })];
+  const h = harness(Inbox); inboxStore.set({ selectedId: 'a1b2c3d4e5f6' }); h.draw();
+  const crumb = h.one(hasClass('ou-ny-crumb')).props.children[2];
+  assert.equal(textContent(crumb), textContent(h.one(hasClass('ou-ny-doc-title'))));
+  assert.notEqual(textContent(crumb), 'a1b2c3d4');
+  assert.equal(crumb.props.title, 'a1b2c3d4e5f6');
+});
+
 test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', () => {
   g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture' })];
   g.ui.snap.needs_you = [note('read-info', 'other', { read_at: 'read' }), note('unread-info', 'other'), note('read-needs', 'question', { read_at: 'read' }), note('unread-done', 'done'), note('unread-failed', 'failed'), note('unread-needs', 'question'), note('read-done', 'done', { read_at: 'read' }), note('read-failed', 'failed', { read_at: 'read' })];
