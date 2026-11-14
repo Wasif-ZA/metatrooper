@@ -862,7 +862,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('ui.show', { handler: (p) => showSurface(db, p) });
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
-  m.set('ui.event', { needsUi: true, handler: (p) => surfaceEvent(db, p, (id, engine, text) => (getEngine(db, engine)?.state_source === 'hooks' ? null : term.paste(id, text))) });
+  m.set('ui.event', { needsUi: true, handler: (p) => surfaceEvent(db, p, (id, engine, text) => (!term.has(id) ? false : getEngine(db, engine)?.state_source === 'hooks' ? null : term.paste(id, text))) });
 
   m.set('mcp.resolve', {
     handler: (p) => {

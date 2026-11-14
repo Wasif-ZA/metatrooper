@@ -88,6 +88,15 @@ test("a click on an exited session's surface becomes one needs_you row", async t
   assert.equal(h.inbox().length, 1);
 });
 
+for (const [name, o] of [['an idle hooks session with no terminal', { engine: 'hooked', state: 'idle' }], ['an external hooks session', { engine: 'hooked', state: 'working', host: 'external' }]] as const) {
+  test(`a click on ${name} becomes one needs_you row`, async t => {
+    const h = await harness(t, o);
+    assert.deepEqual(h.click(), { delivered: true, to: 'inbox', seq: 1 });
+    assert.equal(h.inbox().length, 1);
+    assert.deepEqual(h.notices(), []);
+  });
+}
+
 test('a click that cannot be typed becomes one needs_you row and no notice', async t => {
   const h = await harness(t);
   assert.deepEqual(h.click(), { delivered: true, to: 'inbox', seq: 1 });
