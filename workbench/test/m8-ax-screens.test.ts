@@ -57,7 +57,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'TaskPanel', 'RailCard', 'ChatFixture', 'Chat', 'ToolSteps', 'Approval', 'AutomationsPage', 'TemplateCards', 'AutomationEditor', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'TaskPanel', 'RailCard', 'ChatFixture', 'Chat', 'ToolSteps', 'ToolRow', 'EditCard', 'Approval', 'AutomationsPage', 'TemplateCards', 'AutomationEditor', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -326,10 +326,9 @@ test('Home chat renders bubbles, paragraphs, collapsible steps and compact edit 
   function ChatFixture() { return React.createElement(Chat, { x, chat, openInEditor: async () => calls.push(['editor', x.id]) }); }
   const h = harness(ChatFixture); const html = h.html();
   assert.match(html, /ou-hm-user/); assert.match(html, /Checking the tests\./);
-  assert.match(html, /2 steps/); assert.doesNotMatch(html, /Ran npm test/);
-  assert.match(html, /Edited C:/); assert.match(html, /Open in IDE/);
-  h.one((n: any) => n.props['aria-expanded'] === false).props.onClick({ stopPropagation() {} });
-  assert.match(h.html(), /Ran npm test.*ou-hm-bad/);
+  assert.doesNotMatch(html, /2 steps/); assert.match(html, /<strong>Read<\/strong> <code>app\.js<\/code>/);
+  assert.match(html, /<strong>Ran<\/strong> <code>npm test<\/code><\/span><span class="ou-hm-bad">failed/);
+  assert.match(html, /<strong>Edited<\/strong><code[^>]*>C:/); assert.match(html, /Open in IDE/);
   await h.one(label('Open in IDE')).props.onClick(); await flush();
   assert.deepEqual(calls, [['editor', 'chat'], ['open', 'src/app.js']]);
   delete g.ideView;
@@ -337,7 +336,7 @@ test('Home chat renders bubbles, paragraphs, collapsible steps and compact edit 
 
 test('Home chat approvals send Claude keys and report input that was not sent', async () => {
   const x = session('chat', 'waiting_for_you', { engine_id: 'claude' });
-  const chat = { source: 'transcript', engine_id: 'claude', items: [{ kind: 'tool', id: 'ask', label: 'Ran npm test', status: 'waiting' }] };
+  const chat = { source: 'transcript', engine_id: 'claude', items: [{ kind: 'tool', id: 'ask', name: 'Bash', label: 'Ran npm test', status: 'waiting' }] };
   g.troop = { termInput: async (...args: any[]) => { calls.push(['input', ...args]); return false; } };
   function ChatFixture() { return React.createElement(Chat, { x, chat }); }
   const h = harness(ChatFixture); assert.match(h.html(), /Allow Claude to run/);
