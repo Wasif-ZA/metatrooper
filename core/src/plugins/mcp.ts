@@ -193,7 +193,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const file = codexConfigFile();
       const user = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(CODEX_BLOCK, '') : '';
       return servers
-        .filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(user))
+        .filter((s) => !new RegExp(`^\\[\\s*mcp_servers\\s*\\.\\s*(?:${s.name}|"${s.name}"|'${s.name}')\\s*\\]`, 'm').test(user))
         .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`, '-c', `mcp_servers.${s.name}.env_vars=${JSON.stringify(CODEX_ENV_VARS)}`]);
     }
     case 'args-template': {
