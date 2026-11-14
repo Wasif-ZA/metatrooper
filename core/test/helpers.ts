@@ -330,3 +330,15 @@ export function buildGenerated() {
 export function pipelineFile(id: string) {
   return ['', 'preview', 'unshipped'].map((sub) => join(root, 'pipelines', sub, `${id}.json`)).find(existsSync) ?? join(root, 'pipelines', `${id}.json`);
 }
+
+/** A committed git repo of a synthetic plugin, in a folder whose name does not end in .git. */
+export function pluginRepo(home: string, id: string, extra: Record<string, unknown> = {}): string {
+  const repo = join(home, `${id}-repo`);
+  mkdirSync(repo, { recursive: true });
+  writeFileSync(join(repo, 'troop-plugin.json'), JSON.stringify({ schema: 1, id, version: '1.0.0', name: id, ...extra }));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'pipe' });
+  git('init', '-q');
+  git('add', '.');
+  git('commit', '-qm', 'fixture');
+  return repo;
+}
