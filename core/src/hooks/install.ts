@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile, repoDir } from '../paths.ts';
 import type { DatabaseSync } from 'node:sqlite';
@@ -30,11 +31,24 @@ function codexScript(): string {
   return path.join(coreDir, 'codex-notify.js').split(String.fromCharCode(92)).join('/');
 }
 
+const nodeBinCache = new Map<string, string>();
+
 export function nodeBin(execPath = process.execPath, repo = repoDir): string {
   const actual = path.resolve(execPath);
   const bundled = path.resolve(repo, '..', 'node', 'node.exe');
   const matches = process.platform === 'win32' ? actual.toLowerCase() === bundled.toLowerCase() : actual === bundled;
-  return matches ? execPath.replace(/\\/g, '/') : 'node';
+  if (!matches) return 'node';
+  const cached = nodeBinCache.get(execPath);
+  if (cached !== undefined) return cached;
+  let bin = execPath.replace(/\\/g, '/');
+  if (process.platform === 'win32' && !/^[A-Za-z0-9:\/._-]+$/.test(bin)) {
+    try {
+      const short = execFileSync('cmd.exe', ['/d', '/c', `for %I in ("${execPath}") do @echo %~sI`], { windowsVerbatimArguments: true, encoding: 'utf8', windowsHide: true }).trim().replace(/\\/g, '/');
+      if (/^[A-Za-z0-9:\/._~-]+$/.test(short)) bin = short;
+    } catch {}
+  }
+  nodeBinCache.set(execPath, bin);
+  return bin;
 }
 
 /** A shell command running a core script with node; refuses paths the hook shell would expand inside double quotes. */
@@ -42,7 +56,7 @@ export function nodeCommand(script: string, args: string, bin = nodeBin()): stri
   for (const p of [script, bin]) {
     if (/[$`"%]/.test(p)) throw new Error(`cannot install hooks from ${p}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move Ouros to a folder without them`);
   }
-  return `${/^[A-Za-z0-9:\/._-]+$/.test(bin) ? bin : `"${bin}"`} "${script}" ${args}`;
+  return `${/^[A-Za-z0-9:\/._~-]+$/.test(bin) ? bin : `"${bin}"`} "${script}" ${args}`;
 }
 
 function hookCommand(event: string): string {

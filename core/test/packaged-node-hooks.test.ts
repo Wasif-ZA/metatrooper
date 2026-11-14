@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import { join } from 'node:path';
 
 const ZIP_NODE = 'C:\\Apps\\cc-0.1.0-win-x64\\resources\\node\\node.exe';
 const ZIP_APP = 'C:\\Apps\\cc-0.1.0-win-x64\\resources\\app';
@@ -21,6 +23,19 @@ test('a hook command quotes the bundled node path and refuses one the hook shell
   assert.equal(nodeCommand('C:/Apps/cc/resources/app/core/event.js', 'claude.Stop', 'C:/Apps/cc/resources/node/node.exe'), 'C:/Apps/cc/resources/node/node.exe "C:/Apps/cc/resources/app/core/event.js" claude.Stop');
   assert.match(nodeCommand('C:/x/core/event.js', 'claude.Stop', 'C:/a b&c/node.exe'), /^"C:\/a b&c\/node.exe" /);
   assert.throws(() => nodeCommand('C:/x/core/event.js', 'claude.Stop', 'C:/Users/%USERNAME%/cc/resources/node/node.exe'), /%USERNAME%/);
+});
+
+test('from a zip unpacked under a folder with spaces, hooks get the 8.3 short path so no quotes are needed', { skip: process.platform !== 'win32' }, async () => {
+  const { nodeBin } = await import('../src/hooks/install.ts');
+  const root = join(mkdtempSync(join(os.tmpdir(), 'cc zip ')), 'cc 0.1.0 win');
+  mkdirSync(join(root, 'resources', 'node'), { recursive: true });
+  mkdirSync(join(root, 'resources', 'app'));
+  const exe = join(root, 'resources', 'node', 'node.exe');
+  writeFileSync(exe, '');
+  const bin = nodeBin(exe, join(root, 'resources', 'app'));
+  assert.match(bin, /^[A-Za-z0-9:\/._~-]+$/, bin);
+  assert.ok(bin.endsWith('/node.exe'), bin);
+  assert.equal(statSync(bin).ino, statSync(exe).ino);
 });
 
 test('no hook or notify line in the installer names bare node directly', () => {
