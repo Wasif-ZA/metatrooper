@@ -3,8 +3,100 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ouros</title>
-<meta name="description" content="Run Claude Code, Codex and Gemini side by side on one wall. Agents can drive a browser and your Windows apps, and anything risky stops for you first. Free, open source, local, no account.">
+<title>cc: your editor, terminals, inbox and browser as one app for coding agents</title>
+<meta name="description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<link rel="canonical" href="{{SITE}}/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="cc">
+<meta property="og:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
+<meta property="og:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta property="og:url" content="{{SITE}}/">
+<meta property="og:image" content="{{SITE}}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="cc: an editor, terminal wall, inbox and browser in one window, with coding agents built in">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
+<meta name="twitter:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta name="twitter:image" content="{{SITE}}/og.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "{{SITE}}/#cc",
+      "name": "cc",
+      "alternateName": [
+        "Ouros",
+        "MetaTrooper"
+      ],
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Windows 10, Windows 11",
+      "description": "A carbon copy of the apps developers already use, a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs seven coding-agent CLIs, including Claude Code, Codex and Gemini CLI, side by side in terminals owned by a background core. A wall shows every agent and moves the one waiting for you to the big slot. Agents can drive browser panes and Windows app windows you give them, with approval for risky actions. Local only, no account, no telemetry. Pre-release, installs from source and requires Node 24.16 or newer.",
+      "url": "{{SITE}}/",
+      "sameAs": "https://github.com/Wasif-ZA/metatrooper",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": 0,
+        "priceCurrency": "USD"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "name": "cc",
+      "url": "{{SITE}}/"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What leaves my machine?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The core and the window make no network connection of their own, unless you add a notification webhook or install a plugin from a URL. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need an account or API keys?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Install and sign in to the official CLIs yourself. cc runs them and never reads their login tokens."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does it change on my machine?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "State lives in ~/.metatrooper/. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can an agent approve its own actions?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Only the window can approve, through a key agents are not given."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the licence?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <style>
 :root{--bg:#f6f6f4;--fg:#151516;--mut:#5e5e62;--line:#dcdcd8;--card:#fff;--code:#ececea;--btn:#151516;--btn-ink:#f6f6f4;--dot:#c8c8c4;--wait:#c45200;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111112;--fg:#f1f1ef;--mut:#a4a4a8;--line:#3a3a3d;--card:#18181a;--code:#1e1e20;--btn:#f1f1ef;--btn-ink:#111112;--dot:#424245;--wait:#ff7a1a}}
@@ -77,40 +169,50 @@ footer p{margin:0;max-width:60ch}
 <body>
 <div class="w">
 <header class="top">
- <a class="brand" href="#">Ouros</a>
- <nav><a href="#parts">Four parts</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
+ <a class="brand" href="#">cc</a>
+ <nav><a href="#screens">Screens</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
 </header>
 
 <div class="hero">
- <h1>Your agents.<br><span>One wall.</span></h1>
- <p>Run Claude Code, Codex and Gemini side by side, each in a terminal that keeps going. The one that needs you comes to you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.</p>
+ <h1>The apps you code in.<br><span>One window. No sessions, just tasks.</span></h1>
+ <p>cc is a carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.</p>
+ <p class="note">One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.</p>
  <ul class="facts"><li>Windows first, Linux beta</li><li>Local, on your machine</li><li>No account, no telemetry</li></ul>
  <div class="install"><span id="cmd">git clone https://github.com/Wasif-ZA/metatrooper</span><button class="t" id="copy" type="button">Copy</button></div>
  <a class="btn" href="#start">Get started</a><a class="btn ghost" href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a>
- <figure><img src="wall.gif" width="1600" height="1000" alt="Recording: four agents on the wall; one asks a question, turns orange and moves to the big slot" onerror="this.closest('figure').remove()"><figcaption>The wall, on demo data.</figcaption></figure>
 </div>
 
-<section id="parts">
- <h2>Four parts</h2>
- <p class="sub">Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.</p>
+<section id="screens">
+ <h2>Screens you already know</h2>
+ <p class="sub">Each screen is a close copy of an app you use today, with the agents built in. Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.</p>
  <div class="grid4">
-  <div class="card"><b>1</b><h3>The wall</h3><p>Every agent is a live terminal tile. The one waiting for you comes to the big slot.</p></div>
-  <div class="card"><b>2</b><h3>Browser use</h3><p>Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.</p></div>
-  <div class="card"><b>3</b><h3>Computer use</h3><p>On Windows, agents act on the app windows you give them. One key takes over.</p></div>
-  <div class="card"><b>4</b><h3>Core services</h3><p>A background service owns the terminals. Sessions come back after a restart.</p></div>
+  <div class="card"><b>IDE</b><h3>A VS Code style editor</h3><p>File tree, tabs, search, source control and a terminal. Comment on a diff line and it goes to that agent.</p></div>
+  <div class="card"><b>Wall</b><h3>A grid of terminals</h3><p>Every agent is a live tile. The one waiting for you comes to the big slot. Its diff, git and browser pane open beside it.</p></div>
+  <div class="card"><b>Needs you</b><h3>An inbox</h3><p>Every question and approval waiting on you, laid out like an issue tracker. Answer from there.</p></div>
+  <div class="card"><b>Home</b><h3>A task list</h3><p>Type a task and pick the agent, then follow it and its subagents in one list.</p></div>
+ </div>
+</section>
+
+<section id="parts">
+ <h2>Built in around them</h2>
+ <div class="grid4">
+  <div class="card"><b>1</b><h3>Browser use</h3><p>Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.</p></div>
+  <div class="card"><b>2</b><h3>Computer use</h3><p>On Windows, agents act on the app windows you give them. One key takes over.</p></div>
+  <div class="card"><b>3</b><h3>Core services</h3><p>A background service owns the terminals. Sessions come back after a restart.</p></div>
+  <div class="card"><b>4</b><h3>Add-ons</h3><p>The agents cc found and the plugins you installed, each with its permissions.</p></div>
  </div>
 </section>
 
 <section>
  <div class="feat">
   <div>
-   <span class="needs">Needs you</span>
-   <h2>The one that needs you comes to you.</h2>
+   <span class="needs">Wall</span>
+   <h2>The Wall: the one that needs you comes to you.</h2>
    <ul>
-    <li><b>True status.</b> Working, waiting for you, done or exited, read from each agent's own hooks. A waiting tile says why.</li>
+    <li><b>Agent status.</b> Working, waiting for you, done or exited, read from Claude Code's hooks and Codex's notify setting; other agents show a simpler status. A waiting tile says why.</li>
     <li><b>No stolen keys.</b> A waiting tile holds back for 3 s while you type in the big one.</li>
     <li><b>Alt keys.</b> Alt+J jumps to the longest wait. Your terminal keeps every Ctrl key.</li>
-    <li><b>Ctrl+K.</b> One search over sessions, commands and the text in every terminal.</li>
+    <li><b>Ctrl+K searches sessions, commands and terminal output.</b> One search across every live terminal.</li>
     <li><b>Per tile.</b> Cost, context fill, changed files, and a preview chip for its dev server.</li>
    </ul>
   </div>
@@ -120,38 +222,36 @@ footer p{margin:0;max-width:60ch}
 <section>
  <div class="feat">
   <div>
-   <h2>A browser your agents drive, with you in charge.</h2>
+   <h2>Browser panes on the Wall: a browser your agents drive, with you in charge.</h2>
    <ul>
     <li><b>Approvals.</b> Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.</li>
-    <li><b>Origins.</b> The first input on a new site asks first. List trusted sites in the project config.</li>
+    <li><b>Origins.</b> The first input on a new site asks first. List trusted sites in <code>browser.allow_origins</code> in <code>~/.metatrooper/settings.json</code>. A project's own config cannot add to it, since an agent can write that file.</li>
     <li><b>Secrets.</b> An agent types <code>{{secret:NAME}}</code> into a password field on the saved site. It never sees the value.</li>
     <li><b>Handoff.</b> An agent can hand you the pane to sign in, then you give it back.</li>
     <li><b>Its own cursor.</b> Each agent's cursor glides to what it clicks, in its tile's colour. Your pointer never moves.</li>
    </ul>
   </div>
-  <figure><img src="browser-cursor.gif" width="1600" height="1000" alt="Recording: an agent's coloured cursor glides to a Send button in a browser pane and an approval card appears" onerror="this.closest('figure').remove()"><figcaption>Browser use with the agent cursor.</figcaption></figure>
  </div>
 </section>
 
 <section>
  <div class="feat">
   <div>
-   <h2>Your Windows apps, only the ones you give.</h2>
+   <h2>Computer use from the Wall: your Windows apps, only the ones you give.</h2>
    <ul>
     <li><b>Grants.</b> Pick Give window on a tile. The agent acts on that window and its own dialogs, nothing else.</li>
     <li><b>Built in.</b> It uses Windows UI Automation. Nothing extra is installed.</li>
     <li><b>Take-over.</b> Ctrl+Alt+Q pauses every agent's input, desktop and browser.</li>
     <li><b>Watcher.</b> Input from another program, or a change while you are away, pauses the agents and tells you.</li>
-    <li><b>Refused.</b> The Ouros window, admin windows and the secure desktop can never be given.</li>
+    <li><b>Refused.</b> The cc window, admin windows and the secure desktop can never be given.</li>
    </ul>
   </div>
-  <figure><img src="computer-use-takeover.gif" width="1600" height="1000" alt="Recording: an agent types into Notepad with its cursor showing; Ctrl+Alt+Q pauses it and the tile says paused by you" onerror="this.closest('figure').remove()"><figcaption>Computer use, then the take-over key.</figcaption></figure>
  </div>
 </section>
 
 <section>
  <h2>Core services</h2>
- <p class="sub">The parts you notice only when they are missing.</p>
+ <p class="sub">What keeps every screen running, the parts you notice only when they are missing.</p>
  <ul class="list">
   <li><b>Terminals that survive</b><span>Close or crash the window and every agent keeps working.</span></li>
   <li><b>Sessions come back</b><span>After a restart, live sessions resume in the same layout, at most 3 at a time.</span></li>
@@ -175,7 +275,7 @@ footer p{margin:0;max-width:60ch}
 cd metatrooper/core &amp;&amp; npm ci
 cd ../workbench &amp;&amp; npm ci
 npm run dev</code></pre>
- <p class="note">The window starts the core service for you. Linux steps and every command are in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
+ <p class="note">The window starts the core service for you. Every command is in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
 </section>
 
 <section id="limits">
@@ -183,7 +283,7 @@ npm run dev</code></pre>
  <ul class="limits">
   <li><b>Windows first.</b> Linux is a beta from source, without computer use. macOS is not supported.</li>
   <li><b>No installer or auto-update yet.</b> You update with <code>git pull</code>.</li>
-  <li><b>Not a guard against hostile programs.</b> Grants and approvals cover Ouros's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.</li>
+  <li><b>Not a guard against hostile programs.</b> Grants and approvals cover cc's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.</li>
   <li><b>Take-over is close to instant.</b> A key already posted to an app may land just after the pause.</li>
   <li><b>No sandbox for agents' code yet.</b> Agents use your machine with your permissions.</li>
  </ul>
@@ -191,11 +291,12 @@ npm run dev</code></pre>
 
 <section>
  <h2>Questions</h2>
- <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside Ouros. Pages you open in a browser pane load as in any browser.</p></details>
- <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. Ouros runs them and never reads their login tokens.</p></details>
+ <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own, unless you add a notification webhook or install a plugin from a URL. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.</p></details>
+ <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. cc runs them and never reads their login tokens.</p></details>
  <details><summary>What does it change on my machine?</summary><p>State lives in <code>~/.metatrooper/</code>. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.</p></details>
  <details><summary>Can an agent approve its own actions?</summary><p>No. Only the window can approve, through a key agents are not given.</p></details>
  <details><summary>What is the licence?</summary><p>The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.</p></details>
+ <p class="note">Longer answers: <a href="answers/control-many-coding-agents-in-one-place.html">controlling many coding agents from one place</a>, <a href="answers/cc-vs-plain-terminals.html">cc vs plain terminals</a>, <a href="answers/run-several-claude-code-sessions.html">running several Claude Code sessions at once</a>, <a href="answers/know-which-agent-needs-you.html">knowing which agent is waiting</a>. Paid add-on: <a href="answers/check-agent-tests-catch-bugs.html">checking an agent's tests catch bugs</a>.</p>
 </section>
 
 <section id="release">
@@ -203,8 +304,8 @@ npm run dev</code></pre>
 </section>
 
 <footer>
- <a class="brand" href="#">Ouros</a>
- <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI or Google.</p>
+ <a class="brand" href="#">cc</a>
+ <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft.</p>
  <a href="https://github.com/Wasif-ZA/metatrooper">Source</a>
 </footer>
 </div>

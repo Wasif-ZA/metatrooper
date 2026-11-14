@@ -1,0 +1,23 @@
+# cc
+
+> cc is a carbon copy of the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
+
+Proof is the one paid add-on: a separate private plugin, A$19 a month, or US$12 where checkout cannot charge in Australian dollars, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
+
+## Answers
+
+- [How to control many coding agents from one place]({{SITE}}/answers/control-many-coding-agents-in-one-place.html): the editor, terminals, inbox and browser as one window, with agents built in.
+- [cc vs plain terminals]({{SITE}}/answers/cc-vs-plain-terminals.html): when terminals are enough and when cc helps.
+- [How to run several Claude Code sessions at once]({{SITE}}/answers/run-several-claude-code-sessions.html): one git worktree per session, each in its own terminal.
+- [How to know which coding agent is waiting for you]({{SITE}}/answers/know-which-agent-needs-you.html): hooks, notify, and the cc wall.
+- [How to check whether an agent's tests catch bugs]({{SITE}}/answers/check-agent-tests-catch-bugs.html): mutation testing by hand, and with the Proof add-on.
+
+## Docs
+
+- [README](https://github.com/Wasif-ZA/metatrooper#readme): what it is, quickstart, every command, privacy, known limits.
+- [Pipe protocol](https://github.com/Wasif-ZA/metatrooper/blob/main/contracts/pipe-protocol.md): JSON-RPC over a named pipe for other tools.
+- [Browser tools](https://github.com/Wasif-ZA/metatrooper/blob/main/contracts/browser-tools.md) and [desktop tools](https://github.com/Wasif-ZA/metatrooper/blob/main/contracts/desktop-tools.md): what agents may do and what asks first.
+
+## Optional
+
+- [Full text]({{SITE}}/llms-full.txt)

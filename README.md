@@ -1,10 +1,11 @@
-<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
-
 <p align="center">
-  <strong>cc: an IDE built around your coding agents.</strong><br>
-  Claude Code, Codex and other CLI agents side by side, each in a terminal that keeps going. One place tells you
-  who needs you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
+  <strong>cc rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
+  app where every agent is just a task, so there are no sessions to manage.</strong><br>
+  New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
+  them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
+
+<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
@@ -14,7 +15,8 @@
   <a href="#computer-use-windows"><strong>Computer use</strong></a> &middot;
   <a href="#core-services"><strong>Core services</strong></a> &middot;
   <a href="#privacy"><strong>Privacy</strong></a> &middot;
-  <a href="#known-limits"><strong>Known limits</strong></a>
+  <a href="#known-limits"><strong>Known limits</strong></a> &middot;
+  <a href="#faq"><strong>FAQ</strong></a>
 </p>
 
 <p align="center">
@@ -26,43 +28,48 @@
 
 <div align="center">
 
-| 7 | 0 | 0 | 1,484 | 2,000+ |
+| 7 | 0 | 0 | [CORE_TESTS] | 2,000+ |
 |:--:|:--:|:--:|:--:|:--:|
 | CLI agents supported | accounts to create | telemetry | core tests | commits |
 
 </div>
 
+<p align="center"><img src="assets/cc/hero.png" alt="cc Home: a task in progress with its steps, three subagents and the chat box"></p>
+
 ## What it is
 
-You run three agents in three terminals. You lose track of which one is waiting on you. You paste screenshots back
-and forth so an agent can see what it built. cc puts every agent in a terminal it owns and shows you which one needs
-you. Around them sits an editor, so you can read and change what they wrote without leaving the window.
+You run three agents in three terminals, with an editor and a browser in more windows again. You lose
+track of which one is waiting on you. cc rebuilds those apps as one window, each a close copy of a screen you
+already know, with the agents built in. You do not manage sessions: you type a task, cc starts the agent and keeps
+its terminal running, and the task comes to you when it needs an answer. You read, answer and steer every agent
+from that one window.
 
 The window has these screens:
 
-| Screen | What it does |
-|---|---|
-| **Home** | Your projects, their worktrees and their agents in one tree, with each agent's current steps. Start a task from here. |
-| **IDE** | A file tree, tabs, a code editor, search, source control, Problems and a terminal. Files an agent changed are marked. |
-| **Wall** | Every agent as a live terminal tile. The one waiting for you comes to the big slot. |
-| **Needs you** | Every question, approval and finished run that waits on you, with filters and labels. |
-| **Add-ons** | The agents cc found and the plugins you installed, each with its permissions. |
-| **Settings** | Approvals, notifications, the take-over key and the rest. Automations live here too. |
+| Screen | Looks like | What the agents do there |
+|---|---|---|
+| **Home** | A task list with a box to type a new one | You type a task and pick the agent. Each task shows its agents, subagents and current steps. |
+| **IDE** | A VS Code style editor: file tree, tabs, search, source control, Problems and a terminal | Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message. |
+| **Wall** | A grid of terminals | Every agent is a live terminal tile. The one waiting for you comes to the big slot. Its diff, git and browser open beside it. |
+| **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
+| **Add-ons** | A list of extensions | The agents cc found and the plugins you installed, each with its permissions. |
+| **Settings** | A settings page | Approvals, notifications, the take-over key and the rest. Automations live here too. |
 
-It also has four parts under the screens:
+![Needs you: an agent asks which test database to use, and a browser approval waits for you](assets/cc/needs-you.png)
+
+Built in around the screens:
 
 | Part | What it does |
 |---|---|
-| **The wall** | Every agent is a live terminal tile. The one waiting for you comes to the big slot. |
 | **Browser use** | Agents drive browser panes inside the app. New sites, password fields and send buttons stop for your approval. |
 | **Computer use** (Windows) | Agents act on the app windows you give them, with their own visible cursor. One key takes over. |
 | **Core services** | A background service owns the terminals. Sessions come back after a restart, dev servers get previews, and other tools can drive it. |
 
 cc runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads their login
-tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
+tokens. It is not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft.
 
 The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name
-MetaTrooper. The window's mark says cc.
+MetaTrooper. The window's mark says cc; some Settings and Add-ons text still says Ouros.
 
 ## What's next
 
@@ -108,6 +115,8 @@ What to expect:
 
 ## The IDE
 
+![The IDE: a side-by-side diff of an agent's change to routes/todos.js, with the changed files listed](assets/cc/ide.png)
+
 - **Editor.** Tabs, Ctrl+S to save, Ctrl+W to close, and a prompt before a dirty tab closes. If the file changed on
   disk since you opened it, you choose Reload from disk or Overwrite. Line endings stay as they were.
 - **Find.** Ctrl+P finds a file by name. Ctrl+Shift+F searches in files.
@@ -124,15 +133,17 @@ What to expect:
 
 ## The wall
 
+![The wall: four agents working and one waiting for your answer in the big tile](assets/cc/wall.png)
+
 - **The one that needs you comes to you.** When an agent asks a question or waits for a permission, its tile turns
   orange and moves to the big slot. It waits 3 s if you were just typing in the big tile, so it never steals your
   keys. Finished agents fold to one-line bars.
-- **Status you can trust.** Each tile says `working`, `waiting for you`, `done` or `exited`. Claude Code reports it
+- **Agent status.** Each tile says `working`, `waiting for you`, `done` or `exited`. Claude Code reports it
   through its hooks and Codex through its notify setting. Other engines show a simpler status taken from their
   process.
 - **Keys that leave your terminal alone.** Wall keys use Alt, so a focused terminal keeps every Ctrl key. Alt+arrow
   moves between tiles. Alt+J jumps to the session that has waited longest. Alt+N labels each tile with a letter.
-- **Ctrl+K for everything.** One search over sessions, commands and the text in every live terminal.
+- **Ctrl+K searches sessions, commands and terminal output.** One search over all three, across every live terminal.
 - **What each tile shows.** Tokens and cost, how full the context window is, how many files the session changed,
   and an "Open preview" chip when it started a dev server. Ctrl+B shows the agent list and how much of each engine's
   limit you have used.
@@ -196,7 +207,8 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Terminals that survive.** Each agent runs in a terminal the core owns. Close or crash the window and every agent
   keeps working.
 - **Sessions come back.** When the core starts again, it resumes the sessions that were live, at most 3 at a time,
-  with each engine's own resume flag. The wall comes back in the same layout. A session that ended shows its last
+  with the engine's own resume flag where it has one (Claude Code, Codex, Gemini CLI,
+  opencode, pi); agy and Copilot start a fresh session in the same folder. The wall comes back in the same layout. A session that ended shows its last
   screen. Desktop grants never come back; you give windows again.
 - **Ports and previews.** When an agent's terminal prints a `localhost` URL and its own process listens there, the
   tile gets "Open preview". An agent's browser pane may load only loopback ports its own session owns. You can open
@@ -280,7 +292,8 @@ bundled copy, and Claude sessions are told to send shell commands through it. Tu
 
 ## Privacy
 
-- **What leaves your machine.** The core and the window make no network connection of their own. Your agents talk
+- **What leaves your machine.** The core and the window make no network connection of their own, unless you add a
+  notification webhook or install a plugin from a URL. Your agents talk
   to their own vendors, as they do outside cc. A plugin with the `network` permission connects where its install
   screen says, and only after you approve it. Pages you or an agent open in a browser pane load as in any browser.
 - **One exception.** When Windows "Automatically detect settings" is on, the window's Chromium looks up the LAN host
@@ -314,7 +327,71 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
   browser. It could read your files anyway.
 - **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions.
   `ask` and approvals are the guard rails.
-- **Some IDE parts are not built.** The UI marks them "Not built yet".
+- **IDE fallbacks.** Saving and search in files show "Not built yet" only when the window cannot reach their back end; in this release both work.
+
+## FAQ
+
+**What is cc?**
+A carbon copy of the apps you already code in, rebuilt as one Windows app with coding agents built in: a VS Code
+style editor, a wall of terminal tiles, an inbox of what waits on you, and browser panes agents drive. It is not a
+plugin for another editor; it is its own window.
+
+**I've never used Claude Code. Can I use cc?**
+Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
+setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
+signs in for you. cc itself has no installer yet: you run it from a clone with Node 24.16 or newer (see
+[Quickstart](#quickstart)). The agent still runs in a terminal tile, so you will see its output and answer its
+questions there or in Needs you.
+
+**How is this different from running `claude` in terminals?**
+With terminals you manage each session: open a terminal, start it, watch it, find it again when it asks something,
+restart it after a reboot. In cc every session is just a task in one list. A background service keeps its terminal
+running when the window closes, the one waiting for you moves to the big slot on the Wall and into Needs you, and live
+sessions resume after a restart. The same official CLI runs underneath.
+
+**How do I control many coding agents from one place?**
+Run each in cc. Every agent is a tile on the Wall, every question and approval lands in Needs you, and every change
+shows in the IDE with the files that agent touched. You answer, review and steer from one window instead of a stack of
+terminals and editors.
+
+**Why not just use my editor and a few terminals?**
+You can, and cc runs the same official CLIs. What you get on top: one place that shows which agent is waiting,
+terminals that keep running when the window closes, diff comments that go straight to the agent, and approvals for
+risky browser actions. The [cc vs plain terminals](site/answers/cc-vs-plain-terminals.html) page has the full list.
+
+**How do I run several Claude Code sessions at once?**
+Give each session its own git worktree so no two edit the same files, and run each in its own terminal. In cc,
+`troop launch claude --worktree <branch> --prompt "<task>"` does both, and `troop launch --jobs jobs.json` starts
+several from one file.
+
+**How do I know which agent is waiting for me?**
+Claude Code reports through its hooks and Codex through its `notify` setting. cc installs the Claude Code hooks on
+first launch, and `troop hooks install --codex` adds Codex's. The tile that is waiting turns orange and moves to the
+big slot. Alt+J jumps to the one that has waited longest.
+
+**Do my agents stop if I close the window?**
+No. A background service owns each agent's terminal. After a restart it resumes the sessions that were live, at most
+3 at a time.
+
+**Which agents does it run?**
+7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads
+their login tokens.
+
+**Does it work on macOS or Linux?**
+Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
+
+**Is it free?**
+Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part is Proof, a separate private plugin; it is not in this repo. It
+checks whether an agent's tests catch bugs.
+
+**How do I check whether an agent's tests actually catch bugs?**
+Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
+This is mutation testing. The [answer page](site/answers/check-agent-tests-catch-bugs.html) shows how by hand and
+with Proof.
+
+**Is cc a sandbox?**
+No. Agents and the commands they run use your machine with your permissions. Approvals and `ask` mode are guard rails.
+See [Known limits](#known-limits).
 
 ## Licence
 
