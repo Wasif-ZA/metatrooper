@@ -688,7 +688,7 @@ function renderStart() {
   const engines = ui.snap.engines;
   const firstRun = ui.settingsLook && ui.settingsLook.firstRun ? `<div class="firstrun"><h3>Before each tool call</h3>
     <button class="primary" data-action="first-approval" data-value="ask">Ask before each tool call (recommended)</button>
-    <button data-action="first-approval" data-value="contained">Auto mode in Ouros worktrees</button></div>` : '';
+    <button data-action="first-approval" data-value="contained">Auto mode in cc worktrees</button></div>` : '';
   const cards = !engines.length || engines.some((e) => e.light !== 'red') ? '' : `<h3>No agent is ready yet</h3><div class="ecards">${engines.filter((e) => e.install).map((e) => `<div class="ecard">
     <b>${esc(e.id)}</b>${e.fix ? `<p class="fix">${esc(e.fix)}</p>` : ''}
     <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
