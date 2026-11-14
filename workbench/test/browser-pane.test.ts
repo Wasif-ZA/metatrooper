@@ -152,7 +152,7 @@ async function paneScriptsAndCapture() {
     for (let y = 0; y < img.height; y++) if (isRed(img.pixel(10, y))) redRows++;
     assert.ok(redRows >= 24 && redRows <= 26, `header appears once (${redRows} red rows)`);
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     unowned.server.close();
     owned.server.close();
     await sleep(300);

@@ -34,7 +34,7 @@ export async function qaWindow(h: Awaited<ReturnType<typeof revisionHarness>>, d
     for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error('Electron closed')); }
     pending.clear();
     if (wb.pid && wb.exitCode === null) {
-      killTree(wb.pid);
+      killTree(wb);
       if (wb.exitCode === null) wb.kill();
     }
     await sleep(300);

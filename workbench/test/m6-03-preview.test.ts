@@ -82,7 +82,7 @@ test('M6-03a a dev server in a session terminal gets an ancestry row, the tile s
     await sleep(300);
     assert.equal(outsideHits, 0, 'the outside port was contacted');
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     outside.close();
     await sleep(300);
     await teardownCore(core, iso);

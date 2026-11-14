@@ -80,7 +80,7 @@ test('M6-26e the window has no application menu; Alt and Ctrl+R leave the render
     assert.equal(last.loads, 1);
   } finally {
     dt?.close();
-    if (wb.pid) killTree(wb.pid);
+    if (wb.pid) killTree(wb);
     await teardownCore(core, iso);
   }
 });

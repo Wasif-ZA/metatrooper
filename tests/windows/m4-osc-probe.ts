@@ -6,7 +6,7 @@ import path from 'node:path';
 import { BUILT_IN, type EngineSpec } from '../../core/src/engines/registry.ts';
 import { planArgs } from '../../core/src/sessions/launch.ts';
 import { resolveCommand } from '../../core/src/hook/resolve.ts';
-import { killTree } from '../helpers/kill-tree.ts';
+import { killTree, startOf } from '../helpers/kill-tree.ts';
 
 const require = createRequire(import.meta.url);
 const pty = require('../../core/node_modules/node-pty') as typeof import('node-pty');
@@ -60,6 +60,7 @@ async function probe(engine: EngineSpec): Promise<ProbeResult> {
     return { engine: engine.id, codes: [], samples: [], note: `not run: ${error instanceof Error ? error.message : String(error)}` };
   }
 
+  const born = startOf(child.pid);
   const codes = new Set<number>();
   const samples: string[] = [];
   let raw = '';
@@ -96,7 +97,7 @@ async function probe(engine: EngineSpec): Promise<ProbeResult> {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   } finally {
-    killTree(child.pid);
+    if (born !== undefined) killTree({ pid: child.pid, born });
     child.kill();
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }

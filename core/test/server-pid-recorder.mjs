@@ -11,7 +11,7 @@ Server.prototype.listen = function (...args) {
     if (home && address && typeof address === 'object' && address.port) {
       const dir = join(home, 'listener-pids');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, String(process.pid)), String(process.pid));
+      writeFileSync(join(dir, String(process.pid)), `${process.pid} ${Math.round(performance.timeOrigin)}`);
     }
   });
   return listen.apply(this, args);

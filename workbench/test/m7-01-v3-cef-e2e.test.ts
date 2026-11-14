@@ -200,7 +200,7 @@ async function boot() {
       paneAct: (pane: string) => evaluate(`window.troop.paneAct(${JSON.stringify(pane)}, 'test-detach')`),
       close: async () => {
         ws.close();
-        killTree(proc.pid);
+        killTree(proc);
         await sleep(500);
       },
     };

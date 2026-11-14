@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { client, sleep, until } from '../../core/test/helpers.ts';
 import { git, revisionHarness } from '../../core/test/ui-revision-helpers.ts';
-import { killTree } from '../../tests/helpers/kill-tree.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -26,7 +26,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>, folder?
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stopWindow = async () => {
     if (!wb.pid) return;
-    killTree(wb.pid);
+    killTree(wb);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };
@@ -71,11 +71,12 @@ async function coreAnswers(h: Awaited<ReturnType<typeof revisionHarness>>, timeo
   } catch { return false; }
 }
 
-async function stopPid(pid: number): Promise<void> {
-  if (process.platform === 'win32') killTree(pid);
-  else try { process.kill(pid, 'SIGTERM'); } catch {}
+async function stopPid(core: { pid: number; born: number } | undefined): Promise<void> {
+  if (!core) return;
+  if (process.platform === 'win32') killTree(core);
+  else try { process.kill(core.pid, 'SIGTERM'); } catch {}
   await sleep(250);
-  if (process.platform !== 'win32') try { process.kill(pid, 'SIGKILL'); } catch {}
+  if (process.platform !== 'win32') try { process.kill(core.pid, 'SIGKILL'); } catch {}
 }
 
 function corePid(h: Awaited<ReturnType<typeof revisionHarness>>): number | undefined {
@@ -83,9 +84,17 @@ function corePid(h: Awaited<ReturnType<typeof revisionHarness>>): number | undef
   return Number.isInteger(pid) && pid > 0 ? pid : undefined;
 }
 
+/** A core other than the harness's, with its start time taken while it runs, for stopPid. */
+function otherCore(h: Awaited<ReturnType<typeof revisionHarness>>, harnessPid?: number) {
+  const pid = corePid(h);
+  if (pid === undefined || pid === harnessPid) return undefined;
+  const born = startOf(pid);
+  return born === undefined ? undefined : { pid, born };
+}
+
 test('launcher starts an isolated core, removes CLAUDECODE, and closes its own idle core', options, async () => {
   const h = await revisionHarness(); let w;
-  let launchedPid: number | undefined;
+  let launched: { pid: number; born: number } | undefined;
   const oldClaudeCode = process.env.CLAUDECODE;
   try {
     process.env.CLAUDECODE = '1';
@@ -95,12 +104,9 @@ test('launcher starts an isolated core, removes CLAUDECODE, and closes its own i
     await h.core.kill();
     w = await windowFor(h);
     assert.equal(await coreAnswers(h, 15000), true, 'window starts a core that answers the core pipe');
-    launchedPid = await until(() => {
-      const pid = corePid(h);
-      return pid !== undefined && pid !== harnessPid ? pid : undefined;
-    }, 15000);
-    if (process.platform === 'linux' && existsSync(`/proc/${launchedPid}/environ`)) {
-      const environ = readFileSync(`/proc/${launchedPid}/environ`);
+    launched = await until(() => otherCore(h, harnessPid), 15000);
+    if (process.platform === 'linux' && existsSync(`/proc/${launched!.pid}/environ`)) {
+      const environ = readFileSync(`/proc/${launched!.pid}/environ`);
       assert.equal(environ.includes(Buffer.from('CLAUDECODE=')), false, 'spawned core does not inherit CLAUDECODE');
     }
     await w.close(); w = undefined;
@@ -108,7 +114,7 @@ test('launcher starts an isolated core, removes CLAUDECODE, and closes its own i
   } finally {
     if (oldClaudeCode === undefined) delete process.env.CLAUDECODE; else process.env.CLAUDECODE = oldClaudeCode;
     await w?.close();
-    if (launchedPid !== undefined) await stopPid(launchedPid);
+    await stopPid(launched);
     await h.close();
   }
 });
@@ -141,9 +147,10 @@ test('launcher selects the folder passed as a window argument', options, async (
 });
 
 test('launcher core palette lists restart and stop commands; Stop core stops the pipe', options, async () => {
-  const h = await revisionHarness(); let w;
+  const h = await revisionHarness(); let w, other;
   try {
     w = await windowFor(h);
+    other = otherCore(h, h.core.pid);
     await w.key('k', 'KeyK', 2);
     await w.wait('!document.querySelector("#palette").hidden');
     const labels = await w.evaluate('[...document.querySelectorAll("#palette-list [data-palette]")].map(e=>e.textContent)');
@@ -156,8 +163,7 @@ test('launcher core palette lists restart and stop commands; Stop core stops the
     await until(async () => !(await coreAnswers(h, 500)), 15000);
   } finally {
     await w?.close();
-    const pid = corePid(h);
-    if (pid !== undefined && pid !== h.core.pid) await stopPid(pid);
+    await stopPid(other);
     await h.close();
   }
 });

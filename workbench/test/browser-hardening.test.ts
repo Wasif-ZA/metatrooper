@@ -124,7 +124,7 @@ async function hardeningContract() {
     assert.equal(containsFileNamed(join(iso.home, 'Downloads'), 'file'),false);
     assert.match(agent.steps.nav.result?.url??'',/agent/);
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     server.server.close(); unowned.server.close(); await sleep(300); await teardownCore(core,iso);
   }
 }

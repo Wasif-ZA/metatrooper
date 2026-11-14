@@ -160,8 +160,8 @@ test('M6-16a-f a scripted agent drives a --demo workbench through metatrooper-de
     clearInterval(beat);
     pipe?.close(); ui?.close();
     helper.stop();
-    if (demo.pid && alive(demo.pid)) killTree(demo.pid);
-    if (otherWb.pid) killTree(otherWb.pid);
+    if (demo.pid && alive(demo.pid)) killTree(demo);
+    if (otherWb.pid) killTree(otherWb);
     await sleep(500);
     if (existsSync(home)) {
       // the close path failed: stop the detached demo core before removing its home

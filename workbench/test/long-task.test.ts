@@ -23,7 +23,7 @@ function startWorkbench(env: NodeJS.ProcessEnv): ChildProcess {
 
 function stopWorkbench(child: ChildProcess): void {
   if (!child.pid) return;
-  killTree(child.pid);
+  killTree(child);
 }
 
 test(`M1-07 the renderer has no main-thread task over 50 ms across a ${seconds} s scripted session with two core kills`, { skip: !runnable && 'needs the Electron binary and a display (xvfb-run on Linux)', timeout: (seconds + 90) * 1000 }, async () => {

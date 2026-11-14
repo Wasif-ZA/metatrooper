@@ -94,7 +94,7 @@ async function snapshotFiltering() {
     const incrementalText = first.steps.unchanged.result.text as string;
     assert.equal(incrementalText.trim(), '', incrementalText);
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     site.server.close();
     await sleep(300);
     await teardownCore(core, iso);
@@ -164,7 +164,7 @@ async function sessionFanout() {
       assert.ok(out.steps.after.error, `after a refused hello, session ${i} drove pane ${other}: ${JSON.stringify(out.steps.after)}`);
     });
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     for (const s of sites) s.server.close();
     await sleep(300);
     await teardownCore(core, iso);

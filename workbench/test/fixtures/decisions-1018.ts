@@ -20,7 +20,7 @@ const saved = spawnSync(process.execPath, ['--input-type=module', '-e', `
   setBrowserSecret(db, 'UNFILLED', 'https://bank.test/login', process.env.M612_MARKER);
   db.close();
 `], { encoding: 'utf8', env: process.env });
-if (saved.status !== 0) throw new Error(saved.stderr);
+if (saved.status !== 0) throw new Error(`secret save exited ${saved.status} (signal ${saved.signal}, error ${saved.error}): ${saved.stderr}`);
 
 const { openCoreDb } = await import(core('store/db.ts'));
 const { browserPipe, dbFile } = await import(core('paths.ts'));

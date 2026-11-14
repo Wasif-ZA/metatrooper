@@ -8,30 +8,30 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { killTree, killTreeAsync } from '../../tests/helpers/kill-tree.ts';
+import { killTree, killTreeAsync, startOf } from '../../tests/helpers/kill-tree.ts';
 
 export const root = resolve(import.meta.dirname, '../..');
 export const bs = String.fromCharCode(92);
 
-/** Pids descended from `pid`, each started no earlier than its parent, from one Win32_Process query. */
-export function descendants(pid: number): number[] {
+/** Processes descended from `pid` with their start times, each started no earlier than its parent, from one Win32_Process query. */
+export function descendants(pid: number): Array<{ pid: number; born: number }> {
   // ponytail: returns no pids off Windows; a ps query would cover other platforms
   if (process.platform !== 'win32') return [];
   const script = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $(if ($_.CreationDate) { ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() } else { 0 })" }';
   const out = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '';
   const rows = out.split(/\r?\n/).map(line => line.trim().split(' ').map(Number)).filter(row => row[0]);
   const born = new Map(rows.map(([p, , ms]) => [p, ms]));
-  const found: number[] = [];
+  const found: Array<{ pid: number; born: number }> = [];
   for (const queue = [pid]; queue.length;) {
     const parent = queue.shift()!;
-    for (const [p, pp, ms] of rows) if (pp === parent && p !== parent && !found.includes(p) && ms >= (born.get(parent) ?? 0)) { found.push(p); queue.push(p); }
+    for (const [p, pp, ms] of rows) if (pp === parent && p !== parent && !found.some(f => f.pid === p) && ms >= (born.get(parent) ?? 0)) { found.push({ pid: p, born: ms }); queue.push(p); }
   }
   return found;
 }
 
 /** Kills every process tree this test process started that is still running. */
 function sweep() {
-  if (process.getActiveResourcesInfo().includes('ProcessWrap')) for (const pid of descendants(process.pid)) killTree(pid);
+  if (process.getActiveResourcesInfo().includes('ProcessWrap')) for (const found of descendants(process.pid)) killTree(found);
 }
 
 // Sweeps 30 s after the file's last test, without keeping the process alive, and again on exit.
@@ -189,7 +189,7 @@ export async function startCore(isolated) {
         return response.result?.ok === true && response.result?.schema_version === 2;
       } finally { connection.close(); }
     }, 5000);
-  } catch (error) { await killTreeAsync(child.pid); throw error; }
+  } catch (error) { await killTreeAsync(child); throw error; }
   return child;
 }
 
@@ -201,21 +201,26 @@ export async function stopCore(child, isolated) {
     finally { connection.close(); }
   } catch { child.kill('SIGINT'); }
   await Promise.race([new Promise(resolve => child.once('exit', resolve)), sleep(1500)]);
-  if (child.exitCode === null) await killTreeAsync(child.pid);
+  if (child.exitCode === null) await killTreeAsync(child);
 }
 
 export async function teardownCore(child, isolated) {
   const spawned = child?.exitCode === null ? descendants(child.pid) : [];
   await stopCore(child, isolated);
   const listenerDir = join(isolated.home, 'listener-pids');
-  const listeners = existsSync(listenerDir) ? readdirSync(listenerDir).map(Number) : [];
-  for (const pid of listeners) {
-    try { process.kill(pid); } catch (error) { if (error.code !== 'ESRCH') throw error; }
-  }
-  await until(() => listeners.every(pid => {
-    try { process.kill(pid, 0); return false; } catch (error) { if (error.code === 'ESRCH') return true; throw error; }
+  // Each file holds "<pid> <ms the process started>" from server-pid-recorder.mjs; its clock is the process's, so it gets slack.
+  const listeners = (existsSync(listenerDir) ? readdirSync(listenerDir) : []).map(f => {
+    const [pid, born] = readFileSync(join(listenerDir, f), 'utf8').split(' ').map(Number);
+    return { pid, born, slack: 2000 };
+  }).filter(l => Number.isInteger(l.pid) && Number.isFinite(l.born));
+  await Promise.all(listeners.map(killTreeAsync));
+  await until(() => listeners.every(l => {
+    if (process.platform !== 'win32') { try { process.kill(l.pid, 0); return false; } catch (error) { if (error.code === 'ESRCH') return true; throw error; } }
+    const now = startOf(l.pid);
+    return now === undefined || Math.abs(now - l.born) > l.slack;
   }), 5000);
-  const pids = new Set(spawned);
+  const targets = [...spawned];
+  const pids = new Set<number>();
   let sessionIds = [];
   let db;
   try {
@@ -248,18 +253,22 @@ export async function teardownCore(child, isolated) {
     sweep.once('error', resolve);
     sweep.once('exit', resolve);
   });
-  // Windows reuses pids, so only kill ones that started after this test's core.
-  if (pids.size) {
+  // A pid stored in the database may since have gone to another process, so one is killed only if it started after
+  // this test began and its command line names this test's home or one of its sessions.
+  if (pids.size && process.platform === 'win32') {
     try {
       const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command',
-        `Get-Process -Id ${[...pids].join(',')} -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) $([DateTimeOffset]::new($_.StartTime).ToUnixTimeMilliseconds())" }`],
+        `Get-CimInstance Win32_Process -Filter "${[...pids].map(p => `ProcessId=${Number(p)}`).join(' OR ')}" | ForEach-Object { "$($_.ProcessId) $(([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds()) $($_.CommandLine)" }`],
         { encoding: 'utf8', windowsHide: true });
-      const fresh = new Set(out.split(/\r?\n/).filter(Boolean).map(line => line.split(' ').map(Number)).filter(([, ms]) => ms >= (isolated.started ?? 0) - 1000).map(([pid]) => pid));
-      for (const pid of [...pids]) if (!fresh.has(pid)) pids.delete(pid);
-    } catch { pids.clear(); }
-  }
-  await Promise.all([...pids].map(killTreeAsync));
-  for (const pid of pids) { try { process.kill(pid); } catch {} }
+      for (const line of out.split(/\r?\n/).filter(Boolean)) {
+        const [pid, born, ...rest] = line.split(' ');
+        const command = rest.join(' ');
+        if (Number(born) >= (isolated.started ?? 0) - 1000 && [isolated.home, ...sessionIds].some(s => command.includes(s))) targets.push({ pid: Number(pid), born: Number(born) });
+      }
+    } catch {}
+  } else if (pids.size) for (const pid of pids) targets.push({ pid, born: 0 });
+  await Promise.all(targets.map(killTreeAsync));
+  if (process.platform !== 'win32') for (const pid of pids) { try { process.kill(pid); } catch {} }
   await sleep(1200);
   rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }

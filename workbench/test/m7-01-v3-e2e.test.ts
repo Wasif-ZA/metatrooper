@@ -251,7 +251,7 @@ test('M7-01b numbered screenshot: legend of 12, overlay removed, page not scroll
     assert.equal(out.steps.freshAnnot.error?.code, -32602);
     assert.match(out.steps.freshAnnot.error?.message ?? '', /snapshot/i);
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     await sleep(300);
     await teardownCore(session.core, iso);
   }
@@ -338,7 +338,7 @@ test('M7-01d wider waits: text_gone, clamp, url_includes, idle_ms, and isolated 
       watch.close();
     }
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     await sleep(300);
     await teardownCore(session.core, iso);
     await site.close();

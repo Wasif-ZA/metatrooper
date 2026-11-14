@@ -150,7 +150,7 @@ async function boot() {
     wb = {
       close: async () => {
         ws.close();
-        killTree(proc.pid);
+        killTree(proc);
         await sleep(500);
       },
     };

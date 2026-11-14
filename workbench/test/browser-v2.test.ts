@@ -207,7 +207,7 @@ test('M6-11 browser tools version 2 e2e contract', { skip: !runnable }, async ()
     assert.equal(new Set(allLines).size, allLines.length, 'none repeated');
     assert.ok(allLines.length >= 20000, 'returns all remaining lines');
   } finally {
-    killTree(wb?.pid);
+    killTree(wb);
     await sleep(300);
     await teardownCore(core, iso);
   }

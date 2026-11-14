@@ -21,7 +21,7 @@ function startWorkbench(env: NodeJS.ProcessEnv): ChildProcess {
 
 function stopWorkbench(child: ChildProcess): void {
   if (!child.pid) return;
-  killTree(child.pid);
+  killTree(child);
 }
 
 interface Probe { at: number; state: { sessions: Array<{ id: string; state: string }>; online: boolean } }

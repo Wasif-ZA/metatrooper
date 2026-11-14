@@ -26,7 +26,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stopWindow = async () => {
     if (!wb.pid) return;
-    killTree(wb.pid);
+    killTree(wb);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };

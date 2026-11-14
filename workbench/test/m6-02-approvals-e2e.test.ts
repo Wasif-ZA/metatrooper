@@ -339,7 +339,7 @@ async function paneApprovalsE2e() {
       try { p.destroy?.(); } catch {}
     }
     try { db?.close(); } catch {}
-    killTree(wb?.pid);
+    killTree(wb);
     fixtureServer.server.close();
     otherServer.server.close();
     await sleep(300);
