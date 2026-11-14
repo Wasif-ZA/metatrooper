@@ -72,7 +72,9 @@ Contrast working, for `--t3 #858585`:
 
 ## Acceptance criteria
 
-- [ ] M8-46a. Every approved screen in `proto/shots/` still draws correctly after the move, checked by eye and by `ncheck.mjs`.
+- [ ] M8-46a. Every approved screen in `proto/shots/` still draws correctly after the move, checked by eye and by `check.js` (nothing falls back). (was: checked by eye and by ncheck.mjs)
+  Status: PARTIAL. The 14 `f-*.json` screen specs pass `check.js` today (2026-11-15); 14 of 17 `p-*.json` fall back on the undrawn `gate` or `tile` (see M8-28a). The by-eye check was not done this pass.
+  Verify: `node --input-type=module -e "import {expand} from './workbench/ui/src/kit/check.js'; import {readFileSync, readdirSync} from 'node:fs'; const d=process.argv[1]; let bad=0; for (const n of readdirSync(d).filter(n=>/^[fp]-.*\.json$/.test(n))) { const j=JSON.parse(readFileSync(d+'/'+n,'utf8')); if (expand(j.spec??j).fellBack.length) { bad++; console.log(n); } } process.exit(bad?1:0)" $HOME/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/specs` from the repo root exits 0.
 - [ ] M8-46b. No part hard-codes a grey or a size that a token covers.
 - [ ] M8-46c. Every text token meets 4.5:1 on every surface it is used on.
 - [ ] M8-46d. Orange appears only for a person being needed, checked over every screen.
