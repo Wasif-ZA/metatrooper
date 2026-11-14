@@ -7,6 +7,7 @@ import readline from 'node:readline/promises';
 import { installClaude, installCodex, installEngineSettings, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './src/hooks/install.ts';
 import { loadEngines } from './src/engines/registry.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
+import { E } from './src/pipe/errors.ts';
 import { openReaderDb } from './src/store/db.ts';
 import { engineVersion } from './src/engines/health.ts';
 import { projectId, resolveProjectPath } from './src/project.ts';
@@ -286,7 +287,7 @@ async function rpc(method: string, params: Record<string, unknown>, json: boolea
   const r = out.reply;
   if (r.error) {
     if (json) console.log(JSON.stringify({ error: r.error }));
-    else console.error(`error ${r.error.code}: ${r.error.message}`);
+    else console.error(`error ${r.error.code}: ${r.error.message}${r.error.code === E.NEEDS_UI ? '. Run it from an interactive terminal: troop sends its UI key only when a person is typing, not from a script or an agent.' : ''}`);
     return { code: 1 };
   }
   return { code: 0, result: (r.result ?? {}) as Record<string, unknown> };
