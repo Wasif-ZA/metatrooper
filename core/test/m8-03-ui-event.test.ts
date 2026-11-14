@@ -24,7 +24,7 @@ after(() => {
   for (const [k, v] of Object.entries(prior)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
 });
 
-const ECHO = "process.stdin.setEncoding('utf8');process.stdin.on('data',d=>process.stdout.write(d));setInterval(()=>{},1000)";
+const ECHO = "process.stdin.setEncoding('utf8');process.stdin.on('data',d=>process.stdout.write('GOT:'+d));setInterval(()=>{},1000)";
 
 /** One session `s` on engine `fake` (typed into) or `hooked` (hooks engine), with surface `screen` drawn at seq 1; `live` opens an echo terminal for it. */
 async function harness(t: any, o: { engine?: 'fake' | 'hooked'; state?: string; host?: string; live?: boolean } = {}) {
@@ -60,6 +60,22 @@ test('a click on a live surface queues one [ouros-ui] line with surface, seq, ev
   assert.deepEqual(h.notices().map(n => n.body), [LINE]);
   assert.deepEqual(h.inbox(), []);
   await until(async () => (await h.screen()).includes(LINE), 5000);
+});
+
+for (const engine of ['fake', 'hooked'] as const) {
+  test(`a click on an idle ${engine} session is submitted with Enter`, async t => {
+    const h = await harness(t, { engine, live: true });
+    assert.equal(h.click().typed, true);
+    await until(async () => (await h.screen()).includes(`GOT:${LINE}`), 5000);
+  });
+}
+
+test('a click on a session without hooks that waits on a person is pasted without Enter and reported as not typed', async t => {
+  const h = await harness(t, { state: 'waiting_for_you', live: true });
+  assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: false });
+  await until(async () => (await h.screen()).includes(LINE), 5000);
+  await new Promise(r => setTimeout(r, 300));
+  assert.ok(!(await h.screen()).includes(`GOT:${LINE}`));
 });
 
 test('an old seq is dropped as stale', async t => {
