@@ -341,8 +341,8 @@ test('processes opening an old-schema database at the same moment all succeed', 
     db.close();
     const startAt = Date.now() + 1500;
     const script = `const { openCoreDb } = await import(${JSON.stringify(dbUrl)}); while (Date.now() < ${startAt}) {} try { openCoreDb().close(); console.log('ok'); } catch (e) { console.log('fail ' + e.message); }`;
-    const runs = await Promise.all(Array.from({ length: 8 }, () => runNode(['--input-type=module', '-e', script], { ...isolated.env, NODE_OPTIONS: '' }) as Promise<{ stdout: string }>));
-    const failures = runs.map((r) => r.stdout.trim()).filter((s) => s !== 'ok');
+    const runs = await Promise.all(Array.from({ length: 8 }, () => runNode(['--input-type=module', '-e', script], { ...isolated.env, NODE_OPTIONS: '' }) as Promise<{ stdout: string; stderr: string; code: number | null }>));
+    const failures = runs.filter((r) => r.stdout.trim() !== 'ok').map((r) => ` (exit ) `);
     assert.deepEqual(failures, [], `round ${round}`);
   }
 });
