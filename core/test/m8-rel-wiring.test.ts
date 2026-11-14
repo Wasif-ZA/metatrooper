@@ -348,6 +348,20 @@ test('the latest failed check overrides a passing check on the same folder', asy
   assert.deepEqual(h.db.prepare('SELECT exit_code FROM done_proof ORDER BY at,id').all().map((r: any) => r.exit_code), [0, 4]);
 });
 
+test('a done-summary line from the check joins the finished row, pass or fail', async (t) => {
+  const h = fixture(t); repository(h.home);
+  const sid = h.session('done'); doneRow(h, sid);
+  h.setting('checks', { p: `node -e "console.log('done-summary: first'); console.log('done-summary: Proof 3/4 caught'); console.log('tail')"` });
+  await proveDone(h.db, sid);
+  assert.equal(h.rows()[0].text, 'synthetic finished: checks passed; Proof 3/4 caught');
+  h.setting('checks', { p: `node -e "console.log('done-summary: Proof 1/4 caught, 3 missed'); process.exit(1)"` });
+  await proveDone(h.db, sid);
+  assert.equal(h.rows()[0].text, 'synthetic finished: needs your review (the check failed); Proof 1/4 caught, 3 missed');
+  h.setting('checks', { p: `node -e "console.log('  done-summary: indented is ignored'); console.log('done-summary:   ')"` });
+  await proveDone(h.db, sid);
+  assert.equal(h.rows()[0].text, 'synthetic finished: checks passed');
+});
+
 test('a passing project check in a folder without Git still reports checks passed', async (t) => {
   const h = fixture(t), sid = h.session('done'); doneRow(h, sid);
   h.setting('checks', { p: 'node -e "process.exit(0)"' });
