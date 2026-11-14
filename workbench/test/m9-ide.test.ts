@@ -529,6 +529,28 @@ test('Ctrl+P, Ctrl+Shift+F, and Ctrl+W trigger actions only when IDE is shown', 
   assert.equal(__tabOf(cur, 'closeme.txt'), undefined);
 });
 
+test('Ctrl+J toggles the panel and Ctrl+` toggles the terminal in the IDE', async () => {
+  g.ui.view = 'ide';
+  g.ui.projectId = 'p1';
+  await drawIde();
+  const h = harness(Ide);
+  const shown = () => !/id="ide-bottom-body"[^>]*hidden/.test(h.html());
+  const press = (key: string) => { let prevented = false; triggerKey({ key, ctrlKey: true, shiftKey: false, altKey: false, preventDefault() { prevented = true; } }); return prevented; };
+  assert.equal(shown(), true);
+  assert.equal(press('j'), true);
+  assert.equal(shown(), false, 'Ctrl+J hides the panel');
+  assert.equal(press('j'), true);
+  assert.equal(shown(), true, 'Ctrl+J shows it again');
+  h.one((n: any) => n.props?.['aria-label'] === 'Panel').props.onChange('problems');
+  assert.equal(press('`'), true);
+  assert.match(h.html(), /aria-labelledby="ide-terminal-tab"/, 'Ctrl+` on another tab switches to the terminal');
+  assert.equal(shown(), true);
+  press('`');
+  assert.equal(shown(), false, 'Ctrl+` on the open terminal hides the panel');
+  press('`');
+  assert.equal(shown(), true, 'Ctrl+` brings it back');
+});
+
 test('Not built yet is displayed and save is prevented when api.fsWrite is missing', async () => {
   delete g.api.fsWrite;
   await drawIde();

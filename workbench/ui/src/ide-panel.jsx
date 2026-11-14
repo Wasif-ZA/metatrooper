@@ -60,7 +60,7 @@ function make(pid) {
     if (k === 'c' && (e.shiftKey || term.hasSelection())) { void troop.copyText(term.getSelection()); term.clearSelection(); return false; }
     if (k === 'v' && !e.shiftKey) { e.preventDefault(); void troop.readText().then((s) => { if (s) term.paste(s); }); return false; }
     // false lets the chord bubble to the app's own shortcuts instead of reaching the shell
-    return !(e.shiftKey ? 'pfgv'.includes(k) : 'pkgbsw,'.includes(k));
+    return !(e.shiftKey ? 'pfgv'.includes(k) : 'pkgbsw,j`'.includes(k));
   });
   return t;
 }

@@ -132,10 +132,10 @@ function attach(doc) {
   return doc.model;
 }
 
-// Ctrl+K and Ctrl+G belong to the app; hand them past the editor
+// Ctrl+K, Ctrl+G, Ctrl+J and Ctrl+` belong to the app; hand them past the editor
 function appKeys(parent) {
   parent.addEventListener('keydown', (e) => {
-    if (!e.ctrlKey || e.shiftKey || e.altKey || !/^[kg]$/i.test(e.key)) return;
+    if (!e.ctrlKey || e.shiftKey || e.altKey || !/^[kgj`]$/i.test(e.key)) return;
     e.stopPropagation();
     e.preventDefault();
     parent.parentElement?.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: true, bubbles: true }));
