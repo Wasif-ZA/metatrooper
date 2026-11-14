@@ -8,7 +8,7 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { killTree, killTreeAsync, startOf } from '../../tests/helpers/kill-tree.ts';
+import { killTree, killTreeAsync, runningWith, startOf, stillRunning } from '../../tests/helpers/kill-tree.ts';
 
 export const root = resolve(import.meta.dirname, '../..');
 export const bs = String.fromCharCode(92);
@@ -267,10 +267,19 @@ export async function teardownCore(child, isolated) {
       }
     } catch {}
   } else if (pids.size) for (const pid of pids) targets.push({ pid, born: 0 });
+  // A process whose command line names this test's own temp home is this test's, even one that left the core's tree.
+  for (const found of runningWith(isolated.home, (isolated.started ?? 0) - 1000)) if (!targets.some(t => t.pid === found.pid)) targets.push(found);
   await Promise.all(targets.map(killTreeAsync));
   if (process.platform !== 'win32') for (const pid of pids) { try { process.kill(pid); } catch {} }
-  await sleep(1200);
-  rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  // The home cannot be removed while a process still has it open, so wait for every process ended above to be gone.
+  const owned = [...listeners, ...targets.filter(t => t.born > 0)];
+  if (child && child.exitCode === null && child.signalCode === null) await Promise.race([new Promise(resolve => child.once('exit', resolve)), sleep(5000)]);
+  await until(() => stillRunning(owned).length === 0, 10_000).catch(() => {});
+  try {
+    rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (error) {
+    throw new Error(`${error.message}; still running: ${JSON.stringify(stillRunning(owned))}`);
+  }
 }
 
 export async function harness() {
