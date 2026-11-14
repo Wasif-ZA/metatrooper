@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 19. Rides on: M6-3, M6-11, M6-12, M6-13. Screen: `proto/kit/workspaces/n09-browser.json`, shot `proto/shots/n09-browser.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 Grouped: four board rows, because they share the browser pane. Browser with Stop and Take over, Point at an element, Dev server tab, Before and after screenshots.
 
@@ -49,11 +48,12 @@ Not sized until M8-0.
 - [ ] M8-F19d. A port the session does not own stays blocked for its agent pane (D60).
 - [ ] M8-F19e. Before and after images share one viewport size and are attached to one run.
 - [ ] M8-F19f. Images and text pass the same redaction as other browser output (M6-12).
-- [ ] M8-F19g. The shipped screen matches `n09-browser.json` and passes validate.mjs.
+- [ ] M8-F19g. The shipped screen matches `n09-browser.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n09-browser: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

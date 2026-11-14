@@ -1,7 +1,6 @@
 # M8-F6: Your rules as checks
 
 Part of Ouros, Milestone 8, feature 6 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Your rules.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -28,7 +27,6 @@ constraint violation 38.33% of validated pushback episodes, 73.68% of those inst
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

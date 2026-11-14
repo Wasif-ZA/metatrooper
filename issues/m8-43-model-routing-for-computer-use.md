@@ -1,7 +1,6 @@
 # M8-43: Model defaults for computer use and browser use
 
 Part of Ouros, Milestone 8. Priority: Low. Effort: 2.5 CC days. Depends on: M8-38 row 1.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -50,5 +49,4 @@ OSWorld Windows tasks need a VM, and this laptop has no Hyper-V. The M8-38 bench
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - No em dashes.

@@ -1,7 +1,7 @@
 # M8-41: Browser tools: find, hidden click targets, hostile page text, test export
 
 Part of Ouros, Milestone 8. Priority: High. Effort: 6.5 CC days. Depends on: M7-1 (browser tools v3).
-**Start on or after 2026-11-09. Do not push this file until rows 3 and 4 are fixed locally: the repo is public and
+**Do not push this file until rows 3 and 4 are fixed locally: the repo is public and
 this names an open hole (same rule as the `fix-*.md` specs).**
 
 ## Source of truth
@@ -40,7 +40,6 @@ agent-browser's MCP server (one author's run, 2026-10-26, Opus 5.5, 19 tasks twi
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Codex writes the tests for any part Claude builds, and the other way round.
 - Record any mechanism taken from an Apache-2.0 source in `THIRD_PARTY_NOTICES.md`.
 - No em dashes; comments say what the code does, not why.

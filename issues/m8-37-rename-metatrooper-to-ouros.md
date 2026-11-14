@@ -96,7 +96,6 @@ re-run `git grep -il metatrooper -- ':!projects'` on the day.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for any fix Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

@@ -1,7 +1,6 @@
 # M8-2: ouros_ui MCP tool and the tab zone
 
 Part of Ouros, Milestone 8. Build step G2. Priority: High. Effort: not sized (sized after M8-0). Depends on: M8-1.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -14,14 +13,24 @@ The first transport. An agent calls `ouros_ui(surface, zone, spec)`; Ouros valid
 
 ## Acceptance criteria
 
+As built (D84): the MCP server `ouros-ui` (`core/src/hook/mcp-shim.ts`) offers `ouros_ui`, which calls core `ui.show` (`core/src/surfaces.ts`). Core stores the surface in `ui_surface` and lists it in the snapshot. The workbench fetches it with `ui.get` and opens a tab (`DrawnTabs.jsx`).
+
 - [ ] M8-02a. Claude Code calls `ouros_ui` and a tab opens with the screen.
-- [ ] M8-02b. A bad part draws as a plain-text box saying why; its siblings still draw; the result lists it in `fellBack`.
-- [ ] M8-02c. A call naming another session's surface is rejected.
-- [ ] M8-02d. A part from a newer catalogue version draws as text naming the part, never a crash.
+  Status: PARTIAL. The attach flags and the store are tested. No test opens the tab from the snapshot.
+  Verify (passes now): `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="method layer stores" test/m8-02-ui-surface.test.ts` and `... --test-name-pattern="M5-12f STDIO external writer" test/m5-remote-mcp.test.ts`.
+  Verify (to write): `workbench/test/m8-02-drawn-tabs.test.ts` test "a new surface in the snapshot opens one tab and a seq bump redraws it".
+- [x] M8-02b. A bad part draws as a plain-text box saying why; its siblings still draw; the result lists it in `fellBack`.
+  Status: DONE.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="ui.show reports and stores" test/m8-02-ui-surface.test.ts` (6 tests, case "mixed"), and `cd workbench; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="preserves a good sibling" test/m8-01-kit-draw.test.ts test/m8-01-kit-parts.test.ts` (63 tests).
+- [x] M8-02c. A call naming another session's surface is rejected.
+  Status: DONE.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="another session cannot replace" test/m8-02-ui-surface.test.ts` (1 test).
+- [x] M8-02d. A part from a newer catalogue version draws as text naming the part, never a crash.
+  Status: DONE.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="ui.show reports and stores" test/m8-02-ui-surface.test.ts` (case "unknown root", catalogue "999", fellBack names `newer-part`).
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

@@ -1,7 +1,6 @@
 # M8-0: Pick the host: VSCodium webview or Ouros's own renderer
 
 Part of Ouros, Milestone 8. Build step G0. Priority: Critical. Effort: not sized (sized after M8-0). Depends on: none.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -18,14 +17,23 @@ The kit is plain HTML and CSS, so it can run in a VSCodium webview or in a rende
 
 ## Acceptance criteria
 
+Decided 2026-11-14 in `spec.md` D84: agent-drawn screens are @astryxdesign/core parts drawn as tabs inside cc (Electron).
+
 - [ ] M8-00a. The choice is written in spec.md D-list with the reason and the drawback of the option not taken.
-- [ ] M8-00b. The chosen host passes the dependency gate (licence, stars, maintenance) with the numbers recorded, or is exempt because it is Ouros's own code.
+  Status: PARTIAL. D84 records the choice and the reason. It does not name the drawback of the VSCodium webview.
+  Verify: `Select-String spec.md -Pattern '^\| D84 \|'` shows the row, and the row names the drawback of the option not taken.
+- [x] M8-00b. The chosen host passes the dependency gate (licence, stars, maintenance) with the numbers recorded, or is exempt because it is Ouros's own code.
+  Status: DONE. cc is Ouros's own code, so it is exempt. D84 records recharts (MIT, 27,709 stars) and, from 2026-11-15, @astryxdesign/core (MIT, 27,726 stars, last push 2026-11-14).
+  Verify: `Select-String spec.md -Pattern 'Gate for @astryxdesign/core'` finds the D84 row; `gh repo view meta/astryx --json stargazerCount,licenseInfo,pushedAt` still shows MIT, 25k+ stars and a push in the last 6 months.
 - [ ] M8-00c. A one-page note names how tabs open, how events reach the core, and how the title-bar IDE | WALL switch is drawn in that host.
-- [ ] M8-00d. A spike opens one kit screen (specs/f-done.json) as a tab in the chosen host.
+  Status: PARTIAL. D84 names how a tab opens (`ouros_ui` to `ui.show`, then `ui.get` on a seq change). The `ui.event` row in `contracts/pipe-protocol.md` names how a click reaches core. Nothing names the IDE | WALL switch.
+  Verify: `Select-String spec.md,contracts/pipe-protocol.md -Pattern 'ui\.show|ui\.event|IDE \| WALL'` finds all three in one note.
+- [ ] M8-00d. An agent's `ouros_ui` call opens its screen as a tab over the editor area in cc. (was: a spike opens specs/f-done.json as a tab)
+  Status: PARTIAL. Built (`workbench/ui/src/kit/DrawnTabs.jsx`, `syncDrawn`), but no test opens the tab. Same gap as M8-02a.
+  Verify: to write, `workbench/test/m8-02-drawn-tabs.test.ts` test "a new surface in the snapshot opens one tab and a seq bump redraws it".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

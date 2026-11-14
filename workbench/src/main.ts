@@ -817,7 +817,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    title: demo ? DEMO_TITLE : 'Ouros',
+    title: demo ? DEMO_TITLE : 'cc',
     backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {

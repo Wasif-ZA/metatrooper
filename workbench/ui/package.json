@@ -5,7 +5,8 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "esbuild src/main.jsx --bundle --format=iife --jsx=automatic --minify --loader:.css=css --outfile=../renderer/ui.bundle.js && esbuild src/monaco.js --bundle --format=iife --global-name=ccMonaco --minify --loader:.ttf=file --outfile=../renderer/monaco/monaco.js && esbuild node_modules/monaco-editor/esm/vs/editor/editor.worker.js node_modules/monaco-editor/esm/vs/languages/features/json/json.worker.js node_modules/monaco-editor/esm/vs/languages/features/css/css.worker.js node_modules/monaco-editor/esm/vs/languages/features/html/html.worker.js node_modules/monaco-editor/esm/vs/languages/features/typescript/ts.worker.js --bundle --format=iife --minify --entry-names=[name] --outdir=../renderer/monaco"
+    "build": "esbuild src/main.jsx --bundle --format=iife --jsx=automatic --minify --loader:.css=css --outfile=../renderer/ui.bundle.js && npm run monaco",
+    "monaco": "esbuild src/monaco.js --bundle --format=iife --global-name=ccMonaco --minify --loader:.ttf=file --outfile=../renderer/monaco/monaco.js && esbuild node_modules/monaco-editor/esm/vs/editor/editor.worker.js node_modules/monaco-editor/esm/vs/languages/features/json/json.worker.js node_modules/monaco-editor/esm/vs/languages/features/css/css.worker.js node_modules/monaco-editor/esm/vs/languages/features/html/html.worker.js node_modules/monaco-editor/esm/vs/languages/features/typescript/ts.worker.js --bundle --format=iife --minify --entry-names=[name] --outdir=../renderer/monaco"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.11",

@@ -26,17 +26,17 @@ async function fixture(t: any) {
   db.exec(readFileSync(new URL('../../contracts/schema.sql', import.meta.url), 'utf8'));
   db.exec(`PRAGMA foreign_keys = OFF; INSERT INTO plugin (id, version, path, manifest, source, permissions, installed_at) VALUES ('desktop', '1', '', '{}', 'builtin', '[]', 't'); INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, pid) VALUES ('s1', 'p1', 'fake', 'pty', 'working', 't', 't', ${process.pid})`);
   const desktop = new Desktop(db);
-  const methods = new Map<string, any>();
-  desktop.methods(methods);
-  const call = (method: string, params: any = {}) => Promise.resolve().then(() => methods.get(method).handler(params));
-  await call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
-  const grant: string = ((await call('grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })) as any).grant_id;
   t.after(() => {
     desktop.helper.stop();
     db.close();
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
+  const methods = new Map<string, any>();
+  desktop.methods(methods);
+  const call = (method: string, params: any = {}) => Promise.resolve().then(() => methods.get(method).handler(params));
+  await call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  const grant: string = ((await call('grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })) as any).grant_id;
   return { db, desktop, call, grant, setWindows };
 }
 

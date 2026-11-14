@@ -1,7 +1,6 @@
 # M8-10: Catalogue proposals
 
 Part of Ouros, Milestone 8. Build step G10. Priority: Low. Effort: not sized (sized after M8-0). Depends on: M8-9.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -15,12 +14,17 @@ A part wanted by several screens is proposed as a catalogue change, never added 
 ## Acceptance criteria
 
 - [ ] M8-10a. A part wanted by 3 screens appears as a proposal with its props and the screens that asked.
-- [ ] M8-10b. It ships only with tests in check.mjs.
-- [ ] M8-10c. An unknown part stays a plain-text box naming it until shipped.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-10-proposals.test.ts` test "three surfaces falling back on the same unknown part make one proposal listing them".
+- [ ] M8-10b. It ships only with tests in `core/test/m8-01-kit-check.test.ts` and `workbench/test/m8-01-kit-parts.test.ts`. (was: tests in check.mjs)
+  Status: NOT STARTED as a rule. Today the parts test checks every name in `parts-*.names.js` has a fixture.
+  Verify: `cd workbench; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="all 49 batch names have literal fixtures" test/m8-01-kit-parts.test.ts` passes after a part is added.
+- [x] M8-10c. An unknown part stays a plain-text box naming it until shipped.
+  Status: DONE.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="ui.show reports and stores" test/m8-02-ui-surface.test.ts` (cases "mixed" and "unknown root": fellBack names the part, why "not in the catalogue").
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

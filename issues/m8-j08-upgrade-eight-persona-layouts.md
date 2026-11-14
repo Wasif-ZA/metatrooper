@@ -1,7 +1,7 @@
 # M8-J8: Upgrade the 8 existing job layouts to the new layouts
 
 **After launch, add-on.** Part of Ouros, Milestone 8. Priority: Low. Effort: not sized until M8-0. Depends on: M8-11, M8-12, M8-14.
-**Start on or after 2026-11-09, and not before launch.** His words, 2026-11-05: job screens "will come after post launch".
+**Not before launch.** His words, 2026-11-05: job screens "will come after post launch".
 
 Also owns the board row "Starting screens by job", with M8-F13's starters pointing here.
 
@@ -47,14 +47,15 @@ MARKET.md, each with its own limits:
 
 ## Acceptance criteria
 
-- [ ] M8-J8a. All 8 workspace files load through `ouros_workspace` and pass validate.mjs, replacing the older `persona-*.json`.
+- [ ] M8-J8a. All 8 workspace files load through `ouros_workspace` with no refusal, replacing the older `persona-*.json`. (was: and pass validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "each of the 8 persona layouts: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J8b. With no engine installed, each screen says so and shows an install card, never demo data as real.
 - [ ] M8-J8c. Any send, post or spend waits at a real gate from M8-21.
 - [ ] M8-J8d. No product name or logo shows on screen.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Job parts join the catalogue through M8-10, with tests.
 - Codex writes the tests for any step Claude builds, and the other way round.

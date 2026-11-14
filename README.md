@@ -26,9 +26,9 @@
 
 <div align="center">
 
-| 7 | 0 | 0 | 2,000+ |
-|:--:|:--:|:--:|:--:|
-| CLI agents supported | accounts to create | telemetry | commits |
+| 7 | 0 | 0 | 1,484 | 2,000+ |
+|:--:|:--:|:--:|:--:|:--:|
+| CLI agents supported | accounts to create | telemetry | core tests | commits |
 
 </div>
 
@@ -93,7 +93,7 @@ cd workbench && npm run dev     # opens the window; needs a desktop session
 
 What to expect:
 
-- The first `npm run dev` downloads Electron ("Downloading Electron binary..."), so it takes longer.
+- `npm ci` in `workbench/` downloads Electron and builds the editor files, so it takes a minute and needs network.
 - `npm ci` in `core/` may warn about scripts for `node-pty`. It is only a warning.
 - `npm ci` in `workbench/` may report vulnerabilities from `npm audit`. They do not stop the install.
 - On first run the window asks how agents should start: ask before each tool call (the default) or auto mode in
@@ -115,7 +115,8 @@ What to expect:
   open each one as a diff.
 - **Comments to the agent.** A comment on a line of a diff goes to that agent as your next message, with the file and
   line range.
-- **Bottom panel.** A terminal, and Problems grouped by file, errors first. A row opens the file at its line.
+- **Bottom panel.** A terminal, and Problems grouped by file, errors first. A row opens the file at its line. Ctrl+J
+  shows or hides the panel. Ctrl+` shows or hides the terminal and puts the keys in it.
 - **Split editor.** Open the active file in a right-hand group.
 - **Screens an agent draws.** An agent can draw a screen in an IDE tab: tables, charts, lists, forms and diffs. A
   click on a button there goes back to the agent that drew it. Bad input from the agent falls back to plain text.

@@ -176,7 +176,7 @@ const wall = (() => {
     gsap.set(el, { left: M.left, top: M.top, width: M.width, height: M.height });
   }
 
-  function layout(animate, dur = 1.1) {
+  function layout(animate, dur = 0.2) {
     const { R, C, RX, H, M } = rects();
     moreBar(M);
     document.body.classList.toggle('paired', BIG.length > 1 && mode !== 'grid');
@@ -208,17 +208,17 @@ const wall = (() => {
       }
       if (el.dataset.fresh) {
         delete el.dataset.fresh;
-        gsap.set(el, { ...r, x: 32, opacity: 0 });
-        gsap.to(el, { x: 0, opacity: 1, duration: 0.9, ease: 'power3.out' });
+        gsap.set(el, { ...r, opacity: 0 });
+        gsap.to(el, { opacity: 1, duration: 0.15, ease: 'power4.out' });
         continue;
       }
-      gsap.to(el, { ...r, duration: dur, ease: dur < 1 ? 'power3.inOut' : 'power2.inOut', overwrite: 'auto' });
+      gsap.to(el, { ...r, duration: dur, ease: 'power4.out', overwrite: 'auto' });
     }
     for (const id of Object.keys(S)) { const el = pane(id); if (el) delete el.dataset.fresh; }
     const go = animate && !RM;
     const to = (sel, v) => {
       if (!go) gsap.killTweensOf?.(sel, Object.keys(v).filter((k) => k !== 'onComplete').join(','));
-      gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power2.inOut', overwrite: 'auto' } : {}) });
+      gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power4.out', overwrite: 'auto' } : {}) });
     };
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
@@ -232,12 +232,12 @@ const wall = (() => {
     if (BIG.length > 1 || BIG.includes(id) || !S[id]) return;
     PAIR_AT = ORDER.indexOf(id);
     ORDER.splice(PAIR_AT, 1); BIG.push(id);
-    layout(true, 0.6);
+    layout(true);
   }
   function unpair() {
     if (BIG.length < 2) return;
     ORDER.splice(Math.min(PAIR_AT, ORDER.length), 0, BIG.pop());
-    layout(true, 0.6);
+    layout(true);
   }
   function toggleOpen(id) {
     if (!S[id] || active(S[id])) return false;
@@ -285,8 +285,8 @@ const wall = (() => {
     const up = +n > +old.textContent ? 1 : -1;
     const nu = h(`<span>${n}</span>`);
     el.appendChild(nu);
-    gsap.fromTo(nu, { yPercent: 100 * up }, { yPercent: 0, duration: 0.5, ease: 'power3.out' });
-    gsap.to(old, { yPercent: -100 * up, duration: 0.5, ease: 'power3.out', onComplete: () => old.remove() });
+    gsap.fromTo(nu, { yPercent: 100 * up }, { yPercent: 0, duration: 0.25, ease: 'power4.out' });
+    gsap.to(old, { yPercent: -100 * up, duration: 0.25, ease: 'power4.out', onComplete: () => old.remove() });
   }
 
   /** Replaces a gate's actions with an APPROVED or REJECTED stamp, then fades the card. */
@@ -296,7 +296,7 @@ const wall = (() => {
     ga.innerHTML = `<span class="verdict ${ok ? 'ok' : 'no'}">${ok ? 'Approved' : 'Rejected'}</span>`;
     const v = $('.verdict', ga);
     if (RM) gsap.fromTo(v, { opacity: 0, rotation: -2 }, { opacity: 1, duration: 0.3 });
-    else gsap.fromTo(v, { scale: 1.3, rotation: -2, opacity: 0 }, { scale: 1, rotation: -2, opacity: 1, duration: 0.3, ease: 'power3.out' });
+    else gsap.fromTo(v, { scale: 1.3, rotation: -2, opacity: 0 }, { scale: 1, rotation: -2, opacity: 1, duration: 0.25, ease: 'power4.out' });
   }
 
   const T = (open, d) => (RM ? 0.15 : open ? d : d * 0.6);
@@ -308,9 +308,9 @@ const wall = (() => {
     if (open) {
       gsap.set(l, { visibility: 'visible' });
       if (RM) gsap.set(l, { x: 0 });
-      gsap.to(l, RM ? { opacity: 1, duration: T(1) } : { x: 0, opacity: 1, duration: T(1, 0.26), ease: 'power3.out' });
-    } else gsap.to(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.26), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
-    gsap.to('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.22) });
+      gsap.to(l, RM ? { opacity: 1, duration: T(1) } : { x: 0, opacity: 1, duration: T(1, 0.25), ease: 'power4.out' });
+    } else gsap.to(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.25), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
+    gsap.to('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.25) });
   }
   function setSheet(open) {
     sheetOpen = open;
@@ -318,8 +318,8 @@ const wall = (() => {
     if (open) sh.classList.add('up');
     sh.querySelector('.tab').setAttribute('aria-expanded', open);
     const done = () => sh.classList.toggle('up', sheetOpen);
-    gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0, onComplete: done } : { y: open ? 0 : 208, duration: T(open, 0.28), ease: open ? 'back.out(1.2)' : 'power2.in', onComplete: done });
-    gsap.to('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.28) });
+    gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0, onComplete: done } : { y: open ? 0 : 208, duration: T(open, 0.25), ease: open ? 'power4.out' : 'power2.in', onComplete: done });
+    gsap.to('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.25) });
   }
   /** Closed: the title bar's free gap, or a 34px icon when the gap is under 160px. Open: centred, up to 600px. */
   function searchSpot(open) {
@@ -342,15 +342,15 @@ const wall = (() => {
     box.classList.add('open');
     box.classList.remove('icon-only');
     const to = searchSpot(true);
-    gsap.fromTo(box, { width: box.offsetWidth }, { width: to.w, left: to.left, duration: RM ? 0 : 0.24, ease: 'power3.out' });
-    gsap.fromTo(['#palette-list', '.sfoot'], { opacity: 0, y: RM ? 0 : -6 }, { opacity: 1, y: 0, duration: 0.22, ease: 'back.out(1.4)' });
+    gsap.fromTo(box, { width: box.offsetWidth }, { width: to.w, left: to.left, duration: RM ? 0 : 0.15, ease: 'power4.out' });
+    gsap.fromTo(['#palette-list', '.sfoot'], { opacity: 0, y: RM ? 0 : -6 }, { opacity: 1, y: 0, duration: 0.15, ease: 'power4.out' });
   }
   function closeSearch() {
     const box = $('#search');
     if (!box.classList.contains('open')) return;
     box.classList.remove('open');
     const to = searchSpot(false);
-    gsap.to(box, { width: to.w, left: to.left, duration: RM ? 0 : 0.16, ease: 'power2.in', onComplete: () => box.classList.toggle('icon-only', to.mini) });
+    gsap.to(box, { width: to.w, left: to.left, duration: RM ? 0 : 0.1, ease: 'power2.in', onComplete: () => box.classList.toggle('icon-only', to.mini) });
   }
 
   gsap.set('#list', { x: -310, visibility: 'hidden' });
@@ -369,7 +369,7 @@ const wall = (() => {
   /** Maximizes one pane, or restores the layout when it is already maximized or `id` is null. */
   function maximize(id) {
     MAX = id && MAX !== id ? id : null;
-    layout(true, 0.6);
+    layout(true);
     return MAX;
   }
 

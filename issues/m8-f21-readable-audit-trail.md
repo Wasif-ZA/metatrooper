@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 21. Rides on: M8-21. Screen: `proto/kit/workspaces/n12-team.json`, shot `proto/shots/n12-team.png`, the "Who did what" block only.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -41,11 +40,12 @@ Not sized until M8-0.
 - [ ] M8-F21c. No agent tool can edit or delete a row.
 - [ ] M8-F21d. A fixture secret never appears in a row.
 - [ ] M8-F21e. Rows survive a core restart.
-- [ ] M8-F21f. The shipped block matches `n12-team.json` and passes validate.mjs.
+- [ ] M8-F21f. The shipped block matches `n12-team.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n12-team: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.
