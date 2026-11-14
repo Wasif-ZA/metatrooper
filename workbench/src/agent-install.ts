@@ -15,5 +15,6 @@ export function installPlan(engineId: string, options: ToolOptions & { comspec: 
   if (!Object.hasOwn(INSTALLABLE, engineId)) return null;
   const engine = INSTALLABLE[engineId as keyof typeof INSTALLABLE];
   const npm = options.packaged ? `"${path.join(options.resourcesPath, 'node', 'npm.cmd')}" install -g --prefix "${path.join(options.home, 'tools')}"` : 'npm install -g';
-  return { command: options.comspec, args: ['/d', '/k', `${npm} ${engine.pkg} && ${engine.bin}`], env: { PATH: toolPath(options) } };
+  const line = `${npm} ${engine.pkg} && ${engine.bin}`;
+  return { command: options.comspec, args: ['/d', '/s', '/k', '"' + line + '"'], env: { PATH: toolPath(options) } };
 }

@@ -648,7 +648,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
           } finally { await file.close(); }
         } catch {}
       }
-      const { items, waiting } = parseChat(lines, row.state, row.cwd);
+      const permission = row.state === 'waiting_for_you'
+        ? db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS tool_use_id FROM event WHERE session_id = ? AND kind = 'claude.PermissionRequest' ORDER BY seq DESC LIMIT 1").get(id) as { tool_use_id: unknown } | undefined
+        : undefined;
+      const { items, waiting } = parseChat(lines, row.state, row.cwd, typeof permission?.tool_use_id === 'string' ? permission.tool_use_id : null);
       const secrets = knownSecretValues();
       return { session_id: id, engine_id: row.engine_id, source, waiting, items: items.slice(-limit).map((item) => item.kind === 'tool'
         ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }),

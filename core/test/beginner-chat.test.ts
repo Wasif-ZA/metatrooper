@@ -125,7 +125,9 @@ test('session.chat gives edit cards a short diff preview and failed steps their 
   } finally { f.close(); }
 });
 
-test('session.chat marks the unanswered last tool as waiting while the session waits for you', async () => {
+const ask = (db: DatabaseSync, id: string, toolUseId: string) => appendEvent('claude.PermissionRequest', id, { session_id: 'native', cwd: '.', tool_name: 'Bash', tool_use_id: toolUseId, tool_input: {} }, db);
+
+test('session.chat marks the last tool as waiting only while a permission request names it', async () => {
   const f = fixture();
   try {
     const id = f.session('claude', 'waiting_for_you');
@@ -133,11 +135,33 @@ test('session.chat marks the unanswered last tool as waiting while the session w
       user('Run the tests'),
       assistant([{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }]),
     ]));
+    ask(f.db, id, 't1');
     const r = await f.chat({ session_id: id });
     const last = r.items.at(-1);
     assert.equal(last.kind, 'tool');
     assert.equal(last.status, 'waiting');
     assert.equal(r.waiting, true);
+  } finally { f.close(); }
+});
+
+test('session.chat does not offer Allow for a wait that is not a permission request for that tool', async () => {
+  const f = fixture();
+  try {
+    const noAsk = f.session('claude', 'waiting_for_you');
+    point(f.db, noAsk, f.transcript([assistant([{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }])]));
+    const a = await f.chat({ session_id: noAsk });
+    assert.equal(a.waiting, false);
+    assert.equal(a.items[0].status, 'running');
+
+    const oldAsk = f.session('claude', 'waiting_for_you');
+    point(f.db, oldAsk, f.transcript([assistant([{ type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'ls' } }])]));
+    ask(f.db, oldAsk, 't1');
+    assert.equal((await f.chat({ session_id: oldAsk })).waiting, false);
+
+    const question = f.session('claude', 'waiting_for_you');
+    point(f.db, question, f.transcript([assistant([{ type: 'tool_use', id: 't3', name: 'AskUserQuestion', input: { questions: [] } }])]));
+    ask(f.db, question, 't3');
+    assert.equal((await f.chat({ session_id: question })).waiting, false);
   } finally { f.close(); }
 });
 

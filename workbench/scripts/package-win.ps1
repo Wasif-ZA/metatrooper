@@ -102,7 +102,7 @@ try {
     $unpack = Join-Path $cache "$nodeName-unpack"
     Reset-Output $unpack
     Expand-Archive -LiteralPath $nodeZip -DestinationPath $unpack
-    Copy-Items (Join-Path $unpack $nodeName) (Join-Path $output 'resources/node') @('node.exe', 'LICENSE')
+    Copy-Items (Join-Path $unpack $nodeName) (Join-Path $output 'resources/node') @('node.exe', 'npm.cmd', 'npx.cmd', 'node_modules', 'LICENSE')
     Reset-Output $unpack
 
     foreach ($forbidden in @('workbench/ui', 'workbench/node_modules/electron', 'app.asar')) {

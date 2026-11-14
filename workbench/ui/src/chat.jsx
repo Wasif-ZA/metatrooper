@@ -69,13 +69,19 @@ function ToolSteps({ item }) {
 
 function Approval({ item, x, engine }) {
   const [sending, setSending] = useState(false);
+  const answered = useRef(false);
   const send = async (allow) => {
     const input = approvalInput(engine, allow);
-    if (input === null || sending) return;
+    if (input === null || answered.current) return;
+    answered.current = true;
     setSending(true);
-    try { if (!(await troop.termInput(x.id, input))) toast(NOT_SENT, true); }
+    try {
+      if (await troop.termInput(x.id, input)) return;
+      toast(NOT_SENT, true);
+    }
     catch (err) { toast(String(err?.message || err), true); }
-    finally { setSending(false); }
+    answered.current = false;
+    setSending(false);
   };
   return <div className="ou-hm-approval">
     <p>{item.name === 'Bash' || item.name === 'PowerShell' ? 'Allow Claude to run:' : 'Allow Claude to:'}</p>

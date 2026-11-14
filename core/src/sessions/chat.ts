@@ -63,7 +63,7 @@ function toolLabel(name: string, input: Record<string, unknown>, cwd: string | n
   }
 }
 
-export function parseChat(lines: string[], state: string, cwd: string | null = null): { items: Item[]; waiting: boolean } {
+export function parseChat(lines: string[], state: string, cwd: string | null = null, permissionToolUseId: string | null = null): { items: Item[]; waiting: boolean } {
   const items: Item[] = [];
   const tools = new Map<string, ToolItem>();
   for (const line of lines) {
@@ -103,7 +103,8 @@ export function parseChat(lines: string[], state: string, cwd: string | null = n
     }
   }
   const last = items.at(-1);
-  const waiting = state === 'waiting_for_you' && last?.kind === 'tool' && last.status === 'running';
+  const waiting = state === 'waiting_for_you' && last?.kind === 'tool' && last.status === 'running'
+    && last.name !== 'AskUserQuestion' && permissionToolUseId === last.id;
   if (waiting) last.status = 'waiting';
   return { items, waiting };
 }
