@@ -182,6 +182,21 @@ test('30f98498 Wall state text is unboxed in every state and only waiting has th
   }
 });
 
+test('Wall tile state keeps its words: the name gives up space first, and the full state is the tooltip', () => {
+  // The monospace header clipped "waiting for you" to "waiting for y…" while the task name kept its width.
+  const css = renderer('wall-ref.css');
+  const shrink = (selector: string) => {
+    const flex = /(?:^|;)\s*flex:\s*([^;]+)/.exec(cssBody(css, selector));
+    assert.ok(flex, 'flex on ' + selector);
+    return Number(flex[1].trim().split(/\s+/)[1]);
+  };
+  assert.ok(shrink(':root[data-view="wall"] #centre .ph .ou-ah-name') > shrink(':root[data-view="wall"] #centre .ph .ou-ah-state'), 'the name shrinks before the state');
+  const { wall, tiles } = freshWall();
+  wall.decide([tileData('waiting_for_you', 'waiting for you')], 'a'); wall.apply('single');
+  const el = tiles.get('a'); relabel(el, 'waiting_for_you', 'waiting for you');
+  assert.equal(el.querySelector('.tile-state').title, 'waiting for you');
+});
+
 test('d47bc079 Settings error note has its hint', (t) => {
   // Render the real settings row with its literal copy.
   settingsStore.set({ data: { sessions: {}, ui: { toast_ms: 3000, error_toast_ms: 8000 }, terminal: {}, agent_cursor: {} }, section: 'general' });
