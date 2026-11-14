@@ -1,3 +1,4 @@
+import './clean-env.mjs';
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
