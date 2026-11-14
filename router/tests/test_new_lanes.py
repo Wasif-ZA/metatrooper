@@ -2,7 +2,6 @@
 
 from conftest import agent_result
 import json
-import os
 import datetime
 from pathlib import Path
 
@@ -85,8 +84,9 @@ def test_finish_records_hint_and_breaker_flags(capsys):
     invoke(capsys, "exec", "--", "date +%s")
     rows = calls.read()
     assert [row.get("breaker") for row in rows[:3]] == [None, None, True]
-    assert rows[-1].get("hinted") is True
-    assert not any(row.get("hinted") for row in rows[:3])
+    assert rows[-1]["hint"] == "git-bash-date"
+    assert not any(row.get("hint") for row in rows[:3])
+    assert "hinted" not in rows[-1]
 
 
 def test_stats_counts_rows_private_filter_and_days(capsys):
@@ -121,6 +121,17 @@ def test_stats_reports_hint_recovery_for_same_tool_and_agent(capsys):
     assert result["out"]["hints"].startswith("1 shown in 1 calls that record hints, 1 followed by a success")
 
 
+def test_stats_counts_new_hint_ids_alongside_old_hinted_rows(capsys):
+    now = datetime.datetime.now().astimezone().isoformat()
+    project = str(Path.cwd())
+    calls.append({"time": now, "project": project, "agent": "test", "exit": 1, "hinted": True, "cmd": "a"})
+    calls.append({"time": now, "project": project, "agent": "test", "exit": 1, "hint": "cp1252", "cmd": "b"})
+    calls.append({"time": now, "project": project, "agent": "test", "exit": 0, "hint": None, "cmd": "c"})
+    code, result = invoke(capsys, "stats")
+    assert code == 0
+    assert result["out"]["hints"].startswith("2 shown in 3 calls that record hints")
+
+
 def test_export_only_saved_recipes_and_import_rules(capsys, tmp_path):
     cli.main(["--json", "add", "mine", "--", "printf mine"])
     configure(private=["private"])
@@ -152,51 +163,6 @@ def test_export_without_saved_recipes_fails(capsys, tmp_path):
     assert invoke(capsys, "export", tmp_path / "empty.json")[0] == 1
 
 
-def test_no_private_warning_and_learn_note(capsys):
-    assert log.no_private_warning()
-    configure(private=["private"])
-    assert log.no_private_warning() is None
-    # Ingest's learn result exposes the warning state in its result note.
-    from metarouter import ingest
-
-    assert ingest.no_private_warning() is None
-
-
-def test_engine_scripts_come_from_config_and_missing_config_is_named(tmp_path, monkeypatch):
-    from metarouter.recipes import engines
-
-    runner = tmp_path / "gemini-runner.sh"
-    runner.write_text("#!/bin/sh\n", encoding="utf-8")
-    configure(engines={"gemini": str(runner), "local": str(runner)})
-    assert Path(engines.script("gemini")) == runner
-    assert Path(engines.script("local")) == runner
-    (log.home() / "config.json").unlink()
-    with pytest.raises(FileNotFoundError, match="config.json"):
-        engines.script("gemini")
-
-
-def test_engine_strips_footer_block(tmp_path, monkeypatch, capsys):
-    from metarouter.recipes import engines
-
-    from metarouter import recipes
-
-    monkeypatch.setenv("METAROUTER_SHELL", "bash")
-    runner = tmp_path / "gemini-runner.sh"
-    runner.write_text("#!/bin/sh\nprintf 'answer\\n------------------------------\\ngemini-runner: footer\\n'\n", encoding="utf-8")
-    configure(engines={"gemini": str(runner)})
-    # Exercise output cleanup through the engine's normal runner path.
-    recipe = {"name": "gemini", "kind": "engine", "engine": "gemini"}
-    # Test the same cleanup path without depending on launching a platform shell.
-    monkeypatch.setattr(cli.subprocess, "run", lambda *a, **k: __import__("subprocess").CompletedProcess(
-        args=a[0], returncode=0,
-        stdout=b"answer\n------------------------------\ngemini-runner: footer\n", stderr=b""
-    ))
-    result = cli.run_engine(recipe, ["synthetic prompt"])
-    assert result.exit == 0
-    assert "answer" in str(result.out)
-    assert "footer" not in str(result.out)
-
-
 def test_stats_skips_rows_whose_recipe_name_is_private(capsys):
     now = datetime.datetime.now().astimezone().isoformat()
     calls.append({"time": now, "project": str(Path.cwd()), "agent": "test", "exit": 0, "recipe": "deploy-secret"})
@@ -223,16 +189,10 @@ def test_export_matches_private_patterns_against_raw_text(capsys, tmp_path):
     assert names == ["plain-one"]
 
 
-def test_learn_skips_whole_sessions_that_touch_a_private_pattern(tmp_path):
-    from metarouter import learn
-    configure(private=["secret-client"])
-    root = tmp_path / "transcripts" / "p"
-    root.mkdir(parents=True)
-    for name, cwd in (("open.jsonl", "/work/open"), ("closed.jsonl", "/work/secret-client")):
-        lines = [{"cwd": cwd, "message": {"content": [{"type": "tool_use", "id": "u1", "name": "Bash",
-                                                       "input": {"command": "git status"}}]}},
-                 {"cwd": cwd, "message": {"content": [{"type": "tool_result", "tool_use_id": "u1", "content": "ok"}]}}]
-        (root / name).write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
-    found = [s for s in learn.sessions(tmp_path / "transcripts") if s]
-    assert found == [("git status", False, "ok")] or found == [[("git status", False, "ok")]]
-    assert len(found) == 1
+def test_private_matches_windows_paths_written_with_backslashes():
+    configure(private=["work/client-x"])
+    assert log.private(r"C:\Users\me\work\client-x\data.csv")
+    assert log.private("cat /c/work/client-x/a")
+    assert not log.private(r"C:\Users\me\work\other")
+    configure(private=[r"C:\\work"])
+    assert log.private(r"C:\work\a")

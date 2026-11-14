@@ -41,14 +41,14 @@ def test_mask_keeps_four_characters_and_counts():
     assert shield.mask("nothing secret here") == ("nothing secret here", 0)
 
 
-def test_exec_masks_a_token_and_the_log_keeps_it(capsys):
-    code, r = invoke(capsys, "exec", "--", f"echo {TOKEN}")
+def test_exec_masks_a_token_in_the_output_and_the_log(capsys):
+    code, r = invoke(capsys, "exec", "--", f"printf '{TOKEN}\\n\\377'")
     assert code == 0
     assert TOKEN not in json.dumps(r)
     assert "ghp_****" in r["out"]
     assert "masked 1 secret" in r["note"]
     log = max((Path(os.environ["METAROUTER_HOME"]) / "logs").rglob("*.log"), key=os.path.getmtime)
-    assert TOKEN in log.read_text(encoding="utf-8")
+    assert log.read_bytes() == b"ghp_****\n\xff"
 
 
 def test_shield_false_turns_masking_off(capsys, isolated):
@@ -67,127 +67,6 @@ def test_export_refuses_a_recipe_holding_a_secret(capsys, tmp_path):
     assert not out.exists()
 
 
-def write_engines(tmp_path, home, codex_js, fallback=("gemini",), *, monkeypatch):
-    companion = tmp_path / "companion.mjs"
-    companion.write_text(codex_js, encoding="utf-8")
-    gemini = tmp_path / "gemini.sh"
-    gemini.write_text("printf '%s\\n' 'synthetic gemini answer'\n", encoding="utf-8")
-    set_config(home, engines={"gemini": str(gemini)}, fallback=list(fallback))
-    monkeypatch.setenv("METAROUTER_CODEX_COMPANION", str(companion))
-
-
-LIMITED = "console.log('usage limit reached, try later'); process.exit(1);\n"
-
-
-def test_codex_usage_limit_falls_back_to_gemini(capsys, tmp_path, isolated, monkeypatch):
-    write_engines(tmp_path, isolated, LIMITED, monkeypatch=monkeypatch)
-    code, r = invoke(capsys, "run", "codex", "--model", "x", "synthetic task")
-    assert code == 0
-    assert r["out"] == "synthetic gemini answer"
-    assert r["fallback"] == "gemini"
-    assert r["marker"] == {"requested": "codex", "ran": "gemini", "why": "usage limit"}
-
-
-def test_no_fallback_on_other_failures_or_without_config(capsys, tmp_path, isolated, monkeypatch):
-    write_engines(tmp_path, isolated, "console.log('syntax error'); process.exit(1);\n", monkeypatch=monkeypatch)
-    code, r = invoke(capsys, "run", "codex", "synthetic task")
-    assert code == 1 and "marker" not in r
-    write_engines(tmp_path, isolated, LIMITED, fallback=(), monkeypatch=monkeypatch)
-    code, r = invoke(capsys, "run", "codex", "synthetic task")
-    assert code == 1 and "marker" not in r
-
-
-def test_codex_review_never_falls_back(capsys, tmp_path, isolated, monkeypatch):
-    write_engines(tmp_path, isolated, LIMITED, monkeypatch=monkeypatch)
-    code, r = invoke(capsys, "run", "codex-review")
-    assert code == 1 and "marker" not in r
-
-
-def write_policy(folder, **rules):
-    (folder / ".metarouter").mkdir(parents=True, exist_ok=True)
-    (folder / ".metarouter" / "policy.json").write_text(json.dumps(rules), encoding="utf-8")
-
-
-def test_repo_policy_refuses_force_push_and_allows_push(capsys, tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    (repo / ".git").mkdir(parents=True)
-    (repo / "sub").mkdir()
-    write_policy(repo, refuse=[r"git push (-f|--force)"], warn=["echo"])
-    monkeypatch.chdir(repo / "sub")
-    code, r = invoke(capsys, "exec", "--", "git push --force")
-    assert code == 3
-    assert r["note"].startswith("refused by ") and "policy.json" in r["note"]
-    code, r = invoke(capsys, "exec", "--", "git push")
-    assert code != 3 and "refused" not in (r.get("note") or "")
-    code, r = invoke(capsys, "exec", "--", "echo hi")
-    assert code == 0 and "warned by" in r["note"]
-    _, r = invoke(capsys, "policy")
-    assert any("refuse" in ln for ln in r["out"]) and any("warn" in ln for ln in r["out"])
-
-
-def test_user_policy_refuses_a_filled_shell_recipe(capsys, isolated):
-    (isolated / "policy.json").write_text(json.dumps({"refuse": ["rm -rf"]}), encoding="utf-8")
-    store.save("wipe", "rm -rf {1}", purity="read")
-    code, r = invoke(capsys, "run", "wipe", "nothing-here")
-    assert code == 3 and "refused by" in r["note"]
-
-
-def test_no_policy_file_changes_nothing(capsys):
-    _, r = invoke(capsys, "policy")
-    assert "no rules" in r["out"]
-    code, _ = invoke(capsys, "exec", "--", "echo hi")
-    assert code == 0
-
-
-def fake_tool(folder, name, version):
-    if os.name == "nt":
-        (folder / f"{name}.cmd").write_text(f"@echo {name} {version}\r\n", encoding="utf-8")
-    p = folder / name
-    p.write_text(f"#!/bin/sh\necho '{name} {version}'\n", encoding="utf-8", newline="\n")
-    p.chmod(0o755)
-
-
-def test_check_changed_selects_only_recipes_whose_tool_moved(capsys, tmp_path, monkeypatch, isolated):
-    bins = tmp_path / "bins"
-    bins.mkdir()
-    fake_tool(bins, "movingtool", "1.0")
-    fake_tool(bins, "steadytool", "3.0")
-    monkeypatch.setenv("PATH", str(bins) + os.pathsep + os.environ["PATH"])
-    ex = {"args": [], "expect_exit": 0}
-    store.save("moving", "movingtool run | grep -q 1.0", example=ex)
-    store.save("steady", "steadytool run | grep -q 3.0", example=ex)
-    invoke(capsys, "check")
-    versions = json.loads((isolated / "versions.json").read_text(encoding="utf-8"))
-    assert versions["movingtool"] == "movingtool 1.0"
-    fake_tool(bins, "movingtool", "2.0")
-    code, r = invoke(capsys, "check", "--changed")
-    assert code == 1
-    assert "moving:" in r["out"] and "steady" not in r["out"]
-    assert "movingtool 1.0 -> movingtool 2.0" in r["out"]
-    code, r = invoke(capsys, "check", "--changed")
-    assert code == 1 and "moving:" in r["out"], "a recipe that broke on the new version stays selected"
-    store.save("moving", "movingtool run | grep -q 2.0", example=ex)
-    invoke(capsys, "check", "--changed")
-    code, r = invoke(capsys, "check", "--changed")
-    assert code == 0 and "no recipe" in r["out"]
-
-
-def test_gemini_fallback_keeps_dir_flags_for_a_file_question(capsys, tmp_path, isolated, monkeypatch):
-    write_engines(tmp_path, isolated, LIMITED, monkeypatch=monkeypatch)
-    code, r = invoke(capsys, "run", "codex", "--dir", str(tmp_path), "explain notes.md")
-    assert code == 0 and r["fallback"] == "gemini"
-
-
-def test_scan_reads_other_agents_sessions(capsys, tmp_path, isolated, monkeypatch):
-    from metarouter import transcripts
-    seen = []
-    real = transcripts.sessions
-    monkeypatch.setattr(transcripts, "found", lambda: ["codex"])
-    monkeypatch.setattr(transcripts, "sessions", lambda agents, since=None, roots=None: seen.append(agents) or real(agents, since, roots))
-    invoke(capsys, "learn", "--scan", "--days", "7")
-    assert seen == [["codex"]]
-
-
 def test_log_lane_output_is_masked(tmp_path, monkeypatch, capsys):
     import json as _json
     from metarouter import cli
@@ -198,3 +77,28 @@ def test_log_lane_output_is_masked(tmp_path, monkeypatch, capsys):
     cli.main(["--json", "log", "--grep", "ghp_"])
     out = capsys.readouterr().out
     assert tok not in out and "ghp_****" in out
+
+
+def test_call_row_shape_masks_an_unquoted_token(capsys, isolated):
+    invoke(capsys, "exec", "--", f"echo {TOKEN}")
+    row = (isolated / "calls.jsonl").read_text(encoding="utf-8")
+    assert TOKEN not in row
+    assert "ghp_****" in row
+
+
+def test_every_string_field_of_a_call_row_is_masked(isolated):
+    from metarouter import calls
+    calls.append({"project": f"/work/{TOKEN}", "agent": "password=hunter22", "exit": 0})
+    row = (isolated / "calls.jsonl").read_text(encoding="utf-8")
+    assert TOKEN not in row and "hunter22" not in row
+
+
+@pytest.mark.parametrize("text", ['{"password": "hunter22"}', '{"api_key":"hunter22"}', "{'token': 'hunter22'}",
+                                  '"db_password" = "hunter22"'])
+def test_quoted_credential_values_are_masked_in_output_and_log(text, tmp_path, capsys, isolated):
+    src = tmp_path / "creds.json"
+    src.write_text(text, encoding="utf-8")
+    code, r = invoke(capsys, "exec", "--", f"cat {src.as_posix()}")
+    assert code == 0 and "hunter22" not in json.dumps(r)
+    log = max((isolated / "logs").rglob("*.log"), key=os.path.getmtime)
+    assert b"hunter22" not in log.read_bytes() and b"hunt****" in log.read_bytes()

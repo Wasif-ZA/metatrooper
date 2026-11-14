@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8. Priority: High. Effort: not sized (sized after M8-0). Depends on: M8-2, M8-4.
 Status in scratch: decided (ouros-spec.md 6e rows 1, 3-6); screens drawn.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -16,13 +15,14 @@ Status in scratch: decided (ouros-spec.md 6e rows 1, 3-6); screens drawn.
 
 ## Acceptance criteria
 
-- [ ] M8-28a. Every p-*.json passes validate.mjs and draws in the tab zone.
+- [ ] M8-28a. Every p-*.json passes `check.js` with nothing falling back and draws in the tab zone. (was: passes validate.mjs)
+  Status: PARTIAL. 3 of 17 pass today (2026-11-15). 13 fall back on `gate` and p-two-engine-review on `tile`, because those parts are not drawn yet.
+  Verify: `node --input-type=module -e "import {expand} from './workbench/ui/src/kit/check.js'; import {readFileSync, readdirSync} from 'node:fs'; import {dirname, basename} from 'node:path'; const fs1=process.argv.slice(1).flatMap(a=>a.includes('*')?readdirSync(dirname(a)).filter(n=>n.startsWith(basename(a).split('*')[0])&&n.endsWith('.json')).map(n=>dirname(a)+'/'+n):[a]); let bad=0; for (const f of fs1) { const j=JSON.parse(readFileSync(f,'utf8')); const r=expand(j.spec??j); if (r.fellBack.length) { bad++; console.log(f, r.fellBack); } } process.exit(bad?1:0)" $HOME/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/specs/p-*.json` from the repo root exits 0.
 - [ ] M8-28b. Each software workflow ends in a check result bound to the run; no "done" without evidence (M8-F1).
 - [ ] M8-28c. No agent-written HTML anywhere in these screens.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.

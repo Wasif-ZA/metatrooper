@@ -35,20 +35,53 @@ $f.Add_Shown({ [Console]::Out.WriteLine('HWND ' + $f.Handle.ToInt64()); [Console
 [System.Windows.Forms.Application]::Run($f)
 `;
 
-type Ctx = { helper: ChildProcess; fixture: ChildProcess; hwnd: number; dir: string; ui: { ui_pid: number; ui_start: string }; ask: (req: Record<string, unknown>) => Promise<any> };
+// A titled top-level window of class Chrome_WidgetWin_1, owned by the test, holding an unnamed id-0 pane with a named button.
+const CHROMIUM_FIXTURE = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public static class ChromiumFixture {
+  public delegate IntPtr Proc(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct WC { public uint style; public Proc proc; public int cls,wnd; public IntPtr instance,icon,cursor,brush; public string menu,name; }
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern ushort RegisterClass(ref WC c);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr CreateWindowEx(int ex,string cls,string name,uint style,int x,int y,int w,int h,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr param);
+  [DllImport("user32.dll")] static extern IntPtr DefWindowProc(IntPtr h,uint m,IntPtr w,IntPtr l);
+  static Proc proc = DefWindowProc;
+  public static IntPtr Make() {
+    foreach (var n in new[] { "Chrome_WidgetWin_1", "M838BarePane" }) { var c = new WC(); c.proc = proc; c.name = n; RegisterClass(ref c); }
+    var top = CreateWindowEx(0x08000080, "Chrome_WidgetWin_1", "M8-38 chromium fixture", 0x10CF0000, 80, 80, 500, 300, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    var pane = CreateWindowEx(0, "M838BarePane", null, 0x50000000, 0, 0, 480, 260, top, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    CreateWindowEx(0, "BUTTON", "Chromium fixture button", 0x50000000, 10, 10, 200, 30, pane, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    return top;
+  }
+}
+'@
+$h = [ChromiumFixture]::Make(); [Console]::Out.WriteLine('HWND ' + $h.ToInt64()); [Console]::Out.Flush()
+[System.Windows.Forms.Application]::Run()
+`;
+
+type Ctx = { helper: ChildProcess; fixture: ChildProcess; chromiumFixture: ChildProcess; hwnd: number; chromium: number; dir: string; ui: { ui_pid: number; ui_start: string }; ask: (req: Record<string, unknown>) => Promise<any> };
 let ctx: Ctx | null = null;
+
+function startFixture(dir: string, name: string, body: string) {
+  const script = join(dir, name);
+  writeFileSync(script, body);
+  const proc = spawn('powershell.exe', [...PS, '-STA', '-File', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const hwnd = new Promise<number>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('fixture window did not appear')), 60000);
+    readline.createInterface({ input: proc.stdout! }).on('line', (l) => { const m = /^HWND (\d+)/.exec(l); if (m) { clearTimeout(t); resolve(Number(m[1])); } });
+    proc.on('exit', () => reject(new Error('fixture exited')));
+  }).catch(() => 0);
+  return { proc, hwnd };
+}
 
 before(async () => {
   if (process.platform !== 'win32') return;
   const dir = mkdtempSync(join(tmpdir(), 'm8-38-rows46-'));
-  const script = join(dir, 'fixture.ps1');
-  writeFileSync(script, FIXTURE);
-  const fixture = spawn('powershell.exe', [...PS, '-STA', '-File', script], { stdio: ['ignore', 'pipe', 'ignore'] });
-  const hwnd = await new Promise<number>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('fixture window did not appear')), 60000);
-    readline.createInterface({ input: fixture.stdout! }).on('line', (l) => { const m = /^HWND (\d+)/.exec(l); if (m) { clearTimeout(t); resolve(Number(m[1])); } });
-    fixture.on('exit', () => reject(new Error('fixture exited')));
-  }).catch(() => 0);
+  const main = startFixture(dir, 'fixture.ps1', FIXTURE);
+  const chrome = startFixture(dir, 'chromium.ps1', CHROMIUM_FIXTURE);
+  const fixture = main.proc;
+  const [hwnd, chromium] = await Promise.all([main.hwnd, chrome.hwnd]);
   const helper = spawn('powershell.exe', [...PS, '-File', HELPER], { stdio: ['pipe', 'pipe', 'ignore'] });
   const waiting = new Map<number, (r: any) => void>();
   readline.createInterface({ input: helper.stdout! }).on('line', (l) => { const r = JSON.parse(l); waiting.get(r.id)?.(r); });
@@ -56,13 +89,14 @@ before(async () => {
   const ask = (req: Record<string, unknown>) => new Promise<any>((resolve) => { const id = ++n; waiting.set(id, resolve); helper.stdin!.write(JSON.stringify({ id, ...req }) + '\n'); });
   // The helper's own pid and start time stand in for the workbench's, so input ops pass the ui_pid/ui_start check.
   const start = await ask({ op: 'process', process: helper.pid });
-  ctx = { helper, fixture, hwnd, dir, ui: { ui_pid: helper.pid, ui_start: start.result.process_start }, ask };
+  ctx = { helper, fixture, chromiumFixture: chrome.proc, hwnd, chromium, dir, ui: { ui_pid: helper.pid, ui_start: start.result.process_start }, ask };
 });
 
 after(() => {
   if (!ctx) return;
   ctx.helper.kill();
   ctx.fixture.kill();
+  ctx.chromiumFixture.kill();
   rmSync(ctx.dir, { recursive: true, force: true });
 });
 
@@ -120,16 +154,14 @@ describe('M8-38 rows 4 and 6', { skip: process.platform !== 'win32' ? 'needs Win
   });
 
   test('row 4: a Chromium window has no unnamed wrapper pane, refs are consecutive, document is near the top', T, async (t) => {
-    if (!ctx) return t.skip('fixture window did not appear');
-    const listed = await ctx.ask({ op: 'list' });
-    assert.equal(listed.error, undefined, JSON.stringify(listed.error));
-    const wins = (Array.isArray(listed.result) ? listed.result : listed.result.windows) as Array<{ hwnd: number; class: string }>;
-    const chromium = wins.find((w) => w.class === 'Chrome_WidgetWin_1');
-    if (!chromium) return t.skip('no visible Chrome_WidgetWin_1 window');
-    // Read-only snapshot: no input op is ever sent to this window.
-    const { text, nodes } = await snapWin(chromium.hwnd, 400);
+    if (!ctx?.chromium) return t.skip('fixture window did not appear');
+    // The test's own window: a live desktop pick varied with z-order, and an untitled popup's root is not a wrapper.
+    // Not covered any more: a real browser's "document near the top" path; this fixture has no document, so that check never runs.
+    const { text, nodes } = await snapWin(ctx.chromium, 400);
     const all = lines(text).filter((l) => !l.startsWith('[truncated'));
     assert.ok(!all.some((l) => BARE_PANE.test(l)), 'an unnamed wrapper pane was kept');
+    const b = all.findIndex((l) => l.includes('"Chromium fixture button"'));
+    assert.ok(b > 0 && indent(all[b]) === indent(all[0]) + 2, `button is not lifted to sit directly under the root: ${text}`);
     const d = all.findIndex((l) => l.includes('document'));
     if (d >= 0) assert.ok(d < 15, `first document line is line ${d + 1}`);
     const refLines = all.filter((l) => /\[ref=e\d+\]/.test(l));

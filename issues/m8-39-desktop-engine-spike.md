@@ -1,7 +1,6 @@
 # M8-39: Spike agent-desktop and cua-driver as plugin desktop engines
 
 Part of Ouros, Milestone 8. Priority: Medium. Effort: 2.0 CC days. Depends on: M8-38 row 1 (the benchmark), M8-14.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -49,5 +48,4 @@ The built-in driver stays the Windows default unless the numbers say otherwise.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Nothing is vendored. No em dashes.

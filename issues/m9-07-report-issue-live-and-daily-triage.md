@@ -42,7 +42,6 @@ The loop, each day at 17:00 Sydney time:
 
 - The handler opens a URL only if it starts with `ISSUE_PREFIX`. That check stays.
 - The body never holds file text, terminal output, a prompt or a secret. It holds: version, commit, OS, time, the screen name, and what he types. He reads it on GitHub before he submits.
-- This binds harder for ACU repos: no ACU file content, result or participant detail goes into an issue. If a bug needs ACU detail to explain it, he describes the shape, not the data.
 - Triage reads issues with `gh`. It writes nothing to GitHub.
 
 ## Acceptance checks

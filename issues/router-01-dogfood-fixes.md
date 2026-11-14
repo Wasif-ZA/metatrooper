@@ -102,3 +102,49 @@ passed all 458 tests; add tests for both. Reports: `~/.metarouter/ab/20261026T11
 - [ ] `metarouter list` has no `learned` recipe with zero runs.
 - [ ] Two weeks after shipping, rerun `metarouter stats --adoption`: recipe share above 2%, and the five inline-python
       shapes are lower than the table above, scaled to the same number of days.
+
+## Amendment 2026-11-11: fix the runner, then slim (Wasif chose "slim", then "fold it in and build")
+
+Evidence: audit of 37,209 calls (`~/.cache/claude-scratch/metarouter-audit-2026-11-11/metarouter-audit.html`) and an
+architecture diagnosis of the code. This replaces sections 1, 3, 4 and 6. Build on branch `router-01-slim`, never on the
+live install. Done already: missing work folders added to `private` in `~/.metarouter/config.json`; their logs deleted.
+
+### Phase A: correctness (first, one commit each)
+
+1. **Pass the command on stdin, not as an argument.** The hook emits `metarouter exec --stdin <<'MR_<random hex>'`,
+   the command verbatim, then the delimiter, so permission prompts and rules still see the whole command. `exec --stdin`
+   writes it to its own temp file, runs `bash <tmp>` with stdin from /dev/null, and deletes the file. `exec -- '<cmd>'`
+   and `exec --file <script>` (never deleted) keep working. Test: a 20,000-byte command full of `'`, `\\`, `$VAR`,
+   backticks, non-ASCII and an `EOF` line round-trips byte-exact. Limit found while testing: on Windows a native
+   `bash -c` argument is cut near 8 KB and its `\\` become `\` before any hook runs, so the Bash tool itself has that
+   ceiling.
+2. **Privacy at write time.** `build()` checks `private()` on the command and cwd; on a match it writes no log file and
+   no row (only the agent sees output). Test: a direct `metarouter exec` in a cwd matching a private pattern leaves
+   nothing in `logs/` or `calls.jsonl`.
+3. **Mask secrets before the log is written**, using the same `shield` masking the display uses.
+4. **`--no-trunc` means no truncation:** skip the 8,000-char cap (`cli.py:50`, `187-191`) when whole is set.
+5. **Shrink threshold 2,000 to 10,000 chars** (`shrink.py:4`).
+6. **Breaker reads only the tail of `calls.jsonl`** (last 200 rows), not the whole 17 MB file.
+7. **Lazy imports in `cli.py`**, so `exec` loads only what it needs.
+
+### Phase B: slim
+
+8. **Hook allowlist:** wrap only shapes that print big output (pytest, git diff/log/show, gh api, npm/node test,
+   builds, tsc, cargo, go test); everything else runs raw. The hook keeps its privacy check.
+9. **Hints:** log the hint id per call (`hint` field, not a boolean). Keep fail-hints and the safety before-hints
+   (`taskkill-node`, `git-bash-date`, `ollama-v1`, `foreground-sleep`); drop before-hints that only point at deleted
+   recipes. Fix `git-clean-x`, which can never fire because the hook sends `git clean` raw.
+10. **Recipes:** keep `find`, `replace`, `page`, `repo` (and `snapshot`/`undo`, which `replace` needs). Remove the
+    `page` recipe's imports of `browse` and `hook.shrink_image` first, then delete the rest.
+11. **Delete:** `mcp`, `mcp_daemon`, `registry`, `browse/`, `learn`, `ingest`, `transcripts`, `simulate`, `jobs`,
+    `packs`, `tldr`, `versions`, `policy`, `digest`, the `do` lane, the dead Read branch of the hook, and their tests
+    and CLI lanes. Keep `ab.py` until the acceptance run. Target about 1,500 package lines, down from 6,098.
+12. **`nightly.cmd`** points at the deleted `projects/metarouter` and runs ingest/learn: delete the scheduled job (hand
+    back to Wasif if it needs Task Scheduler).
+
+### Acceptance
+
+- [ ] Full suite passes; the round-trip, private-write and no-trunc tests from Phase A exist and fail on the old code.
+- [ ] Hook plus exec overhead under 200 ms per wrapped call; unwrapped calls pay only the hook.
+- [ ] A/B rerun with enough tasks to see a 5% difference (at least 6 tasks x 5 runs per arm). Keep the hook only if
+      cost per pass is at or below arm B. Otherwise turn the hook off and keep the CLI.

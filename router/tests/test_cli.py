@@ -157,18 +157,16 @@ def test_exec_no_trunc_returns_plain_text_when_whole_and_unadorned(monkeypatch, 
     assert "\x1b" not in output
 
 
-def test_exec_no_trunc_over_limit_returns_compact_head_and_tail(monkeypatch, capsys):
+def test_exec_no_trunc_over_limit_returns_everything(monkeypatch, capsys):
     raw = ("head\n" + ("middle\n" * 5000) + "tail").encode()
     monkeypatch.setattr(cli, "run_shell", lambda _command: (0, raw, 0.0))
 
     exit_code = cli.main(["--json", "exec", "--no-trunc", "--", "synthetic"])
 
-    result = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr().out
     assert exit_code == 0
-    assert len(result["out"]) < len(raw.decode())
-    assert result["out"].startswith("head") and result["out"].endswith("tail")
-    assert "lines not shown, full output in the log" in result["out"]
-    assert Path(result["log"]).read_bytes() == raw
+    assert output == raw.decode() + "\n"
+    assert len(list(Path(os.environ["METAROUTER_HOME"]).rglob("*.log"))) == 1
 
 
 def test_exec_no_trunc_after_separator_is_part_of_command(monkeypatch, capsys):
@@ -191,8 +189,8 @@ def test_exec_no_trunc_after_separator_is_part_of_command(monkeypatch, capsys):
 
 
 def test_successful_shrunk_exec_note_names_no_trunc(monkeypatch, capsys):
-    raw = ("ordinary output\n" * 150).encode()
-    assert len(raw) > 2000
+    raw = ("ordinary output\n" * 700).encode()
+    assert len(raw) > shrink.SHORT
     monkeypatch.setattr(cli, "run_shell", lambda _command: (0, raw, 0.0))
 
     exit_code = cli.main(["--json", "exec", "--", "synthetic"])
@@ -240,8 +238,8 @@ def test_adorned_whole_result_is_plain_text_with_trailer(field):
 
 
 def test_successful_shrunk_json_exec_note_names_no_trunc(monkeypatch, capsys):
-    raw = json.dumps({"records": ["x" * 100 for _ in range(30)]}).encode()
-    assert len(raw) > 2000
+    raw = json.dumps({"records": ["x" * 100 for _ in range(120)]}).encode()
+    assert len(raw) > shrink.SHORT
     monkeypatch.setattr(cli, "run_shell", lambda _command: (0, raw, 0.0))
 
     exit_code = cli.main(["--json", "exec", "--", "synthetic"])
@@ -415,3 +413,19 @@ def test_unknown_verb_suggests_close_known_verb(capsys):
     assert exit_code == 2
     assert 'no verb "rum"' in result["note"]
     assert "Did you mean: metarouter run" in result["note"]
+
+
+def test_exec_in_private_cwd_writes_no_log_and_no_row(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "metarouter-home"
+    home.mkdir()
+    (home / "config.json").write_text(json.dumps({"private": ["secretproj"]}))
+    work = tmp_path / "secretproj"
+    work.mkdir()
+    monkeypatch.chdir(work)
+
+    exit_code = cli.main(["--json", "exec", "--", "printf private-out"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "private-out\n"
+    assert not list(home.rglob("*.log"))
+    assert not (home / "calls.jsonl").exists()

@@ -27,7 +27,7 @@ globalThis.frameView = (() => {
   const rankOf = (x) => STATE_RANK[x.state] ?? 3;
   const dotOf = (states) => (states.includes('waiting_for_you') ? 'wait' : states.some((s) => s === 'working' || s === 'starting') ? 'work' : 'done');
   // From t3code (MIT), apps/web/src/components/Sidebar.motion.ts: 150 ms ease-out row motion, adapted to rows keyed by id across redraws
-  const motionTiming = { duration: 150, easing: 'ease-out' };
+  const motionTiming = { duration: 150, easing: 'cubic-bezier(.22, 1, .36, 1)' };
   const rowTravel = (height) => Math.min(height, 40);
   const MAX_FADED_ROWS_PER_UPDATE = 40;
   const rowsOf = (list) => [...list.querySelectorAll('[data-key]')];

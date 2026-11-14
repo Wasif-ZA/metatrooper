@@ -41,7 +41,7 @@ const USAGE = `usage: troop <command> [--json]
   send <session> <text...>      type text into the session and press Enter; never answers an approval or gate
   engines [--check]             show engine health (--check re-runs the checks)
   gate [--since <date>] [--until <date>]
-                                adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
+                                adoption-gate numbers A-01 to A-04 for a window (default: last 14 days)
   route [args...]               metarouter, bundled in router/: recipes, trap hints and short shell output
                                 (troop route alone prints its menu; needs Python 3.11+, or TROOP_PYTHON)
   hooks install|uninstall [--codex] [--yes]
@@ -397,7 +397,7 @@ function gateCmd(argv: string[]): number {
   if (since >= until) return fail('--since must be before --until');
   const db = openReaderDb();
   try {
-    const report = measureGate({ since, until, home: homedir(), db, toolrouter: [process.execPath, routerShim] });
+    const report = measureGate({ since, until, home: homedir(), db });
     console.log(json ? JSON.stringify(report) : formatGate(report));
   } finally { db?.close(); }
   return 0;

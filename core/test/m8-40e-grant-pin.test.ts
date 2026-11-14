@@ -32,6 +32,12 @@ async function fixture(t: any) {
   db.exec(readFileSync(new URL('../../contracts/schema.sql', import.meta.url), 'utf8'));
   db.exec(`PRAGMA foreign_keys = OFF; INSERT INTO plugin (id, version, path, manifest, source, permissions, installed_at) VALUES ('desktop', '1', '', '{}', 'builtin', '[]', 't'); INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, pid) VALUES ('s1', 'p1', 'fake', 'pty', 'working', 't', 't', ${process.pid}), ('s2', 'p1', 'fake', 'pty', 'working', 't', 't', NULL)`);
   const desktop = new Desktop(db);
+  t.after(() => {
+    desktop.helper.stop();
+    db.close();
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
   const methods = new Map<string, any>();
   desktop.methods(methods);
   const call = (method: string, params: any = {}) => Promise.resolve().then(() => methods.get(method).handler(params));
@@ -41,12 +47,6 @@ async function fixture(t: any) {
   const act = (p: object = {}) => call('desktop.act', { ...ME, window: 100, action: 'click', ref: 'e1', expect: CONTROL, ...p });
   const check = async (p: object = {}) => new Approvals(db, 5000, () => [], { paused: (s) => takeoverPaused(db, s), granted: () => true }).check({ session_id: 's1', surface: 'desktop', target: grant, action: 'click', args: { window: 100, ref: 'e1' }, control: CONTROL, ...p } as any);
   const retitle = (title: string) => setWindows([{ ...NOTEPAD, title }, DIALOG, WORKBENCH]);
-  t.after(() => {
-    desktop.helper.stop();
-    db.close();
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-    rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-  });
   return { db, desktop, methods, grant, call, act, check, inputs, setWindows, retitle };
 }
 

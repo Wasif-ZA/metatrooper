@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from metarouter import calls, cli
 
@@ -186,10 +185,9 @@ def test_check_reports_all_five_seed_recipes_pass(tmp_path, monkeypatch, capsys)
     lines = set(result["out"].splitlines())
     assert {
         "pass  find",
-        "pass  img",
-        "pass  json",
-        "pass  json-set",
+        "pass  page",
         "pass  replace",
+        "pass  repo",
     } <= lines
 
 
@@ -229,7 +227,7 @@ def test_check_writes_no_call_log_and_creates_no_cwd_files(
 
     files_after = {path.relative_to(home) for path in home.rglob("*") if path.is_file()}
     assert exit_code == 0
-    assert files_after - {Path("versions.json")} == files_before == {Path("recipes/checked.json")}
+    assert files_after == files_before == {Path("recipes/checked.json")}
     assert not (home / "calls.jsonl").exists()
     assert not (home / "logs").exists()
     assert list(work.iterdir()) == []
@@ -294,7 +292,7 @@ def test_how_word_matching_nothing_exits_one(capsys):
 
 @pytest.mark.parametrize(
     "verb",
-    ["replace", "undo", "json", "json-set", "img", "find", "run", "add", "check", "search"],
+    ["replace", "undo", "find", "run", "add", "check", "search"],
 )
 def test_agent_mode_each_recipe_verb_prints_exactly_one_json_line(
     verb, tmp_path, monkeypatch, capsys
@@ -303,19 +301,15 @@ def test_agent_mode_each_recipe_verb_prints_exactly_one_json_line(
     force_check_temp_under(tmp_path, monkeypatch)
     Path("data.json").write_text('{"a": [1, 2]}', encoding="utf-8")
     Path("text.txt").write_text("needle old\n", encoding="utf-8")
-    Image.new("RGB", (8, 6), "white").save("tiny.png")
     write_recipe(home, "echoer", body="printf echo")
     argv_by_verb = {
         "replace": ["run", "replace", "text.txt", "old", "new"],
         "undo": ["undo"],
-        "json": ["run", "json", "data.json", ".a"],
-        "json-set": ["run", "json-set", "data.json", ".a[0]", "9"],
-        "img": ["run", "img", "info", "tiny.png"],
         "find": ["run", "find", "needle", "."],
         "run": ["run", "echoer"],
         "add": ["add", "saved-now", "--", "printf saved"],
         "check": ["check"],
-        "search": ["search", "json"],
+        "search": ["search", "find"],
     }
     monkeypatch.setenv("AI_AGENT", "1")
 
@@ -336,23 +330,9 @@ def test_list_prints_each_seed_recipe_name_once(capsys):
     assert result["ok"] is True
     assert result["exit"] == 0
     names = [entry.split()[0] for entry in result["out"]]
-    for name in (
-        "codex",
-        "codex-review",
-        "find",
-        "gemini",
-        "img",
-        "json",
-        "json-set",
-        "local",
-        "page",
-        "replace",
-        "repo",
-        "screenshot",
-        "up",
-    ):
+    for name in ("find", "page", "replace", "repo"):
         assert names.count(name) == 1
-    assert len(names) == 13
+    assert len(names) == 4
 
 
 def test_recipe_saved_with_add_appears_with_source_saved(capsys):

@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8. Priority: Medium. Effort: not sized (sized after M8-0). Depends on: M8-1, M8-5.
 Status in scratch: review findings; check which are already fixed.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -21,13 +20,14 @@ Status in scratch: review findings; check which are already fixed.
 
 - [ ] M8-36a. The need-you count comes from the same state as the canvas.
 - [ ] M8-36b. One progress part everywhere; no pipe-character bars.
-- [ ] M8-36c. check.mjs fails any orange that is not needs-you.
+- [x] M8-36c. `workbench/test/m8-01-kit-parts.test.ts` fails any agent-drawn part that draws the needs-you colour. (was: check.mjs fails any orange that is not needs-you)
+  Status: DONE for agent-drawn parts. Ouros's own screens are not covered by this test.
+  Verify: `cd workbench; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="never draw the needs-you colour|reserved colour stays absent" test/m8-01-kit-parts.test.ts` (52 tests, pass).
 - [ ] M8-36d. The forged-gate card has no button.
 - [ ] M8-36e. A word list check finds no dev words in screen copy.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.

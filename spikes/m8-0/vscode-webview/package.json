@@ -1,1 +1,0 @@
-{"name":"ouros-kit-spike","version":"0.1.0","publisher":"spike","engines":{"vscode":"^1.80.0"},"activationEvents":["onStartupFinished"],"main":"extension.js"}

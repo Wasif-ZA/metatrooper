@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from metarouter import calls
-from metarouter.shrink import errors, json_shape, shrink, want
+from metarouter.shrink import SHORT, errors, json_shape, shrink, want
 
 
 @pytest.fixture(autouse=True)
@@ -61,18 +61,25 @@ def test_run_call_log_contains_shape_not_raw_command(capsys):
 
 
 def test_short_output_at_limit_is_returned_whole():
-    text = "α" * 2000
+    text = "α" * SHORT
 
     result = shrink(text)
 
     assert result == {"out": text, "errors": [], "more_errors": 0, "tail": []}
 
 
+def test_output_under_ten_thousand_chars_is_returned_whole():
+    text = "ordinary output\n" * 600
+    assert 9000 < len(text) < 10000
+
+    assert shrink(text, failed=False)["out"] == text
+
+
 def test_long_failed_output_keeps_errors_but_no_success_path_tail():
     expected_kept = [f"error {index:02d}: unique" for index in range(40)]
     extra_errors = [f"error {index:02d}: unique" for index in range(40, 45)]
-    text = "padding\n" + ("ordinary output\n" * 150) + "\n".join(expected_kept + extra_errors)
-    assert len(text) > 2000
+    text = "padding\n" + ("ordinary output\n" * 700) + "\n".join(expected_kept + extra_errors)
+    assert len(text) > SHORT
 
     result = shrink(text)
 
@@ -87,17 +94,17 @@ def test_long_json_is_returned_as_shaped_object_with_list_lengths():
     document = {
         "records": [
             {"id": index, "payload": f"record-{index}-" + ("x" * 300)}
-            for index in range(10)
+            for index in range(40)
         ],
         "empty": [],
     }
     text = json.dumps(document)
-    assert len(text) > 2000
+    assert len(text) > SHORT
 
     result = shrink(text)
 
     shaped = result["out"]
-    assert shaped["records"]["len"] == 10
+    assert shaped["records"]["len"] == 40
     assert len(shaped["records"]["first"]) == 3
     assert shaped["empty"] == {"len": 0, "first": []}
     assert result["errors"] == []
@@ -105,14 +112,14 @@ def test_long_json_is_returned_as_shaped_object_with_list_lengths():
 
 
 def test_long_success_output_collapses_runs_then_keeps_head_and_tail():
-    lines = [f"run {i} " + "x" * 60 for i in range(40)]
+    lines = [f"run {i} " + "x" * 60 for i in range(160)]
     result = shrink("\n".join(lines), failed=False)
 
     assert result["errors"] == []
     assert result["tail"] == []
     assert lines[0] in result["out"]
     assert lines[-1] in result["out"]
-    assert "... 38 more like these" in result["out"]
+    assert "... 158 more like these" in result["out"]
 
 
 def test_json_shape_clips_long_dictionary_keys():
@@ -215,3 +222,15 @@ def test_two_processes_append_2000_valid_json_lines(tmp_path):
     assert {(row["worker"], row["index"]) for row in records} == {
         (worker, index) for worker in ("left", "right") for index in range(1000)
     }
+
+
+def test_read_tail_returns_only_the_last_rows_from_a_big_file():
+    home = Path(os.environ["METAROUTER_HOME"])
+    home.mkdir(parents=True)
+    rows = "".join(json.dumps({"index": i, "pad": "x" * 200}) + "\n" for i in range(5000))
+    (home / "calls.jsonl").write_text(rows, encoding="utf-8")
+
+    tail = calls.read(tail=200)
+
+    assert [row["index"] for row in tail] == list(range(4800, 5000))
+    assert len(calls.read()) == 5000

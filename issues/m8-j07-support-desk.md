@@ -1,7 +1,7 @@
 # M8-J7: Support desk job screen
 
 **After launch, add-on.** Part of Ouros, Milestone 8. Priority: Low. Effort: not sized until M8-0. Depends on: M8-11, M8-12, M8-14.
-**Start on or after 2026-11-09, and not before launch.** His words, 2026-11-05: job screens "will come after post launch".
+**Not before launch.** His words, 2026-11-05: job screens "will come after post launch".
 
 ## Source of truth
 
@@ -34,7 +34,9 @@ Differs: no ticket list column. The Ouros agent pane is the only chat, so there 
 
 ## Acceptance criteria
 
-- [ ] M8-J7a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J7a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J7a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J7b. With no engine installed, the screen says so and shows an install card, never a demo ticket as real.
 - [ ] M8-J7c. With a plugin installed, a real ticket opens with its history.
 - [ ] M8-J7d. A reply or a refund waits at a real gate from M8-21.
@@ -43,7 +45,6 @@ Differs: no ticket list column. The Ouros agent pane is the only chat, so there 
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Job parts join the catalogue through M8-10, with tests.
 - Codex writes the tests for any step Claude builds, and the other way round.

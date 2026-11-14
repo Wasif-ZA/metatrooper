@@ -9,7 +9,7 @@ SECRET = re.compile(
     r"|eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
     re.S)
-ASSIGNED = re.compile(r"((?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*)(\S{6,})", re.I)
+ASSIGNED = re.compile(r"((?:password|passwd|secret|token|api[_-]?key)[\"']?\s*[=:]\s*[\"']?)([^\s\"',}]{6,})", re.I)
 
 
 def on():
@@ -33,6 +33,14 @@ def mask(text):
     return ASSIGNED.sub(assigned, text), n + len(seen)
 
 
+def mask_bytes(raw):
+    """Raw bytes with secrets masked; bytes that are not UTF-8 pass through unchanged."""
+    if not on():
+        return raw
+    text, n = mask(raw.decode("utf-8", errors="surrogateescape"))
+    return text.encode("utf-8", errors="surrogateescape") if n else raw
+
+
 def walk(v):
     """Return (v with every string masked, count)."""
     if isinstance(v, str):
@@ -47,7 +55,7 @@ def walk(v):
 
 
 def guard(r):
-    """Mask the Result fields an agent sees. The log on disk keeps the raw text."""
+    """Mask the Result fields an agent sees."""
     if not on():
         return r
     total = 0
@@ -56,7 +64,7 @@ def guard(r):
         setattr(r, k, v)
         total += n
     if total:
-        said = f"masked {total} secret{'s' if total != 1 else ''}; the log has the raw text"
+        said = f"masked {total} secret{'s' if total != 1 else ''}"
         r.note = f"{r.note}; {said}" if r.note else said
     return r
 

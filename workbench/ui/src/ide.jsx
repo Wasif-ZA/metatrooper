@@ -24,7 +24,7 @@ import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
 import { paletteView } from './palette.jsx';
-import { Terminal, Problems, closeShell, countProblems } from './ide-panel.jsx';
+import { Terminal, Problems, closeShell, countProblems, focusShell, shellFocused } from './ide-panel.jsx';
 import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
@@ -41,6 +41,8 @@ const bump = () => {
 const states = new Map();
 let cur = null;
 const bridge = {};
+const paneOf = (st) => (st.pane ||= { open: true, tab: 'terminal' });
+const setPane = (st, open, tab = paneOf(st).tab) => { st.pane = { open, tab }; bump(); };
 
 const projectName = (pid) => ((ui.snap.projects || []).find((p) => p.id === pid) || {}).name || 'another project';
 
@@ -632,6 +634,14 @@ export const ideKeys = {
   closeTab: () => { if (cur && cur.focus === 1 && cur.rightActive) closeRight(cur, cur.rightActive); else if (cur && cur.active) closeTab(cur, cur.active); },
   save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
+  panel: () => { if (cur) setPane(cur, !paneOf(cur).open); },
+  terminal: () => {
+    if (!cur) return;
+    const p = paneOf(cur);
+    if (p.open && p.tab === 'terminal' && shellFocused(cur.pid)) { setPane(cur, false); return; }
+    setPane(cur, true, 'terminal');
+    focusShell(cur.pid);
+  },
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
     if (!t || !canPreview(t.path)) return false;
@@ -1276,7 +1286,7 @@ export function ideCommands(cmd = defaultCmd) {
   if (t && canPreview(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => void showPreview(st, t.path)));
   if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
   if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
-  out.push(cmd('IDE', 'Show or hide the panel', () => bridge.togglePanel?.()), cmd('IDE', 'Restart the terminal', () => bridge.restartTerminal?.()));
+  out.push(cmd('IDE', 'Show or hide the panel', ideKeys.panel), cmd('IDE', 'Restart the terminal', () => bridge.restartTerminal?.()));
   return out;
 }
 
@@ -1370,12 +1380,12 @@ function RightGroup({ st, right, changed }) {
 
 export function Ide() {
   ideStore.use();
-  const [panel, setPanel] = useState(true);
-  const [bottom, setBottom] = useState('terminal');
+  const { open: panel, tab: bottom } = cur ? paneOf(cur) : { open: true, tab: 'terminal' };
+  const setPanel = (v) => cur && setPane(cur, v);
+  const setBottom = (v) => cur && setPane(cur, paneOf(cur).open, v);
   const [gen, setGen] = useState(0);
   const [max, setMax] = useState(false);
   const [shellName, setShellName] = useState(null);
-  bridge.togglePanel = () => setPanel((v) => !v);
   bridge.restartTerminal = () => { if (cur) closeShell(cur.pid); setPanel(true); setBottom('terminal'); setGen((g) => g + 1); };
 
   const st = cur;

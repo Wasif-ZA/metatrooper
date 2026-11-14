@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 15. Rides on: M8-13, M8-F1. Screen: `proto/kit/workspaces/n06-job-anyone.json`, shot `proto/shots/n06-job-anyone.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -44,11 +43,12 @@ Not sized until M8-0.
 - [ ] M8-F15c. A step with no check reads "Not checked", never done.
 - [ ] M8-F15d. Show the code opens the same run, in one click, on the same worktree.
 - [ ] M8-F15e. A step that leaves the machine waits at a real gate from M8-21.
-- [ ] M8-F15f. The shipped screen matches `n06-job-anyone.json` and passes validate.mjs.
+- [ ] M8-F15f. The shipped screen matches `n06-job-anyone.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n06-job-anyone: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

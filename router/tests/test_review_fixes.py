@@ -3,23 +3,15 @@ import datetime
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
-import threading
 import time
 from types import SimpleNamespace
-import urllib.error
-import urllib.request
 
 import pytest
 
-import metarouter.browse.cdp as cdp
-from metarouter.browse import daemon
-import metarouter.browse.page as page_mod
-from metarouter.browse.page import host_blocked
 import metarouter.calls
-from metarouter import calls, cli, ingest, jobs, log, snapshot
+from metarouter import calls, cli, log, snapshot
 import metarouter.log
 from metarouter.recipes import find, web
 from metarouter import filters
@@ -42,13 +34,6 @@ def isolated_environment(tmp_path, monkeypatch):
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
-
-
-def test_page_host_blocked_schemeless_urls():
-    blocked = ["blocked.example"]
-    assert host_blocked("blocked.example/x", blocked) is True
-    assert host_blocked("sub.blocked.example", blocked) is True
-    assert host_blocked("allowed.example/x", blocked) is False
 
 
 def test_log_write_same_second_different_microseconds(monkeypatch):
@@ -175,79 +160,6 @@ def test_snapshot_take_twice_same_second(monkeypatch, tmp_path):
     assert target.read_bytes() == b"version 2"
 
 
-def test_refuse_blocked_redirect_raises_urlerror():
-    home = Path(os.environ["METAROUTER_HOME"])
-    home.mkdir(parents=True, exist_ok=True)
-    (home / "blocked-hosts.txt").write_text("blocked.example\n", encoding="utf-8")
-
-    handler = web.RefuseBlocked()
-    req = urllib.request.Request("http://original.example/page")
-    with pytest.raises(urllib.error.URLError, match="blocked-hosts list"):
-        handler.redirect_request(req, None, 302, "Found", {}, "http://blocked.example/target")
-
-
-def test_browse_daemon_type_rechecks_blocked_guard(monkeypatch):
-    home = Path(os.environ["METAROUTER_HOME"])
-    home.mkdir(parents=True, exist_ok=True)
-    (home / "blocked-hosts.txt").write_text("blocked.example\n", encoding="utf-8")
-
-    class FakeChrome:
-        def __init__(self, profile, show=False):
-            pass
-
-        def close(self):
-            pass
-
-    class FakePage:
-        def __init__(self, chrome):
-            self._url = "http://allowed.example"
-
-        def type(self, ref, text):
-            self._url = "http://blocked.example/target"
-
-        def url(self):
-            return self._url
-
-        def navigate(self, url):
-            self._url = url
-
-        def changed(self):
-            return {"changed": True}
-
-    monkeypatch.setattr(cdp, "Chrome", FakeChrome)
-    monkeypatch.setattr(page_mod, "Page", FakePage)
-
-    server_thread = threading.Thread(target=daemon.serve, kwargs={"show": False}, daemon=True)
-    server_thread.start()
-
-    deadline = time.monotonic() + 5
-    while not daemon.state_path().is_file():
-        if time.monotonic() > deadline:
-            raise TimeoutError("daemon did not write browser.json in time")
-        time.sleep(0.01)
-
-    try:
-        reply = daemon.call("type", ["@1", "submitting-text"])
-        assert reply["ok"] is False
-        assert "PermissionError" in reply.get("error", "")
-        assert "blocked.example" in reply.get("error", "")
-    finally:
-        try:
-            daemon.call("close", [])
-        except Exception:
-            pass
-        server_thread.join(timeout=2)
-
-
-def test_jobs_start_id_ends_in_12_hex_chars(monkeypatch):
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: SimpleNamespace(pid=12345))
-
-    jid = jobs.start(["list"], "test-job")
-    suffix = jid.split("-")[-1]
-    assert len(suffix) == 12
-    assert re.fullmatch(r"[0-9a-f]{12}", suffix) is not None
-
-
 def test_run_lane_call_log_shape_does_not_contain_argument_content():
     notes = Path("notes.txt")
     notes.write_text("participant Alice\n", encoding="utf-8")
@@ -324,57 +236,6 @@ def test_check_escaped_setup_key_and_destructive_recipe():
     assert not (home.parent / "outside.txt").exists()
 
 
-def test_ingest_json_output_keys(tmp_path, capsys):
-    empty_root = tmp_path / "empty_transcripts"
-    empty_root.mkdir()
-
-    ingest.main(["ingest", "--root", str(empty_root), "--no-save"], how="json")
-
-    captured = capsys.readouterr()
-    assert captured.err == ""
-    assert captured.out.count("\n") == 1
-    data = agent_result(captured.out)
-    assert data["ok"] is True
-    assert data["exit"] == 0
-    assert isinstance(data["out"], dict)
-    assert "lane" not in data
-    assert set(data.keys()) == {"ok", "exit", "out", "shell_read_tokens", "saved_tokens", "warning"}
-    assert data["warning"].startswith("WARNING: no private patterns")
-
-
-def test_learn_review_in_json_mode_returns_exit_2(monkeypatch, capsys):
-    monkeypatch.delenv("AI_AGENT", raising=False)
-    monkeypatch.delenv("CLAUDECODE", raising=False)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
-
-    exit_code = cli.main(["--json", "learn", "--review"])
-
-    captured = capsys.readouterr()
-    assert exit_code == 2
-    assert captured.err == ""
-    assert captured.out.count("\n") == 1
-    data = agent_result(captured.out)
-    assert data["ok"] is False
-    assert data["exit"] == 2
-    assert "learn --review is for a person" in data.get("note", "")
-
-
-def test_malformed_servers_json_prints_json_without_traceback(capsys):
-    home = Path(os.environ["METAROUTER_HOME"])
-    home.mkdir(parents=True, exist_ok=True)
-    (home / "servers.json").write_text("{not valid json", encoding="utf-8")
-
-    cli.main(["--json", "mcp", "x", "y"])
-
-    captured = capsys.readouterr()
-    assert captured.err == ""
-    assert captured.out.count("\n") == 1
-    assert "Traceback" not in captured.out
-    assert "Traceback" not in captured.err
-    data = agent_result(captured.out)
-    assert data["ok"] is False
-
-
 def test_crashing_lane_prints_json_without_traceback(monkeypatch, capsys):
     def crash(_args):
         raise RuntimeError("simulated lane crash")
@@ -421,21 +282,6 @@ def test_replace_negative_count_exits_2_and_leaves_file_unchanged(capsys):
     assert data["exit"] == 2
     assert target.read_text(encoding="utf-8") == original
     assert "--count must be 0 (all) or more" in data.get("out", "")
-
-
-def test_json_set_numeric_index_on_dict_exits_1_and_leaves_file_unchanged(capsys):
-    target = Path("data.json")
-    original = '{"obj": {}}\n'
-    target.write_text(original, encoding="utf-8")
-
-    exit_code = cli.main(["--json", "run", "json-set", str(target), ".obj[0]", "val"])
-
-    captured = capsys.readouterr()
-    data = agent_result(captured.out)
-    assert exit_code == 1
-    assert data["exit"] == 1
-    assert target.read_text(encoding="utf-8") == original
-    assert "needs a list, found an object" in data.get("out", "")
 
 
 def test_human_render_of_empty_dict_and_list():

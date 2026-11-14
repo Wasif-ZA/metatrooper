@@ -106,6 +106,8 @@ document.addEventListener('keydown', (e) => {
   else if (k === 's' && !e.shiftKey) { if (e.defaultPrevented || overlayOpen() || ideKeys.asking()) return; e.preventDefault(); ideKeys.save(); }
   else if (k === 'w' && !e.shiftKey) { e.preventDefault(); if (overlayOpen() || ideKeys.asking()) return; ideKeys.closeTab(); }
   else if (k === 'v' && e.shiftKey) { if (overlayOpen()) return; if (ideKeys.preview()) e.preventDefault(); }
+  else if (k === 'j' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.panel(); }
+  else if (k === '`' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.terminal(); }
 });
 
 // home.js stays loaded for homeView.set and shown; only its drawing is replaced.

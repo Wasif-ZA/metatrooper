@@ -9,8 +9,7 @@ from pathlib import Path
 from metarouter import calls
 from metarouter.log import home
 
-CATALOG = Path(__file__).with_name("catalog.json")
-SEEDS = ["replace", "json_get", "json_set", "img", "find", "engines", "web"]
+SEEDS = ["replace", "find", "web"]
 NAME = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 MIN_CALLS = 5
 PURITY = {"read", "write", "external", "destructive"}
@@ -36,7 +35,7 @@ def project_dir():
 
 
 def mode():
-    """learn: seeds and approved recipes only. auto: also the catalogue, PATH CLIs and the MCP registry."""
+    """learn: seeds and approved recipes only. auto: also repo scripts and PATH CLIs."""
     env = os.environ.get("METAROUTER_MODE")
     if env in MODES:
         return env
@@ -60,14 +59,10 @@ def set_mode(m):
 
 def seed_recipes():
     out = {}
-    if mode() == "auto" and CATALOG.is_file():
-        for r in json.loads(CATALOG.read_text(encoding="utf-8")):
-            out[r["name"]] = {**r, "kind": "shell", "source": "catalog"}
     for mod in SEEDS:
         m = importlib.import_module(f"metarouter.recipes.{mod}")
         for r in getattr(m, "RECIPES", None) or [m.RECIPE]:
-            kind = "engine" if "engine" in r else "python"
-            out[r["name"]] = {**r, "kind": kind, "body": m.__name__, "source": "seed"}
+            out[r["name"]] = {**r, "kind": "python", "body": m.__name__, "source": "seed"}
     return out
 
 
