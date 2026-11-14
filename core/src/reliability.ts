@@ -4,6 +4,7 @@ import { budgetFooter, budgetStep } from './run-health.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { appendEvent } from './events/append.ts';
 import { E, RpcError } from './pipe/errors.ts';
+import { notice } from './sessions/owners.ts';
 import { settings } from './settings.ts';
 import * as term from './terminal/index.ts';
 import { nowIso, ulid } from './time.ts';
@@ -102,7 +103,9 @@ export async function proveDone(db: DatabaseSync, sessionId: string): Promise<vo
   if (!s || s.run_id !== null || !s.cwd) return;
   const command = (r.checks as Record<string, unknown>)[s.project_id];
   const has = typeof command === 'string' && command.trim() !== '';
-  const passed = has ? (await runCheck(db, sessionId, command)).exit_code === 0 : (await doneResult(db, sessionId)).result !== 'needs_review';
+  const proof = has ? await runCheck(db, sessionId, command) : null;
+  const passed = proof ? proof.exit_code === 0 : (await doneResult(db, sessionId)).result !== 'needs_review';
+  if (proof && !passed) notice(db, sessionId, `check:${proof.id}`, `The project check \`${proof.command}\` failed with exit ${proof.exit_code ?? 'none (killed or timed out)'}. Fix what it reports before you finish. Last of its output:\n${proof.output_tail}`);
   const label = !passed ? `needs your review (${has ? 'the check failed' : 'no check is set for this project'})` : 'checks passed';
   db.prepare("UPDATE needs_you SET text = ? WHERE ref = ? AND kind = 'done' AND resolved_at IS NULL").run(`${s.engine_id} finished: ${label}`, sessionId);
 }

@@ -322,6 +322,20 @@ test('proveDone failed check stores its exit and asks for review', async (t) => 
   assert.equal(h.db.prepare('SELECT exit_code FROM done_proof').get()!.exit_code, 7);
 });
 
+test('a failed check queues its output tail as a notice to the session', async (t) => {
+  const h = fixture(t); repository(h.home);
+  const sid = h.session('done'); doneRow(h, sid);
+  h.setting('checks', { p: 'node -e "console.log(\'expected 2 got 3\'); process.exit(7)"' });
+  await proveDone(h.db, sid);
+  const notices = h.db.prepare("SELECT body FROM comment WHERE session_id = ? AND kind = 'notice' AND prompt_at IS NULL").all(sid) as Array<{ body: string }>;
+  assert.equal(notices.length, 1);
+  assert.match(notices[0].body, /failed with exit 7/);
+  assert.match(notices[0].body, /expected 2 got 3/);
+  h.setting('checks', { p: 'node -e "process.exit(0)"' });
+  await proveDone(h.db, sid);
+  assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM comment WHERE kind = 'notice'").get() as { n: number }).n, 1, 'a passing check sends nothing');
+});
+
 test('the latest failed check overrides a passing check on the same folder', async (t) => {
   const h = fixture(t); repository(h.home);
   const sid = h.session('done'); doneRow(h, sid);
