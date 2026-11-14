@@ -34,7 +34,7 @@
 
 </div>
 
-<p align="center"><img src="assets/cc/hero.png" alt="cc Home: a task list, a chat box and one task with three agents, one of them waiting for you"></p>
+<p align="center"><img src="assets/cc/hero.png" alt="cc Home: a task in progress with its steps, three subagents and the chat box"></p>
 
 ## What it is
 
@@ -55,7 +55,7 @@ The window has these screens:
 | **Add-ons** | A list of extensions | The agents cc found and the plugins you installed, each with its permissions. |
 | **Settings** | A settings page | Approvals, notifications, the take-over key and the rest. Automations live here too. |
 
-![Needs you: one agent's question waiting for your answer, three agents working](assets/cc/needs-you.png)
+![Needs you: an agent asks which test database to use, and a browser approval waits for you](assets/cc/needs-you.png)
 
 Built in around the screens:
 
@@ -115,7 +115,7 @@ What to expect:
 
 ## The IDE
 
-![The IDE: file tree, an open file and a terminal](assets/cc/ide.png)
+![The IDE: a side-by-side diff of an agent's change to routes/todos.js, with the changed files listed](assets/cc/ide.png)
 
 - **Editor.** Tabs, Ctrl+S to save, Ctrl+W to close, and a prompt before a dirty tab closes. If the file changed on
   disk since you opened it, you choose Reload from disk or Overwrite. Line endings stay as they were.
@@ -133,7 +133,7 @@ What to expect:
 
 ## The wall
 
-![The wall: an agent waiting for you in the big slot, its diff open beside it](assets/cc/wall.png)
+![The wall: four agents working and one waiting for your answer in the big tile](assets/cc/wall.png)
 
 - **The one that needs you comes to you.** When an agent asks a question or waits for a permission, its tile turns
   orange and moves to the big slot. It waits 3 s if you were just typing in the big tile, so it never steals your
