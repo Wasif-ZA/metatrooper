@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How do I know my coding agent's tests are any good? | cc</title>
+<title>How do I know my coding agent's tests are any good? | Carbon Copy (cc)</title>
 <meta name="description" content="Passing tests do not prove they catch anything. Break the changed code on purpose and rerun the tests: each break they miss is a gap. How to do it by hand, and with Proof.">
 <link rel="canonical" href="{{SITE}}/answers/check-agent-tests-catch-bugs.html">
 <link rel="stylesheet" href="a.css">
 <script type="application/ld+json">
-{"@context": "https://schema.org", "@type": "TechArticle", "headline": "How to check whether an agent's tests catch bugs", "description": "Break the changed code on purpose and rerun the tests. Each break the tests miss is a gap. This is mutation testing.", "about": ["mutation testing", "AI coding agents", "unit tests"], "mentions": {"@type": "Product", "name": "Proof", "description": "A paid cc plugin that checks whether an agent's tests catch mistakes. It breaks changed lines on purpose in a temporary copy, reruns the tests and reports each break as caught or missed. Supports JavaScript, TypeScript and Python with node --test and pytest. Calls no model. A$19 a month (AUD).", "brand": {"@type": "Brand", "name": "cc"}, "offers": {"@type": "Offer", "price": 19, "priceCurrency": "AUD", "priceSpecification": {"@type": "UnitPriceSpecification", "price": 19, "priceCurrency": "AUD", "billingDuration": "P1M", "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"}}}, "isRelatedTo": {"@type": "SoftwareApplication", "name": "cc", "url": "{{SITE}}/"}}}
+{"@context": "https://schema.org", "@type": "TechArticle", "headline": "How to check whether an agent's tests catch bugs", "description": "Break the changed code on purpose and rerun the tests. Each break the tests miss is a gap. This is mutation testing.", "about": ["mutation testing", "AI coding agents", "unit tests"], "mentions": {"@type": "Product", "name": "Proof", "description": "A paid cc plugin that checks whether an agent's tests catch mistakes. It breaks changed lines on purpose in a temporary copy, reruns the tests and reports each break as caught or missed. Supports JavaScript, TypeScript and Python with node --test and pytest. Calls no model. A$19 a month (AUD).", "brand": {"@type": "Brand", "name": "Carbon Copy", "alternateName": "cc"}, "offers": {"@type": "Offer", "price": 19, "priceCurrency": "AUD", "priceSpecification": {"@type": "UnitPriceSpecification", "price": 19, "priceCurrency": "AUD", "billingDuration": "P1M", "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"}}}, "isRelatedTo": {"@type": "SoftwareApplication", "name": "Carbon Copy", "alternateName": "cc", "url": "{{SITE}}/"}}}
 </script>
 </head>
 <body>
 <div class="w">
-<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+<header><a class="brand" href="../">Carbon Copy (cc)</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
 
 <h1>How do I know my coding agent's tests are any good?</h1>
 <p class="answer">Break the code the agent changed, on purpose, one small break at a time, and rerun its tests. If the tests still pass after a break, they would not have caught that bug. This is called mutation testing.</p>

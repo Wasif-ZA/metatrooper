@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>cc rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
+  <strong>Carbon Copy (cc) rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
   app where every agent is just a task, so there are no sessions to manage.</strong><br>
   New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
