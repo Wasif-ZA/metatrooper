@@ -34,6 +34,8 @@
 
 </div>
 
+<p align="center"><img src="assets/cc/hero.png" alt="cc Home: a task list, a chat box and one task with three agents, one of them waiting for you"></p>
+
 ## What it is
 
 You run three agents in three terminals, with an editor and a browser in more windows again. You lose
@@ -52,6 +54,8 @@ The window has these screens:
 | **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
 | **Add-ons** | A list of extensions | The agents cc found and the plugins you installed, each with its permissions. |
 | **Settings** | A settings page | Approvals, notifications, the take-over key and the rest. Automations live here too. |
+
+![Needs you: one agent's question waiting for your answer, three agents working](assets/cc/needs-you.png)
 
 Built in around the screens:
 
@@ -111,6 +115,8 @@ What to expect:
 
 ## The IDE
 
+![The IDE: file tree, an open file and a terminal](assets/cc/ide.png)
+
 - **Editor.** Tabs, Ctrl+S to save, Ctrl+W to close, and a prompt before a dirty tab closes. If the file changed on
   disk since you opened it, you choose Reload from disk or Overwrite. Line endings stay as they were.
 - **Find.** Ctrl+P finds a file by name. Ctrl+Shift+F searches in files.
@@ -126,6 +132,8 @@ What to expect:
 - **Open in VS Code** from the tab's More actions menu.
 
 ## The wall
+
+![The wall: an agent waiting for you in the big slot, its diff open beside it](assets/cc/wall.png)
 
 - **The one that needs you comes to you.** When an agent asks a question or waits for a permission, its tile turns
   orange and moves to the big slot. It waits 3 s if you were just typing in the big tile, so it never steals your
