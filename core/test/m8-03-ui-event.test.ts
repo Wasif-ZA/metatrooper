@@ -49,7 +49,8 @@ async function harness(t: any, o: { engine?: 'fake' | 'hooked'; state?: string; 
   const notices = () => db.prepare("SELECT body, prompt_at FROM comment WHERE session_id = ? AND kind = 'notice'").all(id) as Array<{ body: string; prompt_at: string | null }>;
   const inbox = () => db.prepare("SELECT text FROM needs_you WHERE ref = ? AND kind = 'other'").all(id) as Array<{ text: string }>;
   const screen = async () => (await term.screenText(id)) ?? '';
-  return { db, id, call, click, notices, inbox, screen };
+  const get = () => call('ui.get', { surface: 'screen' });
+  return { db, id, call, click, notices, inbox, screen, get };
 }
 
 const LINE = '[ouros-ui] {"surface":"screen","seq":1,"event":"press","context":{"row":3}}';
@@ -87,6 +88,16 @@ test('a click on a session without hooks that waits on a person is pasted withou
   await until(async () => (await h.screen()).includes(LINE), 5000);
   await new Promise(r => setTimeout(r, 300));
   assert.ok(!(await h.screen()).includes(`GOT:${LINE}`));
+});
+
+test('a surface with no click stays undelivered after the clock moves a day', async t => {
+  const h = await harness(t, { live: true });
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  t.mock.timers.tick(24 * 60 * 60 * 1000);
+  assert.deepEqual(h.notices(), []);
+  assert.deepEqual(h.inbox(), []);
+  assert.equal(h.get().seq, 1);
+  assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: true });
 });
 
 test('an old seq is dropped as stale', async t => {
