@@ -364,20 +364,25 @@ namespace TroopUia {
       var nodes = Walk(top, max, chromium, out truncated);
       if (!pages && nodes.Count < 20 && !truncated) { Thread.Sleep(2000); nodes = Walk(top, max, chromium, out truncated); }
       var map = new Dictionary<string, AutomationElement>();
-      var sb = new StringBuilder();
-      int n = 0;
-      foreach (var kv in nodes) {
-        var e = kv.Value;
-        string id = "e" + (++n);
-        map[id] = e;
-        string line, actions;
-        try { line = NodeLine(e); actions = ActionsOf(e); } catch { continue; }
-        sb.Append(new string(' ', kv.Key * 2)).Append(line).Append(actions);
-        sb.Append(" [ref=").Append(id).Append("]\n");
-      }
-      if (truncated) sb.Append("[truncated: max_nodes=").Append(max).Append("; more nodes remain]\n");
+      int n;
+      string text = Render(nodes, e => NodeLine(e) + ActionsOf(e), map, out n);
+      if (truncated) text += "[truncated: max_nodes=" + max + "; more nodes remain]\n";
       Refs[hwnd] = map;
-      return new Dictionary<string, object> { { "text", sb.ToString() }, { "nodes", n }, { "truncated", truncated } };
+      return new Dictionary<string, object> { { "text", text }, { "nodes", n }, { "truncated", truncated } };
+    }
+
+    // One indented line per readable node; a node that cannot be read takes no ref, so refs run e1..eN with no gap.
+    public static string Render<T>(IList<KeyValuePair<int, T>> nodes, Func<T, string> read, IDictionary<string, T> map, out int n) {
+      var sb = new StringBuilder();
+      n = 0;
+      foreach (var kv in nodes) {
+        string line;
+        try { line = read(kv.Value); } catch { continue; }
+        string id = "e" + (++n);
+        map[id] = kv.Value;
+        sb.Append(new string(' ', kv.Key * 2)).Append(line).Append(" [ref=").Append(id).Append("]\n");
+      }
+      return sb.ToString();
     }
 
     static AutomationElement Find(long hwnd, string reference) {
