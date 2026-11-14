@@ -17,6 +17,9 @@ test('a hook command quotes the bundled node path and refuses one the hook shell
   const bin = 'C:/Program Files/cc/resources/node/node.exe';
   assert.equal(nodeCommand('C:/Program Files/cc/resources/app/core/event.js', 'claude.Stop', bin), `"${bin}" "C:/Program Files/cc/resources/app/core/event.js" claude.Stop`);
   assert.equal(nodeCommand('C:/x/core/event.js', 'claude.Stop', 'node'), 'node "C:/x/core/event.js" claude.Stop');
+  // PowerShell rejects a command line that starts with a quoted path, so a path that needs no quotes gets none.
+  assert.equal(nodeCommand('C:/Apps/cc/resources/app/core/event.js', 'claude.Stop', 'C:/Apps/cc/resources/node/node.exe'), 'C:/Apps/cc/resources/node/node.exe "C:/Apps/cc/resources/app/core/event.js" claude.Stop');
+  assert.match(nodeCommand('C:/x/core/event.js', 'claude.Stop', 'C:/a b&c/node.exe'), /^"C:\/a b&c\/node.exe" /);
   assert.throws(() => nodeCommand('C:/x/core/event.js', 'claude.Stop', 'C:/Users/%USERNAME%/cc/resources/node/node.exe'), /%USERNAME%/);
 });
 

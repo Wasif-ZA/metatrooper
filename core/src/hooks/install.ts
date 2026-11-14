@@ -42,7 +42,7 @@ export function nodeCommand(script: string, args: string, bin = nodeBin()): stri
   for (const p of [script, bin]) {
     if (/[$`"%]/.test(p)) throw new Error(`cannot install hooks from ${p}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move Ouros to a folder without them`);
   }
-  return `${bin === 'node' ? bin : `"${bin}"`} "${script}" ${args}`;
+  return `${/^[A-Za-z0-9:\/._-]+$/.test(bin) ? bin : `"${bin}"`} "${script}" ${args}`;
 }
 
 function hookCommand(event: string): string {
