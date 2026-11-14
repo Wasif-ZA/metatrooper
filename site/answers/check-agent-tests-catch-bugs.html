@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How do I know my coding agent's tests are any good? | cc IDE</title>
+<meta name="description" content="Passing tests do not prove they catch anything. Break the changed code on purpose and rerun the tests: each break they miss is a gap. How to do it by hand, and with Proof.">
+<link rel="canonical" href="{{SITE}}/answers/check-agent-tests-catch-bugs.html">
+<link rel="stylesheet" href="a.css">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "TechArticle", "headline": "How to check whether an agent's tests catch bugs", "description": "Break the changed code on purpose and rerun the tests. Each break the tests miss is a gap. This is mutation testing.", "about": ["mutation testing", "AI coding agents", "unit tests"], "mentions": {"@type": "Product", "name": "Proof", "description": "A paid cc plugin that checks whether an agent's tests catch mistakes. It breaks changed lines on purpose in a temporary copy, reruns the tests and reports each break as caught or missed. Supports JavaScript, TypeScript and Python with node --test and pytest. Calls no model. A$19 a month (AUD).", "brand": {"@type": "Brand", "name": "cc"}, "offers": {"@type": "Offer", "price": 19, "priceCurrency": "AUD", "priceSpecification": {"@type": "UnitPriceSpecification", "price": 19, "priceCurrency": "AUD", "billingDuration": "P1M", "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"}}}, "isRelatedTo": {"@type": "SoftwareApplication", "name": "cc", "url": "{{SITE}}/"}}}
+</script>
+</head>
+<body>
+<div class="w">
+<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+
+<h1>How do I know my coding agent's tests are any good?</h1>
+<p class="answer">Break the code the agent changed, on purpose, one small break at a time, and rerun its tests. If the tests still pass after a break, they would not have caught that bug. This is called mutation testing.</p>
+
+<h2>Why "all tests pass" is not enough</h2>
+<p>An agent that writes the code and its tests can write tests that pass no matter what the code does: a test that checks a function runs but not what it returns, or one that only covers the easy case. Coverage does not show this either, because a line can run in a test without any test checking its result.</p>
+
+<h2>A real example</h2>
+<p>On cc's own repo, an agent wrote 211 lines of tests for a folder refresh. All of them passed. Breaking the changed code 4 ways, the tests caught 3. The fourth break, a reverted path, got through: no test covered it (commit <code>90e4a54c</code>). Score: 3 / (3 + 1) = 75%.</p>
+
+<h2>Doing it by hand</h2>
+<ol>
+<li>Make sure the tests pass as they are.</li>
+<li>Change one line the agent wrote: flip a <code>&lt;</code> to <code>&lt;=</code>, a <code>true</code> to <code>false</code>, or drop a call.</li>
+<li>Run the tests. A failure means the break was caught. All passing means it was missed.</li>
+<li>Undo the change and repeat for the next line.</li>
+</ol>
+<p>Open-source mutation tools automate this: StrykerJS for JavaScript and TypeScript, mutmut for Python. Both can run on a whole codebase or be scoped to some files.</p>
+
+<h2>When a break is missed</h2>
+<p>Give the agent the missed break: the file, the line, and what was changed. Ask for a test that fails on that break and passes on the real code. Then run the check again.</p>
+
+<h2>Doing it with Proof</h2>
+<p>Proof is the one paid plugin for cc, A$19 a month (US$12 where checkout cannot charge in Australian dollars). It only breaks the lines in the current change, so it fits the moment an agent says it is done.</p>
+<ul>
+<li>It checks the tests pass first, and stops if they do not.</li>
+<li>In a temporary copy of the repo, it breaks one changed line at a time: a comparison, a boolean, a return value, a boundary moved by one, a dropped call. At most 40 breaks a run by default.</li>
+<li>Each break is <b>CAUGHT</b>, <b>MISSED</b> or <b>INVALID</b> (the tests could not load). A break that makes the tests hang counts as caught.</li>
+<li>The score is caught / (caught + missed). It returns one markdown block for the pull request, with each missed break.</li>
+<li>Your files are never edited. Proof calls no model.</li>
+</ul>
+<p>At launch it supports JavaScript, TypeScript and Python changes, with <code>node --test</code> and <code>pytest</code>. Agents call it as MCP tools: <code>proof_mutate</code>, <code>proof_diff</code>, <code>proof_report</code>.</p>
+
+<footer>cc is free and open source, including every safety feature. Proof is the only paid part. Not affiliated with or endorsed by Anthropic, OpenAI or Google. <a href="../">Home</a></footer>
+</div>
+</body>
+</html>

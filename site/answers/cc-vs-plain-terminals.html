@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Should I use cc or just run my coding agents in terminals? | cc IDE</title>
+<meta name="description" content="When plain terminals are enough for Claude Code and Codex, and what cc adds once you run three or more agents at once. A side-by-side table.">
+<link rel="canonical" href="{{SITE}}/answers/cc-vs-plain-terminals.html">
+<link rel="stylesheet" href="a.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"cc vs running coding agents in plain terminals","description":"When plain terminals are enough for coding agents, and what cc adds once you run three or more at once."}
+</script>
+</head>
+<body>
+<div class="w">
+<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+
+<h1>Should I use cc or just run my agents in terminals?</h1>
+<p class="answer">For one or two agents, plain terminals are enough. Use cc when you run three or more agents and lose track of which one is waiting. It also fits when you want agents to use a browser or Windows apps with approvals.</p>
+
+<table>
+<thead><tr><th></th><th>Plain terminals</th><th>cc</th></tr></thead>
+<tbody>
+<tr><td>Cost</td><td>Free</td><td>Free and open source (AGPL-3.0 core)</td></tr>
+<tr><td>Platforms</td><td>Any</td><td>Windows 10 and 11 first. Pre-release, installs from source.</td></tr>
+<tr><td>Which agent is waiting</td><td>Check each terminal, or set up hooks yourself</td><td>The waiting tile moves to the big slot; Alt+J jumps to it</td></tr>
+<tr><td>Close the window</td><td>Sessions end, unless you run them in tmux, zellij or similar</td><td>A background service owns the terminals; agents keep working</td></tr>
+<tr><td>After a restart</td><td>Resume each one by hand, for example <code>claude --resume</code></td><td>Live sessions resume, at most 3 at a time</td></tr>
+<tr><td>Separate worktrees</td><td><code>git worktree add</code> by hand</td><td><code>--worktree &lt;branch&gt;</code> on launch</td></tr>
+<tr><td>Who changed which file</td><td><code>git diff</code> per folder</td><td><code>troop owners</code>, and changed files are marked in the editor</td></tr>
+<tr><td>Browser and Windows apps</td><td>Whatever the agent's own tools allow</td><td>Browser panes and windows you give it; password fields, new sites and Send or Delete buttons stop for your approval</td></tr>
+<tr><td>Account or telemetry</td><td>None</td><td>None. The core makes no network connection of its own.</td></tr>
+</tbody>
+</table>
+
+<h2>When to stay with terminals</h2>
+<ul>
+<li>You run one or two agents and can see both terminals.</li>
+<li>You work on macOS or Linux and want a supported install today.</li>
+<li>You want nothing added to <code>~/.claude/settings.json</code>. cc installs hooks there; one command removes them.</li>
+<li>You already use tmux or zellij and are happy checking panes yourself. Those keep sessions alive; they do not tell you which agent is waiting.</li>
+</ul>
+
+<h2>What cc does not do</h2>
+<ul>
+<li>It is not a sandbox. Agents and their commands run with your permissions.</li>
+<li>Approvals do not stop a hostile program already running as you.</li>
+<li>It does not sign in for you or read the CLIs' login tokens. You install and sign in to each CLI yourself.</li>
+</ul>
+
+<footer>Not affiliated with or endorsed by Anthropic, OpenAI or Google. <a href="../">Home</a></footer>
+</div>
+</body>
+</html>

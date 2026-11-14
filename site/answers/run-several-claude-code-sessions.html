@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How do I run several Claude Code sessions at once? | cc IDE</title>
+<meta name="description" content="Give each Claude Code session its own git worktree so they never edit the same files, then run each in its own terminal. The commands, and how cc does it for you.">
+<link rel="canonical" href="{{SITE}}/answers/run-several-claude-code-sessions.html">
+<link rel="stylesheet" href="a.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How do I run several Claude Code sessions at once?","description":"Give each Claude Code session its own git worktree, then run each session in its own terminal.","about":["Claude Code","git worktree"]}
+</script>
+</head>
+<body>
+<div class="w">
+<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+
+<h1>How do I run several Claude Code sessions at once?</h1>
+<p class="answer">Give each session its own git worktree. Then no two sessions edit the same files. Run each session in its own terminal, and merge its branch when the task is done.</p>
+
+<h2>Why a worktree per session</h2>
+<p>Two sessions in one folder write over each other's files and fight over one git index. A worktree is a second checkout of the same repo on its own branch, sharing one <code>.git</code>. Each session gets a folder to itself.</p>
+
+<h2>The plain way, with git and terminals</h2>
+<pre><code>git worktree add ../myapp-login -b login
+git worktree add ../myapp-search -b search
+cd ../myapp-login  &amp;&amp; claude   # terminal 1
+cd ../myapp-search &amp;&amp; claude   # terminal 2</code></pre>
+<p>When a task is done, review its diff, merge the branch, then run <code>git worktree remove ../myapp-login</code>.</p>
+<p>What gets hard past two or three sessions:</p>
+<ul>
+<li>You cannot see which session is waiting for an answer or a permission without checking each terminal.</li>
+<li>Closing a terminal ends its session.</li>
+<li>If two tasks change the same file, you get a merge conflict when you combine the branches.</li>
+</ul>
+<p>Each worktree needs its own install of dependencies, such as <code>node_modules</code>. Budget the disk space and install time per worktree.</p>
+
+<h2>The same thing in cc</h2>
+<p>cc is a free, open-source Windows app that runs coding agents side by side. A background service owns each agent's terminal, so closing the window does not stop them.</p>
+<pre><code>troop launch claude --worktree login --prompt "Add the login form"
+troop launch claude --worktree search --prompt "Add search to the header"
+troop launch --jobs jobs.json   # several at once from one file
+troop owners                    # which session changed which file</code></pre>
+<ul>
+<li>Every session is a tile on one wall. A session that asks a question turns orange and moves to the big slot.</li>
+<li>Alt+J jumps to the session that has waited longest.</li>
+<li>After a restart, cc resumes the sessions that were live, at most 3 at a time.</li>
+<li>It runs Claude Code, Codex, Gemini CLI and other agent CLIs in the same way, 7 in all.</li>
+</ul>
+<p class="mut">cc is pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. Steps: <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">Quickstart</a>.</p>
+
+<footer>cc runs the official CLIs you install and sign in to yourself. Not affiliated with or endorsed by Anthropic, OpenAI or Google. <a href="../">Home</a></footer>
+</div>
+</body>
+</html>

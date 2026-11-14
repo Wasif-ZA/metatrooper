@@ -1,10 +1,11 @@
-<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
-
 <p align="center">
-  <strong>cc: an IDE built around your coding agents.</strong><br>
-  Claude Code, Codex and other CLI agents side by side, each in a terminal that keeps going. One place tells you
-  who needs you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
+  <strong>cc is a free, open-source Windows IDE that runs Claude Code, Codex, Gemini CLI and other coding agents
+  side by side, and shows you which one is waiting for you.</strong><br>
+  Each agent runs in a terminal that keeps going when the window closes. Agents can drive a browser and your Windows
+  apps, and anything risky stops for you first.
 </p>
+
+<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
@@ -14,7 +15,8 @@
   <a href="#computer-use-windows"><strong>Computer use</strong></a> &middot;
   <a href="#core-services"><strong>Core services</strong></a> &middot;
   <a href="#privacy"><strong>Privacy</strong></a> &middot;
-  <a href="#known-limits"><strong>Known limits</strong></a>
+  <a href="#known-limits"><strong>Known limits</strong></a> &middot;
+  <a href="#faq"><strong>FAQ</strong></a>
 </p>
 
 <p align="center">
@@ -315,6 +317,42 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 - **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions.
   `ask` and approvals are the guard rails.
 - **Some IDE parts are not built.** The UI marks them "Not built yet".
+
+## FAQ
+
+**How do I run several Claude Code sessions at once?**
+Give each session its own git worktree so no two edit the same files, and run each in its own terminal. In cc,
+`troop launch claude --worktree <branch> --prompt "<task>"` does both, and `troop launch --jobs jobs.json` starts
+several from one file.
+
+**How do I know which agent is waiting for me?**
+Claude Code reports through its hooks and Codex through its `notify` setting. cc installs the Claude Code hooks on
+first launch, and `troop hooks install --codex` adds Codex's. The tile that is waiting turns orange and moves to the
+big slot. Alt+J jumps to the one that has waited longest.
+
+**Do my agents stop if I close the window?**
+No. A background service owns each agent's terminal. After a restart it resumes the sessions that were live, at most
+3 at a time.
+
+**Which agents does it run?**
+7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads
+their login tokens.
+
+**Does it work on macOS or Linux?**
+Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
+
+**Is it free?**
+Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part is Proof, a separate plugin that
+checks whether an agent's tests catch bugs.
+
+**How do I check whether an agent's tests actually catch bugs?**
+Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
+This is mutation testing. Proof does it on the changed lines, up to 40 breaks a run, in a temporary copy of the repo,
+and reports what the tests caught and missed.
+
+**Is cc a sandbox?**
+No. Agents and the commands they run use your machine with your permissions. Approvals and `ask` mode are guard rails.
+See [Known limits](#known-limits).
 
 ## Licence
 

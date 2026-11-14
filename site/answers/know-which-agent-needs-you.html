@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How do I know which coding agent is waiting for me? | cc IDE</title>
+<meta name="description" content="Claude Code reports through hooks and Codex through its notify setting. Point them at a sound or a toast, or let cc move the waiting agent to the front.">
+<link rel="canonical" href="{{SITE}}/answers/know-which-agent-needs-you.html">
+<link rel="stylesheet" href="a.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to know when Claude Code or Codex is waiting for you","description":"Claude Code reports through hooks and Codex through its notify setting. Use them to raise a sound or a notification, or let cc move the waiting agent to the front."}
+</script>
+</head>
+<body>
+<div class="w">
+<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+
+<h1>How do I know which coding agent is waiting for me?</h1>
+<p class="answer">Have each agent name itself when it stops. Claude Code runs a command through a hook when it needs you. Codex runs one through its <code>notify</code> setting. Make that command show a notification with the project folder in it, so you know which terminal to open.</p>
+
+<h2>The plain way</h2>
+<ul>
+<li><b>Claude Code:</b> add a <code>Notification</code> hook in <code>~/.claude/settings.json</code> that runs a command when Claude needs your permission or has been idle.</li>
+<li><b>Codex:</b> set <code>notify</code> in its config to a program that receives a JSON event when a turn finishes.</li>
+<li><b>Other CLIs:</b> check each one's docs for a notify or hook setting. Without one, you watch the terminal.</li>
+</ul>
+<p>A notification names the folder. With four terminals open, you still switch to the right one by hand.</p>
+
+<h2>The same thing in cc</h2>
+<p>cc is a free, open-source Windows app that runs coding agents side by side on one wall. It installs the Claude Code hooks when it first launches Claude Code. <code>troop hooks install --codex</code> adds the Codex one. <code>troop hooks uninstall --codex</code> takes both out again, leaving the rest of each settings file as it was.</p>
+<ul>
+<li>Each tile says <code>working</code>, <code>waiting for you</code>, <code>done</code> or <code>exited</code>.</li>
+<li>The tile that is waiting turns orange and moves to the big slot. If you were typing in the big slot, it waits 3 seconds first, so it never takes your keys.</li>
+<li>Alt+J jumps to the session that has waited longest. Finished sessions fold to one-line bars.</li>
+<li>No toast for the tile you are looking at. A toast names the task, not only the agent. Notifications can also go to ntfy, Slack, Discord, Teams, a webhook or a command.</li>
+<li>Engines without hooks get a simpler status read from their process.</li>
+</ul>
+<p class="mut">cc is pre-release, Windows first, and installs from source. Steps: <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">Quickstart</a>.</p>
+
+<footer>Not affiliated with or endorsed by Anthropic, OpenAI or Google. <a href="../">Home</a></footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{SITE}}/</loc>
+    <lastmod>2026-11-15</lastmod>
+  </url>
+  <url>
+    <loc>{{SITE}}/answers/run-several-claude-code-sessions.html</loc>
+    <lastmod>2026-11-15</lastmod>
+  </url>
+  <url>
+    <loc>{{SITE}}/answers/check-agent-tests-catch-bugs.html</loc>
+    <lastmod>2026-11-15</lastmod>
+  </url>
+  <url>
+    <loc>{{SITE}}/answers/know-which-agent-needs-you.html</loc>
+    <lastmod>2026-11-15</lastmod>
+  </url>
+  <url>
+    <loc>{{SITE}}/answers/cc-vs-plain-terminals.html</loc>
+    <lastmod>2026-11-15</lastmod>
+  </url>
+</urlset>
