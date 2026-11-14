@@ -87,3 +87,10 @@ test("a click on an exited session's surface becomes one needs_you row", async t
   assert.equal(h.click().dropped, 'repeat');
   assert.equal(h.inbox().length, 1);
 });
+
+test('a click that cannot be typed becomes one needs_you row and no notice', async t => {
+  const h = await harness(t);
+  assert.deepEqual(h.click(), { delivered: true, to: 'inbox', seq: 1 });
+  assert.equal(h.inbox().length, 1);
+  assert.deepEqual(h.notices(), []);
+});
