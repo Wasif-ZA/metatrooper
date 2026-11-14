@@ -75,21 +75,23 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-term .tile { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; }
 .ou-hm-term .tile-body { flex: 1; min-height: 0; }
 .ou-hm-chat { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.ou-hm-chat > :is(.ou-hm-toolrow, .ou-hm-chatsteps, .ou-hm-edit) + :is(.ou-hm-toolrow, .ou-hm-chatsteps, .ou-hm-edit) { margin-top: calc(var(--sp-2) - var(--sp-3)); }
 .ou-hm-chattext { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-chat .ou-hm-user { margin-bottom: 0; }
 .ou-hm-chatnote, .ou-hm-tool { margin: 0; color: var(--hm-quiet); font-size: 13px; }
 .ou-hm-tool { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; line-height: 1.5; }
 .ou-hm-tool > span:first-child, .ou-hm-edithead > code { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
-.ou-hm-tool strong { color: var(--ink); font-weight: 600; }
+.ou-hm-toolverb, .ou-hm-tool code { color: var(--hm-quiet); font-weight: 400; }
+.ou-hm-filetotal, .ou-hm-keyhint { color: var(--hm-quiet); font-weight: 400; font-size: 12px; }
+.ou-hm-keyhint { color: inherit; opacity: 0.65; }
 .ou-hm-tool code, .ou-hm-edithead code, .ou-hm-editcounts, .ou-hm-diff, .ou-hm-tooloutput { font-family: var(--font-mono, ui-monospace, monospace); }
 .ou-hm-tool > .ou-hm-chevbox { margin-left: auto; }
 .ou-hm-tooloutput { margin: var(--sp-2) 0 0 var(--sp-1); padding-left: var(--sp-3); border-left: 1px solid var(--hairline); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-tool > span:not(:first-child) { flex: none; }
 .ou-hm-tool[role='button'] { cursor: pointer; }
 .ou-hm-tool[role='button']:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.ou-hm-chatsteplist { padding-left: var(--sp-3); border-left: 1px solid var(--hairline); }
-.ou-hm-edit, .ou-hm-approval { padding: var(--sp-2) var(--sp-3); border: 1px solid var(--hairline); border-radius: 8px; }
-.ou-hm-edit { padding: 0; font-size: 13px; background: var(--canvas-soft); box-shadow: none; }
+.ou-hm-chatsteplist { display: flex; flex-direction: column; gap: var(--sp-1); padding-left: var(--sp-3); border-left: 1px solid var(--hairline); }
+.ou-hm-edit { padding: 0; border: 1px solid var(--hairline); border-radius: 8px; font-size: 13px; background: var(--canvas-soft); box-shadow: none; }
 .ou-hm-edithead { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); min-width: 0; }
 .ou-hm-edithead > :not(code) { flex: none; }
 .ou-hm-edithead > :last-child { margin-left: auto; }
@@ -99,15 +101,17 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-chat .ou-hm-del { color: var(--hm-failed); }
 .ou-hm-diff { border-top: 1px solid var(--hairline); padding: var(--sp-2) var(--sp-3); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-diffmore { color: var(--hm-quiet); padding-left: 2ch; }
-.ou-hm-approval { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ou-hm-approval { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--hm-waiting); border-radius: 8px; background: color-mix(in srgb, var(--hm-waiting) 5%, var(--canvas-deep)); }
 .ou-hm-approval p { margin: 0; font-size: 14px; }
 .ou-hm-approvaltext { padding: var(--sp-2) var(--sp-3); border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-deep); font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-chatactions { display: flex; gap: var(--sp-2); }
 .ou-hm-chatactions .ou-hm-deny { border: 1px solid var(--hairline); }
 
 /* Composer strip */
-.ou-hm-dock { padding: 0; background: none; }
+.ou-hm-dock { padding: 0 var(--sp-4) var(--sp-3); background: none; }
 .ou-hm-dock > .ou-hm-composerwrap { max-width: none; margin: 0; }
+.ou-hm-dock .ou-cmp-strip { border-top: 0; }
+.ou-hm-dock .ou-composer.ou-cmp { border: 1px solid var(--hairline); border-radius: 8px; }
 .ou-hm .ou-cmp-status { font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) { .ou-hm-dock .ou-cmp-ctx { gap: var(--sp-2); } }
 

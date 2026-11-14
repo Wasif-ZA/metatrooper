@@ -318,17 +318,25 @@ test('Home chat renders bubbles, paragraphs, collapsible steps and compact edit 
   g.ui.snap.projects[0].path = 'C:/project';
   const chat = { source: 'transcript', engine_id: 'claude', items: [
     { kind: 'user', text: 'Fix it' }, { kind: 'text', text: 'Checking the tests.' },
-    { kind: 'tool', id: 'a', label: 'Read app.js', status: 'ok' },
-    { kind: 'tool', id: 'b', label: 'Ran npm test', status: 'error' },
-    { kind: 'tool', id: 'c', file: 'C:\\project\\src\\app.js', status: 'ok' },
+    { kind: 'tool', id: 'a', name: 'Read', label: 'Read app.js', status: 'ok' },
+    { kind: 'tool', id: 'b', name: 'Bash', label: 'Ran npm test', status: 'error' },
+    { kind: 'tool', id: 'c', file: 'C:\\project\\src\\app.js', status: 'ok', preview: { added: 4, removed: 1, lines: [], more: 0 } },
+    { kind: 'tool', id: 'd', file: 'C:\\project\\src\\app.js', status: 'ok', preview: { added: 3, removed: 2, lines: [], more: 0 } },
   ] };
   g.ideView = { open: async (rel: string) => calls.push(['open', rel]) };
   function ChatFixture() { return React.createElement(Chat, { x, chat, openInEditor: async () => calls.push(['editor', x.id]) }); }
   const h = harness(ChatFixture); const html = h.html();
   assert.match(html, /ou-hm-user/); assert.match(html, /Checking the tests\./);
-  assert.doesNotMatch(html, /2 steps/); assert.match(html, /<strong>Read<\/strong> <code>app\.js<\/code>/);
-  assert.match(html, /<strong>Ran<\/strong> <code>npm test<\/code><\/span><span class="ou-hm-bad">failed/);
+  assert.doesNotMatch(html, /2 steps/); assert.match(html, /<span class="ou-hm-toolverb">Read<\/span> <code>app\.js<\/code>/);
+  assert.match(html, /<span class="ou-hm-toolverb">Ran<\/span> <code>npm test<\/code><\/span><span class="ou-hm-bad">failed/);
   assert.match(html, /<strong>Edited<\/strong><code[^>]*>C:/); assert.match(html, /Open in IDE/);
+  assert.match(html, /· file \+7 -3/);
+  assert.match(html, /Bash · failed/);
+  const rows = h.all(hasClass('ou-hm-tool'));
+  assert.deepEqual(rows.map((n: any) => n.props['aria-expanded']), [false, true]);
+  assert.equal(h.all(hasClass('ou-hm-chevbox')).length, 2);
+  rows[0].props.onClick({ stopPropagation() {} }); assert.match(h.html(), /Read · finished/);
+  h.all(hasClass('ou-hm-tool'))[0].props.onClick({ stopPropagation() {} }); assert.doesNotMatch(h.html(), /Read · finished/);
   await h.one(label('Open in IDE')).props.onClick(); await flush();
   assert.deepEqual(calls, [['editor', 'chat'], ['open', 'src/app.js']]);
   delete g.ideView;
@@ -476,7 +484,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   g.ui.snap.live = [older]; g.ui.snap.sessions = [older, session('kid', 'working', { parent_id: 'older' })];
   g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
   const h = harness(Home); h.draw();
-  h.one((n: any) => n.props['aria-label'] === 'Task panel').props.onChange('details'); h.draw();
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
   const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid', '<span class="ou-st ou-st-running">Running</span>'].map(at);
@@ -994,7 +1002,7 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead, session('k1', 'working', { parent_id: 'lead' }), session('k2', 'done', { parent_id: 'lead' })];
   g.ui.snap.git = { lead: { branch: 'feat/y', added: 1, deleted: 0, changed: [] } };
   const h = harness(Home); h.draw(); calls.length = 0;
-  h.one((n: any) => n.props['aria-label'] === 'Task panel').props.onChange('details'); h.draw();
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   h.one(label('Open in editor')).props.onClick({ stopPropagation() {} });
   assert.deepEqual(switched, ['p2']); assert.deepEqual(calls, [['view', 'ide']]);
   g.ui.view = 'home'; h.draw(); calls.length = 0;
@@ -1036,7 +1044,7 @@ test('Merge confirm calls prMerge for the task and toasts the result', async () 
   g.ui.snap.git = { lead: { branch: 'feat/m', added: 1, deleted: 0, changed: [], pr: { number: 9, state: 'OPEN', url: '', checks: 'pass' } } };
   g.api.prMerge = async (id: string) => { calls.push(['prMerge', id]); return { ok: true }; };
   const h = harness(Home); h.draw(); calls.length = 0;
-  h.one((n: any) => n.props['aria-label'] === 'Task panel').props.onChange('details'); h.draw();
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
   const dialog = h.one((n: any) => n.props?.title === 'Merge PR #9?');
   await dialog.props.onAction();

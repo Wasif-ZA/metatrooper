@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { approvalInput, approvalText, chatModeOf, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
+import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
 
 const tool = (id: string, label: string, status = 'ok', file?: string) => ({ kind: 'tool', id, name: file ? 'Edit' : 'Bash', label, status, ...(file ? { file } : {}) });
 const text = (t: string) => ({ kind: 'text', text: t });
@@ -62,6 +62,31 @@ test('a row label splits into a bold verb and a mono target', () => {
   assert.deepEqual(splitLabel('Started a helper: tidy docs'), { verb: 'Started a helper:', arg: 'tidy docs' });
   assert.deepEqual(splitLabel('Updated the plan'), { verb: 'Updated the plan', arg: '' });
   assert.deepEqual(splitLabel('Edited src/a.js'), { verb: 'Edited', arg: 'src/a.js' });
+});
+
+test('edit cards know each file\'s total across every edit in the chat', () => {
+  const edit = (id: string, file: string, added: number, removed: number) => ({ kind: 'tool', id, name: 'Edit', label: `Edited ${file}`, status: 'ok', file, preview: { added, removed, more: 0, lines: [] } });
+  const totals = fileTotals([edit('a', 'src/a.js', 4, 1), text('x'), edit('b', 'src/b.js', 2, 0), edit('c', 'src/a.js', 10, 3), tool('d', 'Ran npm test')]);
+  assert.deepEqual(totals['src/a.js'], { added: 14, removed: 4, edits: 2 });
+  assert.deepEqual(totals['src/b.js'], { added: 2, removed: 0, edits: 1 });
+  assert.equal(Object.keys(totals).length, 2);
+});
+
+test('round 4: pill tabs with icons, a chevron on every step row, an amber approval and a boxed composer', () => {
+  const home = readFileSync(new URL('../ui/src/home.jsx', import.meta.url), 'utf8');
+  const panel = home.slice(home.indexOf('function TaskPanel'), home.indexOf('const openChanges'));
+  assert.match(panel, /<SegmentedControl/);
+  assert.equal((panel.match(/<SegmentedControlItem[^>]*icon=/g) || []).length, 2);
+  assert.doesNotMatch(panel, /<TabList/);
+  const chat = readFileSync(new URL('../ui/src/chat.jsx', import.meta.url), 'utf8');
+  const row = chat.slice(chat.indexOf('function ToolRow'), chat.indexOf('function EditCard'));
+  assert.match(row, /ChevronRightIcon/);
+  assert.doesNotMatch(row, /output\?\.length \? <span className="ou-hm-chevbox"|item\.output \? <span className="ou-hm-chevbox"/);
+  assert.match(chat, /fileTotals\(/);
+  const css = readFileSync(new URL('../ui/src/home-ref.css', import.meta.url), 'utf8');
+  const approval = css.slice(css.indexOf('.ou-hm-approval {'));
+  assert.match(approval.slice(0, approval.indexOf('}')), /--hm-waiting/);
+  assert.match(css, /\.ou-hm-dock [^{]*\{[^}]*border:[^}]*border-radius/);
 });
 
 test('the answer box hides while the chat shows its own approval card', () => {

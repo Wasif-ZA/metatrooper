@@ -33,3 +33,15 @@ export function splitLabel(label) {
     .find((verb) => label === verb || label.startsWith(verb + ' ')) || label.split(' ')[0];
   return { verb, arg: label.slice(verb.length).trimStart() };
 }
+
+export function fileTotals(items) {
+  const totals = Object.create(null);
+  for (const item of items) {
+    if (item.kind !== 'tool' || !item.file) continue;
+    const total = totals[item.file] ||= { added: 0, removed: 0, edits: 0 };
+    total.added += item.preview?.added || 0;
+    total.removed += item.preview?.removed || 0;
+    total.edits++;
+  }
+  return { ...totals };
+}

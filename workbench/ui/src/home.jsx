@@ -6,7 +6,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { Tab, TabList } from '@astryxdesign/core/TabList';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Chat, useChat } from './chat.jsx';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
@@ -14,7 +14,7 @@ import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Co
 import { composer, atRefs } from './composer.jsx';
 import { NOT_SENT, canStop } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
-import { ExternalLinkIcon } from './icons/screens.jsx';
+import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
 import './frame-ref.css';
 
@@ -368,11 +368,11 @@ function HomeTerminal({ id }) {
 function TaskPanel({ task, kids }) {
   const [tab, setTab] = useState('terminal');
   return <>
-    <TabList size="sm" aria-label="Task panel" value={tab} onChange={setTab}>
-      <Tab id="home-terminal-tab" value="terminal" label="Terminal" panelId="home-panel-body" />
-      <Tab id="home-details-tab" value="details" label="Details" panelId="home-panel-body" />
-    </TabList>
-    <div id="home-panel-body" className="ou-hm-panelbody" role="tabpanel" aria-labelledby={`home-${tab}-tab`}>
+    <SegmentedControl label="Task panel" size="sm" value={tab} onChange={setTab}>
+      <SegmentedControlItem value="terminal" label="Terminal" icon={<TerminalIcon size={14} />} />
+      <SegmentedControlItem value="details" label="Details" icon={<PanelToggle size={14} />} />
+    </SegmentedControl>
+    <div id="home-panel-body" className="ou-hm-panelbody" role="tabpanel" aria-label={tab === 'terminal' ? 'Agent terminal' : 'Task details'}>
       {tab === 'terminal' ? <HomeTerminal id={task.id} /> : <RailCard sel={task} kids={kids} />}
     </div>
   </>;

@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
+import { ExternalLinkIcon } from './icons/screens.jsx';
 
 export function useChat(id) {
   const [chat, setChat] = useState(null);
@@ -30,24 +31,24 @@ function ToolRow({ item }) {
   const [open, setOpen] = useState(item.status === 'error');
   useEffect(() => { if (item.status === 'error') setOpen(true); }, [item.status]);
   const { verb, arg } = splitLabel(item.label);
-  const hasOutput = item.output !== undefined;
   return <div className="ou-hm-toolrow">
-    <div className="ou-hm-tool" title={item.label} aria-expanded={hasOutput ? open : undefined} {...(hasOutput ? press(() => setOpen(!open)) : {})}>
-      <span><strong>{verb}</strong>{arg ? <> <code>{arg}</code></> : null}</span>
+    <div className="ou-hm-tool" title={item.label} aria-expanded={open} {...press(() => setOpen(!open))}>
+      <span><span className="ou-hm-toolverb">{verb}</span>{arg ? <> <code>{arg}</code></> : null}</span>
       {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : item.status === 'running' ? <span>working</span> : null}
-      {hasOutput ? <span className="ou-hm-chevbox" data-open={String(open)}><ChevronRightIcon size={14} /></span> : null}
+      <span className="ou-hm-chevbox" data-open={String(open)}><ChevronRightIcon size={14} /></span>
     </div>
-    {hasOutput ? <Drop open={open} className="ou-hm-drop ou-hm-tooloutput">{item.output.map((line, i) => <div key={i} className={i === 0 ? 'ou-hm-bad' : undefined}>{line}</div>)}</Drop> : null}
+    <Drop open={open} className="ou-hm-drop ou-hm-tooloutput">{item.output?.length ? item.output.map((line, i) => <div key={i} className={item.status === 'error' && i === 0 ? 'ou-hm-bad' : undefined}>{line}</div>) : <div>{item.name} · {item.status === 'ok' ? 'finished' : item.status === 'error' ? 'failed' : item.status === 'running' ? 'working' : item.status}</div>}</Drop>
   </div>;
 }
 
-function EditCard({ item, openFile }) {
+function EditCard({ item, total, openFile }) {
   return <div className="ou-hm-edit">
     <div className="ou-hm-edithead">
       <strong>Edited</strong><code title={item.file}>{item.file}</code>
       {item.preview ? <span className="ou-hm-editcounts"><span className="ou-hm-add">+{item.preview.added}</span> <span className="ou-hm-del">-{item.preview.removed}</span></span> : null}
+      {total?.edits > 1 ? <span className="ou-hm-filetotal">· file +{total.added} -{total.removed}</span> : null}
       {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : null}
-      <Button size="sm" variant="ghost" label="Open in IDE" onClick={() => void openFile(item.file)} />
+      <Button size="sm" variant="ghost" label="Open in IDE" endContent={<ExternalLinkIcon size={14} />} onClick={() => void openFile(item.file)} />
     </div>
     {item.preview ? <div className="ou-hm-diff">
       {item.preview.lines.map((line, i) => <div key={i} className={line.sign === '+' ? 'ou-hm-add' : 'ou-hm-del'}>{line.sign} {line.text}</div>)}
@@ -87,8 +88,8 @@ function Approval({ item, x, engine }) {
     <p>{item.name === 'Bash' || item.name === 'PowerShell' ? 'Allow Claude to run:' : 'Allow Claude to:'}</p>
     <code className="ou-hm-approvaltext">{approvalText(item)}</code>
     <div className="ou-hm-chatactions">
-      <Button size="sm" variant="primary" label="Allow" isDisabled={sending || approvalInput(engine, true) === null} onClick={() => void send(true)} />
-      <Button className="ou-hm-deny" size="sm" variant="secondary" label="Deny" isDisabled={sending || approvalInput(engine, false) === null} onClick={() => void send(false)} />
+      <Button size="sm" variant="primary" icon={<span className="ou-hm-keyhint">1</span>} label="Allow" isDisabled={sending || approvalInput(engine, true) === null} onClick={() => void send(true)} />
+      <Button className="ou-hm-deny" size="sm" variant="secondary" icon={<span className="ou-hm-keyhint">Esc</span>} label="Deny" isDisabled={sending || approvalInput(engine, false) === null} onClick={() => void send(false)} />
     </div>
   </div>;
 }
@@ -118,13 +119,14 @@ export function Chat({ x, chat, openInEditor }) {
     catch (err) { toast(String(err?.message || err), true); }
   };
   const engine = chat?.engine_id || x.engine_id;
+  const totals = fileTotals(chat?.items || []);
   return <div ref={ref} className="ou-hm-chat">
     {!chat ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat.error ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chatModeOf(engine, chat.source) === 'terminal' ? <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p> : groupItems(chat.items).map((item, i) => {
       if (item.kind === 'user') return <div key={i} className="ou-hm-user"><p>{item.text}</p></div>;
       if (item.kind === 'text') return <p key={i} className="ou-hm-chattext">{item.text}</p>;
       if (item.kind === 'steps') return <ToolSteps key={item.id} item={item} />;
       if (item.status === 'waiting') return <Approval key={item.id} item={item} x={x} engine={engine} />;
-      if (item.file) return <EditCard key={item.id} item={item} openFile={openFile} />;
+      if (item.file) return <EditCard key={item.id} item={item} total={totals[item.file]} openFile={openFile} />;
       return <ToolRow key={item.id} item={item} />;
     })}
   </div>;
