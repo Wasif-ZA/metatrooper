@@ -54,13 +54,14 @@ function fixture(t: any, options: Record<string, unknown> = {}, home = mkdtempSy
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     if (fresh) rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
-  return { home, db, call, act, update, methods, inputs: () => (existsSync(logPath) ? readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean) : []).map(s => JSON.parse(s)), stop: async () => { stopped = true; await stop(); } };
+  const beforeRead = () => (desktop as any).before.get('s1') ?? Promise.resolve();
+  return { home, db, call, act, update, methods, beforeRead, inputs: () => (existsSync(logPath) ? readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean) : []).map(s => JSON.parse(s)), stop: async () => { stopped = true; await stop(); } };
 }
 
 /** Pauses after a request, lets the before-read settle, and changes the window to CHANGED. */
 async function pauseAndChange(f: ReturnType<typeof fixture>) {
   await f.call('takeover.pause', {});
-  await sleep(200);
+  await f.beforeRead();
   f.update({ windows: [CHANGED] });
 }
 
@@ -102,10 +103,10 @@ test('takeover: a request from a caller not bound to the session, or for an unkn
 });
 
 test('takeover: full flow, request, pause, change, resume hands the capped change summary to status exactly once', async t => {
-  const f = fixture(t);
+  const f = fixture(t, { delay_op: 'snapshot', delay_ms: 300 });
   await f.call('takeover.request', { ...ME, reason: 'Need your login' });
   await f.call('takeover.pause', {});
-  await sleep(200);
+  await f.beforeRead();
   f.update({ windows: [CHANGED] });
   await f.call('takeover.resume', { session_id: 's1' });
   const first: any = await f.call('takeover.status', ME);
@@ -136,7 +137,7 @@ test('takeover: during resume the flag stays set until the summary exists; both 
   const f = fixture(t);
   await f.call('takeover.request', { ...ME, reason: 'x' });
   await f.call('takeover.pause', {});
-  await sleep(200);
+  await f.beforeRead();
   f.update({ windows: [CHANGED], delay_op: 'snapshot', delay_ms: 400 });
   const resuming = f.call('takeover.resume', { session_id: 's1' });
   await sleep(100);
@@ -153,7 +154,7 @@ test('takeover: the change summary is kept in memory, and no snapshot text reach
   const f = fixture(t);
   await f.call('takeover.request', { ...ME, reason: 'Need your login' });
   await f.call('takeover.pause', {});
-  await sleep(200);
+  await f.beforeRead();
   f.update({ windows: [CHANGED] });
   await f.call('takeover.resume', { session_id: 's1' });
   const s: any = await f.call('takeover.status', ME);
@@ -169,7 +170,7 @@ test('takeover: requests and the take-over flag reset when a new Desktop starts 
   const first = fixture(t);
   await first.call('takeover.request', { ...ME, reason: 'x' });
   await first.call('takeover.pause', {});
-  await sleep(200);
+  await first.beforeRead();
   assert.deepEqual(await first.call('takeover.status', ME), { requested: true, paused: true });
   // A new core over the same DB: a second Desktop on first.db (fixture's cleanup closes the DB once, at the end).
   const restarted = new Desktop(first.db);
