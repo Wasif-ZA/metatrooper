@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
+import { installPlan, toolPath } from './agent-install.ts';
 import { cleanReport, ISSUE_PREFIX, issueUrl, localIso } from './report-issue.ts';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
@@ -368,6 +369,21 @@ function handlers(): void {
     const r = await saveComment(id, c.session_id, 'diff-line', `[comment ${id}] ${formatComment(c)}`, null);
     schedulePush();
     return r;
+  });
+
+  on('agent-install', async (engineId: unknown) => {
+    if (typeof engineId !== 'string') return { error: 'Choose an installable agent.' };
+    const pathKey = Object.keys(process.env).find((key) => /^path$/i.test(key)) ?? 'PATH';
+    const plan = installPlan(engineId, { packaged: app.isPackaged, resourcesPath: process.resourcesPath, home: homeDir(), path: process.env[pathKey] ?? '', comspec: process.env.ComSpec ?? 'cmd.exe' });
+    if (!plan) return { error: 'Choose an installable agent.' };
+    try {
+      const child = spawn(plan.command, plan.args, { detached: true, stdio: 'ignore', windowsHide: false, windowsVerbatimArguments: true, env: { ...process.env, [pathKey]: plan.env.PATH }, cwd: os.homedir() }).on('error', () => {});
+      await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+      child.unref();
+      return { ok: true };
+    } catch (error) {
+      return { error: String(error instanceof Error ? error.message : error) };
+    }
   });
 
   on('pickFolder', async () => {
@@ -945,6 +961,8 @@ async function ensureCore(): Promise<void> {
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
+  const pathKey = Object.keys(env).find((key) => /^path$/i.test(key)) ?? 'PATH';
+  env[pathKey] = toolPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, home: homeDir(), path: env[pathKey] ?? '' });
   const child = spawn(NODE, [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`));
   child.unref();
   if (demo && child.pid) demoCorePid = child.pid;
