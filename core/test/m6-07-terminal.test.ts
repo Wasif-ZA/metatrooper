@@ -146,20 +146,25 @@ test('M6-07a printing 50 MB keeps the core under 64 MB of growth', { timeout: 24
 test('a viewer that went stale still gets the exit code when the process exits before it acks', async () => {
   const id = `stale-exit-${randomUUID()}`;
   const path = pipePath(`staleexit-${randomUUID().replaceAll('-', '')}-term`);
-  const flood = "setTimeout(()=>{for(let i=0;i<3000;i++)process.stdout.write(String(i).padStart(4,'0')+'-'+'x'.repeat(995)+'\\r\\n');setInterval(()=>{},1000)},800)";
+  // just past what a viewer that never acks can be sent and held, so it goes stale without flooding more than needed
+  const lines = Math.ceil((termPipe.HOLD_BYTES + termPipe.CREDIT_BYTES) / 1000) + 100;
+  const flood = `setTimeout(()=>{for(let i=0;i<${lines};i++)process.stdout.write(String(i).padStart(4,'0')+'-'+'x'.repeat(995)+'\\r\\n');setInterval(()=>{},1000)},800)`;
   term.open(id, [process.execPath, '-e', flood], home.home, process.env, 1000, 24);
   const server = await termPipe.startTermServer(path, 'k');
   const c = await rawClient(path);
   try {
     c.send({ op: 'attach', session: id, cols: 1000, rows: 24, ui_key: 'k' });
     await until(() => c.messages.some((m) => m.op === 'snapshot'), 5000);
-    await until(async () => ((await term.snapshot(id)) ?? '').includes('2999-'), 30_000);
+    await until(async () => ((await term.snapshot(id)) ?? '').includes(`${String(lines - 1).padStart(4, '0')}-`), 60_000);
     await exited(id);
     await sleep(300);
-    c.send({ op: 'ack', bytes: c.messages.reduce((n, m) => n + (m.data?.length ?? 0), 0) });
+    const received = c.messages.reduce((n, m) => n + (m.data?.length ?? 0), 0);
+    c.send({ op: 'ack', bytes: received });
     await until(() => c.messages.some((m) => m.op === 'exit' || m.op === 'error'), 5000);
     const end = c.messages.filter((m) => m.op === 'exit' || m.op === 'error');
     assert.deepEqual(end.map((m) => [m.op, typeof m.code]), [['exit', 'number']]);
+    const total = c.messages.reduce((n, m) => n + (m.data?.length ?? 0), 0);
+    assert.ok(total < 2 * termPipe.CREDIT_BYTES, `the viewer was sent ${total} characters, so its held output was never dropped as stale`);
   } finally {
     c.socket.destroy();
     if (term.has(id)) await exited(id);
