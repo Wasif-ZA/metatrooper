@@ -193,7 +193,8 @@ test('Delivery rules mark old rows skipped and failed deliveries with the prescr
   await withCore(async (home, prefix) => {
     const c = await client(prefix);
     await uiHello(c, home);
-    await c.request('notify.sink.set', { id: 'old-hook', kind: 'webhook', name: 'old fixture', dest: 'http://127.0.0.1:1/fake-webhook', kinds: ['gate'] });
+    // a test number, not a spec one: pipe-protocol.md gives notify.sink.set no latency, and live-core calls elsewhere allow 15 s
+    await c.request('notify.sink.set', { id: 'old-hook', kind: 'webhook', name: 'old fixture', dest: 'http://127.0.0.1:1/fake-webhook', kinds: ['gate'] }, { timeout: 15_000 });
     c.close();
     const staleId = '01J9FAKESTALE0000000000001';
     insertGate(join(home, 'troop.db'), staleId, 'old queued item', '2026-10-07T00:00:00.000Z');
