@@ -41,8 +41,8 @@ const bump = () => {
 const states = new Map();
 let cur = null;
 const bridge = {};
-const pane = { open: true, tab: 'terminal' };
-const setPane = (open, tab = pane.tab) => { pane.open = open; pane.tab = tab; bump(); };
+const paneOf = (st) => (st.pane ||= { open: true, tab: 'terminal' });
+const setPane = (st, open, tab = paneOf(st).tab) => { st.pane = { open, tab }; bump(); };
 
 const projectName = (pid) => ((ui.snap.projects || []).find((p) => p.id === pid) || {}).name || 'another project';
 
@@ -634,8 +634,8 @@ export const ideKeys = {
   closeTab: () => { if (cur && cur.focus === 1 && cur.rightActive) closeRight(cur, cur.rightActive); else if (cur && cur.active) closeTab(cur, cur.active); },
   save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
-  panel: () => setPane(!pane.open),
-  terminal: () => (pane.open && pane.tab === 'terminal' ? setPane(false) : setPane(true, 'terminal')),
+  panel: () => { if (cur) setPane(cur, !paneOf(cur).open); },
+  terminal: () => { if (!cur) return; const p = paneOf(cur); if (p.open && p.tab === 'terminal') setPane(cur, false); else setPane(cur, true, 'terminal'); },
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
     if (!t || !canPreview(t.path)) return false;
@@ -1374,9 +1374,9 @@ function RightGroup({ st, right, changed }) {
 
 export function Ide() {
   ideStore.use();
-  const { open: panel, tab: bottom } = pane;
-  const setPanel = (v) => setPane(v);
-  const setBottom = (v) => setPane(pane.open, v);
+  const { open: panel, tab: bottom } = cur ? paneOf(cur) : { open: true, tab: 'terminal' };
+  const setPanel = (v) => cur && setPane(cur, v);
+  const setBottom = (v) => cur && setPane(cur, paneOf(cur).open, v);
   const [gen, setGen] = useState(0);
   const [max, setMax] = useState(false);
   const [shellName, setShellName] = useState(null);
