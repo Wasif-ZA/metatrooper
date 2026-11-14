@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 17. Rides on: M8-26. Screen: `proto/kit/workspaces/n04-turn-reviewer.json`, shot `proto/shots/n04-turn-reviewer.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 Grouped: "Agent asks another agent, shown nested under it" is built here, because the review is its first use.
 
@@ -51,7 +50,6 @@ Not sized until M8-0.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

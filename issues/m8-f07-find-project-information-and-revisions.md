@@ -1,7 +1,6 @@
 # M8-F7: Find project information and revisions
 
 Part of Ouros, Milestone 8, feature 7 of 12. Rides on: M8-16. Screen: `kit/specs/f-find.json`.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -27,7 +26,6 @@ CAD users lose 1.3 h a week locating design data (1,466, 2023); broader: 55.75% 
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

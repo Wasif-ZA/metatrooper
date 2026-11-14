@@ -1,7 +1,6 @@
 # M8-15: Model watcher, then lessons through the proposal flow
 
 Part of Ouros, Milestone 8. Build step G15. Priority: Low. Effort: not sized (sized after M8-0). Depends on: M8-13, M8-7.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -28,7 +27,6 @@ No screen (decided 2026-11-10, D83). Lessons are listed in Settings > Learning.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

@@ -1,7 +1,7 @@
 # M8-40: Computer use action safety: no blind repeats, better answers to the agent
 
 Part of Ouros, Milestone 8. Priority: High. Effort: 11.5 CC days. Depends on: none (extends M6-15, M6-2).
-**Start on or after 2026-11-09. Do not push this file or file it as an issue until rows 1 and 5 are fixed locally:
+**Do not push this file or file it as an issue until rows 1 and 5 are fixed locally:
 the repo is public and this names open holes (same rule as the `fix-*.md` specs).**
 
 ## Source of truth
@@ -41,6 +41,5 @@ Rows 1 and 7 change what a retry or a grant allows. The approval gate stays the 
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Codex writes the tests for any part Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

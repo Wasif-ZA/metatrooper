@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8. Priority: Medium. Effort: not sized (sized after M8-0). Depends on: M8-17.
 Status in scratch: approved, every saver default off (two-engine-r4 final).
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -30,7 +29,6 @@ Status in scratch: approved, every saver default off (two-engine-r4 final).
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.

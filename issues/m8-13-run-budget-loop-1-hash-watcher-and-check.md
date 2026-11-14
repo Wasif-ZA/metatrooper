@@ -1,7 +1,6 @@
 # M8-13: Run budget, loop 1, hash watcher and checkpoints
 
 Part of Ouros, Milestone 8. Build step G13. Priority: Critical. Effort: not sized (sized after M8-0). Depends on: M8-3.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -36,7 +35,6 @@ No screens (decided 2026-11-10, D83). Settings entries: see ouros-spec.md, Setti
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 23. Rides on: M6-10, M7-6, M5-15. Screen: `proto/kit/workspaces/n14-machines.json`, shot `proto/shots/n14-machines.png`, the "Tell me on my phone" block.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -44,7 +43,6 @@ Not sized until M8-0.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

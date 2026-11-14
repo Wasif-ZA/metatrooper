@@ -1,7 +1,6 @@
 # M8-14: Plugins: manifest, OS sandbox, Explore screen, index
 
 Part of Ouros, Milestone 8. Build step G14. Priority: High. Effort: not sized (sized after M8-0). Depends on: M8-13.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -31,7 +30,6 @@ Feature screens folded in (kit/specs): `f-plugin.json` (install dialog). Tool ac
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

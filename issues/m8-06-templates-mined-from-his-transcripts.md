@@ -1,7 +1,6 @@
 # M8-6: Templates mined from his transcripts
 
 Part of Ouros, Milestone 8. Build step G6. Priority: Medium. Effort: not sized (sized after M8-0). Depends on: M8-2.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -15,12 +14,17 @@ Screens learned from his own workflows. A template is kept only if replay on pas
 ## Acceptance criteria
 
 - [ ] M8-06a. 3 templates are proposed from Wasif's own transcripts.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-06-templates.test.ts` test "three synthetic transcripts with one repeated screen produce one proposed template".
 - [ ] M8-06b. Each is kept only after replay on past runs.
-- [ ] M8-06c. A filled template is re-validated; nesting stops at 3 levels (template injection tests in check.mjs).
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-06-templates.test.ts` test "a template that loses on replay is dropped".
+- [ ] M8-06c. A filled template is re-validated through `check.js`; nesting stops at 3 levels (template injection tests in `core/test/m8-01-kit-check.test.ts`). (was: injection tests in check.mjs)
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-01-kit-check.test.ts` test "a filled template is re-checked and a fourth nesting level is cut".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.

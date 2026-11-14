@@ -1,7 +1,6 @@
 # M8-F10: Plugin grants, updates and revocation
 
 Part of Ouros, Milestone 8, feature 10 of 12. Rides on: M8-14. Screen: `kit/specs/f-plugin.json`.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -30,7 +29,6 @@ Install sheet with enforced grants and the text a plugin adds; pinned artifact; 
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

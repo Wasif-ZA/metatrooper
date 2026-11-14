@@ -1,7 +1,6 @@
 # M8-47: CLI agents can drive
 
 Part of Ouros, Milestone 8. Priority: Medium. Effort: not sized until M8-0. Depends on: M8-37, M6-17.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -43,7 +42,6 @@ Not sized until M8-0.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.

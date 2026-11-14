@@ -1,7 +1,6 @@
 # M8-46: Design system: ds.css tokens, and the library choice
 
 Part of Ouros, Milestone 8. Priority: High. Effort: not sized until M8-0. Depends on: M8-0, M8-1.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -78,11 +77,14 @@ Contrast working, for `--t3 #858585`:
 - [ ] M8-46c. Every text token meets 4.5:1 on every surface it is used on.
 - [ ] M8-46d. Orange appears only for a person being needed, checked over every screen.
 - [ ] M8-46e. The library choice and each exception are in the `spec.md` D-list, with stars, licence and last push.
-- [ ] M8-46f. The 17 parts pass check.mjs and validate.mjs.
+  Status: PARTIAL. D84 (2026-11-14) picks @astryxdesign/core for agent-drawn parts and records recharts 3.10.1 (MIT, 27,709 stars). It records no stars, licence or last push for astryx.
+  Verify: `Select-String spec.md -Pattern 'astryx'` shows astryx's stars, licence and last push in a D-row.
+- [x] M8-46f. Every drawn catalogue part passes the kit tests in `core/test/m8-01-kit-check.test.ts`, `workbench/test/m8-01-kit-draw.test.ts` and `workbench/test/m8-01-kit-parts.test.ts`. (was: the 17 parts in parts-next.js pass check.mjs and validate.mjs)
+  Status: DONE. All but `gate`, `tile` and `use` are drawn.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-check.test.ts`, then `cd workbench; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-draw.test.ts test/m8-01-kit-parts.test.ts`.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (`ouros-spec.md` section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained, or carry his named exception.

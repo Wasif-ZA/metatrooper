@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 18. Rides on: M8-18, M8-28. Screen: `proto/kit/workspaces/n05-diff-comment.json`, shot `proto/shots/n05-diff-comment.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 Grouped: the two rows share one screen and one review flow.
 
@@ -52,7 +51,6 @@ Not sized until M8-0.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

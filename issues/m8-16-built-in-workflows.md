@@ -1,7 +1,6 @@
 # M8-16: Built-in workflows: find, live data, outline
 
 Part of Ouros, Milestone 8. Build step added. Priority: Medium. Effort: not sized (sized after M8-0). Depends on: M8-4.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -27,7 +26,6 @@ Feature screens folded in (kit/specs): `f-find.json`, `f-data.json`, `f-outline.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (ouros-spec.md section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
