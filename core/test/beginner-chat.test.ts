@@ -79,6 +79,26 @@ test('session.chat turns a Claude transcript into messages, tool rows and edit c
   } finally { f.close(); }
 });
 
+test('session.chat shows files inside the session folder relative to it, in labels and edit cards', async () => {
+  const f = fixture();
+  try {
+    const id = f.session();
+    f.db.prepare('UPDATE session SET cwd = ? WHERE id = ?').run(f.home, id);
+    const abs = join(f.home, 'src', 'routes', 'todos.js');
+    const outside = join(tmpdir(), 'elsewhere.js');
+    point(f.db, id, f.transcript([
+      assistant([{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: abs } }]),
+      assistant([{ type: 'tool_use', id: 't2', name: 'Read', input: { file_path: abs } }]),
+      assistant([{ type: 'tool_use', id: 't3', name: 'Read', input: { file_path: outside } }]),
+    ]));
+    const r = await f.chat({ session_id: id });
+    assert.equal(r.items[0].label, 'Edited src/routes/todos.js');
+    assert.equal(r.items[0].file, 'src/routes/todos.js');
+    assert.equal(r.items[1].label, 'Read src/routes/todos.js');
+    assert.equal(r.items[2].label, `Read ${outside}`);
+  } finally { f.close(); }
+});
+
 test('session.chat marks the unanswered last tool as waiting while the session waits for you', async () => {
   const f = fixture();
   try {

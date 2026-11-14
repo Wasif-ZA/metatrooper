@@ -1,3 +1,5 @@
+import { posix, win32 } from 'node:path';
+
 export interface ToolItem {
   kind: 'tool';
   id: string;
@@ -17,8 +19,17 @@ function string(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function toolLabel(name: string, input: Record<string, unknown>): { label: string; file?: string } {
-  const file = string(input.file_path) || string(input.notebook_path);
+function relativeFile(file: string, cwd: string | null): string {
+  if (!cwd || !file) return file;
+  const path = /^[a-z]:[\\/]|^[\\/]{2}/i.test(cwd) ? win32 : posix;
+  const normalized = file.replace(/\\/g, '/');
+  if (!path.isAbsolute(normalized)) return file;
+  const relative = path.relative(cwd.replace(/\\/g, '/'), normalized).replace(/\\/g, '/');
+  return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) ? file : relative || '.';
+}
+
+function toolLabel(name: string, input: Record<string, unknown>, cwd: string | null): { label: string; file?: string } {
+  const file = relativeFile(string(input.file_path) || string(input.notebook_path), cwd);
   switch (name) {
     case 'Edit': case 'Write': case 'MultiEdit': case 'NotebookEdit': return { label: `Edited ${file}`, file };
     case 'Read': return { label: `Read ${file}` };
@@ -37,7 +48,7 @@ function toolLabel(name: string, input: Record<string, unknown>): { label: strin
   }
 }
 
-export function parseChat(lines: string[], state: string): { items: Item[]; waiting: boolean } {
+export function parseChat(lines: string[], state: string, cwd: string | null = null): { items: Item[]; waiting: boolean } {
   const items: Item[] = [];
   const tools = new Map<string, ToolItem>();
   for (const line of lines) {
@@ -57,7 +68,7 @@ export function parseChat(lines: string[], state: string): { items: Item[]; wait
         if (text) items.push({ kind: entry.type === 'user' ? 'user' : 'text', text });
       } else if (block.type === 'tool_use') {
         const id = string(block.id), name = string(block.name);
-        const tool: ToolItem = { kind: 'tool', id, name, ...toolLabel(name, record(block.input)), status: 'running' };
+        const tool: ToolItem = { kind: 'tool', id, name, ...toolLabel(name, record(block.input), cwd), status: 'running' };
         tools.set(id, tool);
         items.push(tool);
       } else if (block.type === 'tool_result') {

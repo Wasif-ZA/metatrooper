@@ -4,6 +4,10 @@ export const TERMINAL_ONLY_NOTE = 'This agent shares no chat record, so cc shows
 
 export const approvalInput = (engineId, allow) => engineId === 'claude' ? allow ? '1' : '\x1b' : null;
 
+export function approvalText(item) {
+  return item.label.replace(/^(Ran|Edited|Used) /, (_, verb) => ({ Ran: '', Edited: 'Edit ', Used: 'Use ' })[verb]);
+}
+
 export function groupItems(items) {
   const out = [];
   let run = [];

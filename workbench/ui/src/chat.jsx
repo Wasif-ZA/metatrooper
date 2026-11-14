@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
 
@@ -54,8 +54,8 @@ function Approval({ item, x, engine }) {
     finally { setSending(false); }
   };
   return <div className="ou-hm-approval">
-    <p>Allow Claude to run</p>
-    <div className="ou-hm-tool" title={item.label}><span>{item.label}</span></div>
+    <p>{item.name === 'Bash' || item.name === 'PowerShell' ? 'Allow Claude to run:' : 'Allow Claude to:'}</p>
+    <code className="ou-hm-approvaltext">{approvalText(item)}</code>
     <div className="ou-hm-chatactions">
       <Button size="sm" variant="primary" label="Allow" isDisabled={sending || approvalInput(engine, true) === null} onClick={() => void send(true)} />
       <Button size="sm" variant="secondary" label="Deny" isDisabled={sending || approvalInput(engine, false) === null} onClick={() => void send(false)} />

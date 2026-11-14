@@ -89,6 +89,7 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-edit > :last-child { margin-left: auto; flex: none; }
 .ou-hm-approval { display: flex; flex-direction: column; gap: var(--sp-2); }
 .ou-hm-approval p { margin: 0; font-size: 14px; }
+.ou-hm-approvaltext { padding: var(--sp-2) var(--sp-3); border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-deep); font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-chatactions { display: flex; gap: var(--sp-2); }
 
 /* Composer strip */

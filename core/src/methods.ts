@@ -625,7 +625,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const id = str(p, 'session_id');
       const limit = p.limit === undefined ? 200 : p.limit;
       if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 500) throw new RpcError(E.INVALID_PARAMS, 'limit must be a whole number from 1 to 500');
-      const row = db.prepare('SELECT state, engine_id FROM session WHERE id = ?').get(id) as { state: string; engine_id: string } | undefined;
+      const row = db.prepare('SELECT state, engine_id, cwd FROM session WHERE id = ?').get(id) as { state: string; engine_id: string; cwd: string | null } | undefined;
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
       const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(id) as { t: unknown } | undefined)?.t;
       const source = typeof transcript === 'string' && transcript.toLowerCase().endsWith('.jsonl') ? 'transcript' : 'none';
@@ -648,7 +648,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
           } finally { await file.close(); }
         } catch {}
       }
-      const { items, waiting } = parseChat(lines, row.state);
+      const { items, waiting } = parseChat(lines, row.state, row.cwd);
       const secrets = knownSecretValues();
       return { session_id: id, engine_id: row.engine_id, source, waiting, items: items.slice(-limit).map((item) => item.kind === 'tool'
         ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }) }

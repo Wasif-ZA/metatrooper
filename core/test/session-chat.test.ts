@@ -57,7 +57,7 @@ test('session.chat bounds reads, skips the initial partial line and uses the new
   const home = mkdtempSync(join(tmpdir(), 'chat-tail-'));
   const db = new DatabaseSync(':memory:');
   try {
-    db.exec("CREATE TABLE session (id TEXT, state TEXT, engine_id TEXT); CREATE TABLE event (seq INTEGER PRIMARY KEY, session_id TEXT, payload TEXT); CREATE TABLE approval (id TEXT, status TEXT); INSERT INTO session VALUES ('s', 'working', 'claude')");
+    db.exec("CREATE TABLE session (id TEXT, state TEXT, engine_id TEXT, cwd TEXT); CREATE TABLE event (seq INTEGER PRIMARY KEY, session_id TEXT, payload TEXT); CREATE TABLE approval (id TEXT, status TEXT); INSERT INTO session VALUES ('s', 'working', 'claude', NULL)");
     const file = join(home, 'tail.JSONL');
     const partial = line('user', 'partial');
     const last = line('assistant', [{ type: 'text', text: 'last' }]) + '\n';

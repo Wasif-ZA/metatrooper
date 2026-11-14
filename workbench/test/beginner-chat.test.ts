@@ -2,10 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { approvalInput, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
+import { approvalInput, approvalText, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
 
 const tool = (id: string, label: string, status = 'ok', file?: string) => ({ kind: 'tool', id, name: file ? 'Edit' : 'Bash', label, status, ...(file ? { file } : {}) });
 const text = (t: string) => ({ kind: 'text', text: t });
+
+test('an approval shows the bare command, without the past-tense verb of a finished row', () => {
+  assert.equal(approvalText({ label: 'Ran npm test -- --watch=false', name: 'Bash' }), 'npm test -- --watch=false');
+  assert.equal(approvalText({ label: 'Edited src/app.js', name: 'Edit' }), 'Edit src/app.js');
+  assert.equal(approvalText({ label: 'Used mcp__browser__open', name: 'mcp__browser__open' }), 'Use mcp__browser__open');
+});
 
 test('chat mode needs a transcript; anything else falls back to the terminal with a note', () => {
   assert.equal(chatModeOf('claude', 'transcript'), 'chat');
