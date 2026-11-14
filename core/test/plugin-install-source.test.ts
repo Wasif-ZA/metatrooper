@@ -19,6 +19,20 @@ export function pluginRepo(home: string, id: string, extra: Record<string, unkno
   return repo;
 }
 
+test('the install preview shows {{plugin_dir}} as the folder the plugin will run from', async (t) => {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  const db = withEnv(env, openCoreDb);
+  t.after(() => { db.close(); rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const { previewPlugin, pluginsDir } = await import('../src/plugins/store.ts');
+  const mcp = [{ id: 'x', command: 'node', args: ['{{plugin_dir}}/bin/x.mjs'], engines: ['codex'] }];
+  const folder = pluginRepo(isolated.home, 'dir-preview', { mcp });
+  const local = withEnv(env, () => previewPlugin(db, folder));
+  assert.equal(local.screen?.mcp_servers[0].command, `node ${folder}/bin/x.mjs`, 'a local folder runs in place');
+  const cloned = withEnv(env, () => previewPlugin(db, pathToFileURL(folder).href));
+  assert.equal(cloned.screen?.mcp_servers[0].command, `node ${join(withEnv(env, pluginsDir), 'dir-preview')}/bin/x.mjs`, 'a git source runs from its installed copy');
+});
+
 test('a plugin installs from a file:// git URL, cloned like any other git source', async (t) => {
   const isolated = isolation();
   const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };

@@ -184,8 +184,8 @@ export interface InstallScreen {
   warnings: string[];
 }
 
-/** The facts the install screen shows, in plain words; `previous` marks permissions an upgrade adds. */
-export function installScreen(m: Manifest, previous: string[] | null): InstallScreen {
+/** The facts the install screen shows, in plain words; `previous` marks permissions an upgrade adds; `pluginDir`, the folder it will run from, fills `{{plugin_dir}}` as the shim will. */
+export function installScreen(m: Manifest, previous: string[] | null, pluginDir?: string): InstallScreen {
   const before = new Set(previous ?? []);
   const warnings = [
     'Plugins run as you. Windows does not sandbox their files or network in this version; only secrets, browser and clipboard are enforced.',
@@ -201,7 +201,7 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
     engines: (m.engines ?? []).map((e) => ({ id: e.id, command: e.command, roles: e.roles })),
     mcp_servers: (m.mcp ?? []).map((s) => s.transport === 'http'
       ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'Ouros (header secret)' : 'the engine', writes: mcpWrites(s) }
-      : { id: s.id, command: [s.command, ...(s.args ?? [])].join(' '), engines: s.engines }),
+      : { id: s.id, command: [s.command, ...(s.args ?? []).map((a) => (pluginDir === undefined ? a : a.replaceAll('{{plugin_dir}}', () => pluginDir)))].join(' '), engines: s.engines }),
     warnings,
   };
 }

@@ -121,7 +121,9 @@ export function previewPlugin(db: DatabaseSync, source: string): Preview {
     if (errors.length) return { valid: false, errors, manifest_hash: hash, source: p.source, screen: null };
     const m = p.manifest as Manifest;
     const prev = db.prepare('SELECT permissions FROM plugin WHERE id = ?').get(m.id) as { permissions: string } | undefined;
-    const screen = installScreen(m, prev ? JSON.parse(prev.permissions) : null);
+    // where placeFiles will put it: a clone or an import moves under plugins/<id>, a local folder runs in place
+    const runsFrom = p.staged || p.imported ? path.join(pluginsDir(), m.id) : p.dir;
+    const screen = installScreen(m, prev ? JSON.parse(prev.permissions) : null, runsFrom);
     return {
       valid: true,
       errors: [],
