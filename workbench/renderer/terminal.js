@@ -257,6 +257,7 @@ const termView = (() => {
     set('.tile-last', x.last || '');
     t.el.querySelector('.tile-last').title = x.last || '';
     set('.tile-state', x.words);
+    t.el.querySelector('.tile-state').title = x.words || '';
     set('.tile-meta', x.meta || '');
     t.el.querySelector('.tile-watch').hidden = !x.watchOff;
     set('.tile-ctx', x.ctx ? x.ctx.text : '');
