@@ -117,7 +117,9 @@ const exeKeys = (exe: string): string[] => {
 /** This install's workbench Electron executable, as written and with links resolved, lowercased; empty when it cannot be identified. */
 export function workbenchExes(): Set<string> {
   const dir = path.join(repoDir, 'workbench', 'node_modules', 'electron');
-  try { return new Set(exeKeys(path.join(dir, 'dist', fs.readFileSync(path.join(dir, 'path.txt'), 'utf8').trim()))); } catch { return new Set(); }
+  try { return new Set(exeKeys(path.join(dir, 'dist', fs.readFileSync(path.join(dir, 'path.txt'), 'utf8').trim()))); } catch {}
+  const packaged = path.join(repoDir, '..', '..', 'cc.exe');
+  return fs.existsSync(packaged) ? new Set(exeKeys(packaged)) : new Set();
 }
 
 const NO_WORKBENCH_EXE = 'no window can be given: the workbench executable could not be identified (workbench/node_modules/electron/path.txt is unreadable)';

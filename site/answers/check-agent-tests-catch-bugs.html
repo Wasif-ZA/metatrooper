@@ -8,7 +8,7 @@
 <link rel="canonical" href="{{SITE}}/answers/check-agent-tests-catch-bugs.html">
 <link rel="stylesheet" href="a.css">
 <script type="application/ld+json">
-{"@context": "https://schema.org", "@type": "TechArticle", "headline": "How to check whether an agent's tests catch bugs", "description": "Break the changed code on purpose and rerun the tests. Each break the tests miss is a gap. This is mutation testing.", "about": ["mutation testing", "AI coding agents", "unit tests"], "mentions": {"@type": "Product", "name": "Proof", "description": "A paid cc plugin that checks whether an agent's tests catch mistakes. It breaks changed lines on purpose in a temporary copy, reruns the tests and reports each break as caught or missed. Supports JavaScript, TypeScript and Python with node --test and pytest. Calls no model. A$19 a month (AUD).", "brand": {"@type": "Brand", "name": "Carbon Copy", "alternateName": "cc"}, "offers": {"@type": "Offer", "price": 19, "priceCurrency": "AUD", "priceSpecification": {"@type": "UnitPriceSpecification", "price": 19, "priceCurrency": "AUD", "billingDuration": "P1M", "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"}}}, "isRelatedTo": {"@type": "SoftwareApplication", "name": "Carbon Copy", "url": "{{SITE}}/"}}}
+{"@context": "https://schema.org", "@type": "TechArticle", "headline": "How to check whether an agent's tests catch bugs", "description": "Break the changed code on purpose and rerun the tests. Each break the tests miss is a gap. This is mutation testing.", "about": ["mutation testing", "AI coding agents", "unit tests"], "mentions": {"@type": "Product", "name": "Carbon Copy Pro", "alternateName": "cc Pro", "description": "The paid add-on for Carbon Copy (cc), not on sale yet. It works with Claude Code and Codex tasks and gives them tools about the other tasks in a project, with file attribution for Claude Code tasks, and includes Proof, which breaks changed lines on purpose in a temporary copy, reruns the tests and reports each break as caught or missed. Proof supports JavaScript, TypeScript and Python with node --test and pytest, and calls no model.", "brand": {"@type": "Brand", "name": "Carbon Copy", "alternateName": "cc"}, "offers": {"@type": "Offer", "price": 19, "priceCurrency": "AUD", "priceSpecification": {"@type": "UnitPriceSpecification", "price": 19, "priceCurrency": "AUD", "billingDuration": "P1M", "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "MON"}}}, "isRelatedTo": {"@type": "SoftwareApplication", "name": "Carbon Copy", "url": "{{SITE}}/"}}}
 </script>
 </head>
 <body>
@@ -37,7 +37,7 @@
 <p>Give the agent the missed break: the file, the line, and what was changed. Ask for a test that fails on that break and passes on the real code. Then run the check again.</p>
 
 <h2>Doing it with Proof</h2>
-<p>Proof is the one paid plugin for cc, A$19 a month, or US$12 where checkout cannot charge in Australian dollars. It only breaks the lines in the current change, so it fits the moment an agent says it is done.</p>
+<p>Proof comes with Carbon Copy Pro (cc Pro), the one paid add-on for cc, A$19 a month and not on sale yet. It only breaks the lines in the current change, so it fits the moment an agent says it is done.</p>
 <ul>
 <li>It checks the tests pass first, and stops if they do not.</li>
 <li>In a temporary copy of the repo, it breaks one changed line at a time: a comparison, a boolean, a return value, a boundary moved by one, a dropped call. At most 40 breaks a run by default.</li>
@@ -47,7 +47,7 @@
 </ul>
 <p>At launch it supports JavaScript, TypeScript and Python changes, with <code>node --test</code> and <code>pytest</code>. Agents call it as MCP tools: <code>proof_mutate</code>, <code>proof_diff</code>, <code>proof_report</code>.</p>
 
-<footer>cc is free and open source, including every safety feature. Proof is the only paid part. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft. <a href="../">Home</a></footer>
+<footer>cc is free and open source, including every safety feature. cc Pro, which includes Proof, is the only paid part. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft. <a href="../">Home</a></footer>
 </div>
 </body>
 </html>
