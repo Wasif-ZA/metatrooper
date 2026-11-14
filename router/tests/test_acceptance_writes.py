@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from metarouter import cli, hook
+from metarouter import cli
 
 
 def _invoke(capsys, *args):
@@ -51,7 +51,6 @@ def test_representative_cli_lanes_write_only_under_metarouter_home(tmp_path, mon
     json_file.write_text('{"item": {"value": 1}}\n', encoding="utf-8")
 
     legacy_cache = tmp_path / "os-home" / ".cache" / "metarouter"
-    monkeypatch.setattr(hook, "CACHE", legacy_cache / "img")
     monkeypatch.setenv("METAROUTER_HOME", str(metarouter_home))
     for name in (
         "AI_AGENT",
@@ -81,17 +80,13 @@ def test_representative_cli_lanes_write_only_under_metarouter_home(tmp_path, mon
 
     invoke_and_check("exec", "exec", "--", "printf acceptance")
     invoke_and_check("run find", "run", "find", "needle", ".")
-    invoke_and_check("run json", "run", "json", json_file.name, ".item.value")
 
     invoke_and_check("run replace", "run", "replace", text_file.name, "needle", "found")
     assert text_file.read_text(encoding="utf-8") == "alpha found omega\n"
     invoke_and_check("undo", "undo")
     assert text_file.read_text(encoding="utf-8") == "alpha needle omega\n"
 
-    invoke_and_check("run json-set", "run", "json-set", json_file.name, ".item.value", "2")
-    assert json.loads(json_file.read_text(encoding="utf-8"))["item"]["value"] == 2
-
-    invoke_and_check("search", "search", "json")
+    invoke_and_check("search", "search", "find")
     invoke_and_check("list", "list")
     invoke_and_check("check", "check")
 

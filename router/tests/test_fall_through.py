@@ -3,13 +3,12 @@ import json
 import os
 from pathlib import Path
 import shlex
-import re
 import subprocess
 import sys
 
 import pytest
 
-from metarouter import cli, jobs, mcp
+from metarouter import cli
 
 
 @pytest.fixture(autouse=True)
@@ -229,8 +228,6 @@ def test_real_recipe_wins_over_repo_script(isolated_repo):
 def test_search_lists_matching_repo_script_only_in_auto_mode(isolated_repo, monkeypatch, capsys):
     write_script(isolated_repo, "meta/scripts/mr-probe.py")
     write_script(isolated_repo, "scripts/unrelated.py")
-    monkeypatch.setattr(mcp, "catalog_lines", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(mcp, "cached_tools", lambda: {})
     monkeypatch.setattr(cli, "path_bins", lambda: [])
 
     assert cli.main(["--json", "search", "MR-PROBE"]) == 0
@@ -243,26 +240,6 @@ def test_search_lists_matching_repo_script_only_in_auto_mode(isolated_repo, monk
     assert result.exit == 1
 
 
-def test_policy_refuses_fall_through_before_script_executes(isolated_repo):
-    marker = isolated_repo / "executed.txt"
-    write_script(
-        isolated_repo, "scripts/mr-probe.py",
-        "from pathlib import Path\nPath('executed.txt').write_text('ran')\n",
-    )
-    policy_file = isolated_repo / ".metarouter" / "policy.json"
-    policy_file.parent.mkdir()
-    policy_file.write_text(json.dumps({"refuse": ["mr-probe"]}), encoding="utf-8")
-
-    result = cli.run_lane(["mr-probe"])
-
-    assert result.ok is False
-    assert result.exit == 3
-    assert result.lane == "exec"
-    assert "refused by" in result.note
-    assert policy_file.as_posix() in result.note
-    assert not marker.exists()
-
-
 @pytest.fixture
 def forced_powershell(monkeypatch):
     executable = cli.powershell()
@@ -271,36 +248,6 @@ def forced_powershell(monkeypatch):
     monkeypatch.setenv("METAROUTER_SHELL", executable)
     assert cli.is_powershell(cli.shell())
     return executable
-
-
-@pytest.mark.parametrize("background", [False, True])
-def test_anchored_policy_refuses_fall_through_on_powershell(
-    isolated_repo, monkeypatch, forced_powershell, background
-):
-    marker = isolated_repo / "executed.txt"
-    write_script(
-        isolated_repo, "scripts/mr-probe.py",
-        "from pathlib import Path\nPath('executed.txt').write_text('ran')\n",
-    )
-    pattern = "^" + re.escape(shlex.quote(Path(sys.executable).as_posix())) + " "
-    policy_file = isolated_repo / ".metarouter" / "policy.json"
-    policy_file.parent.mkdir()
-    policy_file.write_text(json.dumps({"refuse": [pattern]}), encoding="utf-8")
-
-    def unexpected_execution(*args, **kwargs):
-        pytest.fail("refused fall-through must not execute or start a job")
-
-    monkeypatch.setattr(cli, "exec_lane", unexpected_execution)
-    monkeypatch.setattr(jobs, "start", unexpected_execution)
-    result = cli.run_lane(["mr-probe", *(["--background"] if background else [])])
-
-    assert result.ok is False
-    assert result.exit == 3
-    assert result.lane == "exec"
-    assert "refused by" in result.note
-    assert policy_file.as_posix() in result.note
-    assert pattern in result.note
-    assert not marker.exists()
 
 
 @pytest.mark.parametrize("target", ["script", "path-cli"])
@@ -323,37 +270,6 @@ def test_apostrophe_argument_arrives_intact_on_powershell(
     assert result.exit == 0
     assert result.lane == "exec"
     assert json.loads(result.out) == args
-
-
-@pytest.mark.parametrize("target", ["script", "path-cli"])
-def test_background_fall_through_returns_job(isolated_repo, monkeypatch, target):
-    marker = isolated_repo / "executed.txt"
-    body = "from pathlib import Path\nPath('executed.txt').write_text('ran')\n"
-    if target == "script":
-        write_script(isolated_repo, "scripts/mr-probe.py", body)
-        name, args = "mr-probe", ["two words", "a'b"]
-    else:
-        executable = Path(sys.executable)
-        monkeypatch.setenv("PATH", str(executable.parent) + os.pathsep + os.environ.get("PATH", ""))
-        name, args = executable.name, ["-c", body]
-    started = []
-
-    def start(argv, *, label):
-        started.append((argv, label))
-        return "job-probe-123"
-
-    monkeypatch.setattr(jobs, "start", start)
-    result = cli.run_lane([name, "--background", *args])
-
-    assert result.ok is True
-    assert result.exit == 0
-    assert result.lane == "jobs"
-    assert result.out == {
-        "job": "job-probe-123",
-        "collect": "metarouter jobs job-probe-123 --wait",
-    }
-    assert started == [(["run", name, *args], name)]
-    assert not marker.exists()
 
 
 @pytest.mark.parametrize("name_kind", ["parent", "absolute", "missing-directory"])
@@ -393,8 +309,6 @@ def test_search_command_runs_the_named_file_when_stems_collide(
         pytest.skip("Node.js is not available")
     python_path = write_script(isolated_repo, f"scripts/{stem}.py", "print('python-probe')\n")
     js_path = write_script(isolated_repo, f"bin/{stem}.js", "console.log('javascript-probe');\n")
-    monkeypatch.setattr(mcp, "catalog_lines", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(mcp, "cached_tools", lambda: {})
     monkeypatch.setattr(cli, "path_bins", lambda: [])
 
     result = cli.search_lane(["probe"])
@@ -471,28 +385,6 @@ def test_repo_scripts_skips_symlink_target_outside_repo(isolated_repo):
     assert cli.fall_through("./scripts/outside.py", []) is None
 
 
-def test_duplicate_policy_warning_appears_once_on_powershell(isolated_repo, forced_powershell):
-    write_script(isolated_repo, "scripts/mr-probe.py")
-    policy_file = isolated_repo / ".metarouter" / "policy.json"
-    policy_file.parent.mkdir()
-    policy_file.write_text(json.dumps({"warn": ["mr-probe", "mr-probe"]}), encoding="utf-8")
-
-    result = cli.run_lane(["mr-probe"])
-
-    assert result.ok is True
-    assert result.exit == 0
-    assert result.out.strip() == "repo-script-ran"
-    warning = f"warned by {policy_file.as_posix()}: mr-probe"
-    assert result.note == warning
-
-
-def test_add_note_drops_duplicates_and_preserves_note_order(isolated_repo):
-    result = cli.Result(ok=True, lane="exec", note="existing; warning; warning")
-
-    assert cli.add_note(result, "warning", None, "new", "new", "existing") is result
-    assert result.note == "existing; warning; new"
-
-
 @pytest.mark.parametrize("shell_name", ["default", "powershell"])
 def test_complex_arguments_reach_fall_through_unchanged(
     isolated_repo, monkeypatch, shell_name
@@ -526,8 +418,6 @@ def test_search_quotes_apostrophe_script_path_for_bash_and_powershell(
     isolated_repo, monkeypatch
 ):
     write_script(isolated_repo, "scripts/it's probe.py")
-    monkeypatch.setattr(mcp, "catalog_lines", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(mcp, "cached_tools", lambda: {})
     monkeypatch.setattr(cli, "path_bins", lambda: [])
 
     result = cli.search_lane(["probe"])
@@ -591,32 +481,6 @@ def test_fall_through_returns_127_when_run_argv_raises_os_error(
     assert f"could not start {executable.name}" in cli_result.note
 
 
-def test_jobs_run_stores_successful_result_for_fall_through_and_seed_recipe(isolated_repo):
-    write_script(isolated_repo, "scripts/mr-probe.py", "print('repo-script-ran')\n")
-    jobs.folder().mkdir(parents=True, exist_ok=True)
-
-    jobs._run("job-probe-fallthrough", ["run", "mr-probe"])
-
-    stored_fallthrough = json.loads(
-        (jobs.folder() / "job-probe-fallthrough.result.json").read_text(encoding="utf-8")
-    )
-    assert stored_fallthrough["ok"] is True
-    assert stored_fallthrough["job"] == "job-probe-fallthrough"
-    assert stored_fallthrough["out"].strip() == "repo-script-ran"
-
-    demo = isolated_repo / "demo.json"
-    demo.write_text(json.dumps({"msg": "hello"}), encoding="utf-8")
-
-    jobs._run("job-probe-seed", ["run", "json", demo.name, ".msg"])
-
-    stored_seed = json.loads(
-        (jobs.folder() / "job-probe-seed.result.json").read_text(encoding="utf-8")
-    )
-    assert stored_seed["ok"] is True
-    assert stored_seed["job"] == "job-probe-seed"
-    assert stored_seed["out"] == "hello"
-
-
 def test_render_json_text_ok_false_emits_valid_json_for_whole_string_result():
     result = cli.Result(ok=True, lane="exec", out="repo-script-ran", whole=True)
 
@@ -629,30 +493,6 @@ def test_render_json_text_ok_false_emits_valid_json_for_whole_string_result():
     assert rendered_plain == "repo-script-ran"
     with pytest.raises(json.JSONDecodeError):
         json.loads(rendered_plain)
-
-
-def test_anchored_policy_refuses_fall_through_by_script_name(isolated_repo, capsys):
-    marker = isolated_repo / "executed.txt"
-    write_script(
-        isolated_repo, "scripts/mr-probe.py",
-        "from pathlib import Path\nPath('executed.txt').write_text('ran')\n",
-    )
-    policy_file = isolated_repo / ".metarouter" / "policy.json"
-    policy_file.parent.mkdir()
-    policy_file.write_text(json.dumps({"refuse": ["^mr-probe"]}), encoding="utf-8")
-
-    result = cli.run_lane(["mr-probe"])
-
-    assert result.ok is False
-    assert result.exit == 3
-    assert result.lane == "exec"
-    assert "refused by" in result.note
-    assert policy_file.as_posix() in result.note
-    assert "^mr-probe" in result.note
-    assert not marker.exists()
-
-    assert cli.main(["run", "mr-probe"]) == 3
-    assert not marker.exists()
 
 
 def test_fall_through_preserves_yes_argument_for_script(isolated_repo, capsys, monkeypatch):
@@ -673,16 +513,3 @@ def test_fall_through_preserves_yes_argument_for_script(isolated_repo, capsys, m
     assert exit_code == 0
     assert agent_res["ok"] is True
     assert json.loads(agent_res["out"]) == ["--yes", "x"]
-
-    started = []
-    monkeypatch.setattr(jobs, "start", lambda argv, *, label: started.append((argv, label)) or "job-probe-yes")
-    bg_result = cli.run_lane(["mr-probe", "--background", "--yes", "x"])
-    assert bg_result.ok is True
-    assert bg_result.exit == 0
-    assert bg_result.lane == "jobs"
-    assert bg_result.out == {
-        "job": "job-probe-yes",
-        "collect": "metarouter jobs job-probe-yes --wait",
-    }
-    assert started == [(["run", "mr-probe", "--yes", "x"], "mr-probe")]
-

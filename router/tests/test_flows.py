@@ -239,3 +239,23 @@ def test_argument_with_space_and_semicolon_stays_one_argument(capsys):
     assert result["out"][0]["ok"] is True
     assert result["out"][0]["exit"] == 0
     assert result["out"][0]["out"] == f"ARG:{malicious}"
+
+
+@pytest.mark.parametrize("where", ["step", "recipe-body"])
+def test_flow_with_a_private_step_writes_no_log_and_no_row(where, tmp_path, capsys):
+    (tmp_path / "config.json").write_text(json.dumps({"private": ["secretproj"]}), encoding="utf-8")
+    if where == "step":
+        steps = ["exec -- printf one", "exec -- printf secretproj-two"]
+    else:
+        invoke(capsys, "add", "leaky", "--", "printf secretproj-body")
+        steps = ["exec -- printf one", "run leaky"]
+    invoke(capsys, "add", "both", *[a for s in steps for a in ("--step", s)])
+    for f in tmp_path.rglob("*.log"):
+        f.unlink()
+    (tmp_path / "calls.jsonl").unlink(missing_ok=True)
+
+    exit_code, _ = invoke(capsys, "run", "both")
+
+    assert exit_code == 0
+    assert not list(tmp_path.rglob("*.log"))
+    assert not (tmp_path / "calls.jsonl").exists()

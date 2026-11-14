@@ -11,11 +11,10 @@ BREAKER_WINDOW = datetime.timedelta(hours=1)
 # when="before" matches the command before it runs; when="fail" matches the output of a failed call.
 SEED = [
     {"id": "agy-add-dir", "when": "before", "match": r"(^|[;&|]\s*)agy\b(?!.*--add-dir)",
-     "hint": "agy cannot read files outside its folder and returns nothing. Add --add-dir <folder>, "
-             "or use: metarouter run gemini --add-dir <folder> \"<question>\""},
+     "hint": "agy cannot read files outside its folder and returns nothing. Add --add-dir <folder>"},
     {"id": "ollama-v1", "when": "before", "match": r"11434/v1/chat/completions",
      "hint": "Ollama's /v1/chat/completions returns empty content for qwen3 and gemma4. Use /api/generate "
-             "with \"think\": false and an explicit num_ctx, or: metarouter run local \"<prompt>\""},
+             "with \"think\": false and an explicit num_ctx"},
     {"id": "taskkill-node", "when": "before", "match": r"taskkill\b.*(/|//)IM\s+node(\.exe)?\b",
      "hint": "This kills every node process on the machine, including other sessions' servers. "
              "Kill the one pid instead"},
@@ -26,8 +25,7 @@ SEED = [
              "python -c \"import datetime; print(datetime.datetime.now().astimezone().isoformat())\""},
     {"id": "foreground-sleep", "when": "before", "match": r"(^|[;&|]\s*)sleep\s+\d{2,}",
      "hint": "Long foreground sleeps are blocked by the harness. Wait on a condition, or run the job "
-             "with --background and collect it with metarouter jobs <id> --wait. Waiting on a dev "
-             "server: metarouter run up <port> --wait 60"},
+             "in the background"},
     {"id": "curl-jina", "when": "before", "match": r"curl\b.*r\.jina\.ai/",
      "hint": "Shorter: metarouter run page <url>"},
     {"id": "gh-api-repo", "when": "before", "match": r"gh\s+api\s+/?repos/[\w.-]+/[\w.-]+/?(\s|$)",
@@ -38,13 +36,11 @@ SEED = [
      "hint": "Python on Windows reads and writes files as cp1252 by default. Pass encoding=\"utf-8\" to "
              "open, read_text and write_text"},
     {"id": "no-jq", "when": "fail", "match": r"jq: (command )?not found|command not found: jq",
-     "hint": "There is no jq here. Use: metarouter run json <file> <path>"},
+     "hint": "There is no jq here. Parse JSON with python's json module"},
     {"id": "store-python", "when": "fail", "match": r"Python was not found; run without arguments to install",
      "hint": "Bare python is the Microsoft Store stub. Use the full interpreter path"},
     {"id": "module-missing", "when": "fail", "match": r"ModuleNotFoundError: No module named '([\w.]+)'",
      "hint": "That module is not installed for this interpreter. Check which python ran, then pip install it there"},
-    {"id": "gh-search-recipe", "when": "before", "match": r"(^|[;&|]\s*)gh\s+search\s+repos\b",
-     "hint": "Shorter: metarouter run gh-search-repos <query> (auto mode)"},
     {"id": "gh-json-field", "when": "fail", "match": r"Unknown JSON field",
      "hint": "gh lists the valid --json fields in this error, under 'Available fields'. Pick from that list"},
 ]
@@ -64,32 +60,25 @@ def load():
     return hints
 
 
-def match(cmd, output=None, failed=False):
-    """Return the first matching hint text: a before-hint on the command, a fail-hint on the output, else a recipe
-    for inline python."""
+def find(cmd, output=None, failed=False):
+    """Return the first matching hint: a before-hint on the command, else a fail-hint on the output."""
     for h in load():
         try:
             if h.get("when") == "before" and re.search(h["match"], cmd or ""):
                 if h.get("shape") and h["shape"] != calls.shape(cmd or ""):
                     continue
-                return h["hint"]
+                return h
             if failed and h.get("when") == "fail" and re.search(h["match"], output or ""):
                 if h.get("binary") and h["binary"] != first_word(cmd):
                     continue
-                return h["hint"]
+                return h
         except re.error:
             continue
-    return recipe_for(cmd)
+    return None
 
 
-def recipe_for(cmd):
-    """Name the recipe that does the job of an inline python script, or None."""
-    from metarouter import learn, recipes as store
-    if not learn.INLINE_PY.search(cmd or ""):
-        return None
-    name = dict((g, rec) for g, _, rec in learn.PY_GROUPS).get(learn.py_group(cmd))
-    r = store.load().get(name) if name else None
-    return f"A recipe does this: metarouter run {store.signature(r)}" if r else None
+def match(cmd, output=None, failed=False):
+    return (find(cmd, output, failed) or {}).get("hint")
 
 
 def by_source():
@@ -116,7 +105,7 @@ def breaker_key(record):
 def stuck(rows, shape, project, now):
     """Return a refusal when this exact command shape failed BREAKER_RUN times in a row here within the hour."""
     mine = [r for r in rows if r.get("shape") == shape and r.get("project") == project][-BREAKER_RUN:]
-    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 or r.get("findings") for r in mine):
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
         return None
     try:
         first = datetime.datetime.fromisoformat(mine[0]["time"])
@@ -132,7 +121,7 @@ def breaker(rows, record):
     """Return a warning when this call's tool has failed BREAKER_RUN times in a row within the hour."""
     key = breaker_key(record)
     mine = [r for r in rows if breaker_key(r) == key][-BREAKER_RUN:]
-    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 or r.get("findings") for r in mine):
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
         return None
     try:
         first = datetime.datetime.fromisoformat(mine[0]["time"])

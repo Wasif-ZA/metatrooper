@@ -74,7 +74,7 @@ def test_each_seed_before_hint_matches_but_not_a_near_miss(
         (
             "bash: jq: command not found",
             "jq was found and completed",
-            "metarouter run json",
+            "json module",
         ),
         (
             "Python was not found; run without arguments to install",

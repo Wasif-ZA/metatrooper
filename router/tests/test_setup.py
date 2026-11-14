@@ -1,6 +1,4 @@
 import json
-import os
-import time
 from pathlib import Path
 
 import pytest
@@ -17,8 +15,6 @@ def isolated(tmp_path, monkeypatch):
     (work / ".git").mkdir(parents=True)
     monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "mr-home"))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
-    from metarouter import transcripts
-    monkeypatch.setattr(transcripts, "ROOTS", {k: fake_home / k for k in transcripts.ROOTS})
     monkeypatch.setattr(setup.shutil, "which", lambda name: None)
     for name in ("CLAUDECODE", "AI_AGENT", "CLAUDE_CODE_SESSION_ID", "METAROUTER_OUTPUT"):
         monkeypatch.delenv(name, raising=False)
@@ -74,51 +70,11 @@ def test_init_without_agent_lists_detected_and_writes_nothing(capsys, isolated):
     assert not list(isolated.rglob("*.md")) and not (log.home() / "installed.json").exists()
 
 
-def write_session(path, cwd, cmds, age_days=0):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    for i, c in enumerate(cmds):
-        lines.append({"cwd": cwd, "message": {"content": [{"type": "tool_use", "id": f"u{i}", "name": "Bash",
-                                                           "input": {"command": c}}]}})
-        lines.append({"cwd": cwd, "message": {"content": [{"type": "tool_result", "tool_use_id": f"u{i}",
-                                                           "content": "ok"}]}})
-    path.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
-    if age_days:
-        old = time.time() - age_days * 86400
-        os.utime(path, (old, old))
-
-
-def test_scan_counts_top_shape_and_skips_private_and_old(capsys, tmp_path):
-    configure(private=["secret-client"])
-    root = tmp_path / "transcripts"
-    write_session(root / "p" / "a.jsonl", "/work/open", ["git status"] * 3 + ["npm test"] * 2 + ["make once"])
-    write_session(root / "p" / "b.jsonl", "/work/secret-client", ["docker ps"] * 9)
-    write_session(root / "p" / "c.jsonl", "/work/open", ["cargo build"] * 9, age_days=40)
-    code, r = invoke(capsys, "learn", "--scan", "--days", "30", "--root", root)
-    assert code == 0
-    out = r["out"]
-    assert out["top"] == ["3x  git status", "2x  npm test"]
-    assert out["total"].startswith("your agent ran these 2 commands 5 times")
-    assert "docker" not in json.dumps(out) and "cargo" not in json.dumps(out)
-    assert len(out["card"].splitlines()) == 5
-
-
-def test_menu_shows_first_run_tip_until_a_scan_runs(capsys, tmp_path):
-    cli.main(["--human"])
-    assert "learn --scan" in capsys.readouterr().out
-    root = tmp_path / "empty"
-    root.mkdir()
-    invoke(capsys, "learn", "--scan", "--root", root)
-    cli.main(["--human"])
-    assert "First time?" not in capsys.readouterr().out
-
-
 def test_doctor_on_empty_home_names_the_fixes(capsys):
     code, r = invoke(capsys, "doctor")
     assert code == 0
     assert "no private patterns" in r["out"]
     assert "no agent set up: run metarouter init" in r["out"]
-    assert "adoption" in r["out"]
 
 
 def test_doctor_sees_init_block(capsys):

@@ -1,7 +1,5 @@
 from conftest import agent_result
 import json
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,7 +29,7 @@ def isolated_environment(tmp_path, monkeypatch):
 
 def test_agent_log_is_named_only_when_output_is_not_whole(tmp_path):
     whole_raw = b"complete output\n"
-    shrunk_raw = ("ordinary line\n" * 200).encode()
+    shrunk_raw = ("ordinary line\n" * 900).encode()
 
     whole = cli.finish("exec", "whole", whole_raw, 0, 0)
     shrunk = cli.finish("exec", "shrunk", shrunk_raw, 0, 0)
@@ -55,73 +53,6 @@ def test_clean_strips_ansi_and_keeps_last_carriage_return_redraw():
     raw = "\x1b[31mstarting\x1b[0m\r25%\r\x1b[32m100%\x1b[0m\r\nnext\x1b]0;title\x07"
 
     assert shrink.clean(raw) == "100%\nnext"
-
-
-class _TitleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        body = b"<html><title> Synthetic   Server </title><body>ready</body></html>"
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, _format, *args):
-        pass
-
-
-def test_up_reports_status_latency_and_title_from_local_server():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _TitleHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        result = web.up(SimpleNamespace(url=str(server.server_port), wait=0))
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
-
-    assert result["exit"] == 0
-    assert result["out"]["up"] is True
-    assert result["out"]["status"] == 200
-    assert result["out"]["title"] == "Synthetic Server"
-    assert result["out"]["url"] == f"http://127.0.0.1:{server.server_port}/"
-    assert isinstance(result["out"]["ms"], int)
-
-
-def test_up_reports_down_for_a_closed_local_port():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _TitleHandler)
-    port = server.server_port
-    server.server_close()
-
-    result = web.up(SimpleNamespace(url=str(port), wait=0))
-
-    assert result["exit"] == 1
-    assert result["out"]["up"] is False
-    assert result["out"]["url"] == f"http://127.0.0.1:{port}/"
-    assert result["out"]["why"].startswith("down: ")
-
-
-def test_up_wait_polls_then_gives_up(monkeypatch):
-    probes = []
-    sleeps = []
-    ticks = iter([10.0, 10.2, 10.7, 11.0])
-
-    def always_down(url):
-        probes.append(url)
-        return {"up": False, "url": url, "why": "down: synthetic"}
-
-    monkeypatch.setattr(web, "probe", always_down)
-    monkeypatch.setattr(web.time, "monotonic", lambda: next(ticks))
-    monkeypatch.setattr(web.time, "sleep", sleeps.append)
-
-    result = web.run(["43210", "--wait", "1"], "up")
-
-    assert result == {
-        "exit": 1,
-        "out": {"up": False, "url": "http://127.0.0.1:43210/", "why": "down: synthetic"},
-    }
-    assert probes == ["http://127.0.0.1:43210/"] * 3
-    assert sleeps == [0.5, 0.5]
 
 
 @pytest.mark.parametrize(
@@ -240,73 +171,7 @@ def test_repo_accepts_github_url_returns_compact_fields_and_logs_full_json(
     assert Path(result["log"]).is_relative_to(tmp_path / "metarouter-home")
 
 
-def test_screenshot_builds_playwright_cli_argv(tmp_path, monkeypatch):
-    destination = tmp_path / "shot.png"
-    seen = {}
-
-    class FakeSubprocess:
-        @staticmethod
-        def run(argv, capture_output, timeout):
-            seen["argv"] = argv
-            seen["capture_output"] = capture_output
-            seen["timeout"] = timeout
-            Path(argv[-1]).write_bytes(b"synthetic png")
-            return SimpleNamespace(returncode=0, stdout=b"saved\n", stderr=b"")
-
-    monkeypatch.setattr(
-        web.shutil, "which", lambda name: "C:/tools/playwright.exe" if name == "playwright" else None
-    )
-    monkeypatch.setattr(web, "subprocess", FakeSubprocess)
-    from metarouter import hook
-
-    monkeypatch.setattr(hook, "shrink_image", lambda path, cache: None)
-    args = SimpleNamespace(
-        url="example.com",
-        file=str(destination),
-        width=900,
-        height=700,
-        full=True,
-        dark=True,
-        device="Desktop Chrome",
-        wait_for="#ready",
-    )
-
-    result = web.screenshot(args)
-
-    assert result == {
-        "exit": 0,
-        "full": "saved\n",
-        "out": {"file": destination.as_posix()},
-    }
-    assert seen == {
-        "argv": [
-            "C:/tools/playwright.exe",
-            "screenshot",
-            "--viewport-size=900,700",
-            "--full-page",
-            "--color-scheme=dark",
-            "--device=Desktop Chrome",
-            "--wait-for-selector=#ready",
-            "https://example.com",
-            str(destination),
-        ],
-        "capture_output": True,
-        "timeout": 120,
-    }
-
-
-def test_screenshot_reports_missing_playwright(monkeypatch):
-    monkeypatch.setattr(web.shutil, "which", lambda _name: None)
-
-    result = web.screenshot(SimpleNamespace(url="example.com"))
-
-    assert result == {
-        "exit": 127,
-        "out": "playwright CLI not on PATH. It ships with: pip install playwright",
-    }
-
-
-@pytest.mark.parametrize("recipe", ["page", "up", "screenshot"])
+@pytest.mark.parametrize("recipe", ["page"])
 def test_web_recipes_refuse_blocked_hosts(recipe, tmp_path, monkeypatch):
     home = tmp_path / "metarouter-home"
     home.mkdir(parents=True, exist_ok=True)
@@ -342,3 +207,34 @@ def test_missing_playwright_browser_failure_hint_fires():
     assert "playwright install chromium" in hints.match(
         "playwright screenshot https://example.com out.png", output, failed=True
     )
+
+
+def test_blocked_matches_hosts_subdomains_and_schemeless_urls_but_not_lookalikes(tmp_path):
+    home = tmp_path / "metarouter-home"
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "blocked-hosts.txt").write_text("# comment\nblocked.example\n", encoding="utf-8")
+    assert web.blocked("https://blocked.example/x")
+    assert web.blocked("sub.blocked.example")
+    assert not web.blocked("https://blocked.example.evil.test/x")
+    assert not web.blocked("evilblocked.example")
+
+
+def test_run_page_with_no_trunc_returns_the_whole_page(monkeypatch, capsys):
+    body = "\n".join(f"line {i} of the page" for i in range(2000))
+    monkeypatch.setattr(web, "page", lambda _a: {"exit": 0, "full": body, "out": body})
+
+    exit_code = cli.main(["--json", "run", "page", "example.com", "--no-trunc"])
+
+    out = agent_result(capsys.readouterr().out)
+    assert exit_code == 0
+    assert out["out"] == body
+
+
+def test_run_saved_shell_recipe_with_no_trunc_returns_everything(monkeypatch, capsys):
+    from metarouter import recipes as store
+    body = "\n".join(f"row {i}" for i in range(3000))
+    store.save("rows", "printf rows")
+    monkeypatch.setattr(cli, "run_shell", lambda _cmd: (0, body.encode(), 0.0))
+
+    assert cli.main(["--json", "run", "rows", "--no-trunc"]) == 0
+    assert agent_result(capsys.readouterr().out)["out"] == body

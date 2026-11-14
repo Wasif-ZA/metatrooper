@@ -1,13 +1,10 @@
 import json
-import re
-import shlex
 import shutil
-from pathlib import Path
 
 import pytest
 
 from conftest import agent_result
-from metarouter import cli, digest, hints, packs
+from metarouter import cli
 
 
 @pytest.fixture(autouse=True)
@@ -110,103 +107,6 @@ def test_check_example_can_ask_for_a_git_repo(tmp_path, capsys):
     assert "pass  branch" in res["out"].splitlines()
 
 
-def snapshot(home):
-    return {p.relative_to(home).as_posix(): p.read_bytes() for p in home.rglob("*") if p.is_file()}
-
-
-def test_pack_add_then_remove_leaves_user_store_as_before(tmp_path, capsys):
-    home = tmp_path / "home"
-    (home / "recipes").mkdir(parents=True)
-    (home / "recipes" / "wt-list.json").write_text(json.dumps(
-        {"name": "wt-list", "kind": "shell", "body": "echo mine", "source": "saved"}, indent=1), encoding="utf-8")
-    (home / "hints.json").write_text(json.dumps(
-        [{"id": "mine", "when": "before", "match": "zzz", "hint": "my own"}], indent=1), encoding="utf-8")
-    before = snapshot(home)
-
-    code, res = invoke(capsys, "pack", "add", "git-worktrees")
-    assert code == 0
-    assert res["out"]["kept yours"] == ["wt-list"]
-    assert (home / "recipes" / "wt-add.json").is_file()
-    added = json.loads((home / "recipes" / "wt-add.json").read_text(encoding="utf-8"))
-    assert added["source"] == "pack:git-worktrees"
-    assert any(h.get("source") == "pack:git-worktrees" for h in hints.load())
-
-    code, res = invoke(capsys, "pack", "list")
-    assert any(ln.startswith("git-worktrees") and "(added)" in ln for ln in res["out"])
-
-    code, _ = invoke(capsys, "pack", "remove", "git-worktrees")
-    assert code == 0
-    assert snapshot(home) == before
-
-
-def test_pack_add_remove_on_empty_home_leaves_nothing(tmp_path, capsys):
-    invoke(capsys, "pack", "add", "docker")
-    _, res = invoke(capsys, "check")
-    assert "stale dk-" not in res["out"]
-    invoke(capsys, "pack", "remove", "docker")
-    home = tmp_path / "home"
-    assert not (home / "hints.json").exists()
-    assert not (home / "recipes").exists()
-
-
-def test_pack_hint_fires_after_add(capsys):
-    assert hints.match("cmd /c dir") is None
-    invoke(capsys, "pack", "add", "windows-shell")
-    assert "cmd //c" in hints.match("cmd /c dir")
-
-
-def test_unknown_pack_is_refused(capsys):
-    code, res = invoke(capsys, "pack", "add", "nope")
-    assert code == 2 and "git-worktrees" in res["note"]
-
-
-@pytest.mark.parametrize("name", ["git-worktrees", "windows-shell", "python-pytest", "node-npm", "docker"])
-def test_free_pack_shape(name):
-    p = packs.available()[name]
-    assert p["tier"] == "free" and p["version"]
-    assert 5 <= len(p["recipes"]) <= 10
-    assert 3 <= len(p["hints"]) <= 8
-    text = json.dumps(p)
-    assert not re.search(r"[A-Za-z]:[\\/]+Users|/home/|/Users/", text)
-    for r in p["recipes"]:
-        assert r["example"] and r["needs"] and cli.store.NAME.match(r["name"])
-        cli.fill(r["body"], r["example"]["args"])
-    for h in p["hints"]:
-        re.compile(h["match"])
-        assert h["when"] in ("before", "fail")
-
-
-def row(time, exit_code, recipe=None, shape="x"):
-    return {"time": time, "project": "p", "agent": "a", "lane": "run" if recipe else "exec", "recipe": recipe,
-            "shape": shape, "exit": exit_code, "secs": 0, "bytes": 1, "log": "l"}
-
-
-def test_digest_top_failure_broken_recipe_and_waiting(tmp_path, capsys):
-    rows = [row("2026-10-05T10:00:00+11:00", 1, shape="npm run build"),
-            row("2026-10-05T10:01:00+11:00", 1, shape="npm run build"),
-            row("2026-10-05T10:02:00+11:00", 1, shape="pytest -q"),
-            row("2026-10-05T10:03:00+11:00", 0, recipe="deploy"),
-            row("2026-10-06T10:03:00+11:00", 2, recipe="deploy"),
-            row("2026-09-01T10:00:00+10:00", 1, shape="old failure"),
-            row("2026-09-01T10:00:00+10:00", 1, shape="old failure"),
-            row("2026-09-01T10:00:00+10:00", 1, shape="old failure")]
-    home = tmp_path / "home"
-    (home / "candidates").mkdir(parents=True)
-    (home / "candidates" / "candidates.json").write_text(json.dumps([{"type": "recipe"}, {"type": "hint"}]),
-                                                         encoding="utf-8")
-    import datetime
-    now = datetime.datetime.fromisoformat("2026-10-08T12:00:00+11:00")
-    out = digest.build(rows, 7, now=now)
-    assert out["calls"] == 5 and out["failed"] == 4
-    assert out["top_failures"][0] == "npm run build  (2 times)"
-    assert out["recipes_broke"] == ["deploy"]
-    assert out["waiting_review"] == {"hints": 1, "recipes": 1}
-
-    (home / "calls.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
-    code, res = invoke(capsys, "digest", "--days", "3650")
-    assert code == 0 and "old failure" in res["out"]["top_failures"][0]
-
-
 def test_cloned_repo_recipe_needs_yes_even_when_labelled_read(tmp_path, monkeypatch, capsys):
     a = repo(tmp_path, "a")
     write_project_recipe(a, "looks-safe", "echo ran-it", "read")
@@ -221,68 +121,11 @@ def test_cloned_repo_recipe_needs_yes_even_when_labelled_read(tmp_path, monkeypa
 
 def test_repo_recipe_cannot_shadow_a_seed_or_be_python(tmp_path, monkeypatch, capsys):
     a = repo(tmp_path, "a")
-    write_project_recipe(a, "json", "echo shadowed", "read")
+    write_project_recipe(a, "find", "echo shadowed", "read")
     d = a / ".metarouter" / "recipes"
     (d / "sneaky.json").write_text('{"name": "sneaky", "kind": "python", "body": "os", "purity": "read"}')
     monkeypatch.chdir(a)
     from metarouter import recipes as store
     loaded = store.load()
-    assert loaded["json"]["source"] == "seed"
+    assert loaded["find"]["source"] == "seed"
     assert "sneaky" not in loaded
-
-
-@pytest.mark.parametrize("args", [[], ["--changed"]])
-def test_check_does_not_spawn_untrusted_project_binary(tmp_path, monkeypatch, capsys, args):
-    a = repo(tmp_path, "a")
-    monkeypatch.chdir(a)
-    marker = tmp_path / "untrusted-ran"
-    script = a / ("evil.cmd" if cli.os.name == "nt" else "evil.sh")
-    body = (f'@echo off\necho ran>"{marker}"\n' if cli.os.name == "nt"
-            else f"#!/bin/sh\nprintf ran > {shlex.quote(str(marker))}\n")
-    script.write_text(body, encoding="utf-8")
-    script.chmod(0o755)
-    write_project_recipe(a, "untrusted-binary", f"./{script.name}", "read")
-    path = a / ".metarouter" / "recipes" / "untrusted-binary.json"
-    recipe = json.loads(path.read_text(encoding="utf-8"))
-    recipe["example"] = {"setup": {}, "args": [], "expect_exit": 0, "expect_out": ""}
-    path.write_text(json.dumps(recipe), encoding="utf-8")
-    assert cli.store.needs_trust(cli.store.load()["untrusted-binary"])
-    assert shutil.which(f"./{script.name}") is not None
-
-    code, res = invoke(capsys, "check", *args)
-    assert code == 0
-    assert not marker.exists()
-    if args:
-        assert "no recipe's tool version changed" in res["out"]
-        code, res = invoke(capsys, "check")
-        assert code == 0
-    assert "skip  untrusted-binary: repo recipe not trusted yet" in res["out"]
-    assert not marker.exists()
-
-
-def test_check_does_not_probe_untrusted_project_binary(tmp_path, monkeypatch, capsys):
-    a = repo(tmp_path, "a")
-    monkeypatch.chdir(a)
-    write_project_recipe(a, "untrusted-probe", "./untrusted-tool", "read")
-    probed = []
-    monkeypatch.setattr(cli.versions, "current", lambda binary: probed.append(binary))
-    assert cli.store.needs_trust(cli.store.load()["untrusted-probe"])
-
-    code, res = invoke(capsys, "check")
-    assert code == 0
-    assert "./untrusted-tool" not in probed
-
-
-def test_check_project_runs_passing_untrusted_recipe(tmp_path, monkeypatch, capsys):
-    a = repo(tmp_path, "a")
-    monkeypatch.chdir(a)
-    write_project_recipe(a, "project-pass", "echo project-ok", "read")
-    path = a / ".metarouter" / "recipes" / "project-pass.json"
-    recipe = json.loads(path.read_text(encoding="utf-8"))
-    recipe["example"] = {"setup": {}, "args": [], "expect_exit": 0, "expect_out": "project-ok"}
-    path.write_text(json.dumps(recipe), encoding="utf-8")
-    assert cli.store.needs_trust(cli.store.load()["project-pass"])
-
-    code, res = invoke(capsys, "check", "--project")
-    assert code == 0
-    assert "pass  project-pass" in res["out"].splitlines()

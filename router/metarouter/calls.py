@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from metarouter.log import home
+from metarouter.shield import mask
 
 LOCK_WAIT = 5.0
 LOCK_STALE = 10.0
@@ -78,6 +79,7 @@ def append(record):
     base = home()
     base.mkdir(parents=True, exist_ok=True)
     lock = base / "calls.jsonl.lock"
+    record = {k: mask(v)[0] if isinstance(v, str) else v for k, v in record.items()}
     line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8")
     fd, token = _lock(lock)
     try:
@@ -99,7 +101,7 @@ def record(lane, cmd, exit_code, secs, nbytes, log_path, recipe=None):
         "agent": agent(),
         "lane": lane,
         "recipe": recipe,
-        "shape": shape(cmd),
+        "shape": shape(mask(cmd)[0]),
         "exit": exit_code,
         "secs": secs,
         "bytes": nbytes,
@@ -107,12 +109,25 @@ def record(lane, cmd, exit_code, secs, nbytes, log_path, recipe=None):
     }
 
 
-def read():
+def tail_lines(path, n):
+    with open(path, "rb") as f:
+        pos = f.seek(0, 2)
+        data = b""
+        while pos > 0 and data.count(b"\n") <= n:
+            step = min(65536, pos)
+            pos -= step
+            f.seek(pos)
+            data = f.read(step) + data
+    return data.decode("utf-8", errors="replace").splitlines()[-n:]
+
+
+def read(tail=None):
+    """Every call row, or only the last `tail` rows read from the end of the file."""
     path = home() / "calls.jsonl"
     if not path.exists():
         return []
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in tail_lines(path, tail) if tail else path.read_text(encoding="utf-8").splitlines():
         try:
             rows.append(json.loads(line))
         except ValueError:

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { settings } from './settings.ts';
 
@@ -23,7 +22,6 @@ export interface GateReport {
   A02: Metric;
   A03: Metric;
   A04: Metric;
-  A05: Metric;
 }
 
 export interface GateOptions {
@@ -31,19 +29,17 @@ export interface GateOptions {
   until: Date;
   home: string;
   db: DatabaseSync | null;
-  toolrouter: string[] | null;
   askPaths?: unknown[];
 }
 
 type Counts = GateReport['counts'];
 type Rec = Record<string, unknown>;
 
-const TARGETS: Record<'A01' | 'A02' | 'A03' | 'A04' | 'A05', [string, (v: number) => boolean]> = {
+const TARGETS: Record<'A01' | 'A02' | 'A03' | 'A04', [string, (v: number) => boolean]> = {
   A01: ['>= 70', (v) => v >= 70],
   A02: ['< 1', (v) => v < 1],
   A03: ['< 3', (v) => v < 3],
   A04: ['< 0.5', (v) => v < 0.5],
-  A05: ['>= 20', (v) => v >= 20],
 };
 
 function metric(id: keyof typeof TARGETS, num: number | null, den: number | null, reason?: string): Metric {
@@ -151,25 +147,6 @@ function agyRun(file: string, c: Counts, ask: Ask): Run | null {
   return { start, asked, texts };
 }
 
-function toolrouterMetric(argv: string[] | null, since: Date, until: Date): Metric {
-  if (!argv) return metric('A05', null, null, 'toolrouter not found');
-  let stdout: string;
-  try {
-    stdout = execFileSync(argv[0], [...argv.slice(1), 'ingest', '--since', since.toISOString(), '--until', until.toISOString(), '--no-save', '--json'],
-      { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
-  } catch (e) {
-    const err = e as NodeJS.ErrnoException & { signal?: string; status?: number };
-    if (err.code === 'ENOENT' || err.status === 127) return metric('A05', null, null, 'toolrouter not found');
-    if (err.code === 'ETIMEDOUT' || err.signal) return metric('A05', null, null, 'toolrouter timed out');
-    return metric('A05', null, null, 'toolrouter failed');
-  }
-  let out: Rec;
-  try { out = JSON.parse(stdout.trim()); } catch { return metric('A05', null, null, 'toolrouter output invalid'); }
-  const shell = out?.shell_read_tokens, saved = out?.saved_tokens;
-  if (!out || out.ok !== true || typeof shell !== 'number' || typeof saved !== 'number') return metric('A05', null, null, 'toolrouter output invalid');
-  return metric('A05', saved, shell + saved);
-}
-
 type Ask = (text: string) => boolean;
 
 const slashes = (s: string) => s.toLowerCase().replace(/[\\/]+/g, '/');
@@ -255,7 +232,6 @@ export function measureGate(o: GateOptions): GateReport {
     A02: metric('A02', statusAsks, c.prompts),
     A03: metric('A03', smoke, c.engine_runs),
     A04: metric('A04', screenshots, c.prompts),
-    A05: toolrouterMetric(o.toolrouter, o.since, o.until),
   };
 }
 
@@ -274,8 +250,8 @@ export function parseGateDate(s: string): Date | null {
 export function formatGate(r: GateReport): string {
   const c = r.counts;
   const lines = [`window ${r.window.since} to ${r.window.until}  prompts ${c.prompts}  ask paths ${c.asked}  unclassified ${c.unclassified}  engine runs ${c.engine_runs}`];
-  const unit: Record<string, string> = { A01: '%', A02: ' per 100', A03: '%', A04: ' per 100', A05: '%' };
-  for (const id of ['A01', 'A02', 'A03', 'A04', 'A05'] as const) {
+  const unit: Record<string, string> = { A01: '%', A02: ' per 100', A03: '%', A04: ' per 100' };
+  for (const id of ['A01', 'A02', 'A03', 'A04'] as const) {
     const m = r[id];
     const label = `A-${id.slice(1)}`;
     lines.push(m.value === null
