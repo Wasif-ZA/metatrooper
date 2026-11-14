@@ -885,10 +885,11 @@ await new Promise(r => setTimeout(r, ${expected === 0 ? 750 : 200}));
       child.once('close', resolve);
     });
     assert.equal(code, 0, stderr || stdout);
+    // Each report is its own detached process, so arrival order can differ from send order under load; the core orders by seq.
     const reports = readdirSync(output)
       .filter((file) => file.startsWith('report-'))
-      .sort()
-      .map((file) => JSON.parse(readFileSync(join(output, file), 'utf8')) as Report);
+      .map((file) => JSON.parse(readFileSync(join(output, file), 'utf8')) as Report)
+      .sort((a, b) => a.payload.seq - b.payload.seq);
     assert.equal(reports.length, expected);
     return reports;
   } finally {
