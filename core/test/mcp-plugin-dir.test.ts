@@ -59,7 +59,6 @@ test('L0 mcp shim expands {{plugin_dir}} so a plugin server started by node from
     });
     const tool = JSON.parse(line).result.tools[0];
     assert.equal(tool.name, 'where');
-    assert.ok(!tool.description.startsWith(project), `script ran from the buyer project: ${tool.description}`);
-    assert.ok(tool.description.startsWith(join(isolated.home, 'plugins')), `script ran from the installed plugin folder: ${tool.description}`);
+    assert.equal(tool.description, join(source, 'bin', 'x.mjs'), 'a local-folder install runs the script from that folder, not the buyer project');
   } finally { await teardownCore(core, isolated); }
 });

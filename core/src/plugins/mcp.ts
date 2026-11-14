@@ -41,7 +41,7 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
     return out;
   }
   const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
-  const out: ResolvedServer = { command: server.command ?? '', args: server.args ?? [], env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
+  const out: ResolvedServer = { command: server.command ?? '', args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
   for (const key of server.env_keys ?? []) {
     if (!plugin.permissions.includes(`secrets:${key}`)) {
       out.missing.push(key);

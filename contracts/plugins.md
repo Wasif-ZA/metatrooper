@@ -112,7 +112,7 @@ any engine's config file.
 
 An `mcp` entry may also set `env`, literal non-secret values added to the server's environment (a key also in
 `env_keys` is refused). In `args`, the exact token `{{cwd}}` becomes the shim's working directory, which is the
-agent session's cwd; there is no other templating.
+agent session's cwd. Every `{{plugin_dir}}` occurrence within an arg becomes the installed plugin's folder.
 
 An `mcp` entry with `transport: "http"` has a `url` (https only) instead of a `command`. `auth` is `none`,
 `engine-oauth` (the engine runs the sign-in and keeps the token) or `header`. `headers` maps a header name to a
