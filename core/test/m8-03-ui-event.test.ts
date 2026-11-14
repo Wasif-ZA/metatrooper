@@ -88,6 +88,26 @@ test("a click on an exited session's surface becomes one needs_you row", async t
   assert.equal(h.inbox().length, 1);
 });
 
+for (const state of ['idle', 'done', 'working']) {
+  test(`a click on a ${state} hooks session is typed and submitted now, and marked so the prompt hook does not repeat it`, async t => {
+    const h = await harness(t, { engine: 'hooked', state, live: true });
+    assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: true });
+    const [n, ...rest] = h.notices();
+    assert.deepEqual(rest, []);
+    assert.equal(n.body, LINE);
+    assert.ok(n.prompt_at);
+    await until(async () => (await h.screen()).includes(LINE), 5000);
+    assert.equal((await h.screen()).split(LINE).length, 2);
+  });
+}
+
+test('a click on a hooks session waiting on a person is held for its next prompt, not typed', async t => {
+  const h = await harness(t, { engine: 'hooked', state: 'waiting_for_you', live: true });
+  assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: false });
+  assert.deepEqual(h.notices().map(n => ({ ...n })), [{ body: LINE, prompt_at: null }]);
+  assert.ok(!(await h.screen()).includes(LINE));
+});
+
 for (const [name, o] of [['an idle hooks session with no terminal', { engine: 'hooked', state: 'idle' }], ['an external hooks session', { engine: 'hooked', state: 'working', host: 'external' }]] as const) {
   test(`a click on ${name} becomes one needs_you row`, async t => {
     const h = await harness(t, o);

@@ -33,14 +33,14 @@ export async function syncDrawn() {
   }
 }
 
-const SAID = { session: 'sent to the agent', inbox: 'session ended; kept in Needs you' };
+const SAID = { session: 'sent to the agent', held: 'queued: the agent gets it with its next prompt', inbox: 'the session has ended or has no terminal; kept in Needs you' };
 const DROP = { stale: 'not sent: the agent redrew this screen', repeat: 'not sent: already sent' };
 
 /** Sends a click on a drawn screen to core with the seq the tab drew; the reply line shows under the tab bar. */
 async function send(t, e) {
   const out = await api.call('ui.event', { surface: t.id, seq: t.seq, event: e.event, context: e.context });
   const r = out.kind === 'reply' ? out.reply.result : null;
-  t.said = r ? (r.dropped ? DROP[r.dropped] : SAID[r.to]) || '' : `not sent: ${out.kind === 'reply' && out.reply.error ? out.reply.error.message : 'core is offline'}`;
+  t.said = r ? (r.dropped ? DROP[r.dropped] : SAID[r.to === 'session' && !r.typed ? 'held' : r.to]) || '' : `not sent: ${out.kind === 'reply' && out.reply.error ? out.reply.error.message : 'core is offline'}`;
   bump();
 }
 
