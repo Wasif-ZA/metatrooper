@@ -24,7 +24,7 @@ Source: {{SITE}}/
 # The apps you code in. One window. No sessions, just tasks.
  
 
-cc is a carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
+Carbon Copy (cc) rebuilds the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
  
 
 One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.
