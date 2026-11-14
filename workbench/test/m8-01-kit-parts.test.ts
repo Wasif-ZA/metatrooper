@@ -329,3 +329,21 @@ for (const name of names.filter(n => n !== 'chart' && n !== 'spark')) {
     assert.ok(html.replace(/<pre>[^]*?<\/pre>/g, '').includes(entry?.good ?? 'GOOD_ITEM'), html);
   });
 }
+
+
+test('field: required, disabled, invalid and error each render their state', () => {
+  const field = (x: any) => render({ type: 'field', label: 'PART_TEXT', kind: 'text', ...x });
+  const plain = field({});
+  for (const mark of ['aria-required', 'aria-disabled', 'aria-invalid', 'data-status="error"', 'astryx-field-status']) assert.ok(!plain.includes(mark), mark);
+  const required = field({ required: true });
+  assert.match(required, /aria-required="true"/);
+  assert.match(required, />Required</);
+  assert.match(field({ disabled: true }), /aria-disabled="true"[^>]*readOnly/);
+  const invalid = field({ invalid: true });
+  assert.match(invalid, /aria-invalid="true"/);
+  assert.match(invalid, /data-status="error"/);
+  assert.ok(!invalid.includes('astryx-field-status'));
+  const error = field({ error: 'ERROR_TEXT' });
+  assert.match(error, /aria-invalid="true"/);
+  assert.match(error, /class="astryx-field-status[^"]*" data-type="error"[^>]*>ERROR_TEXT</);
+});
