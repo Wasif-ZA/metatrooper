@@ -97,7 +97,7 @@ test('facet filters are OR within one group and AND across groups', () => {
   });
   const h = harness(Addons);
   const facetBox = (id: string) => h.one((n: any) => n.props['data-action'] === 'addon-facet' && n.props['data-id'] === id);
-  const shownIds = () => h.all((n: any) => n.type === 'article').map((n: any) => String(n.key).split(':')[1]);
+  const shownIds = () => h.all((n: any) => n.type === 'article' && n.key !== 'pro:cc-pro').map((n: any) => String(n.key).split(':')[1]);
 
   h.draw();
   assert.deepEqual(shownIds(), ['eng-bad', 'eng-on', 'plug-off', 'plug-on']);
@@ -289,4 +289,35 @@ test('Clear filters resets search and facets', () => {
   assert.match(clearedHtml, /alpha-plugin/);
   assert.equal(h.one((n: any) => n.props['data-action'] === 'addon-search').props.value, '');
   assert.equal(h.one((n: any) => n.props['data-action'] === 'addon-facet' && n.props['data-id'] === 'bad').props.value, false);
+});
+
+test('without cc Pro installed, Add-ons shows one cc Pro row whose button opens the Pro link', async () => {
+  const opened: string[] = [];
+  g.api.openLink = async (url: string) => { opened.push(url); return true; };
+  addonsStore.set({ rows: [{ id: 'other', enabled: true, permissions: [] }] });
+  const h = harness(Addons);
+  h.draw();
+  const row = h.one((n: any) => n.type === 'article' && n.key === 'pro:cc-pro');
+  assert.match(textContent(row.props.children), /cc Pro/);
+  assert.match(textContent(row.props.children), /Claude Code and Codex/);
+  const button = h.one((n: any) => n.props?.['data-action'] === 'pro-get');
+  assert.equal(button.props.label, 'Get cc Pro');
+  await button.props.onClick();
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0], screens.PRO_LINK);
+  assert.match(screens.PRO_LINK, /^https:\/\//);
+});
+
+test('the cc Pro row is gone once cc Pro is installed, and while filters or a search are on', () => {
+  addonsStore.set({ rows: [{ id: 'cc-pro', enabled: true, permissions: [] }] });
+  let h = harness(Addons);
+  h.draw();
+  assert.equal(h.all((n: any) => n.type === 'article' && n.key === 'pro:cc-pro').length, 0);
+  addonsStore.set({ rows: [] });
+  h = harness(Addons);
+  h.draw();
+  assert.equal(h.all((n: any) => n.type === 'article' && n.key === 'pro:cc-pro').length, 1);
+  h.one((n: any) => n.props?.['data-action'] === 'addon-search').props.onChange('zzz');
+  h.draw();
+  assert.equal(h.all((n: any) => n.type === 'article' && n.key === 'pro:cc-pro').length, 0);
 });
