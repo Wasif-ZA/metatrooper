@@ -164,7 +164,8 @@ test('UI-07: menu items and list rows take focus, arrows move between them, Ente
   w.ctx.ui.shellKinds = [{ kind: 'pwsh', label: 'pwsh' }];
   await w.ctx.onClick({ target: Object.assign(makeEl('', 'BUTTON'), { closest: (s: string) => (s === '[data-action]' ? { dataset: { action: 'launch-menu' }, closest: () => null, getBoundingClientRect: () => ({ right: 300, bottom: 20 }) } : null) }), stopPropagation() {} });
   const items = w.el('menu').innerHTML.match(/<div class="item"[^>]*>/g)!;
-  assert.equal(items.length, 2);
+  assert.equal(items.length, 3);
+  assert.match(items[0], /data-action="new-task"/);
   for (const i of items) assert.match(i, /role="menuitem" tabindex="-1"/);
   assert.match(w.ctx.rowHtml({ id: 's1', engine_id: 'claude', state: 'done', state_at: new Date().toISOString(), title: 't' }, true), /class="li srow sel" role="listitem" tabindex="0" aria-current="true"/);
   assert.match(src('style.css'), /\.alist \.li:focus-within \.hide \{ visibility: visible; \}|\.alist \.li:focus-within \.hide[,\s]/);

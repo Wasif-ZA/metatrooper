@@ -332,15 +332,8 @@ test('G6: Real app.js isInfo and needsCount exclude informational kinds and read
   g.ui.view = 'home';
   g.ui.projectId = 'p1';
   g.ui.snap.needs_you = ctx.ui.snap.needs_you;
-  g.needsCount = () => ctx.needsCount();
-
-  const h = harness(Home);
-  const html = h.html();
-  const tile = h.all((n: any) => n.type?.name === 'Tile').find((n: any) => n.props.label === 'Needs you');
-  assert.ok(tile, 'Needs you tile rendered');
-  assert.equal(tile.props.n, 0);
-  assert.equal(tile.props.sub, 'nothing waiting');
-  assert.doesNotMatch(html, /Waiting on you|waiting on an answer/);
+  assert.doesNotMatch(harness(Home).html(), /Needs you|Waiting on you|waiting on an answer/, 'the Needs you list left Home in 4aa9f055');
+  assert.match(appText, /const needs = needsCount\(\);[\s\S]{0,200}chip\.classList\.toggle\('zero', !needs\)/, 'the top-bar chip shows the count');
 
   ctx.ui.snap.needs_you.push({ id: 'lend-1', kind: 'other', ref: 'lend:p1 https://shop.example', read_at: null });
   assert.equal(ctx.needsCount(), 1);
