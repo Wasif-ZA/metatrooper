@@ -108,7 +108,7 @@ const wall = (() => {
     mode = nextMode;
     for (const [id, from, to] of pending) {
       const el = pane(id);
-      if (!el) continue;
+      if (!el || el.dataset.lent) continue;
       const anim = placed && from !== null;
       setBadge(id, anim);
       el.classList.toggle('attn', to === 'waiting_for_you');
@@ -182,7 +182,7 @@ const wall = (() => {
     document.body.classList.toggle('paired', BIG.length > 1 && mode !== 'grid');
     for (const id of Object.keys(S)) {
       const el = pane(id), r = R[id];
-      if (!el) continue;
+      if (!el || el.dataset.lent) continue;
       el.hidden = !r;
       const mx = el.querySelector('.mx');
       if (mx) {

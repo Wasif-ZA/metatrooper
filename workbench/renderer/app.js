@@ -24,7 +24,7 @@ const ui = {
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: load('split') === '1',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
-  view: ['home', 'ide', 'inbox', 'addons'].includes(load('view')) ? load('view') : 'wall',
+  view: ['wall', 'home', 'ide', 'inbox', 'addons'].includes(load('view')) ? load('view') : 'home',
   localSel: null,
   shells: [],
   shellKinds: [],

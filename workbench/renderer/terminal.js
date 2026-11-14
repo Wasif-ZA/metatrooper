@@ -20,6 +20,7 @@ const termView = (() => {
   const troop = window.troop;
   const centre = document.getElementById('centre');
   const terms = new Map();
+  let lent = null;
   let look = { terminal: { scrollback: 10000, font_size: 13 }, theme: {} };
   let mode = 'single';
   let selected = null;
@@ -309,15 +310,32 @@ const termView = (() => {
     onExit = next.onExit || onExit;
     onOutput = next.onOutput || onOutput;
     const keep = new Set(next.sessions.map((x) => x.id));
-    for (const id of [...terms.keys()]) if (!keep.has(id)) drop(id);
+    for (const id of [...terms.keys()]) if (!keep.has(id) && id !== lent) drop(id);
     centre.classList.toggle('grid', mode === 'grid');
     centre.dataset.count = String(next.sessions.length);
     for (const x of next.sessions) {
       const t = terms.get(x.id) || create(x.id);
       label(t, x);
-      if (t.el.parentNode !== centre) { t.el.dataset.fresh = '1'; centre.append(t.el); }
+      if (x.id !== lent && t.el.parentNode !== centre) { t.el.dataset.fresh = '1'; centre.append(t.el); }
     }
     if (next.focus) terms.get(selected)?.term.focus();
+  }
+
+  function lend(id, host) {
+    if (lent && (lent !== id || !host)) {
+      const t = terms.get(lent);
+      if (t) { delete t.el.dataset.lent; delete t.el._r; centre.append(t.el); }
+      lent = null;
+    }
+    if (!id || !host) return;
+    const t = terms.get(id) || create(id);
+    lent = id;
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(t.el);
+    t.el.dataset.lent = 'true';
+    t.el.hidden = false;
+    for (const prop of ['left', 'top', 'width', 'height', 'opacity', 'transform']) t.el.style.removeProperty(prop);
+    t.el.classList.remove('fold');
+    host.append(t.el);
   }
 
   function tile(id) {
@@ -395,5 +413,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, reveal, tile, links: linksFor, findLocalLinks, ids: () => [...terms.keys()] };
+  return { show, lend, setLook, type, state, timeEcho, reveal, tile, links: linksFor, findLocalLinks, ids: () => [...terms.keys()] };
 })();
