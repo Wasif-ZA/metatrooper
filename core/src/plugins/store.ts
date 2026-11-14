@@ -43,7 +43,7 @@ export function pluginsDir(): string {
 }
 
 function isGitUrl(s: string): boolean {
-  return /^(https?:\/\/|ssh:\/\/|git@|git:\/\/)/.test(s) || /\.git$/.test(s);
+  return /^(https?:\/\/|ssh:\/\/|git@|git:\/\/|file:\/\/)/.test(s) || /\.git$/.test(s);
 }
 
 interface Prepared {
