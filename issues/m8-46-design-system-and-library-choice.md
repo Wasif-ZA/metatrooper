@@ -79,8 +79,8 @@ Contrast working, for `--t3 #858585`:
 - [ ] M8-46c. Every text token meets 4.5:1 on every surface it is used on.
 - [ ] M8-46d. Orange appears only for a person being needed, checked over every screen.
 - [ ] M8-46e. The library choice and each exception are in the `spec.md` D-list, with stars, licence and last push.
-  Status: PARTIAL. D84 picks @astryxdesign/core (MIT, 27,726 stars, last push 2026-11-14) and recharts 3.10.1 (MIT, 27,709 stars). The library rows in this issue (shadcn, Radix, cmdk and the rest) and their exceptions have no D-row; with astryx chosen, most may no longer apply. His call.
-  Verify: `Select-String spec.md -Pattern 'Gate for @astryxdesign/core'` finds D84; each library still in use has its own D-row.
+  Status: DONE. D84 records @astryxdesign/core (MIT, 27,726 stars, last push 2026-11-14) and recharts 3.10.1 (MIT, 27,709 stars). D86 drops the shadcn/ui, Radix and cmdk exception rows; astryx covers the components.
+  Verify: `Select-String spec.md -Pattern 'Gate for @astryxdesign/core','^\| D86 \|'` finds both rows.
 - [x] M8-46f. Every drawn catalogue part passes the kit tests in `core/test/m8-01-kit-check.test.ts`, `workbench/test/m8-01-kit-draw.test.ts` and `workbench/test/m8-01-kit-parts.test.ts`. (was: the 17 parts in parts-next.js pass check.mjs and validate.mjs)
   Status: DONE. All but `gate`, `tile` and `use` are drawn.
   Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-check.test.ts`, then `cd workbench; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-draw.test.ts test/m8-01-kit-parts.test.ts`.
