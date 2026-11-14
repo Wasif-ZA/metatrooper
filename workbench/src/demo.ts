@@ -2,7 +2,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import electron from 'electron';
 import { demoProblem } from '../../core/src/paths.ts';
+
+const { app } = typeof electron === 'string' ? { app: { isPackaged: false } } : electron;
+const NODE = app.isPackaged ? path.join(process.resourcesPath, 'node', 'node.exe') : 'node';
 
 export const DEMO_TITLE = 'cc (demo)';
 /** The demo registers its own take-over key, so it never collides with a real workbench holding the default one. */
@@ -39,7 +43,7 @@ export function removeWhenGone(dir: string, pids: number[]): void {
   const script = `const fs=require('fs');const pids=${JSON.stringify(pids)};const dir=${JSON.stringify(dir)};`
     + `const alive=(p)=>{try{process.kill(p,0);return true}catch(e){return e.code==='EPERM'}};`
     + `setInterval(()=>{if(pids.some(alive))return;try{fs.rmSync(dir,{recursive:true,force:true});process.exit(0)}catch{}},250);setTimeout(()=>process.exit(1),120000);`;
-  spawn('node', ['-e', script], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`demo home not removed: ${e.message}`)).unref();
+  spawn(NODE, ['-e', script], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`demo home not removed: ${e.message}`)).unref();
 }
 
 export const demo = process.argv.includes('--demo');

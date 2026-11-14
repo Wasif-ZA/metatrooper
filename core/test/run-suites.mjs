@@ -23,7 +23,7 @@ for (const [file, name] of TIMING) {
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const pattern = `^(${TIMING.map(([, name]) => escape(name)).join('|')})`;
 const files = [...new Set(TIMING.map(([file]) => file))];
-const run = (args) => spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...args], { stdio: 'inherit' }).status ?? 1;
+const run = (args) => spawnSync(process.execPath, ['--import=./test/clean-env.mjs', '--test', '--test-timeout=120000', ...args], { stdio: 'inherit' }).status ?? 1;
 
 const parallel = () => run([`--test-skip-pattern=${pattern}`, 'test/*.test.ts']);
 const timing = () => run(['--test-concurrency=1', `--test-name-pattern=${pattern}`, ...files]);
