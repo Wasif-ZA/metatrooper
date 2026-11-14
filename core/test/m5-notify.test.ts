@@ -100,7 +100,7 @@ test('M5-15a/b new gate sends one redacted POST with the stable needs-you link',
     try {
       const c = await client(prefix);
       await uiHello(c, home);
-      const sink = await c.request('notify.sink.set', { id: 'fake-hook', kind: 'webhook', name: 'fixture webhook', dest: received.url, kinds: ['gate'] });
+      const sink = await c.request('notify.sink.set', { id: 'fake-hook', kind: 'webhook', name: 'fixture webhook', dest: received.url, kinds: ['gate'] }, { timeout: 15_000 });
       assert.deepEqual(sink.result, { id: 'fake-hook' });
       const id = '01J9FAKEGATE000000000000001';
       const actionArgs = 'FAKE_ACTION_ARGS_DO_NOT_SEND';
@@ -124,7 +124,7 @@ test('M5-15a/b new gate sends one redacted POST with the stable needs-you link',
 test('M5-15c notify.sink.set requires ui.hello', async () => {
   await withCore(async (_home, prefix) => {
     const c = await client(prefix);
-    const response = await c.request('notify.sink.set', { kind: 'webhook', name: 'fixture', dest: 'http://127.0.0.1:43210/fake', kinds: ['gate'] });
+    const response = await c.request('notify.sink.set', { kind: 'webhook', name: 'fixture', dest: 'http://127.0.0.1:43210/fake', kinds: ['gate'] }, { timeout: 15_000 });
     assert.equal(response.error?.code, -32012);
     assert.match(response.error?.message ?? '', /needs a trusted UI connection \(ui\.hello\)/);
     c.close();
@@ -137,7 +137,7 @@ test('M5-15d webhook secret is absent from database, logs and home files except 
     try {
       const c = await client(prefix);
       await uiHello(c, home);
-      await c.request('notify.sink.set', { id: 'storage-hook', kind: 'webhook', name: 'fixture', dest: received.url, kinds: ['gate'] });
+      await c.request('notify.sink.set', { id: 'storage-hook', kind: 'webhook', name: 'fixture', dest: received.url, kinds: ['gate'] }, { timeout: 15_000 });
       const dbContents = readFileSync(join(home, 'troop.db'));
       assert.equal(dbContents.includes(Buffer.from(received.url)), false);
       const hits: string[] = [];
@@ -167,7 +167,7 @@ test('M5-15e queued rows survive a core restart and are delivered exactly once',
   try {
     const c = await client(isolated.prefix);
     await uiHello(c, isolated.home);
-    await c.request('notify.sink.set', { id: 'restart-hook', kind: 'webhook', name: 'restart fixture', dest: received.url, kinds: ['gate'] });
+    await c.request('notify.sink.set', { id: 'restart-hook', kind: 'webhook', name: 'restart fixture', dest: received.url, kinds: ['gate'] }, { timeout: 15_000 });
     c.close();
     const id = '01J9FAKERESTART000000000001';
     insertGate(join(isolated.home, 'troop.db'), id, 'queued before restart');
