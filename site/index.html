@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cc IDE: run Claude Code, Codex and Gemini agents side by side</title>
-<meta name="description" content="Run Claude Code, Codex and Gemini CLI side by side in a free, open-source Windows IDE. Agents use browsers and apps with your approval. Local, no account.">
+<title>cc: your editor, terminals, inbox and browser as one app for coding agents</title>
+<meta name="description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <link rel="canonical" href="{{SITE}}/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="cc">
-<meta property="og:title" content="cc IDE: run Claude Code, Codex and Gemini agents side by side">
-<meta property="og:description" content="Run Claude Code, Codex and Gemini CLI side by side in a free, open-source Windows IDE. Agents use browsers and apps with your approval. Local, no account.">
+<meta property="og:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
+<meta property="og:description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <meta property="og:url" content="{{SITE}}/">
 <meta property="og:image" content="{{SITE}}/og.png">
 <meta property="og:image:width" content="1384">
 <meta property="og:image:height" content="900">
-<meta property="og:image:alt" content="cc: a Windows IDE for running coding agents side by side">
+<meta property="og:image:alt" content="cc: an editor, terminal wall, inbox and browser in one window, with coding agents built in">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="cc IDE: run Claude Code, Codex and Gemini agents side by side">
-<meta name="twitter:description" content="Run Claude Code, Codex and Gemini CLI side by side in a free, open-source Windows IDE. Agents use browsers and apps with your approval. Local, no account.">
+<meta name="twitter:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
+<meta name="twitter:description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <meta name="twitter:image" content="{{SITE}}/og.png">
 <script type="application/ld+json">
 {
@@ -34,7 +34,7 @@
       ],
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "description": "A free, open-source Windows desktop IDE that runs seven coding-agent CLIs, including Claude Code, Codex and Gemini CLI, side by side in terminals owned by a background core. A wall shows every agent and moves the one waiting for you to the big slot. Agents can drive browser panes and Windows app windows you give them, with approval for risky actions. Local only, no account, no telemetry. Pre-release, installs from source and requires Node 24.16 or newer.",
+      "description": "A carbon copy of the apps developers already use, a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs seven coding-agent CLIs, including Claude Code, Codex and Gemini CLI, side by side in terminals owned by a background core. A wall shows every agent and moves the one waiting for you to the big slot. Agents can drive browser panes and Windows app windows you give them, with approval for risky actions. Local only, no account, no telemetry. Pre-release, installs from source and requires Node 24.16 or newer.",
       "url": "{{SITE}}/",
       "sameAs": "https://github.com/Wasif-ZA/metatrooper",
       "license": "https://www.gnu.org/licenses/agpl-3.0.html",
@@ -171,25 +171,35 @@ footer p{margin:0;max-width:60ch}
 <div class="w">
 <header class="top">
  <a class="brand" href="#">cc</a>
- <nav><a href="#parts">Four parts</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
+ <nav><a href="#screens">Screens</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
 </header>
 
 <div class="hero">
- <h1>Your agents.<br><span>One wall.</span></h1>
- <p>Run Claude Code, Codex and Gemini side by side, each in a terminal that keeps going. The one that needs you comes to you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.</p>
+ <h1>The apps you code in.<br><span>One window. Agents built in.</span></h1>
+ <p>cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app. Run Claude Code, Codex and Gemini side by side and answer, review and steer them all without switching windows.</p>
  <ul class="facts"><li>Windows first, Linux beta</li><li>Local, on your machine</li><li>No account, no telemetry</li></ul>
  <div class="install"><span id="cmd">git clone https://github.com/Wasif-ZA/metatrooper</span><button class="t" id="copy" type="button">Copy</button></div>
  <a class="btn" href="#start">Get started</a><a class="btn ghost" href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a>
 </div>
 
-<section id="parts">
- <h2>Four parts</h2>
- <p class="sub">Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.</p>
+<section id="screens">
+ <h2>Screens you already know</h2>
+ <p class="sub">Each screen is a close copy of an app you use today, with the agents built in. Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.</p>
  <div class="grid4">
-  <div class="card"><b>1</b><h3>The wall</h3><p>Every agent is a live terminal tile. The one waiting for you comes to the big slot.</p></div>
-  <div class="card"><b>2</b><h3>Browser use</h3><p>Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.</p></div>
-  <div class="card"><b>3</b><h3>Computer use</h3><p>On Windows, agents act on the app windows you give them. One key takes over.</p></div>
-  <div class="card"><b>4</b><h3>Core services</h3><p>A background service owns the terminals. Sessions come back after a restart.</p></div>
+  <div class="card"><b>IDE</b><h3>A VS Code style editor</h3><p>File tree, tabs, search, source control and a terminal. Comment on a diff line and it goes to that agent.</p></div>
+  <div class="card"><b>Wall</b><h3>A grid of terminals</h3><p>Every agent is a live tile. The one waiting for you comes to the big slot.</p></div>
+  <div class="card"><b>Needs you</b><h3>An inbox</h3><p>Every question and approval waiting on you, laid out like an issue tracker. Answer from there.</p></div>
+  <div class="card"><b>Home</b><h3>A chat box and task list</h3><p>Start a task, then follow it and its subagents in one list.</p></div>
+ </div>
+</section>
+
+<section id="parts">
+ <h2>Built in around them</h2>
+ <div class="grid4">
+  <div class="card"><b>1</b><h3>Browser use</h3><p>Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.</p></div>
+  <div class="card"><b>2</b><h3>Computer use</h3><p>On Windows, agents act on the app windows you give them. One key takes over.</p></div>
+  <div class="card"><b>3</b><h3>Core services</h3><p>A background service owns the terminals. Sessions come back after a restart.</p></div>
+  <div class="card"><b>4</b><h3>Add-ons</h3><p>The agents cc found and the plugins you installed, each with its permissions.</p></div>
  </div>
 </section>
 
@@ -286,7 +296,7 @@ npm run dev</code></pre>
  <details><summary>What does it change on my machine?</summary><p>State lives in <code>~/.metatrooper/</code>. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.</p></details>
  <details><summary>Can an agent approve its own actions?</summary><p>No. Only the window can approve, through a key agents are not given.</p></details>
  <details><summary>What is the licence?</summary><p>The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.</p></details>
- <p class="note">Longer answers: <a href="answers/run-several-claude-code-sessions.html">running several Claude Code sessions at once</a>, <a href="answers/know-which-agent-needs-you.html">knowing which agent is waiting</a>, <a href="answers/check-agent-tests-catch-bugs.html">checking an agent's tests catch bugs</a>, <a href="answers/cc-vs-plain-terminals.html">cc vs plain terminals</a>.</p>
+ <p class="note">Longer answers: <a href="answers/control-many-coding-agents-in-one-place.html">controlling many coding agents from one place</a>, <a href="answers/cc-vs-plain-terminals.html">cc vs plain terminals</a>, <a href="answers/run-several-claude-code-sessions.html">running several Claude Code sessions at once</a>, <a href="answers/know-which-agent-needs-you.html">knowing which agent is waiting</a>. Paid add-on: <a href="answers/check-agent-tests-catch-bugs.html">checking an agent's tests catch bugs</a>.</p>
 </section>
 
 <section id="release">

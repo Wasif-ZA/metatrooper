@@ -1,8 +1,8 @@
 <p align="center">
-  <strong>cc is a free, open-source Windows IDE that runs Claude Code, Codex, Gemini CLI and other coding agents
-  side by side, and shows you which one is waiting for you.</strong><br>
-  Each agent runs in a terminal that keeps going when the window closes. Agents can drive a browser and your Windows
-  apps, and anything risky stops for you first.
+  <strong>cc is a carbon copy of the apps you already code in, an editor, a terminal wall, an inbox and a browser,
+  rebuilt as one Windows app with your agents built in.</strong><br>
+  Run Claude Code, Codex, Gemini CLI and other coding agents side by side, and answer, review and steer them all from
+  one window. Free and open source.
 </p>
 
 <p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
@@ -36,22 +36,22 @@
 
 ## What it is
 
-You run three agents in three terminals. You lose track of which one is waiting on you. You paste screenshots back
-and forth so an agent can see what it built. cc puts every agent in a terminal it owns and shows you which one needs
-you. Around them sits an editor, so you can read and change what they wrote without leaving the window.
+You run three agents in three terminals, with an editor, a browser and your notes in more windows again. You lose
+track of which one is waiting on you. cc rebuilds those apps as one window, each a close copy of a screen you
+already know, with the agents built in. You never leave it to read, answer or steer an agent.
 
 The window has these screens:
 
-| Screen | What it does |
-|---|---|
-| **Home** | Your projects, their worktrees and their agents in one tree, with each agent's current steps. Start a task from here. |
-| **IDE** | A file tree, tabs, a code editor, search, source control, Problems and a terminal. Files an agent changed are marked. |
-| **Wall** | Every agent as a live terminal tile. The one waiting for you comes to the big slot. |
-| **Needs you** | Every question, approval and finished run that waits on you, with filters and labels. |
-| **Add-ons** | The agents cc found and the plugins you installed, each with its permissions. |
-| **Settings** | Approvals, notifications, the take-over key and the rest. Automations live here too. |
+| Screen | Looks like | What the agents do there |
+|---|---|---|
+| **Home** | A chat app with a task list | You start a task from a chat box. Each task shows its agents, subagents and current steps. |
+| **IDE** | A VS Code style editor: file tree, tabs, search, source control, Problems and a terminal | Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message. |
+| **Wall** | A grid of terminals | Every agent is a live terminal tile. The one waiting for you comes to the big slot. Its diff, git and browser open beside it. |
+| **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
+| **Add-ons** | A list of extensions | The agents cc found and the plugins you installed, each with its permissions. |
+| **Settings** | A settings page | Approvals, notifications, the take-over key and the rest. Automations live here too. |
 
-It also has four parts under the screens:
+Built in around the screens:
 
 | Part | What it does |
 |---|---|
@@ -319,6 +319,21 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 - **Some IDE parts are not built.** The UI marks them "Not built yet".
 
 ## FAQ
+
+**What is cc?**
+A carbon copy of the apps you already code in, rebuilt as one Windows app with coding agents built in: a VS Code
+style editor, a wall of terminal tiles, an inbox of what waits on you, and browser panes agents drive. It is not a
+plugin for another editor; it is its own window.
+
+**How do I control many coding agents from one place?**
+Run each in cc. Every agent is a tile on the Wall, every question and approval lands in Needs you, and every change
+shows in the IDE with the files that agent touched. You answer, review and steer from one window instead of a stack of
+terminals and editors.
+
+**Why not just use my editor and a few terminals?**
+You can, and cc runs the same official CLIs. What you get on top: one place that shows which agent is waiting,
+terminals that keep running when the window closes, diff comments that go straight to the agent, and approvals for
+risky browser actions. The [cc vs plain terminals](site/answers/cc-vs-plain-terminals.html) page has the full list.
 
 **How do I run several Claude Code sessions at once?**
 Give each session its own git worktree so no two edit the same files, and run each in its own terminal. In cc,

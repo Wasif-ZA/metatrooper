@@ -16,13 +16,14 @@
 <header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
 
 <h1>Should I use cc or just run my agents in terminals?</h1>
-<p class="answer">For one or two agents, plain terminals are enough. Use cc when you run three or more agents and lose track of which one is waiting. It also fits when you want agents to use a browser or Windows apps with approvals.</p>
+<p class="answer">For one or two agents, plain terminals are enough. Use cc when you run three or more agents and want them, your editor, your inbox of questions and a browser in one window instead of many. It also fits when you want agents to use a browser or Windows apps with approvals.</p>
 
 <table>
 <thead><tr><th></th><th>Plain terminals</th><th>cc</th></tr></thead>
 <tbody>
 <tr><td>Cost</td><td>Free</td><td>Free and open source (AGPL-3.0 core)</td></tr>
 <tr><td>Platforms</td><td>Any</td><td>Windows 10 and 11 first. Pre-release, installs from source.</td></tr>
+<tr><td>Windows to juggle</td><td>An editor, one terminal per agent, a browser, your notes</td><td>One: a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, with the agents built in</td></tr>
 <tr><td>Which agent is waiting</td><td>Check each terminal, or set up hooks yourself</td><td>The waiting tile moves to the big slot; Alt+J jumps to it</td></tr>
 <tr><td>Close the window</td><td>Sessions end, unless you run them in tmux, zellij or similar</td><td>A background service owns the terminals; agents keep working</td></tr>
 <tr><td>After a restart</td><td>Resume each one by hand, for example <code>claude --resume</code></td><td>Live sessions resume, at most 3 at a time</td></tr>

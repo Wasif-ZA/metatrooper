@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How do I control many coding agents from one place? | cc IDE</title>
+<meta name="description" content="Running Claude Code, Codex and Gemini at once means an editor, many terminals and a browser in separate windows. cc rebuilds those as one Windows app with the agents built in.">
+<link rel="canonical" href="{{SITE}}/answers/control-many-coding-agents-in-one-place.html">
+<link rel="stylesheet" href="a.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How do I control many coding agents from one place?","description":"Put your editor, one terminal per agent, an inbox of what is waiting on you and a browser in one window. cc rebuilds those apps as one Windows app with coding agents built in.","about":["Claude Code","Codex","Gemini CLI"]}
+</script>
+</head>
+<body>
+<div class="w">
+<header><a class="brand" href="../">cc</a><a href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a></header>
+
+<h1>How do I control many coding agents from one place?</h1>
+<p class="answer">Put everything an agent needs from you in one window: its terminal, its changes, its questions and the browser it uses. cc does that. It is a carbon copy of the apps you already code in, an editor, a terminal wall, an inbox and a browser, rebuilt as one Windows app with your agents built in.</p>
+
+<h2>What you juggle without it</h2>
+<ul>
+<li>An editor to read what each agent changed.</li>
+<li>One terminal per agent, and no sign of which one is waiting.</li>
+<li>A browser to check what an agent built, and screenshots pasted back to it.</li>
+<li>Notes on which agent is doing what.</li>
+</ul>
+
+<h2>The same apps, one window</h2>
+<table>
+<thead><tr><th>Screen</th><th>Looks like</th><th>What the agents do there</th></tr></thead>
+<tbody>
+<tr><td>Home</td><td>A chat app with a task list</td><td>Start a task from a chat box. Each task shows its agents, subagents and steps.</td></tr>
+<tr><td>IDE</td><td>A VS Code style editor</td><td>Files an agent changed are marked. A comment on a diff line goes to that agent as your next message.</td></tr>
+<tr><td>Wall</td><td>A grid of terminals</td><td>Every agent is a live tile. The one waiting for you moves to the big slot. Its diff, git and browser open beside it.</td></tr>
+<tr><td>Needs you</td><td>An inbox laid out like an issue tracker</td><td>Every question and approval waiting on you, with filters and labels. You answer from here.</td></tr>
+</tbody>
+</table>
+
+<h2>What is built in around them</h2>
+<ul>
+<li>A background service owns every terminal, so closing the window does not stop the agents. After a restart, live sessions resume, at most 3 at a time.</li>
+<li>Agents can drive browser panes in the app. Password fields, new sites and Send or Delete buttons stop for your approval, and only the window can approve.</li>
+<li>Ctrl+K searches sessions, commands and the text in every live terminal.</li>
+<li>It runs 7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads their login tokens.</li>
+</ul>
+
+<p class="mut">cc is free, open source (AGPL-3.0 core) and pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. No account, no telemetry. Steps: <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">Quickstart</a>.</p>
+
+<footer>cc runs the official CLIs you install and sign in to yourself. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft. <a href="../">Home</a></footer>
+</div>
+</body>
+</html>

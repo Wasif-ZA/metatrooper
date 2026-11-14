@@ -1,15 +1,16 @@
 # cc
 
-> cc is a free, open-source Windows desktop IDE that runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns. One wall shows every agent and moves the one waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
+> cc is a carbon copy of the apps developers already code in, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
 
-Proof is the one paid part: a plugin, A$19 a month, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
+Proof is the one paid add-on: a plugin, A$19 a month, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
 
 ## Answers
 
-- [How to run several Claude Code sessions at once]({{SITE}}/answers/run-several-claude-code-sessions.html): one git worktree per session, each in its own terminal.
-- [How to check whether an agent's tests catch bugs]({{SITE}}/answers/check-agent-tests-catch-bugs.html): mutation testing by hand, and with Proof.
-- [How to know which coding agent is waiting for you]({{SITE}}/answers/know-which-agent-needs-you.html): hooks, notify, and the cc wall.
+- [How to control many coding agents from one place]({{SITE}}/answers/control-many-coding-agents-in-one-place.html): the editor, terminals, inbox and browser as one window, with agents built in.
 - [cc vs plain terminals]({{SITE}}/answers/cc-vs-plain-terminals.html): when terminals are enough and when cc helps.
+- [How to run several Claude Code sessions at once]({{SITE}}/answers/run-several-claude-code-sessions.html): one git worktree per session, each in its own terminal.
+- [How to know which coding agent is waiting for you]({{SITE}}/answers/know-which-agent-needs-you.html): hooks, notify, and the cc wall.
+- [How to check whether an agent's tests catch bugs]({{SITE}}/answers/check-agent-tests-catch-bugs.html): mutation testing by hand, and with the Proof add-on.
 
 ## Docs
 
@@ -20,93 +21,158 @@ Proof is the one paid part: a plugin, A$19 a month, that checks whether an agent
 ---
 Source: {{SITE}}/
 
-# Your agents.One wall.
+# The apps you code in. One window. Agents built in.
+ 
 
-Run Claude Code, Codex and Gemini side by side, each in a terminal that keeps going. The one that needs you comes to you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
-
+cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app. Run Claude Code, Codex and Gemini side by side and answer, review and steer them all without switching windows.
+ 
 - Windows first, Linux beta
 - Local, on your machine
 - No account, no telemetry
  git clone https://github.com/Wasif-ZA/metatrooper
  Get startedSource on GitHub
 
-## Four parts
+ 
 
-Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.
+## Screens you already know
+ 
 
+Each screen is a close copy of an app you use today, with the agents built in. Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.
+ 
+  IDE
+### A VS Code style editor
+
+File tree, tabs, search, source control and a terminal. Comment on a diff line and it goes to that agent.
+  Wall
+### A grid of terminals
+
+Every agent is a live tile. The one waiting for you comes to the big slot.
+  Needs you
+### An inbox
+
+Every question and approval waiting on you, laid out like an issue tracker. Answer from there.
+  Home
+### A chat box and task list
+
+Start a task, then follow it and its subagents in one list.
+ 
+
+ 
+
+## Built in around them
+ 
   1
-The wall
-Every agent is a live terminal tile. The one waiting for you comes to the big slot.
-  2
-Browser use
-Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.
-  3
-Computer use
-On Windows, agents act on the app windows you give them. One key takes over.
-  4
-Core services
-A background service owns the terminals. Sessions come back after a restart.
+### Browser use
 
+Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.
+  2
+### Computer use
+
+On Windows, agents act on the app windows you give them. One key takes over.
+  3
+### Core services
+
+A background service owns the terminals. Sessions come back after a restart.
+  4
+### Add-ons
+
+The agents cc found and the plugins you installed, each with its permissions.
+ 
+
+ 
+  
    Needs you
+   
 
 ## The one that needs you comes to you.
-
+   
+    
 - True status. Working, waiting for you, done or exited, read from each agent's own hooks. A waiting tile says why.
-
+    
 - No stolen keys. A waiting tile holds back for 3 s while you type in the big one.
-
+    
 - Alt keys. Alt+J jumps to the longest wait. Your terminal keeps every Ctrl key.
-
+    
 - Ctrl+K. One search over sessions, commands and the text in every terminal.
-
+    
 - Per tile. Cost, context fill, changed files, and a preview chip for its dev server.
+   
+  
+ 
+
+ 
+  
+   
 
 ## A browser your agents drive, with you in charge.
-
+   
+    
 - Approvals. Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.
-
+    
 - Origins. The first input on a new site asks first. List trusted sites in browser.allow_origins in ~/.metatrooper/settings.json. A project's own config cannot add to it, since an agent can write that file.
-
+    
 - Secrets. An agent types {{secret:NAME}} into a password field on the saved site. It never sees the value.
-
+    
 - Handoff. An agent can hand you the pane to sign in, then you give it back.
-
+    
 - Its own cursor. Each agent's cursor glides to what it clicks, in its tile's colour. Your pointer never moves.
+   
+  
+ 
+
+ 
+  
+   
 
 ## Your Windows apps, only the ones you give.
-
+   
+    
 - Grants. Pick Give window on a tile. The agent acts on that window and its own dialogs, nothing else.
-
+    
 - Built in. It uses Windows UI Automation. Nothing extra is installed.
-
+    
 - Take-over. Ctrl+Alt+Q pauses every agent's input, desktop and browser.
-
+    
 - Watcher. Input from another program, or a change while you are away, pauses the agents and tells you.
-
+    
 - Refused. The cc window, admin windows and the secure desktop can never be given.
+   
+  
+ 
+
+ 
 
 ## Core services
+ 
 
 The parts you notice only when they are missing.
-
+ 
+  
 - Terminals that surviveClose or crash the window and every agent keeps working.
-
+  
 - Sessions come backAfter a restart, live sessions resume in the same layout, at most 3 at a time.
-
+  
 - Ports and previewsA dev server an agent starts gets an Open preview chip. Agent panes reach only their own ports.
-
+  
 - Quiet notificationsNo toast for the tile you are looking at. Optional ntfy, Slack, Discord, Teams or webhook.
-
+  
 - Limits that carry onA Claude session that hit its limit continues when the limit resets.
-
+  
 - Public APIA named pipe with JSON-RPC and stable, versioned methods. No TCP port.
+ 
+
+ 
 
 ## Works with
+ 
 
 Any interactive CLI agent an engine file describes. Built in, among others.
  Claude CodeCodex CLIGemini CLIAntigravity CLI (agy)opencodeMCP servers and plugins
 
+ 
+
 ## Get started
+ 
 
 There is no installer yet. You run it from a clone. You need Node 24.16 or newer and at least one agent CLI signed in.
 
@@ -114,69 +180,133 @@ git clone https://github.com/Wasif-ZA/metatrooper
 cd metatrooper/core && npm ci
 cd ../workbench && npm ci
 npm run dev
+ 
 
 The window starts the core service for you. Linux steps and every command are in the README.
 
+ 
+
 ## Limits, stated plainly
-
+ 
+  
 - Windows first. Linux is a beta from source, without computer use. macOS is not supported.
-
+  
 - No installer or auto-update yet. You update with git pull.
-
+  
 - Not a guard against hostile programs. Grants and approvals cover cc's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.
-
+  
 - Take-over is close to instant. A key already posted to an app may land just after the pause.
-
+  
 - No sandbox for agents' code yet. Agents use your machine with your permissions.
+ 
+
+ 
 
 ## Questions
+ 
 
 What leaves my machine?
+
 The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.
+ 
 
 Do I need an account or API keys?
+
 No. Install and sign in to the official CLIs yourself. cc runs them and never reads their login tokens.
+ 
 
 What does it change on my machine?
+
 State lives in ~/.metatrooper/. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.
+ 
 
 Can an agent approve its own actions?
+
 No. Only the window can approve, through a key agents are not given.
+ 
 
 What is the licence?
-The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.
 
-Longer answers: running several Claude Code sessions at once, knowing which agent is waiting, checking an agent's tests catch bugs, cc vs plain terminals.
+The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.
+ 
+
+Longer answers: controlling many coding agents from one place, cc vs plain terminals, running several Claude Code sessions at once, knowing which agent is waiting. Paid add-on: checking an agent's tests catch bugs.
+
+ 
 
 ## Hear about the first release.
+
 On GitHub, choose Watch, then Custom, then Releases. You hear once, when the first release is tagged.Watch releases on GitHub
+
+---
+Source: {{SITE}}/answers/control-many-coding-agents-in-one-place.html
+
+# How do I control many coding agents from one place?
+
+Put everything an agent needs from you in one window: its terminal, its changes, its questions and the browser it uses. cc does that. It is a carbon copy of the apps you already code in, an editor, a terminal wall, an inbox and a browser, rebuilt as one Windows app with your agents built in.
+
+## What you juggle without it
+
+- An editor to read what each agent changed.
+
+- One terminal per agent, and no sign of which one is waiting.
+
+- A browser to check what an agent built, and screenshots pasted back to it.
+
+- Notes on which agent is doing what.
+
+## The same apps, one window
+
+ | Screen | Looks like | What the agents do there
+
+ | Home | A chat app with a task list | Start a task from a chat box. Each task shows its agents, subagents and steps.
+
+ | IDE | A VS Code style editor | Files an agent changed are marked. A comment on a diff line goes to that agent as your next message.
+
+ | Wall | A grid of terminals | Every agent is a live tile. The one waiting for you moves to the big slot. Its diff, git and browser open beside it.
+
+ | Needs you | An inbox laid out like an issue tracker | Every question and approval waiting on you, with filters and labels. You answer from here.
+
+## What is built in around them
+
+- A background service owns every terminal, so closing the window does not stop the agents. After a restart, live sessions resume, at most 3 at a time.
+
+- Agents can drive browser panes in the app. Password fields, new sites and Send or Delete buttons stop for your approval, and only the window can approve.
+
+- Ctrl+K searches sessions, commands and the text in every live terminal.
+
+- It runs 7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads their login tokens.
+
+cc is free, open source (AGPL-3.0 core) and pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. No account, no telemetry. Steps: Quickstart.
 
 ---
 Source: {{SITE}}/answers/cc-vs-plain-terminals.html
 
 # Should I use cc or just run my agents in terminals?
 
-For one or two agents, plain terminals are enough. Use cc when you run three or more agents and lose track of which one is waiting. It also fits when you want agents to use a browser or Windows apps with approvals.
+For one or two agents, plain terminals are enough. Use cc when you run three or more agents and want them, your editor, your inbox of questions and a browser in one window instead of many. It also fits when you want agents to use a browser or Windows apps with approvals.
 
- | Plain terminals | cc | 
+ |  | Plain terminals | cc
 
-Cost | Free | Free and open source (AGPL-3.0 core) | 
+ | Cost | Free | Free and open source (AGPL-3.0 core)
 
-Platforms | Any | Windows 10 and 11 first. Pre-release, installs from source. | 
+ | Platforms | Any | Windows 10 and 11 first. Pre-release, installs from source.
 
-Which agent is waiting | Check each terminal, or set up hooks yourself | The waiting tile moves to the big slot; Alt+J jumps to it | 
+ | Windows to juggle | An editor, one terminal per agent, a browser, your notes | One: a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, with the agents built in
 
-Close the window | Sessions end, unless you run them in tmux, zellij or similar | A background service owns the terminals; agents keep working | 
+ | Which agent is waiting | Check each terminal, or set up hooks yourself | The waiting tile moves to the big slot; Alt+J jumps to it
 
-After a restart | Resume each one by hand, for example claude --resume | Live sessions resume, at most 3 at a time | 
+ | Close the window | Sessions end, unless you run them in tmux, zellij or similar | A background service owns the terminals; agents keep working
 
-Separate worktrees | git worktree add by hand | --worktree <branch> on launch | 
+ | After a restart | Resume each one by hand, for example claude --resume | Live sessions resume, at most 3 at a time
 
-Who changed which file | git diff per folder | troop owners, and changed files are marked in the editor | 
+ | Separate worktrees | git worktree add by hand | --worktree <branch> on launch
 
-Browser and Windows apps | Whatever the agent's own tools allow | Browser panes and windows you give it; password fields, new sites and Send or Delete buttons stop for your approval | 
+ | Who changed which file | git diff per folder | troop owners, and changed files are marked in the editor
 
-Account or telemetry | None | None. The core makes no network connection of its own. | 
+ | Browser and Windows apps | Whatever the agent's own tools allow | Browser panes and windows you give it; password fields, new sites and Send or Delete buttons stop for your approval
+
+ | Account or telemetry | None | None. The core makes no network connection of its own.
 
 ## When to stay with terminals
 
@@ -195,86 +325,6 @@ Account or telemetry | None | None. The core makes no network connection of its 
 - Approvals do not stop a hostile program already running as you.
 
 - It does not sign in for you or read the CLIs' login tokens. You install and sign in to each CLI yourself.
-
----
-Source: {{SITE}}/answers/check-agent-tests-catch-bugs.html
-
-# How do I know my coding agent's tests are any good?
-
-Break the code the agent changed, on purpose, one small break at a time, and rerun its tests. If the tests still pass after a break, they would not have caught that bug. This is called mutation testing.
-
-## Why "all tests pass" is not enough
-
-An agent that writes the code and its tests can write tests that pass no matter what the code does: a test that checks a function runs but not what it returns, or one that only covers the easy case. Coverage does not show this either, because a line can run in a test without any test checking its result.
-
-## A real example
-
-On cc's own repo, an agent wrote 211 lines of tests for a folder refresh. All of them passed. Breaking the changed code 4 ways, the tests caught 3. The fourth break, a reverted path, got through: no test covered it (commit 90e4a54c). Score: 3 / (3 + 1) = 75%.
-
-## Doing it by hand
-
-- Make sure the tests pass as they are.
-
-- Change one line the agent wrote: flip a < to <=, a true to false, or drop a call.
-
-- Run the tests. A failure means the break was caught. All passing means it was missed.
-
-- Undo the change and repeat for the next line.
-
-Open-source mutation tools automate this: StrykerJS for JavaScript and TypeScript, mutmut for Python. Both can run on a whole codebase or be scoped to some files.
-
-## When a break is missed
-
-Give the agent the missed break: the file, the line, and what was changed. Ask for a test that fails on that break and passes on the real code. Then run the check again.
-
-## Doing it with Proof
-
-Proof is the one paid plugin for cc, A$19 a month (US$12 where checkout cannot charge in Australian dollars). It only breaks the lines in the current change, so it fits the moment an agent says it is done.
-
-- It checks the tests pass first, and stops if they do not.
-
-- In a temporary copy of the repo, it breaks one changed line at a time: a comparison, a boolean, a return value, a boundary moved by one, a dropped call. At most 40 breaks a run by default.
-
-- Each break is CAUGHT, MISSED or INVALID (the tests could not load). A break that makes the tests hang counts as caught.
-
-- The score is caught / (caught + missed). It returns one markdown block for the pull request, with each missed break.
-
-- Your files are never edited. Proof calls no model.
-
-At launch it supports JavaScript, TypeScript and Python changes, with node --test and pytest. Agents call it as MCP tools: proof_mutate, proof_diff, proof_report.
-
----
-Source: {{SITE}}/answers/know-which-agent-needs-you.html
-
-# How do I know which coding agent is waiting for me?
-
-Have each agent name itself when it stops. Claude Code runs a command through a hook when it needs you. Codex runs one through its notify setting. Make that command show a notification with the project folder in it, so you know which terminal to open.
-
-## The plain way
-
-- Claude Code: add a Notification hook in ~/.claude/settings.json that runs a command when Claude needs your permission or has been idle.
-
-- Codex: set notify in its config to a program that receives a JSON event when a turn finishes.
-
-- Other CLIs: check each one's docs for a notify or hook setting. Without one, you watch the terminal.
-
-A notification names the folder. With four terminals open, you still switch to the right one by hand.
-
-## The same thing in cc
-
-cc is a free, open-source Windows app that runs coding agents side by side on one wall. It installs the Claude Code hooks when it first launches Claude Code. troop hooks install --codex adds the Codex one. troop hooks uninstall --codex takes both out again, leaving the rest of each settings file as it was. From a source install, troop means node core/cli.ts.
-
-- Each tile says working, waiting for you, done or exited.
-
-- The tile that is waiting turns orange and moves to the big slot. If you were typing in the big slot, it waits 3 seconds first, so it never takes your keys.
-
-- Alt+J jumps to the session that has waited longest. Finished sessions fold to one-line bars.
-
-- No toast for the tile you are looking at. A toast names the task, not only the agent. Notifications can also go to ntfy, Slack, Discord, Teams, a webhook or a command.
-
-- Engines without hooks get a simpler status read from their process.
-
-cc is pre-release, Windows first, and installs from source. Steps: Quickstart.
 
 ---
 Source: {{SITE}}/answers/run-several-claude-code-sessions.html
@@ -326,3 +376,83 @@ From a source install, troop means node core/cli.ts.
 - It runs Claude Code, Codex, Gemini CLI and other agent CLIs in the same way, 7 in all.
 
 cc is pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. Steps: Quickstart.
+
+---
+Source: {{SITE}}/answers/know-which-agent-needs-you.html
+
+# How do I know which coding agent is waiting for me?
+
+Have each agent name itself when it stops. Claude Code runs a command through a hook when it needs you. Codex runs one through its notify setting. Make that command show a notification with the project folder in it, so you know which terminal to open.
+
+## The plain way
+
+- Claude Code: add a Notification hook in ~/.claude/settings.json that runs a command when Claude needs your permission or has been idle.
+
+- Codex: set notify in its config to a program that receives a JSON event when a turn finishes.
+
+- Other CLIs: check each one's docs for a notify or hook setting. Without one, you watch the terminal.
+
+A notification names the folder. With four terminals open, you still switch to the right one by hand.
+
+## The same thing in cc
+
+cc is a free, open-source Windows app that rebuilds an editor, a terminal wall, an inbox and a browser as one window, with your agents built in. Its inbox, Needs you, lists every question and approval waiting on you, and you answer from there. It installs the Claude Code hooks when it first launches Claude Code. troop hooks install --codex adds the Codex one. troop hooks uninstall --codex takes both out again, leaving the rest of each settings file as it was. From a source install, troop means node core/cli.ts.
+
+- Each tile says working, waiting for you, done or exited.
+
+- The tile that is waiting turns orange and moves to the big slot. If you were typing in the big slot, it waits 3 seconds first, so it never takes your keys.
+
+- Alt+J jumps to the session that has waited longest. Finished sessions fold to one-line bars.
+
+- No toast for the tile you are looking at. A toast names the task, not only the agent. Notifications can also go to ntfy, Slack, Discord, Teams, a webhook or a command.
+
+- Engines without hooks get a simpler status read from their process.
+
+cc is pre-release, Windows first, and installs from source. Steps: Quickstart.
+
+---
+Source: {{SITE}}/answers/check-agent-tests-catch-bugs.html
+
+# How do I know my coding agent's tests are any good?
+
+Break the code the agent changed, on purpose, one small break at a time, and rerun its tests. If the tests still pass after a break, they would not have caught that bug. This is called mutation testing.
+
+## Why "all tests pass" is not enough
+
+An agent that writes the code and its tests can write tests that pass no matter what the code does: a test that checks a function runs but not what it returns, or one that only covers the easy case. Coverage does not show this either, because a line can run in a test without any test checking its result.
+
+## A real example
+
+On cc's own repo, an agent wrote 211 lines of tests for a folder refresh. All of them passed. Breaking the changed code 4 ways, the tests caught 3. The fourth break, a reverted path, got through: no test covered it (commit 90e4a54c). Score: 3 / (3 + 1) = 75%.
+
+## Doing it by hand
+
+- Make sure the tests pass as they are.
+
+- Change one line the agent wrote: flip a < to <=, a true to false, or drop a call.
+
+- Run the tests. A failure means the break was caught. All passing means it was missed.
+
+- Undo the change and repeat for the next line.
+
+Open-source mutation tools automate this: StrykerJS for JavaScript and TypeScript, mutmut for Python. Both can run on a whole codebase or be scoped to some files.
+
+## When a break is missed
+
+Give the agent the missed break: the file, the line, and what was changed. Ask for a test that fails on that break and passes on the real code. Then run the check again.
+
+## Doing it with Proof
+
+Proof is the one paid plugin for cc, A$19 a month (US$12 where checkout cannot charge in Australian dollars). It only breaks the lines in the current change, so it fits the moment an agent says it is done.
+
+- It checks the tests pass first, and stops if they do not.
+
+- In a temporary copy of the repo, it breaks one changed line at a time: a comparison, a boolean, a return value, a boundary moved by one, a dropped call. At most 40 breaks a run by default.
+
+- Each break is CAUGHT, MISSED or INVALID (the tests could not load). A break that makes the tests hang counts as caught.
+
+- The score is caught / (caught + missed). It returns one markdown block for the pull request, with each missed break.
+
+- Your files are never edited. Proof calls no model.
+
+At launch it supports JavaScript, TypeScript and Python changes, with node --test and pytest. Agents call it as MCP tools: proof_mutate, proof_diff, proof_report.
