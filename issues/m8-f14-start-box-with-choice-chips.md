@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 14. Rides on: M8-17, M8-25. Screen: `proto/kit/workspaces/n02-start-dev.json`, shot `proto/shots/n02-start-dev.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -40,11 +39,12 @@ Not sized until M8-0.
 - [ ] M8-F14b. "New worktree" starts the agent in its own worktree on the chosen base branch.
 - [ ] M8-F14c. The non-developer view shows the project and approval chips and no others.
 - [ ] M8-F14d. The approval chip offers only what the project's folder approval allows.
-- [ ] M8-F14e. The shipped screen matches `n02-start-dev.json` and passes validate.mjs.
+- [ ] M8-F14e. The shipped screen matches `n02-start-dev.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n02-start-dev: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

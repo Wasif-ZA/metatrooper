@@ -1,7 +1,6 @@
 # M8-42: Browser engines: one default per job, and a headless tier
 
 Part of Ouros, Milestone 8. Priority: Medium. Effort: 6.0 CC days. Depends on: M8-14, M8-41.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -48,5 +47,4 @@ stating a swarm size.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Engines stay separate processes, installed by the user. No em dashes.

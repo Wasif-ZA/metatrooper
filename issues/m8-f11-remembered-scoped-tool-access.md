@@ -1,7 +1,6 @@
 # M8-F11: Remembered, scoped tool access
 
 Part of Ouros, Milestone 8, feature 11 of 12. Rides on: M8-14. Screen: none (decided 2026-11-10, D83). Settings > Safety > Tool access.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -28,7 +27,6 @@ subagent-only MCP 377 reactions; per-tool filtering 225; excessive approval prom
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

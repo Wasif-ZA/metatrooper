@@ -1,7 +1,6 @@
 # M8-F5: Clarify inside the plan gate
 
 Part of Ouros, Milestone 8, feature 5 of 12. Rides on: M8-5. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Asking. The decision card in Needs you stays.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -28,7 +27,6 @@ misread intent 26.95% of validated pushback episodes; agents ask in about 3% of 
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

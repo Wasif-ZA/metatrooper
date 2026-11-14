@@ -2,7 +2,6 @@
 
 Part of Ouros, Milestone 8, feature 20. Rides on: M8-25. Screen: `proto/kit/workspaces/n11-issues.json`, shot `proto/shots/n11-issues.png`.
 Effort: not sized until M8-0.
-**Start on or after 2026-11-09.**
 
 Grouped: "Start an agent from a GitHub issue" and "Issue list with a Start button" are one thing.
 
@@ -43,11 +42,12 @@ Not sized until M8-0.
 - [ ] M8-F20b. Start launches one agent on one new worktree with the issue as its prompt.
 - [ ] M8-F20c. Issue text reaches the agent labelled as outside text, not as instructions from the user.
 - [ ] M8-F20d. With no GitHub login, the screen says so and offers no Start.
-- [ ] M8-F20e. The shipped list matches `n11-issues.json` and passes validate.mjs.
+- [ ] M8-F20e. The shipped list matches `n11-issues.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n11-issues: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Codex writes the tests for any feature Claude builds, and the other way round.

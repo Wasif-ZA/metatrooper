@@ -1,7 +1,7 @@
 # M8-48: Parked board rows: on the list, not built
 
 Part of Ouros, Milestone 8. **After launch.** Priority: Low. Effort: not sized until M8-0. Depends on: none.
-**Start on or after 2026-11-09, and only on his yes per row.**
+**Only on his yes per row.**
 
 Grouped so that no row is lost. This is a holding list, not a build.
 
@@ -34,6 +34,5 @@ Grouped so that no row is lost. This is a holding list, not a build.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - No em dashes.

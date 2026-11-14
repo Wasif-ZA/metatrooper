@@ -1,7 +1,7 @@
 # M8-J5: Meeting notes job screen
 
 **After launch, add-on.** Part of Ouros, Milestone 8. Priority: Low. Effort: not sized until M8-0. Depends on: M8-11, M8-12, M8-14.
-**Start on or after 2026-11-09, and not before launch.** His words, 2026-11-05: job screens "will come after post launch".
+**Not before launch.** His words, 2026-11-05: job screens "will come after post launch".
 
 ## Source of truth
 
@@ -35,7 +35,9 @@ Differs: weakest reference, two crops and no full window. This is the most blend
 
 ## Acceptance criteria
 
-- [ ] M8-J5a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J5a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J5a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J5b. With no engine installed, the screen says so and shows an install card, never a demo meeting as real.
 - [ ] M8-J5c. With a plugin installed, a real recording gives a transcript with speaker and time.
 - [ ] M8-J5d. Every added line opens the transcript lines it came from.
@@ -44,7 +46,6 @@ Differs: weakest reference, two crops and no full window. This is the most blend
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - `pendingDemo` and `system` in prototype JSON are prototype only. Real Ouros never reads gates from layout JSON.
 - Job parts join the catalogue through M8-10, with tests.
 - Codex writes the tests for any step Claude builds, and the other way round.

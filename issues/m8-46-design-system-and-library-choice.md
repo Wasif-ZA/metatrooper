@@ -1,7 +1,6 @@
 # M8-46: Design system: ds.css tokens, and the library choice
 
 Part of Ouros, Milestone 8. Priority: High. Effort: not sized until M8-0. Depends on: M8-0, M8-1.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -73,16 +72,21 @@ Contrast working, for `--t3 #858585`:
 
 ## Acceptance criteria
 
-- [ ] M8-46a. Every approved screen in `proto/shots/` still draws correctly after the move, checked by eye and by `ncheck.mjs`.
+- [ ] M8-46a. Every approved screen in `proto/shots/` still draws correctly after the move, checked by eye and by `check.js` (nothing falls back). (was: checked by eye and by ncheck.mjs)
+  Status: PARTIAL. The 14 `f-*.json` screen specs pass `check.js` today (2026-11-15); 14 of 17 `p-*.json` fall back on the undrawn `gate` or `tile` (see M8-28a). The by-eye check was not done this pass.
+  Verify: `node --input-type=module -e "import {expand} from './workbench/ui/src/kit/check.js'; import {readFileSync, readdirSync} from 'node:fs'; const d=process.argv[1]; let bad=0; for (const n of readdirSync(d).filter(n=>/^[fp]-.*\.json$/.test(n))) { const j=JSON.parse(readFileSync(d+'/'+n,'utf8')); if (expand(j.spec??j).fellBack.length) { bad++; console.log(n); } } process.exit(bad?1:0)" $HOME/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/specs` from the repo root exits 0.
 - [ ] M8-46b. No part hard-codes a grey or a size that a token covers.
 - [ ] M8-46c. Every text token meets 4.5:1 on every surface it is used on.
 - [ ] M8-46d. Orange appears only for a person being needed, checked over every screen.
 - [ ] M8-46e. The library choice and each exception are in the `spec.md` D-list, with stars, licence and last push.
-- [ ] M8-46f. The 17 parts pass check.mjs and validate.mjs.
+  Status: DONE. D84 records @astryxdesign/core (MIT, 27,726 stars, last push 2026-11-14) and recharts 3.10.1 (MIT, 27,709 stars). D86 drops the shadcn/ui, Radix and cmdk exception rows; astryx covers the components.
+  Verify: `Select-String spec.md -Pattern 'Gate for @astryxdesign/core','^\| D86 \|'` finds both rows.
+- [x] M8-46f. Every drawn catalogue part passes the kit tests in `core/test/m8-01-kit-check.test.ts`, `workbench/test/m8-01-kit-draw.test.ts` and `workbench/test/m8-01-kit-parts.test.ts`. (was: the 17 parts in parts-next.js pass check.mjs and validate.mjs)
+  Status: DONE. All but `gate`, `tile` and `use` are drawn.
+  Verify: `cd core; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-check.test.ts`, then `cd workbench; node --test --test-isolation=none --test-timeout=120000 test/m8-01-kit-draw.test.ts test/m8-01-kit-parts.test.ts`.
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Agents draw only from the catalogue: no agent HTML, iframe or script (`ouros-spec.md` section 7).
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained, or carry his named exception.

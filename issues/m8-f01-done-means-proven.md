@@ -1,7 +1,6 @@
 # M8-F1: Done means proven
 
 Part of Ouros, Milestone 8, feature 1 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). The toggle, wording and acceptance command are in Settings > Reliability > Finishing.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -32,7 +31,6 @@ Corrected 2026-11-05: that last claim is too strong. Claude Code `/goal` and Sto
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.

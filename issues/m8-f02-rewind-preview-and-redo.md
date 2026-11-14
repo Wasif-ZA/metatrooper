@@ -1,7 +1,6 @@
 # M8-F2: Rewind preview and redo
 
 Part of Ouros, Milestone 8, feature 2 of 12. Rides on: M8-13. Screen: a sheet from Undo, no screen (decided 2026-11-10, D83). Checkpoint policy is in Settings > Undo and checkpoints.
-**Start on or after 2026-11-09.**
 
 ## Source of truth
 
@@ -31,11 +30,12 @@ New sheet layout, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-0
 - [ ] M8-F2b. stops on files changed since the checkpoint.
 - [ ] M8-F2c. lessons and exported instructions from the run are rolled back in the same step.
 - [ ] M8-F2d. redo until your next message.
-- [ ] M8-F2e. The restore preview sheet matches `n23-rewind.json` and passes validate.mjs.
+- [ ] M8-F2e. The restore preview sheet matches `n23-rewind.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n23-rewind: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
-- **Start on or after 2026-11-09.** Own projects are frozen until 2026-11-08; this file is a spec, not a go.
 - The screen is drawn from the catalogue only; the build step it rides on owns the wiring.
 - Codex writes the tests for any feature Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
