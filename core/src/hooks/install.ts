@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
+import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile, repoDir } from '../paths.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { writeSessionFile, removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
@@ -30,10 +30,19 @@ function codexScript(): string {
   return path.join(coreDir, 'codex-notify.js').split(String.fromCharCode(92)).join('/');
 }
 
-/** A shell command running a core script with node; refuses a script path the hook shell would expand inside double quotes. */
-export function nodeCommand(script: string, args: string): string {
-  if (/[$`"%]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move Ouros to a folder without them`);
-  return `node "${script}" ${args}`;
+export function nodeBin(execPath = process.execPath, repo = repoDir): string {
+  const actual = path.resolve(execPath);
+  const bundled = path.resolve(repo, '..', 'node', 'node.exe');
+  const matches = process.platform === 'win32' ? actual.toLowerCase() === bundled.toLowerCase() : actual === bundled;
+  return matches ? execPath.replace(/\\/g, '/') : 'node';
+}
+
+/** A shell command running a core script with node; refuses paths the hook shell would expand inside double quotes. */
+export function nodeCommand(script: string, args: string, bin = nodeBin()): string {
+  for (const p of [script, bin]) {
+    if (/[$`"%]/.test(p)) throw new Error(`cannot install hooks from ${p}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move Ouros to a folder without them`);
+  }
+  return `${bin === 'node' ? bin : `"${bin}"`} "${script}" ${args}`;
 }
 
 function hookCommand(event: string): string {
@@ -204,7 +213,7 @@ export function sessionHookEnv(engine: EngineSpec, sessionId: string, db?: Datab
 function codexNotifyArgs(): string[] {
   let previous: string[] | null = null;
   try { previous = userNotify(fs.readFileSync(codexConfigFile(), 'utf8')); } catch {}
-  return ['-c', `notify=${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`];
+  return ['-c', `notify=${tomlArray([nodeBin(), codexScript(), JSON.stringify(previous ?? [])])}`];
 }
 
 export function installCodex(): Plan | null {
@@ -214,7 +223,7 @@ export function installCodex(): Plan | null {
   if (state.codex) return { file, before: original, after: original };
   const m = original.match(NOTIFY_RE);
   const previous = userNotify(original);
-  const line = `notify = ${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`;
+  const line = `notify = ${tomlArray([nodeBin(), codexScript(), JSON.stringify(previous ?? [])])}`;
   const after = m ? original.replace(NOTIFY_RE, line) : `${line}\n${original}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.troop-bak`);
   else fs.mkdirSync(path.dirname(file), { recursive: true });
