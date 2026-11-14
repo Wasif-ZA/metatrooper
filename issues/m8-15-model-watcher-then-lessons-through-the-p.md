@@ -19,11 +19,23 @@ No screen (decided 2026-11-10, D83). Lessons are listed in Settings > Learning.
 
 ## Acceptance criteria
 
+Status 2026-11-15: no model watcher or lesson store in core or the workbench.
+
 - [ ] M8-15a. The model watcher stays only if its logged nudges beat its cost.
+  Status: NOT STARTED.
+  Verify: to write, a logged trial in this issue: nudges that changed an outcome against the watcher's token cost.
 - [ ] M8-15b. A lesson becomes active only after replay and his yes; replay re-runs the agent, never scores a cached transcript.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-15-lessons.test.ts` test "a lesson stays inactive until a fresh replay and a yes".
 - [ ] M8-15c. Removing a bad lesson by replay retires it and any lesson made from it.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-15-lessons.test.ts` test "retiring a lesson retires the lessons made from it".
 - [ ] M8-15d. A lesson that changes no step is dropped; a corrupt store stays untouched and goes read-only.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-15-lessons.test.ts` test "a corrupt store is left byte for byte and opens read-only".
 - [ ] M8-15e. Lessons with proposals (held for later in FEATURE-LIST B) are listed in Settings > Learning, read from this step's store.
+  Status: NOT STARTED.
+  Verify: to write, `workbench/test/m8-15-lessons.test.ts` test "Settings > Learning lists the stored lessons".
 
 ## Rules that bind every child
 

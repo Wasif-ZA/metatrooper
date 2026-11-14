@@ -39,7 +39,9 @@ Not sized until M8-0.
 - [ ] M8-F23b. Nothing is sent during quiet hours, and the waiting gate still shows on the PC.
 - [ ] M8-F23c. An alert names the agent and project and carries no diff, command or fixture secret.
 - [ ] M8-F23d. The settings say that the chosen sink sends the alert through a third party.
-- [ ] M8-F23e. The shipped block matches `n14-machines.json` and passes validate.mjs.
+- [ ] M8-F23e. The shipped block matches `n14-machines.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n14-machines: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

@@ -33,7 +33,9 @@ Differs: no Canva image shows the page strip open, so that strip is an inference
 
 ## Acceptance criteria
 
-- [ ] M8-J2a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J2a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J2a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J2b. With no engine installed, the screen says so and shows an install card, never a demo poster as real.
 - [ ] M8-J2c. With a plugin installed, a real file opens and exports at each size.
 - [ ] M8-J2d. A post waits at a real gate from M8-21.

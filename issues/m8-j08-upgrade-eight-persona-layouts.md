@@ -47,7 +47,9 @@ MARKET.md, each with its own limits:
 
 ## Acceptance criteria
 
-- [ ] M8-J8a. All 8 workspace files load through `ouros_workspace` and pass validate.mjs, replacing the older `persona-*.json`.
+- [ ] M8-J8a. All 8 workspace files load through `ouros_workspace` with no refusal, replacing the older `persona-*.json`. (was: and pass validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "each of the 8 persona layouts: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J8b. With no engine installed, each screen says so and shows an install card, never demo data as real.
 - [ ] M8-J8c. Any send, post or spend waits at a real gate from M8-21.
 - [ ] M8-J8d. No product name or logo shows on screen.

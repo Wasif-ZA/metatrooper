@@ -34,7 +34,9 @@ Differs: no ticket list column. The Ouros agent pane is the only chat, so there 
 
 ## Acceptance criteria
 
-- [ ] M8-J7a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J7a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J7a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J7b. With no engine installed, the screen says so and shows an install card, never a demo ticket as real.
 - [ ] M8-J7c. With a plugin installed, a real ticket opens with its history.
 - [ ] M8-J7d. A reply or a refund waits at a real gate from M8-21.

@@ -47,7 +47,9 @@ Not sized until M8-0.
 - [ ] M8-F18c. A failed step stops the rest and names the step.
 - [ ] M8-F18d. The button never force-pushes and never pushes to the default branch.
 - [ ] M8-F18e. The result beside the button shows what the checks did, including what was not checked (M8-F1).
-- [ ] M8-F18f. The shipped screen matches `n05-diff-comment.json` and passes validate.mjs.
+- [ ] M8-F18f. The shipped screen matches `n05-diff-comment.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n05-diff-comment: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

@@ -30,7 +30,9 @@ New sheet layout, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-0
 - [ ] M8-F2b. stops on files changed since the checkpoint.
 - [ ] M8-F2c. lessons and exported instructions from the run are rolled back in the same step.
 - [ ] M8-F2d. redo until your next message.
-- [ ] M8-F2e. The restore preview sheet matches `n23-rewind.json` and passes validate.mjs.
+- [ ] M8-F2e. The restore preview sheet matches `n23-rewind.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n23-rewind: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

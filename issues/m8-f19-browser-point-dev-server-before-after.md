@@ -48,7 +48,9 @@ Not sized until M8-0.
 - [ ] M8-F19d. A port the session does not own stays blocked for its agent pane (D60).
 - [ ] M8-F19e. Before and after images share one viewport size and are attached to one run.
 - [ ] M8-F19f. Images and text pass the same redaction as other browser output (M6-12).
-- [ ] M8-F19g. The shipped screen matches `n09-browser.json` and passes validate.mjs.
+- [ ] M8-F19g. The shipped screen matches `n09-browser.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n09-browser: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

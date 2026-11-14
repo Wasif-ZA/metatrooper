@@ -33,7 +33,9 @@ Differs: the suggestion card on the grid is our own design. No reference shows o
 
 ## Acceptance criteria
 
-- [ ] M8-J3a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J3a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J3a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J3b. With no engine installed, the screen says so and shows an install card, never demo cells as real.
 - [ ] M8-J3c. With a plugin installed, a real file opens and its formulas evaluate.
 - [ ] M8-J3d. No cell changes until the person accepts, and the list names every changed cell.

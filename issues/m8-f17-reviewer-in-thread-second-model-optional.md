@@ -46,7 +46,9 @@ Not sized until M8-0.
 - [ ] M8-F17c. The reviewer's run shows nested under the turn it reviewed, folded by default.
 - [ ] M8-F17d. A reviewer's verdict never changes the run's result. It is a hint, not the judge (6e).
 - [ ] M8-F17e. With no second engine installed, the button says so and starts nothing.
-- [ ] M8-F17f. The shipped screen matches `n04-turn-reviewer.json` and passes validate.mjs.
+- [ ] M8-F17f. The shipped screen matches `n04-turn-reviewer.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n04-turn-reviewer: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

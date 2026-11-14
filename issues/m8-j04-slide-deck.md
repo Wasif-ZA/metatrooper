@@ -34,7 +34,9 @@ Differs: the far-right icon rail is gone, because Ouros has its own rail. Notes 
 
 ## Acceptance criteria
 
-- [ ] M8-J4a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J4a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J4a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J4b. With no engine installed, the screen says so and shows an install card, never a demo deck as real.
 - [ ] M8-J4c. With a plugin installed, a real deck opens and exports.
 - [ ] M8-J4d. An email waits at a real gate from M8-21.

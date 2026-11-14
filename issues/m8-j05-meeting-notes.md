@@ -35,7 +35,9 @@ Differs: weakest reference, two crops and no full window. This is the most blend
 
 ## Acceptance criteria
 
-- [ ] M8-J5a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J5a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J5a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J5b. With no engine installed, the screen says so and shows an install card, never a demo meeting as real.
 - [ ] M8-J5c. With a plugin installed, a real recording gives a transcript with speaker and time.
 - [ ] M8-J5d. Every added line opens the transcript lines it came from.

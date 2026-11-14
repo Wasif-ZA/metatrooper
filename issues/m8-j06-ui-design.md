@@ -35,7 +35,9 @@ Differs: the agent column pushes the properties panel off the window edge. It mi
 
 ## Acceptance criteria
 
-- [ ] M8-J6a. The workspace loads as an example and passes validate.mjs.
+- [ ] M8-J6a. The workspace loads through `ouros_workspace` as an example with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "M8-J6a: the workspace loads through ouros_workspace with no refusal".
 - [ ] M8-J6b. With no engine installed, the screen says so and shows an install card, never demo frames as real.
 - [ ] M8-J6c. With a plugin installed, a real design file opens.
 - [ ] M8-J6d. No code is written until the person says yes to the diff.

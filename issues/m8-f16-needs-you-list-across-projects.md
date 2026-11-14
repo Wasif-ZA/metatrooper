@@ -41,7 +41,9 @@ Not sized until M8-0.
 - [ ] M8-F16c. Picking a row in another project opens that agent's tile and takes no key input.
 - [ ] M8-F16d. The list's waiting count equals the inbox count in M8-17c.
 - [ ] M8-F16e. A running session older than the newest 50 still shows.
-- [ ] M8-F16f. The shipped screen matches `n03-needs-wall.json` and passes validate.mjs.
+- [ ] M8-F16f. The shipped screen matches `n03-needs-wall.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n03-needs-wall: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

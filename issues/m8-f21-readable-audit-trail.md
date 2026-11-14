@@ -40,7 +40,9 @@ Not sized until M8-0.
 - [ ] M8-F21c. No agent tool can edit or delete a row.
 - [ ] M8-F21d. A fixture secret never appears in a row.
 - [ ] M8-F21e. Rows survive a core restart.
-- [ ] M8-F21f. The shipped block matches `n12-team.json` and passes validate.mjs.
+- [ ] M8-F21f. The shipped block matches `n12-team.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n12-team: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

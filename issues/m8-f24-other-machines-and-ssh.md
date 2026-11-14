@@ -43,7 +43,9 @@ Not sized until M8-0.
 - [ ] M8-F24b. A join code works once and is refused after its expiry.
 - [ ] M8-F24c. Revoke closes a shared port at once.
 - [ ] M8-F24d. `work/` and hwbreports paths never reach another machine, as in M7-11.
-- [ ] M8-F24e. The shipped blocks match `n14-machines.json` and pass validate.mjs.
+- [ ] M8-F24e. The shipped blocks match `n14-machines.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n14-machines: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

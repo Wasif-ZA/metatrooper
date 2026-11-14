@@ -21,12 +21,28 @@ Feature screens folded in (kit/specs): `f-plugin.json` (install dialog). Tool ac
 
 ## Acceptance criteria
 
+As built 2026-11-15: plugins from M1 (`plugin.preview`, `plugin.install` with a manifest hash and approved permissions; actions run with a stripped environment). There is no OS sandbox, artifact hash, remote block or tool access table.
+
 - [ ] M8-14a. An undeclared file or network access from a cli plugin is refused by the OS sandbox.
+  Status: NOT STARTED. Actions get a stripped environment, not an OS sandbox.
+  Verify: to write, `core/test/m8-14-sandbox.test.ts` test "a cli plugin reading an undeclared file is refused by the sandbox".
 - [ ] M8-14b. A changed artifact hash asks you, with a version diff and the scan result.
+  Status: PARTIAL. A manifest that changed since preview installs nothing. There is no artifact hash, version diff or scan.
+  Verify (passes now): `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="install refuses approvals" test/plugins.test.ts` and `... --test-name-pattern="wire-08" test/wiring-security.test.ts`.
+  Verify (to write): `core/test/m8-14-hash.test.ts` test "a changed artifact hash asks with a version diff and the scan result".
 - [ ] M8-14c. A remote block disables a plugin and says why.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-14-block.test.ts` test "a plugin on the remote block list is disabled with its reason".
 - [ ] M8-14d. Ouros runs the approved binary by hash, never by a PATH lookup.
+  Status: NOT STARTED. Today actions run tools by name through PATH on purpose (M1-25a tests "runs npm by name").
+  Verify: to write, `core/test/m8-14-hash.test.ts` test "an action whose binary hash differs from the approved one does not run".
 - [ ] M8-14e. Plugin grants, updates and revocation (`f-plugin`): the install sheet shows enforced grants and the text a plugin adds.
+  Status: PARTIAL. Install refuses approvals that do not match the permissions asked for; `plugin.preview` returns the sheet. Updates and revocation are not built.
+  Verify (passes now): `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="install refuses approvals" test/plugins.test.ts`.
+  Verify (to write): `core/test/m8-14-grants.test.ts` test "revoking a grant stops the next action that needs it".
 - [ ] M8-14f. Remembered, scoped tool access (a table in Settings > Safety): allow, ask or deny per tool, per project, with a separate subagent column; the stop list still asks every time.
+  Status: NOT STARTED.
+  Verify: to write, `core/test/m8-14-tool-access.test.ts` test "a deny for one tool in one project holds, and a stop-list tool still asks".
 
 ## Rules that bind every child
 

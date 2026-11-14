@@ -43,7 +43,9 @@ Not sized until M8-0.
 - [ ] M8-F15c. A step with no check reads "Not checked", never done.
 - [ ] M8-F15d. Show the code opens the same run, in one click, on the same worktree.
 - [ ] M8-F15e. A step that leaves the machine waits at a real gate from M8-21.
-- [ ] M8-F15f. The shipped screen matches `n06-job-anyone.json` and passes validate.mjs.
+- [ ] M8-F15f. The shipped screen matches `n06-job-anyone.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n06-job-anyone: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

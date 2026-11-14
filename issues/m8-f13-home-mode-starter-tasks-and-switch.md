@@ -44,7 +44,9 @@ Not sized until M8-0.
 - [ ] M8-F13c. Text sent from Home starts a session in the chosen project with approval on "Ask me first".
 - [ ] M8-F13d. A starter whose engine or add-on is missing shows its install card and never a demo result.
 - [ ] M8-F13e. The waiting row on Home matches the inbox count in M8-17c.
-- [ ] M8-F13f. The shipped screen matches `n01-home-anyone.json` and passes validate.mjs.
+- [ ] M8-F13f. The shipped screen matches `n01-home-anyone.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n01-home-anyone: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 

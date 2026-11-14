@@ -22,9 +22,9 @@ Decided 2026-11-14 in `spec.md` D84: agent-drawn screens are @astryxdesign/core 
 - [ ] M8-00a. The choice is written in spec.md D-list with the reason and the drawback of the option not taken.
   Status: PARTIAL. D84 records the choice and the reason. It does not name the drawback of the VSCodium webview.
   Verify: `Select-String spec.md -Pattern '^\| D84 \|'` shows the row, and the row names the drawback of the option not taken.
-- [ ] M8-00b. The chosen host passes the dependency gate (licence, stars, maintenance) with the numbers recorded, or is exempt because it is Ouros's own code.
-  Status: PARTIAL. cc is Ouros's own code, so it is exempt. D84 records recharts' numbers (MIT, 27,709 stars) but not @astryxdesign/core's.
-  Verify: `Select-String spec.md -Pattern 'astryx'` shows a D-row with astryx's licence, stars and last push.
+- [x] M8-00b. The chosen host passes the dependency gate (licence, stars, maintenance) with the numbers recorded, or is exempt because it is Ouros's own code.
+  Status: DONE. cc is Ouros's own code, so it is exempt. D84 records recharts (MIT, 27,709 stars) and, from 2026-11-15, @astryxdesign/core (MIT, 27,726 stars, last push 2026-11-14).
+  Verify: `Select-String spec.md -Pattern 'Gate for @astryxdesign/core'` finds the D84 row; `gh repo view meta/astryx --json stargazerCount,licenseInfo,pushedAt` still shows MIT, 25k+ stars and a push in the last 6 months.
 - [ ] M8-00c. A one-page note names how tabs open, how events reach the core, and how the title-bar IDE | WALL switch is drawn in that host.
   Status: PARTIAL. D84 names how a tab opens (`ouros_ui` to `ui.show`, then `ui.get` on a seq change). The `ui.event` row in `contracts/pipe-protocol.md` names how a click reaches core. Nothing names the IDE | WALL switch.
   Verify: `Select-String spec.md,contracts/pipe-protocol.md -Pattern 'ui\.show|ui\.event|IDE \| WALL'` finds all three in one note.

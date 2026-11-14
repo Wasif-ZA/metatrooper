@@ -44,7 +44,9 @@ Not sized until M8-0.
 - [ ] M8-F22d. A run missed while the core was off shows as missed, and does not start late on its own.
 - [ ] M8-F22e. A scheduled agent cannot pass a gate alone. It waits in the inbox.
 - [ ] M8-F22f. An agent cannot change a check script without a gate.
-- [ ] M8-F22g. The shipped screen matches `n13-automations.json` and passes validate.mjs.
+- [ ] M8-F22g. The shipped screen matches `n13-automations.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
+  Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
+  Verify: to write, `core/test/m8-11-workspace.test.ts` test "n13-automations: the workspace loads through ouros_workspace with no refusal".
 
 ## Rules that bind every child
 
