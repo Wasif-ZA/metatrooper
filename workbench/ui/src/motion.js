@@ -1,5 +1,5 @@
 // From t3code (MIT), apps/web/src/components/Sidebar.motion.ts
-const motionTiming = { duration: 150, easing: 'ease-out' };
+const motionTiming = { duration: 150, easing: 'cubic-bezier(.22, 1, .36, 1)' };
 // From t3code (MIT), apps/web/src/components/Sidebar.motion.ts
 const rowTravel = (height) => Math.min(height, 40);
 

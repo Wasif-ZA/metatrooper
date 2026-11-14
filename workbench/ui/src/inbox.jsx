@@ -50,7 +50,7 @@ const rowEl = (id) => (typeof document === 'undefined' ? null : document.querySe
 export function leaveRow(id, then) {
   const el = rowEl(id);
   if (!motionOn() || !el) return then();
-  gsap.to(el, { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, duration: 0.2, ease: 'power2.in', overwrite: true, onComplete: then });
+  gsap.to(el, { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, duration: 0.1, ease: 'power2.in', overwrite: true, onComplete: then });
 }
 
 function ListMotion({ order, counts, children }) {
@@ -63,14 +63,14 @@ function ListMotion({ order, counts, children }) {
     const root = ref.current;
     const prev = last.current;
     if (prev.order === null) {
-      if (motionOn()) gsap.from([...root.querySelectorAll('.ou-irow')].slice(0, 12), { opacity: 0, y: 4, duration: 0.2, stagger: 0.02, ease: 'power2.out', clearProps: 'opacity,transform' });
+      if (motionOn()) gsap.from([...root.querySelectorAll('.ou-irow')].slice(0, 12), { opacity: 0, y: 4, duration: 0.15, stagger: 0.02, ease: 'power4.out', clearProps: 'opacity,transform' });
     } else if (prev.state) {
       Flip.from(prev.state, {
         targets: root.querySelectorAll('.ou-irow'),
-        duration: 0.35,
-        ease: 'power3.inOut',
+        duration: 0.25,
+        ease: 'power4.out',
         nested: true,
-        onEnter: (els) => gsap.from(els, { opacity: 0, height: 0, duration: 0.25, ease: 'power2.out', clearProps: 'all' }),
+        onEnter: (els) => gsap.from(els, { opacity: 0, height: 0, duration: 0.25, ease: 'power4.out', clearProps: 'all' }),
       });
     }
     if (prev.counts && motionOn()) {
@@ -79,7 +79,7 @@ function ListMotion({ order, counts, children }) {
         const to = Number(el.dataset.n);
         if (from == null || from === to) return;
         const box = { n: from };
-        gsap.to(box, { n: to, duration: 0.35, ease: 'power3.inOut', snap: { n: 1 }, onUpdate: () => { el.textContent = String(box.n); } });
+        gsap.to(box, { n: to, duration: 0.25, ease: 'power4.out', snap: { n: 1 }, onUpdate: () => { el.textContent = String(box.n); } });
       });
     }
     last.current = { order, counts, state: null };
@@ -98,13 +98,13 @@ function Fold({ open, head, children }) {
     const body = ref.current?.querySelector('.ou-ny-gbody');
     const chev = ref.current?.querySelector('.ou-ny-gchev');
     if (!motionOn()) { setClosing(false); return; }
-    if (chev) gsap.to(chev, { rotation: open ? 90 : 0, duration: 0.2, ease: 'power2.out', overwrite: true });
+    if (chev) gsap.set(chev, { rotation: open ? 90 : 0 });
     if (!body) return;
     if (open) {
-      gsap.fromTo(body, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.2, ease: 'power2.out', overwrite: true, clearProps: 'height,opacity' });
+      gsap.fromTo(body, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.15, ease: 'power4.out', overwrite: true, clearProps: 'height,opacity' });
     } else {
       setClosing(true);
-      gsap.to(body, { height: 0, opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: true, onComplete: () => setClosing(false) });
+      gsap.to(body, { height: 0, opacity: 0, duration: 0.1, ease: 'power2.in', overwrite: true, onComplete: () => setClosing(false) });
     }
   }, [open]);
   const shown = open ? children : closing ? kept.current : null;
@@ -131,8 +131,8 @@ function Swap({ k, children }) {
     old.classList.add('ou-ny-ghost');
     old.setAttribute('aria-hidden', 'true');
     el.parentNode.insertBefore(old, el);
-    gsap.to(old, { opacity: 0, x: -4, duration: 0.16, ease: 'power2.out', onComplete: () => old.remove() });
-    gsap.fromTo(el, { opacity: 0, x: 6 }, { opacity: 1, x: 0, duration: 0.22, delay: 0.06, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' });
+    gsap.to(old, { opacity: 0, x: -4, duration: 0.1, ease: 'power4.out', onComplete: () => old.remove() });
+    gsap.fromTo(el, { opacity: 0, x: 6 }, { opacity: 1, x: 0, duration: 0.15, delay: 0.04, ease: 'power4.out', overwrite: true, clearProps: 'opacity,transform' });
   }, [k]);
   return <div className="ou-ny-doc" ref={ref}>{children}</div>;
 }
@@ -145,7 +145,7 @@ function Slide({ open, children }) {
     const el = ref.current;
     if (!el || !motionOn()) return;
     const width = el.scrollWidth;
-    gsap.fromTo(el, { width: open ? 0 : width }, { width: open ? width : 0, duration: 0.25, ease: open ? 'power2.out' : 'power2.inOut', overwrite: true, clearProps: 'width' });
+    gsap.fromTo(el, { width: open ? 0 : width }, { width: open ? width : 0, duration: 0.25, ease: open ? 'power4.out' : 'power2.in', overwrite: true, clearProps: 'width' });
     if (open) gsap.fromTo(el.children, { opacity: 0 }, { opacity: 1, duration: 0.15, delay: 0.1, overwrite: true, clearProps: 'opacity' });
   }, [open]);
   return <aside className="ou-ny-props" ref={ref} data-open={open ? 'true' : 'false'} inert={!open}>{children}</aside>;
@@ -156,7 +156,7 @@ function Bar({ done, total }) {
   const box = useRef({ n: done });
   useEffect(() => {
     if (!motionOn()) { box.current.n = done; setShown(done); return; }
-    const t = gsap.to(box.current, { n: done, duration: 0.4, ease: 'power2.out', onUpdate: () => setShown(box.current.n) });
+    const t = gsap.to(box.current, { n: done, duration: 0.25, ease: 'power4.out', onUpdate: () => setShown(box.current.n) });
     return () => t.kill();
   }, [done]);
   return <ProgressBar label="Sub-tasks done" isLabelHidden value={shown} max={Math.max(total, 1)} variant="success" className="ou-ny-progress" />;
