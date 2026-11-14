@@ -10,6 +10,8 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { mcpWrites, type McpSpec } from './manifest.ts';
 import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
+const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
+
 export interface ResolvedServer {
   command: string;
   args: string[];
@@ -192,7 +194,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const user = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(CODEX_BLOCK, '') : '';
       return servers
         .filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(user))
-        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`]);
+        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`, '-c', `mcp_servers.${s.name}.env_vars=${JSON.stringify(CODEX_ENV_VARS)}`]);
     }
     case 'args-template': {
       const template = engine.mcp_attach.template ?? [];
