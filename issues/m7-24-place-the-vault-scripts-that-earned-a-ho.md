@@ -10,7 +10,7 @@ Status: open; nothing ported.
 
 ## What is open
 
-- About 15 vault scripts and skills were marked to move in: page-check.py into pane.capture, suite-diff, mutate.py, rep.py, local-work, the spec-gate and tests-brief skills.
+- About 15 vault scripts and skills were marked to move in: page-check.py into pane.capture, rep.py, local-work, the spec-gate and tests-brief skills.
 - Most were mapped to pipeline steps that left with the split; only `troop owners` exists.
 
 ## Blocked on
