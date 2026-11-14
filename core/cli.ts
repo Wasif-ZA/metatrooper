@@ -270,7 +270,7 @@ function emit(json: boolean, result: unknown, text: string): void {
   console.log(json ? JSON.stringify(result) : text);
 }
 
-async function rpc(method: string, params: Record<string, unknown>, json: boolean): Promise<{ code: number; result?: Record<string, unknown> }> {
+async function rpc(method: string, params: Record<string, unknown>, json: boolean, quietError?: string): Promise<{ code: number; result?: Record<string, unknown>; error?: string }> {
   const out: CallOutcome = await call(method, params, {
     ui: Boolean(process.stdin.isTTY),
     onQueued: (id) => { if (!json) console.error(`queued (${id}); it runs when the core starts`); },
@@ -286,6 +286,7 @@ async function rpc(method: string, params: Record<string, unknown>, json: boolea
   }
   const r = out.reply;
   if (r.error) {
+    if (r.error.message === quietError) return { code: 1, error: r.error.message };
     if (json) console.log(JSON.stringify({ error: r.error }));
     else console.error(`error ${r.error.code}: ${r.error.message}${r.error.code === E.NEEDS_UI ? '. Run it from an interactive terminal: troop sends its UI key only when a person is typing, not from a script or an agent.' : ''}`);
     return { code: 1 };
@@ -370,8 +371,14 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   if (job.prompt) params.prompt = job.prompt;
   if (job.approval) params.approval = job.approval;
   if (job.model) params.model = job.model;
-  if (process.env.TROOP_SESSION_ID) params.parent_id = process.env.TROOP_SESSION_ID;
-  const r = await rpc('session.launch', params, json);
+  const parent = process.env.TROOP_SESSION_ID;
+  if (parent) params.parent_id = parent;
+  let r = await rpc('session.launch', params, json, parent ? 'parent session not found' : undefined);
+  if (parent && r.error === 'parent session not found') {
+    console.error(`TROOP_SESSION_ID ${parent} names no session in this core, so this launch has no parent`);
+    delete params.parent_id;
+    r = await rpc('session.launch', params, json);
+  }
   if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
   return r.code;
 }

@@ -11,7 +11,8 @@
   "scripts": {
     "postinstall": "node node_modules/electron/install.js && npm --prefix ui ci && npm --prefix ui run monaco",
     "dev": "electron .",
-    "test": "node --test --test-concurrency=1 --test-timeout=120000 \"test/*.test.ts\""
+    "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1",
+    "test": "node --import=../core/test/clean-env.mjs --test --test-concurrency=1 --test-timeout=120000 \"test/*.test.ts\""
   },
   "devDependencies": {
     "electron": "44.4.5"

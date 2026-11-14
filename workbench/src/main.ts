@@ -883,6 +883,7 @@ function createWindow(): void {
 }
 
 const CORE_MAIN = path.join(here, '..', '..', 'core', 'src', 'main.ts');
+const NODE = app.isPackaged ? path.join(process.resourcesPath, 'node', 'node.exe') : 'node';
 const NOTICES = path.join(here, '..', '..', 'THIRD_PARTY_NOTICES.md');
 const APP_DIR = path.resolve(here, '..');
 const APP_VERSION = String((JSON.parse(fs.readFileSync(path.join(APP_DIR, '..', 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
@@ -944,7 +945,7 @@ async function ensureCore(): Promise<void> {
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  const child = spawn('node', [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`));
+  const child = spawn(NODE, [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`));
   child.unref();
   if (demo && child.pid) demoCorePid = child.pid;
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
