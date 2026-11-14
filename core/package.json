@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "node src/main.ts",
-    "test": "node --test --test-timeout=120000 \"test/*.test.ts\""
+    "test": "node test/run-suites.mjs all",
+    "test:timing": "node test/run-suites.mjs timing"
   },
   "dependencies": {
     "@xterm/addon-serialize": "0.14.0",
