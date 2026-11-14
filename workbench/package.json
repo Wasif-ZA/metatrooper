@@ -9,7 +9,7 @@
     "node": ">=24.16"
   },
   "scripts": {
-    "postinstall": "npm --prefix ui ci && npm --prefix ui run monaco",
+    "postinstall": "node node_modules/electron/install.js && npm --prefix ui ci && npm --prefix ui run monaco",
     "dev": "electron .",
     "test": "node --test --test-concurrency=1 --test-timeout=120000 \"test/*.test.ts\""
   },
