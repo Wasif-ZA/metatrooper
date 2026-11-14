@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 // Black-box tests: the brief and contracts/desktop-tools.md are the oracle.
 const HELPER = fileURLToPath(new URL('../src/desktop/uia-helper.ps1', import.meta.url));
@@ -65,14 +66,8 @@ async function freshFixture(t: TestContext, size: number, extraArgs: string[] = 
       }
     } finally {
       try {
-        if (fixture?.pid) {
-          // Only the process tree this test spawned; never kill Electron by image name.
-          execFileSync('taskkill.exe', ['/T', '/F', '/PID', String(fixture.pid)],
-            { stdio: 'ignore', windowsHide: true, timeout: 15000 });
-        }
-      } catch (error) {
-        // taskkill can report an already-exited process; other failures must be visible.
-        if (fixture?.exitCode === null && fixture.signalCode === null) throw error;
+        // Only the process tree this test spawned, and only while it still runs; never kill Electron by image name.
+        killTree(fixture);
       } finally {
         const child = fixture;
         if (child && child.exitCode === null && child.signalCode === null) {
