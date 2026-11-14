@@ -1,6 +1,6 @@
 import test, { after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -474,10 +474,12 @@ test('main mounts screens and preserves global visibility and Home navigation co
   } finally { delete g.__axCreateRoot; }
 });
 
-test('renderer bundle is at least as new as every ui/src file', () => {
-  const bundle = statSync(join(wb, 'renderer/ui.bundle.js')).mtimeMs;
-  function check(dir: string) { for (const entry of readdirSync(dir, { withFileTypes: true })) { const path = join(dir, entry.name); if (entry.isDirectory()) check(path); else assert.ok(bundle >= statSync(path).mtimeMs, 'Stale ui.bundle.js: ' + path); } }
-  check(join(wb, 'ui/src'));
+test('renderer bundle matches a fresh build of ui/src', async () => {
+  const script = JSON.parse(readFileSync(join(wb, 'ui/package.json'), 'utf8')).scripts.build;
+  assert.match(script, /^esbuild src\/main\.jsx --bundle --format=iife --jsx=automatic --minify --loader:\.css=css --outfile=\.\.\/renderer\/ui\.bundle\.js /, 'this test builds with the same flags as npm run build');
+  const out = join(temp, 'fresh', 'ui.bundle.js');
+  const { outputFiles } = await build({ absWorkingDir: join(wb, 'ui'), entryPoints: ['src/main.jsx'], bundle: true, format: 'iife', jsx: 'automatic', minify: true, loader: { '.css': 'css' }, outfile: out, write: false, logLevel: 'silent' });
+  for (const f of outputFiles) assert.ok(Buffer.from(f.contents).equals(readFileSync(join(wb, 'renderer', f.path.slice(dirname(out).length + 1)))), `Stale renderer/${f.path.slice(dirname(out).length + 1)}: run npm run build in workbench/ui`);
 });
 
 
@@ -521,7 +523,7 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
   assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets']);
   assert.equal(h.all(hasClass('ou-rows')).length, 3);
-  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when Ouros closes', 'Token limit per agent', 'Checkpoint every turn']);
+  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when cc closes', 'Token limit per agent', 'Checkpoint every turn']);
   assert.deepEqual(h.all((n: any) => n.type === 'h1').map(textContent), ['Reliability']);
   assert.equal(textContent(h.one(hasClass('ou-crumb'))), 'Settings›Reliability');
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
@@ -574,6 +576,16 @@ test('settingsPage returns every literal PAGE_KEYS default independently of curr
     'ui.toast_ms': 3500, 'ui.error_toast_ms': 7000,
   });
   assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
+});
+
+test('Needs you breadcrumb names the task, with the session id as its tooltip', () => {
+  g.ui.view = 'inbox'; g.ui.snap.needs_you = [];
+  g.ui.snap.live = [session('a1b2c3d4e5f6', 'waiting_for_you', { title: 'Preview the pager fix' })];
+  const h = harness(Inbox); inboxStore.set({ selectedId: 'a1b2c3d4e5f6' }); h.draw();
+  const crumb = h.one(hasClass('ou-ny-crumb')).props.children[2];
+  assert.equal(textContent(crumb), textContent(h.one(hasClass('ou-ny-doc-title'))));
+  assert.notEqual(textContent(crumb), 'a1b2c3d4');
+  assert.equal(crumb.props.title, 'a1b2c3d4e5f6');
 });
 
 test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', () => {

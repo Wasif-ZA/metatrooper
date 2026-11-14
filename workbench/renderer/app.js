@@ -333,7 +333,7 @@ function renderHandback() {
   const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
   const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<button class="chip ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added} -${f.deleted}</span></button>`).join('');
   return `<div class="panel">${bar}
-    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. Ouros never commits; it gives you the command to run yourself.</p>'}
+    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. cc never commits; it gives you the command to run yourself.</p>'}
     ${texts ? `<h3>Comment on a line</h3><div class="toolbar">${texts}</div>${renderDiff()}` : ''}
     ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
     ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -1580,7 +1580,7 @@ async function onClick(e) {
       wall.setList(false);
       save('engine', el.dataset.engine);
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
-      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for Ouros: ${r.result.setup.join(', ')}`);
+      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for cc: ${r.result.setup.join(', ')}`);
       if (r.result) await pick(r.result.session_id);
       return;
     }

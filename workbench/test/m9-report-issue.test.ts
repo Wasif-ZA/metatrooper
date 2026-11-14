@@ -19,14 +19,14 @@ test('issueUrl always starts with the exact ISSUE_PREFIX', () => {
   assert.ok(url.startsWith(ISSUE_PREFIX));
 });
 
-test('issueUrl title decodes to Ouros: <view> and defaults to unknown', () => {
+test('issueUrl title decodes to cc: <view> and defaults to unknown', () => {
   for (const [view, expected] of [
-    ['Home', 'Ouros: Home'],
-    ['IDE', 'Ouros: IDE'],
-    ['Wall', 'Ouros: Wall'],
-    ['Settings', 'Ouros: Settings'],
-    ['', 'Ouros: unknown'],
-    ['   ', 'Ouros: unknown'],
+    ['Home', 'cc: Home'],
+    ['IDE', 'cc: IDE'],
+    ['Wall', 'cc: Wall'],
+    ['Settings', 'cc: Settings'],
+    ['', 'cc: unknown'],
+    ['   ', 'cc: unknown'],
   ]) {
     const cleaned = cleanReport({ view, project: 'p', errors: [] });
     const url = issueUrl({

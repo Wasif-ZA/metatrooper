@@ -24,9 +24,9 @@ const NAV = [
 ];
 
 const SECTIONS = [
-  { id: 'general', label: 'General', note: 'How agents ask, and how Ouros looks.', groups: [
+  { id: 'general', label: 'General', note: 'How agents ask, and how cc looks.', groups: [
     { rows: [
-      { key: 'sessions.approval', label: 'Before each tool call', hint: 'Ask shows every command for a yes. Auto lets agents run inside their own Ouros worktree.', select: [['ask', 'Ask me'], ['contained', 'Auto in Ouros worktrees']] },
+      { key: 'sessions.approval', label: 'Before each tool call', hint: 'Ask shows every command for a yes. Auto lets agents run inside their own cc worktree.', select: [['ask', 'Ask me'], ['contained', 'Auto in cc worktrees']] },
       { key: 'sessions.metarouter', label: 'Route shell commands through metarouter', hint: 'Shorter command output for agents.' },
       { key: 'ui.toast_ms', label: 'Keep a message on screen for', hint: 'The small notes at the corner of the window.', unit: 'ms', min: 1000, max: 60000, step: 500 },
       { key: 'ui.error_toast_ms', label: 'Keep an error message on screen for', hint: 'Error notes stay longer so you can read them.', unit: 'ms', min: 1000, max: 60000, step: 500 },
@@ -57,7 +57,7 @@ const SECTIONS = [
       { read: (s) => String(s.reliability.false_alarms), label: 'False alarms so far', hint: 'Times you answered "Not a loop".' },
       { soon: true, label: 'Retry provider errors', hint: 'Backs off and retries. Asks before switching model.' },
       { soon: true, label: 'Ask when a request can mean two things', hint: 'Shows as one Needs you card.' },
-      { soon: true, label: 'Keep runs going when Ouros closes', hint: 'Resumes from the last step. Sends and deploys always ask again.' },
+      { soon: true, label: 'Keep runs going when cc closes', hint: 'Resumes from the last step. Sends and deploys always ask again.' },
     ] },
     { title: 'Budgets', rows: [
       { key: 'reliability.token_limit', label: 'Token limit per agent', hint: 'A log line at 80%. At 100% the agent is paused and you are asked. 0 turns it off.', unit: 'tokens', min: 0, max: 100000000, step: 10000 },
@@ -78,10 +78,10 @@ const SECTIONS = [
     { lent: true, label: 'Sites where agents may use my sign-in', hint: 'This project only. An agent on one of these sites acts as you. It is asked for per site in Needs you.' },
   ] }] },
   { id: 'automations', label: 'Automations', note: 'A check script runs on a timer in this project. An agent is started only when the script exits with code 1.', groups: [], body: Automations },
-  { id: 'addons', label: 'Add-ons', note: 'Agents and plugins Ouros can start.', groups: [{ rows: [
+  { id: 'addons', label: 'Add-ons', note: 'Agents and plugins cc can start.', groups: [{ rows: [
     { run: () => { settingsView.close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
   ] }] },
-  { id: 'notify', label: 'Notifications', note: 'Where Ouros tells you when an agent needs you.', groups: [{ rows: [
+  { id: 'notify', label: 'Notifications', note: 'Where cc tells you when an agent needs you.', groups: [{ rows: [
     { run: () => openSinks(), button: 'Manage', label: 'Slack, ntfy and webhooks', hint: 'Where "needs you" and "run failed" get sent.' },
   ] }] },
   { id: 'advanced', label: 'Advanced', note: 'Worktrees and logs.', groups: [{ title: 'Worktrees', rows: [

@@ -359,7 +359,7 @@ function handlers(): void {
     const d = db();
     const row = d && typeof c.session_id === 'string' ? (d.prepare('SELECT project_id, host FROM session WHERE id = ?').get(c.session_id) as { project_id: string; host: string } | undefined) : undefined;
     if (typeof projectId !== 'string' || !row || row.project_id !== projectId) return { ok: false, error: 'Pick a session in this project.' };
-    if (row.host === 'external') return { ok: false, error: 'the session was opened outside Ouros; type into its own terminal' };
+    if (row.host === 'external') return { ok: false, error: 'the session was opened outside cc; type into its own terminal' };
     if (!namedPaths([c.path]) || typeof c.line !== 'number' || !Number.isSafeInteger(c.line) || c.line < 1 ||
         (c.endLine !== undefined && (typeof c.endLine !== 'number' || !Number.isSafeInteger(c.endLine) || c.endLine < c.line)) ||
         (c.side !== undefined && c.side !== 'old' && c.side !== 'new') || (c.excerpt !== undefined && typeof c.excerpt !== 'string')) return { ok: false, error: 'Pick a file and line.' };
@@ -845,7 +845,7 @@ function createWindow(): void {
     panes?.show(null, null);
     const act = crashAction(d.reason, reloadedAt, Date.now());
     if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
-    else if (act === 'stop') dialog.showErrorBox('Ouros', `The window crashed again (${d.reason}). Restart Ouros; the logs folder has details.`);
+    else if (act === 'stop') dialog.showErrorBox('cc', `The window crashed again (${d.reason}). Restart cc; the logs folder has details.`);
   });
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) { detachAll(); dirtyFiles = false; } });
   win.on('unresponsive', () => console.error('window unresponsive'));

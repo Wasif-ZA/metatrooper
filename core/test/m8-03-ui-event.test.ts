@@ -154,6 +154,23 @@ for (const [name, o] of [['an idle hooks session with no terminal', { engine: 'h
   });
 }
 
+test('a click on a session the user typed into at the very ms of its last state change is held, not submitted', async t => {
+  const h = await harness(t, { engine: 'hooked', live: true });
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T00:00:00.000Z') });
+  term.noteTyped(h.id, 'x');
+  t.mock.timers.reset();
+  assert.equal(h.click().typed, false);
+});
+
+test('ui.event needs a trusted UI connection, in its handler and its declaration', async () => {
+  const { METHODS } = await import('../src/methods.ts');
+  assert.equal(METHODS.find(m => m.name === 'ui.event')!.needsUi, true);
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  assert.equal(buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'synthetic-key' }).get('ui.event')!.needsUi, true);
+  db.close();
+});
+
 test('a click that cannot be typed becomes one needs_you row and no notice', async t => {
   const h = await harness(t);
   assert.deepEqual(h.click(), { delivered: true, to: 'inbox', seq: 1 });

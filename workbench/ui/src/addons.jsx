@@ -106,7 +106,7 @@ export function Addons() {
       <header className="ou-pagehead ou-addons-head">
         <div>
           <h1>Add-ons</h1>
-          <p>Agents Ouros can start, and plugins that add tools.</p>
+          <p>Agents cc can start, and plugins that add tools.</p>
           <p className="ou-addons-scope">Changes apply to new sessions only.</p>
         </div>
         <span className="ou-actions">
@@ -134,7 +134,7 @@ export function Addons() {
       {adding ? <PluginInstall onClose={(done) => { setAdding(false); if (done) retry(); }} /> : null}
       <AlertDialog isOpen={going !== null} onOpenChange={(isOpen) => { if (!isOpen) setGoing(null); }} title={`Remove ${going || 'this plugin'}?`} description="Its tools stop for new sessions. Open sessions keep what they started with." actionLabel="Remove" actionVariant="destructive"
         onAction={async () => { const id = going; setGoing(null); const r = await rpc('plugin.remove', { plugin_id: id }); if (r.result) { toast(`Removed ${id}`); retry(); } }} />
-      <Text as="p" color="secondary">Install or remove a plugin from a terminal: <Code>troop plugin install &lt;folder or URL&gt;</Code>, <Code>troop plugin remove &lt;id&gt;</Code>. Ouros shows what a plugin may do before it installs.</Text>
+      <Text as="p" color="secondary">Install or remove a plugin from a terminal: <Code>troop plugin install &lt;folder or URL&gt;</Code>, <Code>troop plugin remove &lt;id&gt;</Code>. cc shows what a plugin may do before it installs.</Text>
     </div>
   );
 }
