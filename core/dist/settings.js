@@ -80,7 +80,7 @@ export const DEFAULTS = {
         label: 'Dither', look: 'dither', scheme: 'dark', bg: '#0b0b0c', panel: '#161617', panel2: '#1b1b1c', line: '#2a2a2b', line_strong: '#4a4a4a',
         text: '#f2f2f2', body_strong: '#dcdcdc', body: '#b8b8b8', muted: '#8f8f8f', faint: '#6e6e6e', accent: '#f2f2f2', on_accent: '#0b0b0c', ok: '#f2f2f2',
         warn: '#ff7a1a', bad: '#c8695c', grey: '#5a5a5a', unseen: '#b8b8b8', term_bg: '#0e0e0f', term_fg: '#b8b8b8', add_bg: '#f2f2f212', add_fg: '#e8e8e8',
-        del_bg: '#c8695c17', del_fg: '#c8695c', font_ui: "'Space Mono', ui-monospace, Consolas, monospace", font_mono: DITHER_MONO,
+        del_bg: '#c8695c17', del_fg: '#dc8174', font_ui: "'Space Mono', ui-monospace, Consolas, monospace", font_mono: DITHER_MONO,
       },
       ouros: {
         label: 'Ouros', look: 'plain', scheme: 'dark', bg: '#0a0a0a', panel: '#171717', panel2: '#262626', line: '#222222', line_strong: '#303030',
