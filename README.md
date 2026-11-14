@@ -1,18 +1,14 @@
-<p align="center"><strong>Windows first, Linux beta. Install from source. Local only: no account, no telemetry.</strong></p>
+<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
 
 <p align="center">
-  <img src="assets/archive/metatrooper/hero.png" width="640" alt="Ouros: dithered dots on near-black gathering into four terminal clusters">
-</p>
-
-<p align="center">
-  <strong>The desk where you run all your coding agents at once.</strong><br>
-  Claude Code, Codex, Gemini and other CLI agents side by side, each in a terminal that keeps going. One wall tells
-  you who needs you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
+  <strong>cc: an IDE built around your coding agents.</strong><br>
+  Claude Code, Codex and other CLI agents side by side, each in a terminal that keeps going. One place tells you
+  who needs you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
 </p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
-  <a href="#whats-next-ouros"><strong>What's next</strong></a> &middot;
+  <a href="#what-it-is"><strong>What it is</strong></a> &middot;
   <a href="#the-wall"><strong>The wall</strong></a> &middot;
   <a href="#browser-use"><strong>Browser use</strong></a> &middot;
   <a href="#computer-use-windows"><strong>Computer use</strong></a> &middot;
@@ -24,25 +20,36 @@
 <p align="center">
   <img src="https://img.shields.io/badge/node-24.16%2B-5FA04E" alt="Node 24.16+">
   <img src="https://img.shields.io/badge/core-AGPL--3.0-1a7f64" alt="Core AGPL-3.0">
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20beta-0078D4" alt="Windows, Linux beta">
+  <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="Windows">
   <img src="https://img.shields.io/badge/status-pre--release-c47f00" alt="Pre-release">
 </p>
 
 <div align="center">
 
-| 4 | 0 | 0 | 727 | 1,200+ |
-|:--:|:--:|:--:|:--:|:--:|
-| CLI agents supported | accounts to create | telemetry | core tests | commits |
+| 7 | 0 | 0 | 2,000+ |
+|:--:|:--:|:--:|:--:|
+| CLI agents supported | accounts to create | telemetry | commits |
 
 </div>
 
 ## What it is
 
 You run three agents in three terminals. You lose track of which one is waiting on you. You paste screenshots back
-and forth so an agent can see what it built. Ouros puts every agent in a terminal it owns, on one wall, and
-shows you which one needs you.
+and forth so an agent can see what it built. cc puts every agent in a terminal it owns and shows you which one needs
+you. Around them sits an editor, so you can read and change what they wrote without leaving the window.
 
-It has four parts:
+The window has these screens:
+
+| Screen | What it does |
+|---|---|
+| **Home** | Your projects, their worktrees and their agents in one tree, with each agent's current steps. Start a task from here. |
+| **IDE** | A file tree, tabs, a code editor, search, source control, Problems and a terminal. Files an agent changed are marked. |
+| **Wall** | Every agent as a live terminal tile. The one waiting for you comes to the big slot. |
+| **Needs you** | Every question, approval and finished run that waits on you, with filters and labels. |
+| **Add-ons** | The agents cc found and the plugins you installed, each with its permissions. |
+| **Settings** | Approvals, notifications, the take-over key and the rest. Automations live here too. |
+
+It also has four parts under the screens:
 
 | Part | What it does |
 |---|---|
@@ -51,114 +58,77 @@ It has four parts:
 | **Computer use** (Windows) | Agents act on the app windows you give them, with their own visible cursor. One key takes over. |
 | **Core services** | A background service owns the terminals. Sessions come back after a restart, dev servers get previews, and other tools can drive it. |
 
-Ouros runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads
-their login tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
+cc runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads their login
+tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
 
-## What's next: Ouros
+The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name
+MetaTrooper. The window's mark says cc.
 
-Ouros (the new name for MetaTrooper) is becoming an IDE built around your agents. It is for developers first, then for people who are
-not developers but need code work done.
+## What's next
 
-**None of this is built yet.** These are design previews with demo data. Everything in the sections below this one
-is what runs today.
-
-<p align="center">
-  <img src="assets/ouros/ide.png" width="860" alt="Design preview of the Ouros IDE: file tree, an editor showing an agent's change with Keep and Undo, a terminal, and a chat with the agent">
-</p>
-
-| Screen | What it is for |
-|---|---|
-| **IDE** | A familiar editor frame. An agent's changes appear in place, with Keep and Undo on each one. |
-| **Today** | What ran overnight, who needs you, and what is ready to review. |
-| **Wall** | Every agent on one screen. The wall that runs today, inside the IDE. |
-| **Review** | The diff, the check results and what reviewers found. A comment on a line goes back to the agent. |
-| **Rewind** | Go back to any point in a run, with the changes shown before you restore. |
-
-<table>
-  <tr>
-    <td><img src="assets/ouros/today.png" alt="Design preview: Today screen"></td>
-    <td><img src="assets/ouros/wall.png" alt="Design preview: Wall screen"></td>
-  </tr>
-  <tr>
-    <td><img src="assets/ouros/review.png" alt="Design preview: Review screen"></td>
-    <td><img src="assets/ouros/rewind.png" alt="Design preview: Rewind screen"></td>
-  </tr>
-</table>
-
-**The idea being tested:** an agent should not mark its own work. You agree what done means, and Ouros runs the check
-from a copy the agent cannot change. You then see what passed and what was not checked. This is still a design, and
-it has not been shown to help yet.
-
-**After launch:** add-ons that reshape the workspace for other jobs, such as spreadsheets, sales pipelines, graphic
-design and UI design. These are drawings only for now, and no engine sits behind them.
-
-<p align="center">
-  <img src="assets/ouros/jobs.png" width="860" alt="Design previews of later add-ons: a spreadsheet, a sales pipeline, a graphic design tool and a UI design tool">
-</p>
-
-The plan is in [`spec.md`](spec.md) (Milestone 8) and [`ouros-spec.md`](ouros-spec.md).
+Plans that are not built yet live in [`ouros-spec.md`](ouros-spec.md) and [`spec.md`](spec.md). This page lists only
+what runs today.
 
 ## Quickstart
 
-There is no installer yet. You run Ouros from a clone of this repo.
+There is no installer yet. You run cc from a clone of this repo.
 
 You need:
 
-- Node 24.16 or newer.
+- Windows 10 or 11. These steps were tested on Windows 11.
+- Node 24.16 or newer (tested on 24.18).
 - At least one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
-- Windows 10 or 11. Linux works as a beta (below). macOS is not supported.
+- A network connection for the first run.
 
 ```bash
 git clone https://github.com/Wasif-ZA/metatrooper
 cd metatrooper/core && npm ci
 cd ../workbench && npm ci
-npm run dev        # opens the window; needs a desktop session
+cd ..
+node core/cli.ts start          # starts the core in the background
+node core/cli.ts ping           # checks the core is up
+node core/cli.ts skills install # optional: copies the bundled agent skills
+cd workbench && npm run dev     # opens the window; needs a desktop session
 ```
 
-The window starts the core service if it is not already running. Close the window and your agents keep working.
-Open it again and they are still there.
+What to expect:
 
-On first run the window asks how agents should start: **Ask before each tool call** (the default) or **Auto mode in
-Ouros worktrees**. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
-
-From source, `troop` below means `node core/cli.ts`. To check what Ouros found:
-
-```bash
-node core/cli.ts engines     # which agent CLIs are installed
-node core/cli.ts ping        # is the core up (exit 3 and "core offline" when it is not)
-```
+- The first `npm run dev` downloads Electron ("Downloading Electron binary..."), so it takes longer.
+- `npm ci` in `core/` may warn about scripts for `node-pty`. It is only a warning.
+- `npm ci` in `workbench/` may report vulnerabilities from `npm audit`. They do not stop the install.
+- On first run the window asks how agents should start: ask before each tool call (the default) or auto mode in
+  worktrees. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
+- From source, `troop` in any message or below means `node core/cli.ts`.
 
 > [!WARNING]
-> **Two things happen on first run.** Launching Claude Code from the window installs Ouros's hooks into
+> **Two things happen on first run.** Launching Claude Code from the window installs cc's hooks into
 > `~/.claude/settings.json`. `troop hooks uninstall` takes them out again and leaves the rest of the file byte for
 > byte. The core keeps its state in `~/.metatrooper/troop.db`. A newer core migrates it, after which an older build
 > cannot open it.
 
-### Linux (beta)
+## The IDE
 
-The wall, browser use and core services run on Linux. Computer use is Windows only. The core's tests run on Ubuntu
-24.04; the window gets less testing there.
-
-```bash
-sudo apt install build-essential libsecret-tools   # node-pty's toolchain; secret-tool for secrets
-git clone https://github.com/Wasif-ZA/metatrooper
-cd metatrooper/core && npm ci && cd ../workbench && npm ci && cd ..
-workbench/bin/metatrooper.sh                         # the window, detached from this terminal
-```
-
-- Secrets go to your keyring through `secret-tool`. Without it they are kept unencrypted in files only you can read
-  (mode 0600) under `~/.metatrooper/secrets/`, and the install screen says so.
-- If the window does not open and Electron reports the SUID sandbox helper, run
-  `sudo chown root workbench/node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 workbench/node_modules/electron/dist/chrome-sandbox`.
+- **Editor.** Tabs, Ctrl+S to save, Ctrl+W to close, and a prompt before a dirty tab closes. If the file changed on
+  disk since you opened it, you choose Reload from disk or Overwrite. Line endings stay as they were.
+- **Find.** Ctrl+P finds a file by name. Ctrl+Shift+F searches in files.
+- **Source control.** Stage, unstage and commit staged changes. Files an agent changed carry a mark, and you can
+  open each one as a diff.
+- **Comments to the agent.** A comment on a line of a diff goes to that agent as your next message, with the file and
+  line range.
+- **Bottom panel.** A terminal, and Problems grouped by file, errors first. A row opens the file at its line.
+- **Split editor.** Open the active file in a right-hand group.
+- **Screens an agent draws.** An agent can draw a screen in an IDE tab: tables, charts, lists, forms and diffs. A
+  click on a button there goes back to the agent that drew it. Bad input from the agent falls back to plain text.
+- **Open in VS Code** from the tab's More actions menu.
 
 ## The wall
 
 - **The one that needs you comes to you.** When an agent asks a question or waits for a permission, its tile turns
   orange and moves to the big slot. It waits 3 s if you were just typing in the big tile, so it never steals your
   keys. Finished agents fold to one-line bars.
-- **Status you can trust.** Each tile says `working`, `waiting for you`, `done` or `exited`. It comes from each
-  agent's own hooks (Claude Code, Codex, Gemini), never guessed from its output. A waiting tile says why: a
-  permission, a question or an approval.
+- **Status you can trust.** Each tile says `working`, `waiting for you`, `done` or `exited`. Claude Code reports it
+  through its hooks and Codex through its notify setting. Other engines show a simpler status taken from their
+  process.
 - **Keys that leave your terminal alone.** Wall keys use Alt, so a focused terminal keeps every Ctrl key. Alt+arrow
   moves between tiles. Alt+J jumps to the session that has waited longest. Alt+N labels each tile with a letter.
 - **Ctrl+K for everything.** One search over sessions, commands and the text in every live terminal.
@@ -177,8 +147,8 @@ port and no browser extension. Full rules: [`contracts/browser-tools.md`](contra
   credential, and clicking a control named like Send, Submit, Pay, Delete or Publish. An approval card shows a
   redacted crop of the target. You pick Approve once, Approve for this session, or Reject. Only the window can
   approve, never an agent. Unanswered cards expire after 120 s. Rules: [`contracts/approvals.md`](contracts/approvals.md).
-- **Origins.** The first input on a new site (scheme, host and port, after redirects) asks first. List sites that
-  should never ask in the project's `.troop/config.json` under `allow_origins`.
+- **Origins.** The first input on a new site (scheme, host and port, after redirects) asks first. Sites listed in
+  the `browser.allow_origins` setting never ask for being new.
 - **Secrets.** Save a secret for one site:
 
   ```bash
@@ -203,9 +173,9 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Grants.** An agent acts only on windows you give it. On its tile, pick **Give window** and choose one. The grant
   covers that window and its own menus and dialogs. It ends when the window closes, when you revoke it from the
   tile, or when the core restarts. Other windows answer "window not granted; ask the user to give it to you".
-- **What it refuses.** The Ouros window, elevated (admin) windows and the secure desktop can never be granted.
+- **What it refuses.** The cc window, elevated (admin) windows and the secure desktop can never be granted.
   Key chords with Control or Shift are refused, because a posted key cannot carry them. Password fields, send-like
-  buttons and file dialogs ask every time. Every desktop tool fails while the Ouros window is closed.
+  buttons and file dialogs ask every time. Every desktop tool fails while the cc window is closed.
 - **Your pointer stays yours.** The driver sends window messages and control actions, never real mouse input. A
   few modern apps take keyboard focus for a moment during an action.
 - **Seeing it.** The agent's cursor glides to each target. A thin frame in the agent's colour outlines each granted
@@ -213,15 +183,12 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Take-over key.** Ctrl+Alt+Q (setting `desktop.takeover_key`) pauses all agent input, desktop and browser, at
   once. Calls then return "paused by the user". Resume each session from its tile.
 - **Watcher.** Agents keep their auto mode, so an agent could script the desktop through its own shell. While any
-  grant is live, the core watches for that. Injected input that no Ouros action sent raises "input from
-  another program". A desktop change while you are away from the keyboard raises "the desktop changed while you
-  were away from it". Both pause the agents (setting `desktop.watch_pause`, on by default). If Windows blocks the
-  watcher, granted tiles say "input watcher off" in orange.
+  grant is live, the core watches for that. Injected input that no cc action sent raises "input from another
+  program". A desktop change while you are away from the keyboard raises "the desktop changed while you were away
+  from it". Both pause the agents (setting `desktop.watch_pause`, on by default). If Windows blocks the watcher,
+  granted tiles say "input watcher off" in orange.
 - **Watch layout.** Ctrl+Alt+W shows each granted window as a live thumbnail beside its agent's tile. It is meant for
   a second monitor.
-- **Demo mode.** `npm run dev -- --demo` in `workbench/` opens a separate copy with its own data folder, demo
-  sessions and no secrets. Its window is the only Ouros window an agent may be given, and only to a demo
-  session, so an agent can test Ouros itself.
 
 ## Core services
 
@@ -237,6 +204,8 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
   Notifications can also go to ntfy, Slack, Discord, Teams, a webhook or a command.
 - **Limits.** When a Claude session hits a usage limit, it is told to continue once the limit resets. A warning
   names the time if a window looks set to run out early.
+- **Automations.** A check script runs on a timer in a project. An agent starts only when the script exits with
+  code 1.
 - **Public API.** Other tools drive the core over a named pipe (`\\.\pipe\metatrooper` on Windows) with JSON-RPC. No
   TCP port and no WebSocket. Methods marked stable keep their shape within a protocol version. `troop --help` lists
   every method; [`contracts/pipe-protocol.md`](contracts/pipe-protocol.md) has the exact shapes.
@@ -273,8 +242,8 @@ From source, `troop` means `node core/cli.ts`. Add `--json` to any command for o
 | Stop the core | `troop stop` |
 
 `launch` takes `--approval ask|edits|contained`. `ask` asks before each tool call. `contained` runs the engine's auto
-mode in an Ouros worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start
-in `ask`.
+mode in a cc worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in
+`ask`.
 
 `troop skills install` copies the skills in `skills/` into `~/.claude/skills/`. The `troop` skill teaches an agent to
 start and follow other sessions through this CLI.
@@ -282,8 +251,8 @@ start and follow other sessions through this CLI.
 ### Approval profiles
 
 `--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
-OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on an Ouros worktree. A
-settings file from an older version keeps its value.
+OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a cc worktree. A settings
+file from an older version keeps its value.
 
 Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
 requested, as does a folder holding one of them one or two levels down. Engines that send your code to another
@@ -304,16 +273,15 @@ add to it, since an agent can write that file:
 
 Every session also runs with metarouter on by default: `router/bin` goes first on its `PATH`, so `metarouter` is the
 bundled copy, and Claude sessions are told to send shell commands through it. Turn it off with
-`{ "sessions": { "metarouter": false } }`. router/bin also holds `troop` and `troop.cmd`, which run core/cli.ts.
+`{ "sessions": { "metarouter": false } }`. `router/bin` also holds `troop` and `troop.cmd`, which run `core/cli.ts`.
 
 </details>
 
 ## Privacy
 
 - **What leaves your machine.** The core and the window make no network connection of their own. Your agents talk
-  to their own vendors, as they do outside Ouros. A plugin with the `network` permission connects where its
-  install screen says, and only after you approve it. Pages you or an agent open in a browser pane load as in any
-  browser.
+  to their own vendors, as they do outside cc. A plugin with the `network` permission connects where its install
+  screen says, and only after you approve it. Pages you or an agent open in a browser pane load as in any browser.
 - **One exception.** When Windows "Automatically detect settings" is on, the window's Chromium looks up the LAN host
   `wpad`, as Chrome and Edge do.
 - **What it stores.** State lives in `~/.metatrooper/` (`troop.db`, `settings.json`, `logs/`, and `worktrees/` for
@@ -345,6 +313,7 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
   browser. It could read your files anyway.
 - **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions.
   `ask` and approvals are the guard rails.
+- **Some IDE parts are not built.** The UI marks them "Not built yet".
 
 ## Licence
 
