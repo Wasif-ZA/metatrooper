@@ -73,7 +73,8 @@ export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeI
     return { delivered: true, to: 'inbox' as const, seq: r.seq };
   };
   if (r.state === 'exited') return inbox();
-  db.prepare("INSERT INTO comment (id, at, session_id, kind, body) VALUES (?, ?, ?, 'notice', ?)").run(ulid(), nowIso(), r.session_id, line);
   const typed = typeInto(r.session_id, r.engine_id, line);
-  return typed === false ? inbox() : { delivered: true, to: 'session', seq: r.seq, typed: Boolean(typed) };
+  if (typed === false) return inbox();
+  db.prepare("INSERT INTO comment (id, at, session_id, kind, body) VALUES (?, ?, ?, 'notice', ?)").run(ulid(), nowIso(), r.session_id, line);
+  return { delivered: true, to: 'session', seq: r.seq, typed: Boolean(typed) };
 }
