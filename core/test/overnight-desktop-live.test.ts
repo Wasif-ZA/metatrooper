@@ -8,7 +8,7 @@ import { until } from './helpers.ts';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
@@ -154,13 +154,30 @@ test('overnight M8-38: non-Chromium snapshot retains its empty pane and child de
   assert.ok(indent(all[b]) > indent(all[parent]));
 });
 
-test('overnight M8-38: stationary button input reports false drift and empty foreground title', T, async () => {
+// The tick of the last real keyboard or mouse input (GetLastInputInfo); the helper's posted messages never change it.
+const LAST_INPUT = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class LastInput { [StructLayout(LayoutKind.Sequential)] struct L { public uint cb; public uint t; } [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref L l); public static uint Get() { var l = new L(); l.cb = 8; if (!GetLastInputInfo(ref l)) throw new Exception("GetLastInputInfo failed"); return l.t; } }'; [LastInput]::Get()`;
+const lastInput = () => {
+  const tick = Number(execFileSync('powershell.exe', [...PS, '-Command', LAST_INPUT], { encoding: 'utf8', windowsHide: true }).trim());
+  assert.ok(Number.isFinite(tick), 'GetLastInputInfo gave no tick');
+  return tick;
+};
+
+test('overnight M8-38: stationary button input reports false drift and empty foreground title', T, async (t) => {
   const ref = await refFor('Fixture button');
-  const { pre, post, r } = await inputOp({ op: 'click', ref });
-  assert.equal(r.error, undefined);
-  assert.deepEqual(post, pre, 'the posted button must preserve foreground and cursor');
-  assert.equal(r.result.pointer_drift, false);
-  assert.equal(r.result.foreground_taken_by, '');
+  for (let round = 1; ; round++) {
+    const before = lastInput();
+    const { pre, post, r } = await inputOp({ op: 'click', ref });
+    assert.equal(r.error, undefined);
+    // a person using the mouse or keyboard moves the cursor or foreground without the click doing it
+    if (lastInput() !== before) {
+      if (round < 3) continue;
+      return t.skip('real mouse or keyboard input arrived during all 3 rounds, so foreground and cursor could not be checked');
+    }
+    assert.deepEqual(post, pre, 'the posted button must preserve foreground and cursor');
+    assert.equal(r.result.pointer_drift, false);
+    assert.equal(r.result.foreground_taken_by, '');
+    return;
+  }
 });
 
 test('overnight M8-40e: live pins match literal punctuation and case; resume with drift pauses again', T, async () => {
