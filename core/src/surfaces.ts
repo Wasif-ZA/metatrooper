@@ -47,11 +47,11 @@ export interface UiEventResult { delivered: boolean; to: 'session' | 'inbox' | n
 const plainValue = (v: unknown) => typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
 
 /** A click on a drawn screen: dropped when the screen was redrawn since (stale seq) or the same event was already sent for this seq; else one `[ouros-ui]` line queued for the owning session, or a needs-you item when that session has exited or `typeInto` returns false (no open terminal). */
-export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeInto: (sessionId: string, engineId: string, text: string, state: string) => boolean | 'sent' | null): UiEventResult {
+export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeInto: (sessionId: string, engineId: string, text: string, state: string, stateAt: string) => boolean | 'sent' | null): UiEventResult {
   const id = p.surface;
   if (typeof id !== 'string' || !ID.test(id)) throw new RpcError(E.INVALID_PARAMS, 'surface must be a surface id');
-  const r = db.prepare('SELECT u.session_id, u.title, u.seq, s.state, s.engine_id FROM ui_surface u JOIN session s ON s.id = u.session_id WHERE u.id = ?').get(id) as
-    | { session_id: string; title: string; seq: number; state: string; engine_id: string }
+  const r = db.prepare('SELECT u.session_id, u.title, u.seq, s.state, s.state_at, s.engine_id FROM ui_surface u JOIN session s ON s.id = u.session_id WHERE u.id = ?').get(id) as
+    | { session_id: string; title: string; seq: number; state: string; state_at: string; engine_id: string }
     | undefined;
   if (!r) throw new RpcError(E.NOT_FOUND, 'surface not found');
   if (p.seq !== r.seq) return { delivered: false, to: null, dropped: 'stale', seq: r.seq };
@@ -73,7 +73,7 @@ export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeI
     return { delivered: true, to: 'inbox' as const, seq: r.seq };
   };
   if (r.state === 'exited') return inbox();
-  const typed = typeInto(r.session_id, r.engine_id, line, r.state);
+  const typed = typeInto(r.session_id, r.engine_id, line, r.state, r.state_at);
   if (typed === false) return inbox();
   const at = nowIso();
   db.prepare("INSERT INTO comment (id, at, session_id, kind, body, prompt_at) VALUES (?, ?, ?, 'notice', ?, ?)").run(ulid(), at, r.session_id, line, typed === 'sent' ? at : null);

@@ -70,6 +70,17 @@ for (const engine of ['fake', 'hooked'] as const) {
   });
 }
 
+for (const engine of ['fake', 'hooked'] as const) {
+  test(`a click on an idle ${engine} session the user has typed into since its last state change is held, not submitted`, async t => {
+    const h = await harness(t, { engine, live: true });
+    term.noteTyped(h.id, 'half a draft');
+    assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: false });
+    assert.equal(h.notices()[0].prompt_at, null);
+    await new Promise(r => setTimeout(r, 300));
+    assert.ok(!(await h.screen()).includes(`GOT:${LINE}`));
+  });
+}
+
 test('a click on a session without hooks that waits on a person is pasted without Enter and reported as not typed', async t => {
   const h = await harness(t, { state: 'waiting_for_you', live: true });
   assert.deepEqual(h.click(), { delivered: true, to: 'session', seq: 1, typed: false });
