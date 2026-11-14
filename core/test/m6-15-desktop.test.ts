@@ -369,7 +369,8 @@ test('M6-15b: after the core acknowledges Ctrl+Alt+Q, no further character of a 
     // Resume is per session
     assert.equal((await call(agent, 'takeover.resume', { session_id: 's1' })).error.code, -32012);
     assert.deepEqual((await call(ui, 'takeover.resume', { session_id: 's1' })).result, {});
-    assert.equal((await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'ok' })).result.status, 'confirmed');
+    const resumed = await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'ok' });
+    assert.equal(resumed.result?.status, 'confirmed', JSON.stringify(resumed.error));
     assert.equal((await call(agent, 'approval.check', { session_id: 's2', surface: 'browser', target: 'https://example.com', action: 'click', args: {}, control: null })).result.reason, 'paused by the user');
 
     // A second pause stops the resumed session again
