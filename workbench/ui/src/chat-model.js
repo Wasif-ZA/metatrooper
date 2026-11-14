@@ -12,7 +12,7 @@ export function groupItems(items) {
   const out = [];
   let run = [];
   const flush = () => {
-    if (run.length < 2) out.push(...run);
+    if (run.length < 4) out.push(...run);
     else {
       const failed = run.filter((x) => x.status === 'error').length;
       const suffix = failed ? ` · ${failed} failed` : run.some((x) => x.status === 'running') ? ' · working' : '';
@@ -26,4 +26,10 @@ export function groupItems(items) {
   }
   flush();
   return out;
+}
+
+export function splitLabel(label) {
+  const verb = ['Searched the web for', 'Started a helper:', 'Searched for', 'Updated the plan']
+    .find((verb) => label === verb || label.startsWith(verb + ' ')) || label.split(' ')[0];
+  return { verb, arg: label.slice(verb.length).trimStart() };
 }

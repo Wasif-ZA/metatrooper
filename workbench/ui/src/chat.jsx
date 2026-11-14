@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
 
@@ -27,9 +27,33 @@ export function useChat(id) {
 }
 
 function ToolRow({ item }) {
-  return <div className="ou-hm-tool" title={item.label}>
-    <span>{item.label}</span>
-    {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : item.status === 'running' ? <span>working</span> : null}
+  const [open, setOpen] = useState(item.status === 'error');
+  useEffect(() => { if (item.status === 'error') setOpen(true); }, [item.status]);
+  const { verb, arg } = splitLabel(item.label);
+  const hasOutput = item.output !== undefined;
+  return <div className="ou-hm-toolrow">
+    <div className="ou-hm-tool" title={item.label} aria-expanded={hasOutput ? open : undefined} {...(hasOutput ? press(() => setOpen(!open)) : {})}>
+      <span><strong>{verb}</strong>{arg ? <> <code>{arg}</code></> : null}</span>
+      {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : item.status === 'running' ? <span>working</span> : null}
+      {hasOutput ? <span className="ou-hm-chevbox" data-open={String(open)}><ChevronRightIcon size={14} /></span> : null}
+    </div>
+    {hasOutput ? <Drop open={open} className="ou-hm-drop ou-hm-tooloutput">{item.output.map((line, i) => <div key={i} className={i === 0 ? 'ou-hm-bad' : undefined}>{line}</div>)}</Drop> : null}
+  </div>;
+}
+
+function EditCard({ item, openFile }) {
+  return <div className="ou-hm-edit">
+    <div className="ou-hm-edithead">
+      <strong>Edited</strong><code title={item.file}>{item.file}</code>
+      {item.preview ? <span className="ou-hm-editcounts"><span className="ou-hm-add">+{item.preview.added}</span> <span className="ou-hm-del">-{item.preview.removed}</span></span> : null}
+      {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : null}
+      <Button size="sm" variant="ghost" label="Open in IDE" onClick={() => void openFile(item.file)} />
+    </div>
+    {item.preview ? <div className="ou-hm-diff">
+      {item.preview.lines.map((line, i) => <div key={i} className={line.sign === '+' ? 'ou-hm-add' : 'ou-hm-del'}>{line.sign} {line.text}</div>)}
+      {item.preview.more > 0 ? <div className="ou-hm-diffmore">{item.preview.more} more lines</div> : null}
+    </div> : null}
+    {item.output !== undefined ? <ToolRow item={item} /> : null}
   </div>;
 }
 
@@ -58,7 +82,7 @@ function Approval({ item, x, engine }) {
     <code className="ou-hm-approvaltext">{approvalText(item)}</code>
     <div className="ou-hm-chatactions">
       <Button size="sm" variant="primary" label="Allow" isDisabled={sending || approvalInput(engine, true) === null} onClick={() => void send(true)} />
-      <Button size="sm" variant="secondary" label="Deny" isDisabled={sending || approvalInput(engine, false) === null} onClick={() => void send(false)} />
+      <Button className="ou-hm-deny" size="sm" variant="secondary" label="Deny" isDisabled={sending || approvalInput(engine, false) === null} onClick={() => void send(false)} />
     </div>
   </div>;
 }
@@ -94,11 +118,7 @@ export function Chat({ x, chat, openInEditor }) {
       if (item.kind === 'text') return <p key={i} className="ou-hm-chattext">{item.text}</p>;
       if (item.kind === 'steps') return <ToolSteps key={item.id} item={item} />;
       if (item.status === 'waiting') return <Approval key={item.id} item={item} x={x} engine={engine} />;
-      if (item.file) return <div key={item.id} className="ou-hm-edit">
-        <span title={item.file}>Edited {item.file}</span>
-        {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : null}
-        <Button size="sm" variant="ghost" label="Open in IDE" onClick={() => void openFile(item.file)} />
-      </div>;
+      if (item.file) return <EditCard key={item.id} item={item} openFile={openFile} />;
       return <ToolRow key={item.id} item={item} />;
     })}
   </div>;

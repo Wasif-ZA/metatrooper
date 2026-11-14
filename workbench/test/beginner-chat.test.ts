@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { approvalInput, approvalText, chatModeOf, groupItems, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
+import { approvalInput, approvalText, chatModeOf, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from '../ui/src/chat-model.js';
 
 const tool = (id: string, label: string, status = 'ok', file?: string) => ({ kind: 'tool', id, name: file ? 'Edit' : 'Bash', label, status, ...(file ? { file } : {}) });
 const text = (t: string) => ({ kind: 'text', text: t });
@@ -26,32 +26,47 @@ test('approval keys answer the Claude Code permission prompt; other engines get 
   assert.equal(approvalInput('codex', true), null);
 });
 
-test('consecutive tool steps fold into one collapsible group; edits and waiting tools stay out as cards', () => {
+test('runs of four or more tool steps fold into one collapsible group; shorter runs, edits and waiting tools stay as rows', () => {
   const items = [
     text('Looking around.'),
     tool('a', 'Read views/list.html'),
     tool('b', 'Ran npm test', 'error'),
     tool('c', 'Searched for todo'),
+    tool('g', 'Listed src/**'),
     tool('d', 'Edited routes/todos.js', 'ok', 'routes/todos.js'),
     tool('e', 'Read app.js'),
+    tool('h', 'Read b.js'),
     text('Now the test.'),
     tool('f', 'Ran npm test -- --watch=false', 'waiting'),
   ];
   const out = groupItems(items);
-  assert.deepEqual(out.map((x: any) => x.kind), ['text', 'steps', 'tool', 'tool', 'text', 'tool']);
+  assert.deepEqual(out.map((x: any) => x.kind), ['text', 'steps', 'tool', 'tool', 'tool', 'text', 'tool']);
   const group = out[1] as any;
-  assert.equal(group.label, '3 steps · 1 failed');
-  assert.deepEqual(group.items.map((x: any) => x.id), ['a', 'b', 'c']);
+  assert.equal(group.label, '4 steps · 1 failed');
+  assert.deepEqual(group.items.map((x: any) => x.id), ['a', 'b', 'c', 'g']);
   assert.equal(group.id, 'steps:a');
   assert.equal((out[2] as any).file, 'routes/todos.js');
-  assert.equal((out[3] as any).id, 'e');
-  assert.equal((out[5] as any).status, 'waiting');
+  assert.deepEqual(out.slice(3, 5).map((x: any) => x.id), ['e', 'h']);
+  assert.equal((out[6] as any).status, 'waiting');
 });
 
 test('a running step keeps its group labelled as working', () => {
-  const out = groupItems([tool('a', 'Read a'), tool('b', 'Ran npm test', 'running')]) as any[];
+  const out = groupItems([tool('a', 'Read a'), tool('b', 'Read b'), tool('c', 'Read c'), tool('d', 'Ran npm test', 'running')]) as any[];
   assert.equal(out.length, 1);
-  assert.equal(out[0].label, '2 steps · working');
+  assert.equal(out[0].label, '4 steps · working');
+});
+
+test('a row label splits into a bold verb and a mono target', () => {
+  assert.deepEqual(splitLabel('Ran npm test -- --watch=false'), { verb: 'Ran', arg: 'npm test -- --watch=false' });
+  assert.deepEqual(splitLabel('Searched the web for cats'), { verb: 'Searched the web for', arg: 'cats' });
+  assert.deepEqual(splitLabel('Started a helper: tidy docs'), { verb: 'Started a helper:', arg: 'tidy docs' });
+  assert.deepEqual(splitLabel('Updated the plan'), { verb: 'Updated the plan', arg: '' });
+  assert.deepEqual(splitLabel('Edited src/a.js'), { verb: 'Edited', arg: 'src/a.js' });
+});
+
+test('the answer box hides while the chat shows its own approval card', () => {
+  const src = readFileSync(new URL('../ui/src/home.jsx', import.meta.url), 'utf8');
+  assert.match(src, /chat\?\.waiting/);
 });
 
 function loadView(saved: Record<string, string>) {

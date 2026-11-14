@@ -296,7 +296,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
           </div>
         ) : null}
         <Chat x={x} chat={chat} openInEditor={openInEditor} />
-        {ask ? (
+        {ask && !chat?.waiting ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
         {pending.length ? (

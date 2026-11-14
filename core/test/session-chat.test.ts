@@ -29,7 +29,7 @@ test('chat labels cover tool families and only edits carry a file', () => {
   ];
   for (const [name, input, label, file] of cases) {
     const { items } = parseChat([line('assistant', [{ type: 'tool_use', id: 't', name, input }])], 'working');
-    assert.deepEqual(items, [{ kind: 'tool', id: 't', name, label, status: 'running', ...(file ? { file } : {}) }]);
+    assert.deepEqual(items, [{ kind: 'tool', id: 't', name, label, status: 'running', ...(file ? { file } : {}), ...(['Edit', 'Write', 'MultiEdit'].includes(name) ? { preview: { added: 0, removed: 0, more: 0, lines: [] } } : {}) }]);
   }
 });
 

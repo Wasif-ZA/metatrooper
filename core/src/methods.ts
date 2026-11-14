@@ -651,7 +651,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const { items, waiting } = parseChat(lines, row.state, row.cwd);
       const secrets = knownSecretValues();
       return { session_id: id, engine_id: row.engine_id, source, waiting, items: items.slice(-limit).map((item) => item.kind === 'tool'
-        ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }) }
+        ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }),
+          ...(item.preview === undefined ? {} : { preview: { ...item.preview, lines: item.preview.lines.map((line) => ({ ...line, text: scrub(line.text, secrets) })) } }),
+          ...(item.output === undefined ? {} : { output: item.output.map((line) => scrub(line, secrets)) }) }
         : { ...item, text: scrub(item.text, secrets) }) };
     },
   });

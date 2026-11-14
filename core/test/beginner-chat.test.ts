@@ -99,6 +99,32 @@ test('session.chat shows files inside the session folder relative to it, in labe
   } finally { f.close(); }
 });
 
+test('session.chat gives edit cards a short diff preview and failed steps their first output lines', async () => {
+  const f = fixture();
+  try {
+    const id = f.session();
+    point(f.db, id, f.transcript([
+      assistant([{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'a.js', old_string: '// TODO: delete route', new_string: "router.delete('/todos/:id', (req, res) => {\n  todos.remove(req.params.id);\n  res.status(204).end();\n});" } }]),
+      user([{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }]),
+      assistant([{ type: 'tool_use', id: 't2', name: 'Write', input: { file_path: 'b.js', content: 'one\ntwo' } }]),
+      user([{ type: 'tool_result', tool_use_id: 't2', content: 'ok' }]),
+      assistant([{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test' } }]),
+      user([{ type: 'tool_result', tool_use_id: 't3', is_error: true, content: [{ type: 'text', text: '\n FAIL test/todos.test.js\n  x DELETE /todos/:id (expected 204, got 404)\n\nTests: 1 failed\nmore\n' }] }]),
+      assistant([{ type: 'tool_use', id: 't4', name: 'Bash', input: { command: 'ls' } }]),
+      user([{ type: 'tool_result', tool_use_id: 't4', content: 'a.js' }]),
+    ]));
+    const [edit, write, failed, ok] = (await f.chat({ session_id: id })).items;
+    assert.deepEqual(edit.preview, {
+      added: 4, removed: 1, more: 2,
+      lines: [{ sign: '-', text: '// TODO: delete route' }, { sign: '+', text: "router.delete('/todos/:id', (req, res) => {" }, { sign: '+', text: '  todos.remove(req.params.id);' }],
+    });
+    assert.deepEqual(write.preview, { added: 2, removed: 0, more: 0, lines: [{ sign: '+', text: 'one' }, { sign: '+', text: 'two' }] });
+    assert.deepEqual(failed.output, ['FAIL test/todos.test.js', 'x DELETE /todos/:id (expected 204, got 404)', 'Tests: 1 failed']);
+    assert.equal(ok.output, undefined);
+    assert.equal(ok.preview, undefined);
+  } finally { f.close(); }
+});
+
 test('session.chat marks the unanswered last tool as waiting while the session waits for you', async () => {
   const f = fixture();
   try {
