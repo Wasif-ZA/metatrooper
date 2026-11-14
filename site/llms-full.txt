@@ -65,7 +65,7 @@ A background service owns the terminals. Sessions come back after a restart.
 
 - Approvals. Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.
 
-- Origins. The first input on a new site asks first. List trusted sites in the project config.
+- Origins. The first input on a new site asks first. List trusted sites in browser.allow_origins in ~/.metatrooper/settings.json. A project's own config cannot add to it, since an agent can write that file.
 
 - Secrets. An agent types {{secret:NAME}} into a password field on the saved site. It never sees the value.
 
