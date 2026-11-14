@@ -156,6 +156,7 @@ describe('M8-38 rows 4 and 6', { skip: process.platform !== 'win32' ? 'needs Win
   test('row 4: a Chromium window has no unnamed wrapper pane, refs are consecutive, document is near the top', T, async (t) => {
     if (!ctx?.chromium) return t.skip('fixture window did not appear');
     // The test's own window: a live desktop pick varied with z-order, and an untitled popup's root is not a wrapper.
+    // Not covered any more: a real browser's "document near the top" path; this fixture has no document, so that check never runs.
     const { text, nodes } = await snapWin(ctx.chromium, 400);
     const all = lines(text).filter((l) => !l.startsWith('[truncated'));
     assert.ok(!all.some((l) => BARE_PANE.test(l)), 'an unnamed wrapper pane was kept');
