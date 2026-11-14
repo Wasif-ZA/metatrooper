@@ -1,4 +1,4 @@
-export const ISSUE_PREFIX = 'https://github.com/Wasif-ZA/metatrooper-private/issues/new?';
+export const ISSUE_PREFIX = 'https://github.com/Wasif-ZA/metatrooper/issues/new?template=bug.yml&';
 export const MAX_URL = 7500;
 
 export type IssueFacts = { version: string; commit: string; view: string; project: string; os: string; time: string; errors: string[] };
@@ -19,30 +19,34 @@ export function localIso(d = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}${off < 0 ? '-' : '+'}${p(Math.trunc(off / 60))}:${p(off % 60)}`;
 }
 
-function body(f: IssueFacts, errors: string[], dropped: number): string {
-  const lines = [
-    '## What happened', '', '', '## What I expected', '', '',
-    '## Context', '',
-    `- cc: ${f.version}${f.commit ? ` (${f.commit})` : ''}`,
-    `- View: ${f.view}`,
-    `- Project: ${f.project || 'none'}`,
-    `- OS: ${f.os}`,
-    `- Time: ${f.time}`,
-  ];
-  if (errors.length || dropped) lines.push('', `## Recent console errors (${errors.length}${dropped ? `, ${dropped} older cut for length` : ''})`, '', '```', ...errors, '```');
-  return lines.join('\n');
-}
+const what = (f: IssueFacts): string => [
+  '## What happened', '', '', '## What I expected', '', '',
+  '## Context', '',
+  `- View: ${f.view}`,
+  `- Project: ${f.project || 'none'}`,
+  `- Time: ${f.time}`,
+].join('\n');
 
-const urlOf = (title: string, text: string) => `${ISSUE_PREFIX}title=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`;
+const logs = (errors: string[], dropped: number): string =>
+  errors.length || dropped ? [`## Recent console errors (${errors.length}${dropped ? `, ${dropped} older cut for length` : ''})`, '', ...errors].join('\n') : '';
+
+/** Fills the fields of .github/ISSUE_TEMPLATE/bug.yml by their ids; an issue form ignores a body parameter. */
+const urlOf = (title: string, f: IssueFacts, errors: string[], dropped: number) => ISSUE_PREFIX + new URLSearchParams({
+  title,
+  version: `${f.version}${f.commit ? ` (${f.commit})` : ''}`,
+  os: f.os,
+  what: what(f),
+  logs: logs(errors, dropped),
+}).toString().replaceAll('+', '%20');
 
 /** Builds the new-issue URL from the hard-coded prefix, dropping the oldest errors first to stay under MAX_URL. */
 export function issueUrl(f: IssueFacts): string {
   const title = `cc: ${f.view}`;
   let errors = f.errors.slice(-20);
-  let url = urlOf(title, body(f, errors, 0));
+  let url = urlOf(title, f, errors, 0);
   while (url.length > MAX_URL && errors.length) {
     errors = errors.slice(1);
-    url = urlOf(title, body(f, errors, f.errors.length - errors.length));
+    url = urlOf(title, f, errors, f.errors.length - errors.length);
   }
   return url;
 }

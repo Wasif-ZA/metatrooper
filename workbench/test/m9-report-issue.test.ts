@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { ISSUE_PREFIX, MAX_URL, cleanReport, localIso, issueUrl } from '../src/report-issue.ts';
 
 test('issueUrl always starts with the exact ISSUE_PREFIX', () => {
-  assert.equal(ISSUE_PREFIX, 'https://github.com/Wasif-ZA/metatrooper-private/issues/new?');
+  assert.equal(ISSUE_PREFIX, 'https://github.com/Wasif-ZA/metatrooper/issues/new?template=bug.yml&');
   const url = issueUrl({
     version: '1.0.0',
     commit: 'a1b2c3d',
@@ -17,6 +17,12 @@ test('issueUrl always starts with the exact ISSUE_PREFIX', () => {
     errors: [],
   });
   assert.ok(url.startsWith(ISSUE_PREFIX));
+  const ids = [...readFileSync(new URL('../../.github/ISSUE_TEMPLATE/bug.yml', import.meta.url), 'utf8').matchAll(/^\s+id: (\w+)/gm)].map((m) => m[1]);
+  const q = new URL(url).searchParams;
+  assert.equal(q.has('body'), false, 'an issue form ignores body');
+  for (const id of ids) assert.ok(q.has(id), `fills the bug.yml field ${id}`);
+  assert.equal(q.get('version'), '1.0.0 (a1b2c3d)');
+  assert.equal(q.get('os'), 'Linux 6.0 x64');
 });
 
 test('issueUrl title decodes to cc: <view> and defaults to unknown', () => {
@@ -181,7 +187,8 @@ test('hostile view or project cannot change URL host, path, or protocol', () => 
     const parsed = new URL(url);
     assert.equal(parsed.protocol, 'https:');
     assert.equal(parsed.host, 'github.com');
-    assert.equal(parsed.pathname, '/Wasif-ZA/metatrooper-private/issues/new');
+    assert.equal(parsed.pathname, '/Wasif-ZA/metatrooper/issues/new');
+    assert.equal(parsed.searchParams.get('template'), 'bug.yml');
   }
 });
 
