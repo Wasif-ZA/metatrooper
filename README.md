@@ -1,8 +1,8 @@
 <p align="center">
-  <strong>cc is a carbon copy of the apps you already code in, an editor, a terminal wall, an inbox and a browser,
-  rebuilt as one Windows app with your agents built in.</strong><br>
-  Run Claude Code, Codex, Gemini CLI and other coding agents side by side, and answer, review and steer them all from
-  one window. Free and open source.
+  <strong>cc rebuilds the apps you code in, an editor, a terminal wall, an inbox and a browser, as one Windows app
+  where every agent is just a task, so there are no sessions to manage.</strong><br>
+  New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
+  them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
 
 <p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
@@ -38,13 +38,14 @@
 
 You run three agents in three terminals, with an editor, a browser and your notes in more windows again. You lose
 track of which one is waiting on you. cc rebuilds those apps as one window, each a close copy of a screen you
-already know, with the agents built in. You never leave it to read, answer or steer an agent.
+already know, with the agents built in. You do not manage sessions: you type a task, cc starts the agent and keeps
+its terminal running, and the task comes to you when it needs an answer.
 
 The window has these screens:
 
 | Screen | Looks like | What the agents do there |
 |---|---|---|
-| **Home** | A chat app with a task list | You start a task from a chat box. Each task shows its agents, subagents and current steps. |
+| **Home** | A task list with a box to type a new one | You type a task and pick the agent. Each task shows its agents, subagents and current steps. |
 | **IDE** | A VS Code style editor: file tree, tabs, search, source control, Problems and a terminal | Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message. |
 | **Wall** | A grid of terminals | Every agent is a live terminal tile. The one waiting for you comes to the big slot. Its diff, git and browser open beside it. |
 | **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
@@ -324,6 +325,19 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 A carbon copy of the apps you already code in, rebuilt as one Windows app with coding agents built in: a VS Code
 style editor, a wall of terminal tiles, an inbox of what waits on you, and browser panes agents drive. It is not a
 plugin for another editor; it is its own window.
+
+**I've never used Claude Code. Can I use cc?**
+Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
+setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
+signs in for you. cc itself has no installer yet: you run it from a clone with Node 24.16 or newer (see
+[Quickstart](#quickstart)). The agent still runs in a terminal tile, so you will see its output and answer its
+questions there or in Needs you.
+
+**How is this different from running `claude` in terminals?**
+With terminals you manage each session: open a terminal, start it, watch it, find it again when it asks something,
+restart it after a reboot. In cc every session is just a task in one list. A background service keeps its terminal
+running when the window closes, the one waiting for you moves to the big slot on the Wall and into Needs you, and live
+sessions resume after a restart. The same official CLI runs underneath.
 
 **How do I control many coding agents from one place?**
 Run each in cc. Every agent is a tile on the Wall, every question and approval lands in Needs you, and every change

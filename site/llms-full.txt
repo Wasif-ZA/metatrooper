@@ -21,10 +21,13 @@ Proof is the one paid add-on: a plugin, A$19 a month, that checks whether an age
 ---
 Source: {{SITE}}/
 
-# The apps you code in. One window. Agents built in.
+# The apps you code in. One window. No sessions, just tasks.
  
 
-cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app. Run Claude Code, Codex and Gemini side by side and answer, review and steer them all without switching windows.
+cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
+ 
+
+One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.
  
 - Windows first, Linux beta
 - Local, on your machine
@@ -46,15 +49,15 @@ File tree, tabs, search, source control and a terminal. Comment on a diff line a
   Wall
 ### A grid of terminals
 
-Every agent is a live tile. The one waiting for you comes to the big slot.
+Every agent is a live tile. The one waiting for you comes to the big slot. Its diff, git and browser pane open beside it.
   Needs you
 ### An inbox
 
 Every question and approval waiting on you, laid out like an issue tracker. Answer from there.
   Home
-### A chat box and task list
+### A task list
 
-Start a task, then follow it and its subagents in one list.
+Type a task and pick the agent, then follow it and its subagents in one list.
  
 
  
@@ -259,7 +262,7 @@ Put everything an agent needs from you in one window: its terminal, its changes,
 
  | Screen | Looks like | What the agents do there
 
- | Home | A chat app with a task list | Start a task from a chat box. Each task shows its agents, subagents and steps.
+ | Home | A task list with a box to type a new one | Type a task and pick the agent. Each task shows its agents, subagents and steps. No sessions to manage.
 
  | IDE | A VS Code style editor | Files an agent changed are marked. A comment on a diff line goes to that agent as your next message.
 
