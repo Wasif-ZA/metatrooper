@@ -186,7 +186,7 @@ Account or telemetry | None | None. The core makes no network connection of its 
 
 - You want nothing added to ~/.claude/settings.json. cc installs hooks there; one command removes them.
 
-- You already use tmux or zellij and are happy checking panes yourself. Those keep sessions alive; they do not tell you which agent is waiting.
+- You already use tmux or zellij and are happy checking panes yourself. Those keep sessions alive. They do not tell you which agent is waiting unless you set up bells or hooks yourself.
 
 ## What cc does not do
 
@@ -262,7 +262,7 @@ A notification names the folder. With four terminals open, you still switch to t
 
 ## The same thing in cc
 
-cc is a free, open-source Windows app that runs coding agents side by side on one wall. It installs the Claude Code hooks when it first launches Claude Code. troop hooks install --codex adds the Codex one. troop hooks uninstall --codex takes both out again, leaving the rest of each settings file as it was.
+cc is a free, open-source Windows app that runs coding agents side by side on one wall. It installs the Claude Code hooks when it first launches Claude Code. troop hooks install --codex adds the Codex one. troop hooks uninstall --codex takes both out again, leaving the rest of each settings file as it was. From a source install, troop means node core/cli.ts.
 
 - Each tile says working, waiting for you, done or exited.
 
@@ -314,6 +314,8 @@ troop launch claude --worktree login --prompt "Add the login form"
 troop launch claude --worktree search --prompt "Add search to the header"
 troop launch --jobs jobs.json   # several at once from one file
 troop owners                    # which session changed which file
+
+From a source install, troop means node core/cli.ts.
 
 - Every session is a tile on one wall. A session that asks a question turns orange and moves to the big slot.
 
