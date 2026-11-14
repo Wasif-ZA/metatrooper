@@ -2,7 +2,7 @@
 
 > Carbon Copy (cc) rebuilds the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
 
-Proof is the one paid add-on: a separate private plugin, A$19 a month, or US$12 where checkout cannot charge in Australian dollars, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
+Carbon Copy Pro (cc Pro) will be the one paid part: a separate private add-on at A$19 a month, not on sale yet. It gives every agent tools about the other tasks in a project: what else is running, another task's last lines and changed files, which task already changed a file, and a shared note board. The pipe methods it uses are public, so anyone can build their own. It includes Proof, which checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
 
 ## Answers
 
@@ -10,7 +10,7 @@ Proof is the one paid add-on: a separate private plugin, A$19 a month, or US$12 
 - [cc vs plain terminals]({{SITE}}/answers/cc-vs-plain-terminals.html): when terminals are enough and when cc helps.
 - [How to run several Claude Code sessions at once]({{SITE}}/answers/run-several-claude-code-sessions.html): one git worktree per session, each in its own terminal.
 - [How to know which coding agent is waiting for you]({{SITE}}/answers/know-which-agent-needs-you.html): hooks, notify, and the cc wall.
-- [How to check whether an agent's tests catch bugs]({{SITE}}/answers/check-agent-tests-catch-bugs.html): mutation testing by hand, and with the Proof add-on.
+- [How to check whether an agent's tests catch bugs]({{SITE}}/answers/check-agent-tests-catch-bugs.html): mutation testing by hand, and with Proof, part of cc Pro.
 
 ## Docs
 
@@ -444,7 +444,7 @@ Give the agent the missed break: the file, the line, and what was changed. Ask f
 
 ## Doing it with Proof
 
-Proof is the one paid plugin for cc, A$19 a month, or US$12 where checkout cannot charge in Australian dollars. It only breaks the lines in the current change, so it fits the moment an agent says it is done.
+Proof comes with Carbon Copy Pro (cc Pro), the one paid add-on for cc, A$19 a month and not on sale yet. It only breaks the lines in the current change, so it fits the moment an agent says it is done.
 
 - It checks the tests pass first, and stops if they do not.
 

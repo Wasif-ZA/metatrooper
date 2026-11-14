@@ -381,8 +381,11 @@ their login tokens.
 Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
 
 **Is it free?**
-Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part is Proof, a separate private plugin; it is not in this repo. It
-checks whether an agent's tests catch bugs.
+Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part will be Carbon Copy Pro (cc Pro), a
+separate private add-on at A$19 a month. It is not in this repo and not on sale yet. It gives agents tools about your other
+tasks: what is running, another task's output and changed files, which task already touched a file, and a shared note board.
+The pipe methods it uses are public, so you can build your own. It includes Proof, which checks whether an agent's tests
+catch bugs.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
