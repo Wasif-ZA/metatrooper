@@ -908,6 +908,7 @@ function paletteItems() {
   const armed = ui.armed && ui.armed.key;
   items.push({ group: 'Core', confirm: 'restart', name: 'Restart core (loads new core code; open agents stop)', label: armed === 'restart' ? 'Press Enter again to restart; open agents stop' : 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
   items.push({ group: 'Core', confirm: 'stop', name: 'Stop core (stops every agent)', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
+  if (s.sessions.some((x) => x.engine_id === 'claude' && x.host !== 'external')) items.push({ group: 'Actions', confirm: 'close-claude', name: 'Close all Claude Code sessions', warn: 'Every Claude Code session in this project stops and leaves the sidebar.', action: 'Close all', label: armed === 'close-claude' ? 'Press Enter again to close every Claude Code session' : 'Close all Claude Code sessions', run: closeAllClaude });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   items.push({ group: 'Actions', label: 'Settings', meta: 'Ctrl+,', run: () => settingsView.open() });
   items.push({ group: 'Actions', label: 'Add-ons: agents and plugins', run: () => homeView.set('addons') });
@@ -1075,6 +1076,15 @@ async function stopAgent(id) {
   const r = await rpc('session.stop', { session_id: id });
   if (r.result) toast(r.result.stopped ? 'Stopping the agent' : 'That agent had already stopped');
   return r;
+}
+
+/** Stops every Claude Code session cc started in this project, waits up to 5 s for them to exit, then hides them from the sidebar with Undo. */
+async function closeAllClaude() {
+  const mine = () => ui.snap.sessions.filter((x) => x.engine_id === 'claude' && x.host !== 'external');
+  await Promise.all(mine().filter(ccWords.canStop).map((x) => rpc('session.stop', { session_id: x.id })));
+  for (let i = 0; i < 20 && mine().some((x) => LIVE_STATES.includes(x.state)); i++) await new Promise((r) => setTimeout(r, 250));
+  const left = mine().filter((x) => LIVE_STATES.includes(x.state)).length;
+  hideLater(mine().map((x) => x.id), (n) => `${n} Claude Code session${n === 1 ? '' : 's'} closed${left ? `; ${left} still stopping` : ''}`);
 }
 
 function selectShell(id) {

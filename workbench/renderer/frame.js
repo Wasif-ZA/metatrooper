@@ -434,6 +434,7 @@ globalThis.frameView = (() => {
       const row = e.target.closest('.fproj, [data-proj]');
       const items = [];
       if (agent && ccWords.canStop(x)) items.push(['Stop agent', () => void stopAgent(x.id)]);
+      if (!row && (ui.snap.sessions || []).some((s) => s.engine_id === 'claude' && s.host !== 'external')) items.push(['Close all Claude Code sessions', () => void closeAllClaude()]);
       if (row) items.push(['Change icon…', () => iconPicker(row.dataset.id || row.dataset.proj, e.clientX, e.clientY)]);
       if (!items.length) return;
       e.preventDefault();

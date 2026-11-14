@@ -663,3 +663,29 @@ test('M6-26k icon and symbol buttons carry an aria-label, the popovers are dialo
   await w.key('Escape', {}, row);
   assert.equal(w.el('inbox').hidden, true, 'Esc in the Inbox closes it');
 });
+
+test('close all Claude Code sessions stops each one cc started, then hides the exited ones with Undo', async () => {
+  const run = async (after: string) => {
+    const w = boot();
+    w.ctx.ccWords = { canStop: (x: any) => Boolean(x) && x.host !== 'external' && x.state !== 'exited' };
+    const ext = session('d', 'done', { host: 'external' });
+    await w.snap(snapOf([session('a', 'working'), session('b', 'done'), session('c', 'working', { engine_id: 'codex' }), ext]));
+    const done = w.ctx.closeAllClaude();
+    await w.advance(0);
+    const stops = () => w.calls.filter((c) => c.method === 'session.stop').map((c) => c.params.session_id);
+    assert.deepEqual(stops(), ['a', 'b'], 'only cc-started claude sessions are stopped');
+    await w.snap(snapOf([session('a', after), session('b', 'exited'), session('c', 'working', { engine_id: 'codex' }), ext]));
+    await w.advance(5000);
+    await done;
+    return w;
+  };
+  const w = await run('exited');
+  assert.match(w.el('toasts').children.at(-1).textContent, /^2 Claude Code sessions closed · $/);
+  await w.advance(7000);
+  assert.deepEqual(w.hides(), ['a', 'b'], 'codex and outside sessions stay');
+
+  const stuck = await run('working');
+  assert.match(stuck.el('toasts').children.at(-1).textContent, /^1 Claude Code session closed; 1 still stopping · $/);
+  await stuck.advance(7000);
+  assert.deepEqual(stuck.hides(), ['b'], 'a session still running after 5 s is not hidden');
+});

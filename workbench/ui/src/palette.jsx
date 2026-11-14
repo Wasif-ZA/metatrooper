@@ -139,8 +139,8 @@ export function Palette() {
           isOpen
           onOpenChange={(v) => { if (!v) confirmStore.set({ item: null }); }}
           title={confirmItem.name || confirmItem.label}
-          description="Open agents stop."
-          actionLabel={confirmItem.confirm === 'stop' ? 'Stop core' : 'Restart core'}
+          description={confirmItem.warn || 'Open agents stop.'}
+          actionLabel={confirmItem.action || (confirmItem.confirm === 'stop' ? 'Stop core' : 'Restart core')}
           actionVariant="destructive"
           onAction={async () => {
             const run = confirmItem.run;
