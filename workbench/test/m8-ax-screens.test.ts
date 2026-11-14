@@ -521,7 +521,7 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
   assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets']);
   assert.equal(h.all(hasClass('ou-rows')).length, 3);
-  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when Ouros closes', 'Token limit per agent', 'Checkpoint every turn']);
+  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when cc closes', 'Token limit per agent', 'Checkpoint every turn']);
   assert.deepEqual(h.all((n: any) => n.type === 'h1').map(textContent), ['Reliability']);
   assert.equal(textContent(h.one(hasClass('ou-crumb'))), 'Settings›Reliability');
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');

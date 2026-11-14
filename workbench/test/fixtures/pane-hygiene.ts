@@ -125,7 +125,7 @@ r.forwardToErrorPageKeepsUrl = backCleared && pane.errorFor === 'https://nowhere
 wc.emit('did-fail-load', {}, -202, 'ERR_CERT_AUTHORITY_INVALID', 'https://self-signed.example/', true);
 r.certificatePage = decodeURIComponent(wc.loads.at(-1)!).includes('This page is not secure');
 wc.emit('did-fail-load', {}, -20, 'ERR_BLOCKED_BY_CLIENT', 'http://10.0.0.5/', true);
-r.blockedPage = decodeURIComponent(wc.loads.at(-1)!).includes('Ouros blocked this page');
+r.blockedPage = decodeURIComponent(wc.loads.at(-1)!).includes('cc blocked this page');
 const n = wc.loads.length;
 wc.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://a.example/', true);
 wc.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://frame.invalid/', false);

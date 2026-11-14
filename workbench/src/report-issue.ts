@@ -23,7 +23,7 @@ function body(f: IssueFacts, errors: string[], dropped: number): string {
   const lines = [
     '## What happened', '', '', '## What I expected', '', '',
     '## Context', '',
-    `- Ouros: ${f.version}${f.commit ? ` (${f.commit})` : ''}`,
+    `- cc: ${f.version}${f.commit ? ` (${f.commit})` : ''}`,
     `- View: ${f.view}`,
     `- Project: ${f.project || 'none'}`,
     `- OS: ${f.os}`,
@@ -37,7 +37,7 @@ const urlOf = (title: string, text: string) => `${ISSUE_PREFIX}title=${encodeURI
 
 /** Builds the new-issue URL from the hard-coded prefix, dropping the oldest errors first to stay under MAX_URL. */
 export function issueUrl(f: IssueFacts): string {
-  const title = `Ouros: ${f.view}`;
+  const title = `cc: ${f.view}`;
   let errors = f.errors.slice(-20);
   let url = urlOf(title, body(f, errors, 0));
   while (url.length > MAX_URL && errors.length) {

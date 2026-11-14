@@ -292,7 +292,7 @@ export function taskOf(x: TaskRow): string {
 /** The OS toast for a needs-you row, or null when its session's tile is focused while the window has focus. */
 export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | null, focused: { window: boolean; session: string | null }): { title: string; body: string } | null {
   if (session && focused.window && n.ref === focused.session) return null;
-  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'Ouros needs you';
+  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'cc needs you';
   return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 
