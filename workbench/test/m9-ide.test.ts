@@ -168,6 +168,7 @@ await bundle(`
   import './src/main.jsx';
   export * from './src/ide.jsx';
   export * from './src/editor.js';
+  export { mountShell, closeShell } from './src/ide-panel.jsx';
   export * as React from 'react';
   export { renderToStaticMarkup } from 'react-dom/server';
 `, 'ide-bundle.mjs');
@@ -192,6 +193,8 @@ const {
   __tabOf,
   __getCur,
   __resetCur,
+  mountShell,
+  closeShell,
 } = ideModule;
 
 ideStore.use = () => React.useSyncExternalStore(() => () => {}, ideStore.get, ideStore.get);
@@ -527,6 +530,64 @@ test('Ctrl+P, Ctrl+Shift+F, and Ctrl+W trigger actions only when IDE is shown', 
   triggerKey({ key: 'w', ctrlKey: true, shiftKey: false, altKey: false, preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
   assert.equal(__tabOf(cur, 'closeme.txt'), undefined);
+});
+
+test('Ctrl+J toggles the panel and Ctrl+` toggles the terminal in the IDE', async () => {
+  g.ui.view = 'ide';
+  g.ui.projectId = 'p1';
+  await drawIde();
+  const h = harness(Ide);
+  const shown = () => !/id="ide-bottom-body"[^>]*hidden/.test(h.html());
+  const press = (key: string) => { let prevented = false; triggerKey({ key, ctrlKey: true, shiftKey: false, altKey: false, preventDefault() { prevented = true; } }); return prevented; };
+  assert.equal(shown(), true);
+  assert.equal(press('j'), true);
+  assert.equal(shown(), false, 'Ctrl+J hides the panel');
+  assert.equal(press('j'), true);
+  assert.equal(shown(), true, 'Ctrl+J shows it again');
+  h.one((n: any) => n.props?.['aria-label'] === 'Panel').props.onChange('problems');
+  assert.equal(press('`'), true);
+  assert.match(h.html(), /aria-labelledby="ide-terminal-tab"/, 'Ctrl+` on another tab switches to the terminal');
+  assert.equal(shown(), true);
+});
+
+test('Ctrl+` puts keyboard focus in the terminal, and hides the panel only when the terminal already has it', async () => {
+  g.ui.view = 'ide';
+  g.ui.projectId = 'p1';
+  g.ui.shellKinds = [];
+  let focused = 0;
+  const el: any = { className: '', isConnected: false, remove() { el.isConnected = false; if (g.document.activeElement === el) g.document.activeElement = null; }, contains: (x: any) => x === el };
+  g.document.createElement = () => el;
+  g.FitAddon = { FitAddon: class { fit() {} } };
+  g.troop = { onTerm() {}, termInput() {}, termDetach() {} };
+  g.Terminal = class {
+    options: any = {}; loadAddon() {} open() {} onData() {} write() {} dispose() {} registerLinkProvider() {} attachCustomKeyEventHandler() {}
+    focus() { focused++; g.document.activeElement = el; }
+  };
+  const host = { append: (x: any) => { x.isConnected = true; } };
+  await drawIde();
+  const h = harness(Ide);
+  const shown = () => !/id="ide-bottom-body"[^>]*hidden/.test(h.html());
+  const press = () => triggerKey({ key: '`', ctrlKey: true, shiftKey: false, altKey: false, preventDefault() {} });
+  closeShell('p1');
+  try {
+    mountShell('p1', host);
+    assert.equal(focused, 0, 'mounting alone does not take focus');
+    press();
+    assert.equal(shown(), true, 'an open but unfocused terminal stays open');
+    assert.equal(focused, 1, 'and takes focus at once');
+    press();
+    assert.equal(shown(), false, 'Ctrl+` from inside the terminal hides the panel');
+    el.remove();
+    press();
+    assert.equal(shown(), true);
+    assert.equal(focused, 1, 'focus waits for the terminal to mount');
+    mountShell('p1', host);
+    assert.equal(focused, 2, 'the remounted terminal takes focus');
+  } finally {
+    closeShell('p1');
+    delete g.document.activeElement;
+    delete g.document.createElement;
+  }
 });
 
 test('Not built yet is displayed and save is prevented when api.fsWrite is missing', async () => {
