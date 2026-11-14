@@ -6,6 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { client, root, runNode, startCore, teardownCore, uiHello, until } from '../../core/test/helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 import { alive, demoEnv, demoProblem, removeWhenGone, stopPid } from '../src/demo.ts';
 import { spawn } from 'node:child_process';
 
@@ -55,7 +56,8 @@ test('M6-16b stopping the demo core kills its process tree when it does not exit
   const script = "process.on('SIGTERM',()=>{});const c=require('child_process').spawn(process.execPath,['-e','setInterval(()=>{},1e3)'],{stdio:'ignore',detached:true});console.log(c.pid);setInterval(()=>{},1e3)";
   const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
   const grandchild = Number(await new Promise<string>((r) => child.stdout.once('data', (d) => r(String(d)))));
-  t.after(() => { for (const p of [child.pid!, grandchild]) try { process.kill(p); } catch {} });
+  const grandchildBorn = startOf(grandchild)!;
+  t.after(() => { killTree(child); killTree({ pid: grandchild, born: grandchildBorn }); });
   assert.ok(alive(child.pid!) && alive(grandchild));
   assert.equal(await stopPid(child.pid!, 300), true);
   assert.equal(alive(child.pid!), false);
@@ -67,7 +69,7 @@ test('M6-16b the demo home is removed only after every named process has exited'
   const dir = mkdtempSync(join(tmpdir(), 'metatrooper-demo-rm-'));
   writeFileSync(join(dir, 'troop.db'), 'x');
   const core = spawn(process.execPath, ['-e', 'setInterval(()=>{},1e3)'], { stdio: 'ignore', windowsHide: true });
-  t.after(() => { try { process.kill(core.pid!); } catch {} rmSync(dir, { recursive: true, force: true }); });
+  t.after(() => { killTree(core); rmSync(dir, { recursive: true, force: true }); });
   removeWhenGone(dir, [core.pid!]);
   await new Promise((r) => setTimeout(r, 1000));
   assert.ok(existsSync(dir), 'the home stays while the core runs');

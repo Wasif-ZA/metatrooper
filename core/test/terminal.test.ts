@@ -18,6 +18,7 @@ import {
   teardownCore,
   until,
 } from './helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 
 type TerminalModule = typeof import('../src/terminal/index.ts');
 type TermPipeModule = typeof import('../src/terminal/pipe.ts');
@@ -404,7 +405,7 @@ test('9 a hard-killed core ends its PTY tree and restart marks every live sessio
   const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   let core = await startCore({ ...isolated, env });
   let launcherPid = 0;
-  let enginePid = 0;
+  let enginePid = 0, engineBorn = 0;
   try {
     const project = join(isolated.home, 'kill-project');
     mkdirSync(project);
@@ -419,6 +420,7 @@ test('9 a hard-killed core ends its PTY tree and restart marks every live sessio
       await until(() => existsSync(enginePidFile), 4000);
       launcherPid = db.prepare('SELECT pid FROM session WHERE id = ?').get(sessionId).pid;
       enginePid = Number(readFileSync(enginePidFile, 'utf8'));
+      engineBorn = startOf(enginePid) ?? 0;
     } finally { db.close(); }
 
     core.kill('SIGKILL');
@@ -432,7 +434,7 @@ test('9 a hard-killed core ends its PTY tree and restart marks every live sessio
       assert.equal(restarted.prepare("SELECT count(*) AS n FROM session WHERE state <> 'exited'").get().n, 0);
     } finally { restarted.close(); }
   } finally {
-    if (enginePid && alive(enginePid)) try { process.kill(enginePid, 'SIGKILL'); } catch {}
+    if (engineBorn) killTree({ pid: enginePid, born: engineBorn });
     await teardownCore(core, isolated);
   }
 });

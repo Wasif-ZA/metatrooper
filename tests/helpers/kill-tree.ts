@@ -30,7 +30,7 @@ function command(target: KillTarget): [string, string[]] | null {
 
 function posixKill(target: KillTarget): void {
   if (!target?.pid || (!('born' in target) && (target.exitCode !== null || target.signalCode !== null))) return;
-  try { process.kill(-target.pid, 'SIGKILL'); } catch {}
+  try { process.kill(-target.pid, 'SIGKILL'); } catch { try { process.kill(target.pid, 'SIGKILL'); } catch {} }
 }
 
 /** Ends a process and its children: `taskkill /T /F` on Windows, the process group elsewhere. */

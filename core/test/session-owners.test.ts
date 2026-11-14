@@ -5,6 +5,7 @@ import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, runNode, scriptedGh, sleep, startCore, teardownCore, uiHello, until } from './helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 
 before(buildGenerated);
 
@@ -217,7 +218,7 @@ test('M4-30 core half and M4-31: an exiting child leaves a Needs you row for its
     await until(() => h.claims(c).length === 1, 3000);
     await until(() => (h.db.prepare('SELECT pid FROM session WHERE id = ?').get(c) as { pid: number | null }).pid !== null, 3000);
     const pid = (h.db.prepare('SELECT pid FROM session WHERE id = ?').get(c) as { pid: number }).pid;
-    process.kill(pid, 'SIGKILL');
+    killTree({ pid, born: startOf(pid)! });
     await until(() => (h.db.prepare('SELECT state FROM session WHERE id = ?').get(c) as { state: string }).state === 'exited', 8000);
     await until(() => h.db.prepare("SELECT 1 FROM comment WHERE session_id = ? AND kind = 'notice'").get(p), 3000);
     const row = h.db.prepare("SELECT text FROM needs_you WHERE kind = 'uncommitted' AND ref = ? AND resolved_at IS NULL").get(c) as { text: string };

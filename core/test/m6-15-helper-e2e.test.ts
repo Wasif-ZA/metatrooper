@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sleep, until } from './helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 import { Helper } from '../src/desktop/driver.ts';
 
 // Opt-in: sends key requests straight to the real uia-helper.ps1, past the core's own checks, so only the helper's
@@ -20,12 +21,13 @@ test('M6-15 helper on this laptop: a Control or Shift chord and a key to a backg
   writeFileSync(scratch, '');
   const calcPids = () => [...execFileSync('tasklist', ['/FI', 'IMAGENAME eq CalculatorApp.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }).matchAll(/^"[^"]+","(\d+)"/gm)].map((m) => m[1]);
   const calcsBefore = calcPids();
-  let notepadPid = 0;
+  let notepadPid = 0, notepadBorn = 0;
   try {
     spawn('notepad.exe', [scratch], { detached: true, stdio: 'ignore' }).unref();
     const ours = (w: any) => w.title.startsWith('m6-15-helper-e2e-scratch.txt');
     const notepad = (await until(async () => (await notepads()).find(ours), 15_000)) as any;
     notepadPid = notepad.pid;
+    notepadBorn = startOf(notepadPid) ?? 0;
     const hwnd = notepad.hwnd;
     const foreground = async () => (await helper.request('probe')).foreground;
     execFileSync('powershell.exe', ['-NoProfile', '-Command', `(New-Object -ComObject WScript.Shell).AppActivate(${notepad.pid}) | Out-Null`]);
@@ -66,8 +68,8 @@ test('M6-15 helper on this laptop: a Control or Shift chord and a key to a backg
     assert.ok(ours((await notepads()).find((w: any) => w.hwnd === hwnd)), 'the scratch tab is still the active, unmodified tab');
   } finally {
     helper.stop();
-    if (notepadPid) try { process.kill(notepadPid); } catch {}
-    for (const pid of calcPids()) if (!calcsBefore.includes(pid)) try { process.kill(Number(pid)); } catch {}
+    if (notepadBorn) killTree({ pid: notepadPid, born: notepadBorn });
+    for (const pid of calcPids()) if (!calcsBefore.includes(pid)) { const born = startOf(Number(pid)); if (born) killTree({ pid: Number(pid), born }); }
     rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });

@@ -7,6 +7,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, isolation, root, sleep, until } from './helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 import { migrate } from '../src/store/db.ts';
 import { ownership, parseNetstat, parseUrls } from '../src/devservers.ts';
 
@@ -143,7 +144,7 @@ test('M6-03b npm run dev that starts a detached child gets a printed row; the ro
   assert.equal(row.matched_by, 'printed');
   assert.equal(row.status, 'ready');
   assert.equal(row.port, port);
-  process.kill(row.pid);
+  killTree({ pid: row.pid, born: startOf(row.pid)! });
   await until(async () => { await dev.sweepDevServers(db); return rows(id)[0].status === 'stopped'; }, 10_000);
   term.kill(id);
 });

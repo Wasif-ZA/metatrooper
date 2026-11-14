@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { client, isolation, sleep, startCore, teardownCore, uiHello, until } from './helpers.ts';
+import { killTree, startOf } from '../../tests/helpers/kill-tree.ts';
 import { Helper } from '../src/desktop/driver.ts';
 
 // Opt-in: drives real Notepad and Calculator on this desktop through the real UI Automation helper.
@@ -28,7 +29,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
   db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, hidden, started_at, pid) VALUES ('s1', 'p1', 'fake', 'pty', 'working', ?, 0, ?, ?)").run(now, now, process.pid);
   const agent = await client(iso.prefix);
   const ui = await client(iso.prefix);
-  let notepadPid = 0;
+  let notepadPid = 0, notepadBorn = 0;
   let calcsBefore: string[] | null = null;
   const calcPids = () => [...execFileSync('tasklist', ['/FI', 'IMAGENAME eq CalculatorApp.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }).matchAll(/^"[^"]+","(\d+)"/gm)].map((m) => m[1]);
   try {
@@ -44,6 +45,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     const notepad = (await until(async () => (await notepads()).find(ours), 15_000)) as any;
     const assertOurs = async () => assert.ok(ours((await notepads()).find((w: any) => w.hwnd === notepad.hwnd) ?? { title: '' }), 'the scratch file is not the active Notepad tab');
     notepadPid = notepad.pid;
+    notepadBorn = startOf(notepadPid) ?? 0;
     calcsBefore = calcPids();
     spawn('calc.exe', [], { detached: true, stdio: 'ignore' }).unref();
     const calc = (await until(async () => (await probe.request('list')).windows.find((w: any) => /^Calculator$/.test(w.title)), 15_000)) as any;
@@ -146,8 +148,8 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     db.prepare('UPDATE session SET pid = NULL').run();
     db.close();
     probe.stop();
-    if (notepadPid) try { process.kill(notepadPid); } catch {}
-    if (calcsBefore) for (const pid of calcPids()) if (!calcsBefore.includes(pid)) try { process.kill(Number(pid)); } catch {}
+    if (notepadBorn) killTree({ pid: notepadPid, born: notepadBorn });
+    if (calcsBefore) for (const pid of calcPids()) if (!calcsBefore.includes(pid)) { const born = startOf(Number(pid)); if (born) killTree({ pid: Number(pid), born }); }
     await teardownCore(core, iso);
   }
 });
