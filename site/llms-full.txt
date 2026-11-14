@@ -90,13 +90,13 @@ The agents cc found and the plugins you installed, each with its permissions.
 ## The Wall: the one that needs you comes to you.
    
     
-- True status. Working, waiting for you, done or exited, read from Claude Code's hooks and Codex's notify setting; other agents show a simpler status. A waiting tile says why.
+- Agent status. Working, waiting for you, done or exited, read from Claude Code's hooks and Codex's notify setting; other agents show a simpler status. A waiting tile says why.
     
 - No stolen keys. A waiting tile holds back for 3 s while you type in the big one.
     
 - Alt keys. Alt+J jumps to the longest wait. Your terminal keeps every Ctrl key.
     
-- Ctrl+K. One search over sessions, commands and the text in every terminal.
+- Ctrl+K searches sessions, commands and terminal output. One search across every live terminal.
     
 - Per tile. Cost, context fill, changed files, and a preview chip for its dev server.
    
