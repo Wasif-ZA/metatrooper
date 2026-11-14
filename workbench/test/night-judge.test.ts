@@ -197,6 +197,16 @@ test('Wall tile state keeps its words: the name gives up space first, and the fu
   assert.equal(el.querySelector('.tile-state').title, 'waiting for you');
 });
 
+test('Wall tile name keeps about 12 characters before the state gives up space, and its full text is the tooltip', () => {
+  const body = cssBody(renderer('wall-ref.css'), ':root[data-view="wall"] #centre .ph .ou-ah-name');
+  const min = /min-width:\s*(\d+)ch/.exec(body);
+  assert.ok(min && Number(min[1]) >= 12, 'name min-width is at least 12ch, got ' + (min && min[1]));
+  const { wall, tiles } = freshWall();
+  wall.decide([tileData('working', 'working')], 'a'); wall.apply('single');
+  const el = tiles.get('a'); relabel(el, 'working', 'working');
+  assert.equal(el.querySelector('.tile-task').title, 'Review changes');
+});
+
 test('d47bc079 Settings error note has its hint', (t) => {
   // Render the real settings row with its literal copy.
   settingsStore.set({ data: { sessions: {}, ui: { toast_ms: 3000, error_toast_ms: 8000 }, terminal: {}, agent_cursor: {} }, section: 'general' });
