@@ -25,6 +25,8 @@ function setup(windows: object[], delayMs = 0) {
   const statePath = join(iso.home, 'fake-uia.json');
   const logPath = join(iso.home, 'fake-uia.log');
   writeFileSync(statePath, JSON.stringify({ windows }));
+  // These tests drive pause and resume through the pipe; the core's real input watcher would also pause on any real key or mouse input on this desktop.
+  writeFileSync(join(iso.home, 'settings.json'), JSON.stringify({ desktop: { watch_pause: false } }));
   iso.env = { ...iso.env, METATROOPER_UIA_HELPER: join(root, 'core', 'test', 'fake-uia-helper.js'), FAKE_UIA_STATE: statePath, FAKE_UIA_LOG: logPath, FAKE_UIA_DELAY_MS: String(delayMs) };
   const setWindows = (w: object[]) => writeFileSync(statePath, JSON.stringify({ windows: w }));
   const inputs = () => (existsSync(logPath) ? readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
