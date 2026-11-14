@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in MetaTrooper does not work as the README says
+description: Something in Carbon Copy (cc) does not work as the README says
 labels: [bug]
 body:
   - type: markdown
@@ -9,8 +9,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: MetaTrooper version
-      description: The version in the installer name, or `version` in core/package.json for a source install
+      label: cc version
+      description: The version in the zip name (cc-0.1.0-win-x64.zip has 0.1.0), or `version` in core/package.json for a source install
     validations:
       required: true
   - type: input
