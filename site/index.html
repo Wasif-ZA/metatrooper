@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cc: your editor, terminals, inbox and browser as one app for coding agents</title>
-<meta name="description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta name="description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <link rel="canonical" href="{{SITE}}/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="cc">
 <meta property="og:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
-<meta property="og:description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta property="og:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <meta property="og:url" content="{{SITE}}/">
 <meta property="og:image" content="{{SITE}}/og.png">
 <meta property="og:image:width" content="1384">
@@ -17,7 +17,7 @@
 <meta property="og:image:alt" content="cc: an editor, terminal wall, inbox and browser in one window, with coding agents built in">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
-<meta name="twitter:description" content="A carbon copy of the apps you code in, a VS Code style editor, a terminal wall, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta name="twitter:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
 <meta name="twitter:image" content="{{SITE}}/og.png">
 <script type="application/ld+json">
 {
@@ -28,7 +28,6 @@
       "@id": "{{SITE}}/#cc",
       "name": "cc",
       "alternateName": [
-        "cc IDE",
         "Ouros",
         "MetaTrooper"
       ],
@@ -58,7 +57,7 @@
           "name": "What leaves my machine?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser."
+            "text": "The core and the window make no network connection of their own, unless you add a notification webhook or install a plugin from a URL. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser."
           }
         },
         {
@@ -176,7 +175,7 @@ footer p{margin:0;max-width:60ch}
 
 <div class="hero">
  <h1>The apps you code in.<br><span>One window. No sessions, just tasks.</span></h1>
- <p>cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.</p>
+ <p>cc is a carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.</p>
  <p class="note">One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.</p>
  <ul class="facts"><li>Windows first, Linux beta</li><li>Local, on your machine</li><li>No account, no telemetry</li></ul>
  <div class="install"><span id="cmd">git clone https://github.com/Wasif-ZA/metatrooper</span><button class="t" id="copy" type="button">Copy</button></div>
@@ -207,10 +206,10 @@ footer p{margin:0;max-width:60ch}
 <section>
  <div class="feat">
   <div>
-   <span class="needs">Needs you</span>
-   <h2>The one that needs you comes to you.</h2>
+   <span class="needs">Wall</span>
+   <h2>The Wall: the one that needs you comes to you.</h2>
    <ul>
-    <li><b>True status.</b> Working, waiting for you, done or exited, read from each agent's own hooks. A waiting tile says why.</li>
+    <li><b>True status.</b> Working, waiting for you, done or exited, read from Claude Code's hooks and Codex's notify setting; other agents show a simpler status. A waiting tile says why.</li>
     <li><b>No stolen keys.</b> A waiting tile holds back for 3 s while you type in the big one.</li>
     <li><b>Alt keys.</b> Alt+J jumps to the longest wait. Your terminal keeps every Ctrl key.</li>
     <li><b>Ctrl+K.</b> One search over sessions, commands and the text in every terminal.</li>
@@ -223,7 +222,7 @@ footer p{margin:0;max-width:60ch}
 <section>
  <div class="feat">
   <div>
-   <h2>A browser your agents drive, with you in charge.</h2>
+   <h2>Browser panes on the Wall: a browser your agents drive, with you in charge.</h2>
    <ul>
     <li><b>Approvals.</b> Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.</li>
     <li><b>Origins.</b> The first input on a new site asks first. List trusted sites in <code>browser.allow_origins</code> in <code>~/.metatrooper/settings.json</code>. A project's own config cannot add to it, since an agent can write that file.</li>
@@ -238,7 +237,7 @@ footer p{margin:0;max-width:60ch}
 <section>
  <div class="feat">
   <div>
-   <h2>Your Windows apps, only the ones you give.</h2>
+   <h2>Computer use from the Wall: your Windows apps, only the ones you give.</h2>
    <ul>
     <li><b>Grants.</b> Pick Give window on a tile. The agent acts on that window and its own dialogs, nothing else.</li>
     <li><b>Built in.</b> It uses Windows UI Automation. Nothing extra is installed.</li>
@@ -252,7 +251,7 @@ footer p{margin:0;max-width:60ch}
 
 <section>
  <h2>Core services</h2>
- <p class="sub">The parts you notice only when they are missing.</p>
+ <p class="sub">What keeps every screen running, the parts you notice only when they are missing.</p>
  <ul class="list">
   <li><b>Terminals that survive</b><span>Close or crash the window and every agent keeps working.</span></li>
   <li><b>Sessions come back</b><span>After a restart, live sessions resume in the same layout, at most 3 at a time.</span></li>
@@ -276,7 +275,7 @@ footer p{margin:0;max-width:60ch}
 cd metatrooper/core &amp;&amp; npm ci
 cd ../workbench &amp;&amp; npm ci
 npm run dev</code></pre>
- <p class="note">The window starts the core service for you. Linux steps and every command are in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
+ <p class="note">The window starts the core service for you. Every command is in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
 </section>
 
 <section id="limits">
@@ -292,7 +291,7 @@ npm run dev</code></pre>
 
 <section>
  <h2>Questions</h2>
- <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.</p></details>
+ <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own, unless you add a notification webhook or install a plugin from a URL. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.</p></details>
  <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. cc runs them and never reads their login tokens.</p></details>
  <details><summary>What does it change on my machine?</summary><p>State lives in <code>~/.metatrooper/</code>. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.</p></details>
  <details><summary>Can an agent approve its own actions?</summary><p>No. Only the window can approve, through a key agents are not given.</p></details>
@@ -306,7 +305,7 @@ npm run dev</code></pre>
 
 <footer>
  <a class="brand" href="#">cc</a>
- <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI or Google.</p>
+ <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft.</p>
  <a href="https://github.com/Wasif-ZA/metatrooper">Source</a>
 </footer>
 </div>

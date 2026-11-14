@@ -1,6 +1,6 @@
 <p align="center">
-  <strong>cc rebuilds the apps you code in, an editor, a terminal wall, an inbox and a browser, as one Windows app
-  where every agent is just a task, so there are no sessions to manage.</strong><br>
+  <strong>cc rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
+  app where every agent is just a task, so there are no sessions to manage.</strong><br>
   New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
@@ -28,7 +28,7 @@
 
 <div align="center">
 
-| 7 | 0 | 0 | 1,484 | 2,000+ |
+| 7 | 0 | 0 | [CORE_TESTS] | 2,000+ |
 |:--:|:--:|:--:|:--:|:--:|
 | CLI agents supported | accounts to create | telemetry | core tests | commits |
 
@@ -36,10 +36,11 @@
 
 ## What it is
 
-You run three agents in three terminals, with an editor, a browser and your notes in more windows again. You lose
+You run three agents in three terminals, with an editor and a browser in more windows again. You lose
 track of which one is waiting on you. cc rebuilds those apps as one window, each a close copy of a screen you
 already know, with the agents built in. You do not manage sessions: you type a task, cc starts the agent and keeps
-its terminal running, and the task comes to you when it needs an answer.
+its terminal running, and the task comes to you when it needs an answer. You read, answer and steer every agent
+from that one window.
 
 The window has these screens:
 
@@ -56,16 +57,15 @@ Built in around the screens:
 
 | Part | What it does |
 |---|---|
-| **The wall** | Every agent is a live terminal tile. The one waiting for you comes to the big slot. |
 | **Browser use** | Agents drive browser panes inside the app. New sites, password fields and send buttons stop for your approval. |
 | **Computer use** (Windows) | Agents act on the app windows you give them, with their own visible cursor. One key takes over. |
 | **Core services** | A background service owns the terminals. Sessions come back after a restart, dev servers get previews, and other tools can drive it. |
 
 cc runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads their login
-tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
+tokens. It is not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft.
 
 The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name
-MetaTrooper. The window's mark says cc.
+MetaTrooper. The window's mark says cc; some Settings and Add-ons text still says Ouros.
 
 ## What's next
 
@@ -199,7 +199,8 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Terminals that survive.** Each agent runs in a terminal the core owns. Close or crash the window and every agent
   keeps working.
 - **Sessions come back.** When the core starts again, it resumes the sessions that were live, at most 3 at a time,
-  with each engine's own resume flag. The wall comes back in the same layout. A session that ended shows its last
+  with the engine's own resume flag where it has one (Claude Code, Codex, Gemini CLI,
+  opencode, pi); agy and Copilot start a fresh session in the same folder. The wall comes back in the same layout. A session that ended shows its last
   screen. Desktop grants never come back; you give windows again.
 - **Ports and previews.** When an agent's terminal prints a `localhost` URL and its own process listens there, the
   tile gets "Open preview". An agent's browser pane may load only loopback ports its own session owns. You can open
@@ -283,7 +284,8 @@ bundled copy, and Claude sessions are told to send shell commands through it. Tu
 
 ## Privacy
 
-- **What leaves your machine.** The core and the window make no network connection of their own. Your agents talk
+- **What leaves your machine.** The core and the window make no network connection of their own, unless you add a
+  notification webhook or install a plugin from a URL. Your agents talk
   to their own vendors, as they do outside cc. A plugin with the `network` permission connects where its install
   screen says, and only after you approve it. Pages you or an agent open in a browser pane load as in any browser.
 - **One exception.** When Windows "Automatically detect settings" is on, the window's Chromium looks up the LAN host
@@ -371,13 +373,13 @@ their login tokens.
 Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
 
 **Is it free?**
-Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part is Proof, a separate plugin that
+Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part is Proof, a separate private plugin; it is not in this repo. It
 checks whether an agent's tests catch bugs.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
-This is mutation testing. Proof does it on the changed lines, up to 40 breaks a run, in a temporary copy of the repo,
-and reports what the tests caught and missed.
+This is mutation testing. The [answer page](site/answers/check-agent-tests-catch-bugs.html) shows how by hand and
+with Proof.
 
 **Is cc a sandbox?**
 No. Agents and the commands they run use your machine with your permissions. Approvals and `ask` mode are guard rails.

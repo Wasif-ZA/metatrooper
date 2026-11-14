@@ -1,8 +1,8 @@
 # cc
 
-> cc is a carbon copy of the apps developers already code in, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
+> cc is a carbon copy of the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
 
-Proof is the one paid add-on: a plugin, A$19 a month, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
+Proof is the one paid add-on: a separate private plugin, A$19 a month, or US$12 where checkout cannot charge in Australian dollars, that checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
 
 ## Answers
 
@@ -24,7 +24,7 @@ Source: {{SITE}}/
 # The apps you code in. One window. No sessions, just tasks.
  
 
-cc is a carbon copy of the apps you already use, a VS Code style editor, a wall of terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
+cc is a carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, rebuilt as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
  
 
 One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.
@@ -84,13 +84,13 @@ The agents cc found and the plugins you installed, each with its permissions.
 
  
   
-   Needs you
+   Wall
    
 
-## The one that needs you comes to you.
+## The Wall: the one that needs you comes to you.
    
     
-- True status. Working, waiting for you, done or exited, read from each agent's own hooks. A waiting tile says why.
+- True status. Working, waiting for you, done or exited, read from Claude Code's hooks and Codex's notify setting; other agents show a simpler status. A waiting tile says why.
     
 - No stolen keys. A waiting tile holds back for 3 s while you type in the big one.
     
@@ -107,7 +107,7 @@ The agents cc found and the plugins you installed, each with its permissions.
   
    
 
-## A browser your agents drive, with you in charge.
+## Browser panes on the Wall: a browser your agents drive, with you in charge.
    
     
 - Approvals. Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.
@@ -127,7 +127,7 @@ The agents cc found and the plugins you installed, each with its permissions.
   
    
 
-## Your Windows apps, only the ones you give.
+## Computer use from the Wall: your Windows apps, only the ones you give.
    
     
 - Grants. Pick Give window on a tile. The agent acts on that window and its own dialogs, nothing else.
@@ -148,7 +148,7 @@ The agents cc found and the plugins you installed, each with its permissions.
 ## Core services
  
 
-The parts you notice only when they are missing.
+What keeps every screen running, the parts you notice only when they are missing.
  
   
 - Terminals that surviveClose or crash the window and every agent keeps working.
@@ -185,7 +185,7 @@ cd ../workbench && npm ci
 npm run dev
  
 
-The window starts the core service for you. Linux steps and every command are in the README.
+The window starts the core service for you. Every command is in the README.
 
  
 
@@ -210,7 +210,7 @@ The window starts the core service for you. Linux steps and every command are in
 
 What leaves my machine?
 
-The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.
+The core and the window make no network connection of their own, unless you add a notification webhook or install a plugin from a URL. Your agents talk to their own vendors, as they do outside cc. Pages you open in a browser pane load as in any browser.
  
 
 Do I need an account or API keys?
@@ -246,7 +246,7 @@ Source: {{SITE}}/answers/control-many-coding-agents-in-one-place.html
 
 # How do I control many coding agents from one place?
 
-Put everything an agent needs from you in one window: its terminal, its changes, its questions and the browser it uses. cc does that. It is a carbon copy of the apps you already code in, an editor, a terminal wall, an inbox and a browser, rebuilt as one Windows app with your agents built in.
+Put everything an agent needs from you in one window: its terminal, its changes, its questions and the browser it uses. cc does that. It is a carbon copy of the apps you already code with, an editor, terminals, an inbox and a browser, rebuilt as one Windows app with your agents built in.
 
 ## What you juggle without it
 
@@ -255,8 +255,6 @@ Put everything an agent needs from you in one window: its terminal, its changes,
 - One terminal per agent, and no sign of which one is waiting.
 
 - A browser to check what an agent built, and screenshots pasted back to it.
-
-- Notes on which agent is doing what.
 
 ## The same apps, one window
 
@@ -295,7 +293,7 @@ For one or two agents, plain terminals are enough. Use cc when you run three or 
 
  | Platforms | Any | Windows 10 and 11 first. Pre-release, installs from source.
 
- | Windows to juggle | An editor, one terminal per agent, a browser, your notes | One: a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, with the agents built in
+ | Windows to juggle | An editor, one terminal per agent, a browser | One: a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, with the agents built in
 
  | Which agent is waiting | Check each terminal, or set up hooks yourself | The waiting tile moves to the big slot; Alt+J jumps to it
 
@@ -309,7 +307,7 @@ For one or two agents, plain terminals are enough. Use cc when you run three or 
 
  | Browser and Windows apps | Whatever the agent's own tools allow | Browser panes and windows you give it; password fields, new sites and Send or Delete buttons stop for your approval
 
- | Account or telemetry | None | None. The core makes no network connection of its own.
+ | Account or telemetry | None | None. The core makes no network connection of its own, unless you add a notification webhook or install a plugin from a URL.
 
 ## When to stay with terminals
 
@@ -446,7 +444,7 @@ Give the agent the missed break: the file, the line, and what was changed. Ask f
 
 ## Doing it with Proof
 
-Proof is the one paid plugin for cc, A$19 a month (US$12 where checkout cannot charge in Australian dollars). It only breaks the lines in the current change, so it fits the moment an agent says it is done.
+Proof is the one paid plugin for cc, A$19 a month, or US$12 where checkout cannot charge in Australian dollars. It only breaks the lines in the current change, so it fits the moment an agent says it is done.
 
 - It checks the tests pass first, and stops if they do not.
 

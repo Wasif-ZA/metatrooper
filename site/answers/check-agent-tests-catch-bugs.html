@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How do I know my coding agent's tests are any good? | cc IDE</title>
+<title>How do I know my coding agent's tests are any good? | cc</title>
 <meta name="description" content="Passing tests do not prove they catch anything. Break the changed code on purpose and rerun the tests: each break they miss is a gap. How to do it by hand, and with Proof.">
 <link rel="canonical" href="{{SITE}}/answers/check-agent-tests-catch-bugs.html">
 <link rel="stylesheet" href="a.css">
@@ -37,7 +37,7 @@
 <p>Give the agent the missed break: the file, the line, and what was changed. Ask for a test that fails on that break and passes on the real code. Then run the check again.</p>
 
 <h2>Doing it with Proof</h2>
-<p>Proof is the one paid plugin for cc, A$19 a month (US$12 where checkout cannot charge in Australian dollars). It only breaks the lines in the current change, so it fits the moment an agent says it is done.</p>
+<p>Proof is the one paid plugin for cc, A$19 a month, or US$12 where checkout cannot charge in Australian dollars. It only breaks the lines in the current change, so it fits the moment an agent says it is done.</p>
 <ul>
 <li>It checks the tests pass first, and stops if they do not.</li>
 <li>In a temporary copy of the repo, it breaks one changed line at a time: a comparison, a boolean, a return value, a boundary moved by one, a dropped call. At most 40 breaks a run by default.</li>
@@ -47,7 +47,7 @@
 </ul>
 <p>At launch it supports JavaScript, TypeScript and Python changes, with <code>node --test</code> and <code>pytest</code>. Agents call it as MCP tools: <code>proof_mutate</code>, <code>proof_diff</code>, <code>proof_report</code>.</p>
 
-<footer>cc is free and open source, including every safety feature. Proof is the only paid part. Not affiliated with or endorsed by Anthropic, OpenAI or Google. <a href="../">Home</a></footer>
+<footer>cc is free and open source, including every safety feature. Proof is the only paid part. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft. <a href="../">Home</a></footer>
 </div>
 </body>
 </html>
