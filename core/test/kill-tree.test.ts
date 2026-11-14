@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { killTree, killTreeAsync, startOf } from '../../tests/helpers/kill-tree.ts';
+import { isolation, teardownCore } from './helpers.ts';
 
 const T = { skip: process.platform !== 'win32' && 'pid reuse guard is Windows only', timeout: 60_000 };
 const idle = () => spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true });
@@ -21,6 +24,19 @@ test('killTree leaves a process alone when its pid is named by a stale target', 
     killTree({ pid: live.pid!, born });
     assert.equal(await ended(live, 10_000), true, 'a pid with the recorded start time is killed');
   } finally { live.kill(); }
+});
+
+test('teardownCore removes a home that a detached process from this test still holds open', T, async () => {
+  const iso = isolation();
+  const script = join(iso.home, 'holder.cjs');
+  writeFileSync(script, "require('fs').openSync(require('path').join(__dirname, 'held.txt'), 'w'); console.log('held'); setInterval(() => {}, 1000);");
+  const holder = spawn(process.execPath, [script], { cwd: iso.home, detached: true, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+  try {
+    await once(holder.stdout!, 'data');
+    await teardownCore(null, iso);
+    assert.equal(existsSync(iso.home), false, 'the home is gone');
+    assert.equal(await ended(holder, 10_000), true, 'the holder was ended');
+  } finally { holder.kill(); }
 });
 
 test('killTree ends a ChildProcess it still owns, and its children', T, async () => {

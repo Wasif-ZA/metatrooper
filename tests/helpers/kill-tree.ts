@@ -16,6 +16,25 @@ export function startOf(pid: number): number | undefined {
   return out ? Number(out) : undefined;
 }
 
+type Owned = { pid: number; born: number; slack?: number };
+
+/** The targets whose process still runs with the recorded start time, from one Win32_Process query; off Windows, a signal-0 probe. */
+export function stillRunning(targets: Owned[]): Owned[] {
+  if (!targets.length) return [];
+  if (process.platform !== 'win32') return targets.filter((t) => { try { process.kill(t.pid, 0); return true; } catch { return false; } });
+  const filter = [...new Set(targets.map((t) => `ProcessId=${Number(t.pid)}`))].join(' OR ');
+  const out = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', `Get-CimInstance Win32_Process -Filter "${filter}" | ForEach-Object { $p = $_; "$($p.ProcessId) $(${CREATED})" }`], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '';
+  const born = new Map(out.split(/\r?\n/).filter(Boolean).map((l) => l.trim().split(' ').map(Number) as [number, number]));
+  return targets.filter((t) => born.has(t.pid) && Math.abs(born.get(t.pid)! - t.born) <= (t.slack ?? 2));
+}
+
+/** Processes started at or after `since` whose command line contains `text`, a path unique to one test, so they are its own. */
+export function runningWith(text: string, since: number): Owned[] {
+  if (process.platform !== 'win32' || !text) return [];
+  const out = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($env:KILL_TREE_TEXT) } | ForEach-Object { $p = $_; "$($p.ProcessId) $(${CREATED})" }`], { encoding: 'utf8', windowsHide: true, timeout: 15_000, env: { ...process.env, KILL_TREE_TEXT: text } }).stdout ?? '';
+  return out.split(/\r?\n/).filter(Boolean).map((l) => l.trim().split(' ').map(Number)).filter(([pid, born]) => pid && born >= since).map(([pid, born]) => ({ pid, born }));
+}
+
 /** The taskkill command for a target still owned, or null when it has exited or its pid now names another process. */
 function command(target: KillTarget): [string, string[]] | null {
   if (!target?.pid) return null;
