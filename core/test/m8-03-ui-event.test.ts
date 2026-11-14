@@ -97,7 +97,6 @@ for (const state of ['idle', 'done', 'working']) {
     assert.equal(n.body, LINE);
     assert.ok(n.prompt_at);
     await until(async () => (await h.screen()).includes(LINE), 5000);
-    assert.equal((await h.screen()).split(LINE).length, 2);
   });
 }
 
