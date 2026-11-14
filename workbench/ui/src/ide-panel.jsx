@@ -99,12 +99,36 @@ function refit(t) {
 
 /** Closes the project's panel shell; the next time the Terminal tab shows, a new one opens. */
 export function closeShell(pid) {
+  wantFocus.delete(pid);
   const t = shells.get(pid);
   if (!t) return;
   shells.delete(pid);
   if (t.id) { void troop.termDetach(t.id); void rpc('shell.close', { shell_id: t.id }, true); }
   t.term.dispose();
   t.el.remove();
+}
+
+const wantFocus = new Set();
+
+/** Focuses the project's terminal now if it is on screen, else as soon as it mounts. */
+export function focusShell(pid) {
+  const t = shells.get(pid);
+  if (t?.opened && t.el.isConnected) t.term.focus();
+  else wantFocus.add(pid);
+}
+
+export const shellFocused = (pid) => Boolean(shells.get(pid)?.el.contains(document.activeElement));
+
+export function mountShell(pid, host, onKind) {
+  let t = shells.get(pid);
+  if (!t) { t = make(pid); shells.set(pid, t); }
+  t.onKind = onKind;
+  if (t.kind) onKind?.(t.kind);
+  host.append(t.el);
+  if (!t.opened) { t.opened = true; t.term.open(t.el); void connect(t); }
+  Object.assign(t.term.options, look());
+  if (wantFocus.delete(pid)) t.term.focus();
+  return t;
 }
 
 /** A real shell in the project folder, kept alive across tab switches and panel folds. */
@@ -114,13 +138,7 @@ export function Terminal({ pid, onKind }) {
     let t = null, sizes = null, dead = false;
     const start = () => {
       if (dead || !host.current) return;
-      t = shells.get(pid);
-      if (!t) { t = make(pid); shells.set(pid, t); }
-      t.onKind = onKind;
-      if (t.kind) onKind?.(t.kind);
-      host.current.append(t.el);
-      if (!t.opened) { t.opened = true; t.term.open(t.el); void connect(t); }
-      Object.assign(t.term.options, look());
+      t = mountShell(pid, host.current, onKind);
       sizes = new ResizeObserver(() => refit(t));
       sizes.observe(host.current);
     };

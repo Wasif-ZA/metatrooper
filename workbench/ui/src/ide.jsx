@@ -24,7 +24,7 @@ import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
 import { paletteView } from './palette.jsx';
-import { Terminal, Problems, closeShell, countProblems } from './ide-panel.jsx';
+import { Terminal, Problems, closeShell, countProblems, focusShell, shellFocused } from './ide-panel.jsx';
 import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
@@ -635,7 +635,13 @@ export const ideKeys = {
   save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
   panel: () => { if (cur) setPane(cur, !paneOf(cur).open); },
-  terminal: () => { if (!cur) return; const p = paneOf(cur); if (p.open && p.tab === 'terminal') setPane(cur, false); else setPane(cur, true, 'terminal'); },
+  terminal: () => {
+    if (!cur) return;
+    const p = paneOf(cur);
+    if (p.open && p.tab === 'terminal' && shellFocused(cur.pid)) { setPane(cur, false); return; }
+    setPane(cur, true, 'terminal');
+    focusShell(cur.pid);
+  },
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
     if (!t || !canPreview(t.path)) return false;
