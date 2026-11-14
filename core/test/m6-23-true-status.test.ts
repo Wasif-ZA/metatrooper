@@ -210,9 +210,12 @@ async function terminalFixture(engineId = 'claude', extra: EngineSpec[] = []) {
   };
 
   const close = async () => {
+    // the fixture runs with the home as its folder, so the home cannot be removed until the process has really gone
+    const pid = term.ptyPid(h.id);
     term.kill(h.id);
     await until(() => !term.has(h.id));
     await until(async () => (await term.snapshot(h.id)) === null);
+    if (pid) await until(() => { try { process.kill(pid, 0); return false; } catch { return true; } }, 5000).catch(() => {});
     term.setTermHooks({});
     processEvents(h.db);
     await h.close();
