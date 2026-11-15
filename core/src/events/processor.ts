@@ -163,6 +163,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const next = ev.kind === 'launch' || foreign || stale || ignored || late ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         // A Stop held by background work ends the turn only when the session really reaches done.
         if (!foreign && !late && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
+        // Codex never reports a turn start, so its next turn's base is taken at launch and at each turn end.
+        if (!foreign && !late && (ev.kind === 'codex.turn' || ev.kind === 'codex.Stop')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq }, { kind: 'start', id: ev.session_id, seq: ev.seq });
+        if (ev.kind === 'launch' && specOf(s.engine_id).source === 'notify') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
         // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
         const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
         const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input')) || (/^(opencode\.state|core\.title-state)$/.test(ev.kind) && payload.state === 'waiting');
