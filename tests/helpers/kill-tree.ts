@@ -82,11 +82,25 @@ function noteKillAsync(pid: number, via: string): Promise<void> {
   });
 }
 
+/** A child Node still holds is ended through its handle too; taskkill /T /F once left an Electron fixture running, which kept its test file alive; Node's handle keeps the pid from being reused. */
+function ownChild(target: KillTarget): void {
+  if (target && !('born' in target) && target.exitCode === null && target.signalCode === null) try { target.kill(); } catch {}
+}
+
+function noteKillFailed(pid: number, status: number | null, stderr: string): void {
+  const dir = killLog();
+  if (dir) try { mkdirSync(dir, { recursive: true }); appendFileSync(join(dir, 'kills.jsonl'), JSON.stringify({ at: new Date().toISOString(), via: 'taskkill-failed', pid, status, stderr: String(stderr ?? '').trim().slice(0, 500), killer: process.argv.slice(1).join(' ') }) + '\n'); } catch {}
+}
+
 /** Ends a process and its children: `taskkill /T /F` on Windows, the process group elsewhere. */
 export function killTree(target: KillTarget): void {
   if (process.platform !== 'win32') return posixKill(target);
   const c = command(target);
-  if (c) { noteKill(target!.pid!, 'killTree'); spawnSync(c[0], c[1], { stdio: 'ignore', windowsHide: true }); }
+  if (!c) return;
+  noteKill(target!.pid!, 'killTree');
+  const r = spawnSync(c[0], c[1], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8', windowsHide: true });
+  if (r.status !== 0) noteKillFailed(target!.pid!, r.status, r.stderr);
+  ownChild(target);
 }
 
 /** `killTree` without blocking, resolved once the kill exits. */
@@ -96,7 +110,7 @@ export function killTreeAsync(target: KillTarget): Promise<void> {
   if (!c) return Promise.resolve();
   return noteKillAsync(target!.pid!, 'killTreeAsync').then(() => new Promise(resolve => {
     const killer = spawn(c[0], c[1], { stdio: 'ignore', windowsHide: true });
-    killer.once('error', () => resolve());
-    killer.once('exit', () => resolve());
+    killer.once('error', () => { ownChild(target); resolve(); });
+    killer.once('exit', (code) => { if (code !== 0) noteKillFailed(target!.pid!, code, ''); ownChild(target); resolve(); });
   }));
 }
