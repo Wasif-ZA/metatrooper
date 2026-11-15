@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -92,7 +92,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   proc.onExit(({ exitCode }) => {
     t.exitCode = exitCode;
     typed.delete(id);
-    if (!t.killed) releasePty(proc);
+    releasePty(proc);
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();
     hooks.onExit?.(id, exitCode, t.killed);
@@ -116,11 +116,9 @@ export function inputSocketOf(id: string): NodeJS.EventEmitter | undefined {
 /** Frees the conout worker and pipes that node-pty 1.1 on Windows frees only in kill(); without this an exited process leaves them and its conhost.exe running. */
 function releasePty(proc: IPty): void {
   const agent = (proc as unknown as { _agent?: { _conoutSocketWorker?: { dispose(): void }; _inSocket?: { destroy(): void }; _outSocket?: { destroy(): void } } })._agent;
-  try {
-    agent?._conoutSocketWorker?.dispose();
-    agent?._inSocket?.destroy();
-    agent?._outSocket?.destroy();
-  } catch {}
+  try { agent?._conoutSocketWorker?.dispose(); } catch {}
+  try { agent?._inSocket?.destroy(); } catch {}
+  try { agent?._outSocket?.destroy(); } catch {}
 }
 
 /** Whether the pty is paused because the headless terminal is more than PAUSE_BYTES behind. */
@@ -253,13 +251,14 @@ export function kill(id: string): void {
   if (!t || t.exitCode !== null || t.killed) return;
   t.killed = true;
   // node-pty 1.1's conpty kill() signals the shell's pid by number about 5 s later, when that pid may name another process; end the tree now, while the pty still holds the process.
-  const agent = (t.proc as unknown as { _agent?: { _getConsoleProcessList?: () => Promise<number[]> } })._agent;
-  if (agent?._getConsoleProcessList) agent._getConsoleProcessList = () => Promise.resolve([]);
+  const agent = (t.proc as unknown as { _agent?: { _exitCode?: number; _getConsoleProcessList?: () => Promise<number[]> } })._agent;
   const close = () => { try { t.proc.kill(); } catch {} };
-  if (process.platform !== 'win32') return close();
-  const killer = spawn('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true });
-  killer.once('error', close);
-  killer.once('exit', close);
+  // Once the agent has seen the exit, node-pty reports it up to 1 s later and the pid may already be reused.
+  const list = agent?._getConsoleProcessList;
+  if (agent && list) agent._getConsoleProcessList = () => Promise.resolve([]);
+  if (process.platform !== 'win32' || !agent || !list || agent._exitCode !== undefined) return close();
+  if (spawnSync('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10_000 }).error) agent._getConsoleProcessList = list;
+  close();
 }
 
 /** Waits for pending writes to reach the headless terminal, then serializes it. */
