@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -249,15 +249,18 @@ export function resize(id: string, cols: number, rows: number): void {
 export function kill(id: string): void {
   const t = terms.get(id);
   if (!t || t.exitCode !== null || t.killed) return;
-  t.killed = true;
   // node-pty 1.1's conpty kill() signals the shell's pid by number about 5 s later, when that pid may name another process; end the tree now, while the pty still holds the process.
   const agent = (t.proc as unknown as { _agent?: { _exitCode?: number; _getConsoleProcessList?: () => Promise<number[]> } })._agent;
   const close = () => { try { t.proc.kill(); } catch {} };
-  // Once the agent has seen the exit, node-pty reports it up to 1 s later and the pid may already be reused.
   const list = agent?._getConsoleProcessList;
   if (agent && list) agent._getConsoleProcessList = () => Promise.resolve([]);
-  if (process.platform !== 'win32' || !agent || !list || agent._exitCode !== undefined) return close();
-  if (spawnSync('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10_000 }).error) agent._getConsoleProcessList = list;
+  // Once the agent has seen the exit, node-pty reports it up to 1 s later and the pid may already be reused; it exited on its own, so it is not marked killed.
+  if (agent?._exitCode !== undefined) return close();
+  t.killed = true;
+  if (process.platform !== 'win32' || !agent || !list) return close();
+  // 128: the process was already gone.
+  const r = spawnSync('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10_000 });
+  if (r.error || (r.status !== 0 && r.status !== 128)) agent._getConsoleProcessList = list;
   close();
 }
 
@@ -305,7 +308,6 @@ export function stop(id: string, graceMs = 3000): boolean {
   try { t.proc.write(String.fromCharCode(3)); } catch {}
   setTimeout(() => {
     if (t.exitCode !== null) return;
-    if (process.platform === 'win32') spawn('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true }).on('error', () => {});
     kill(id);
   }, graceMs).unref();
   return true;
