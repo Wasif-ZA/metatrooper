@@ -252,7 +252,14 @@ export function kill(id: string): void {
   const t = terms.get(id);
   if (!t || t.exitCode !== null || t.killed) return;
   t.killed = true;
-  try { t.proc.kill(); } catch {}
+  // node-pty 1.1's conpty kill() signals the shell's pid by number about 5 s later, when that pid may name another process; end the tree now, while the pty still holds the process.
+  const agent = (t.proc as unknown as { _agent?: { _getConsoleProcessList?: () => Promise<number[]> } })._agent;
+  if (agent?._getConsoleProcessList) agent._getConsoleProcessList = () => Promise.resolve([]);
+  const close = () => { try { t.proc.kill(); } catch {} };
+  if (process.platform !== 'win32') return close();
+  const killer = spawn('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true });
+  killer.once('error', close);
+  killer.once('exit', close);
 }
 
 /** Waits for pending writes to reach the headless terminal, then serializes it. */
