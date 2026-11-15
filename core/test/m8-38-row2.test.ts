@@ -185,7 +185,7 @@ test('M8-38b: controls from the first snapshot can set the input and submit once
   const value = 'm8-38-row2-' + randomUUID();
   const replies = [await ask({ op: 'set_text', hwnd, ref: input, value, ...ui }), await ask({ op: 'click', hwnd, ref: submit, ...ui })];
   t.diagnostic('helper replies: ' + JSON.stringify(replies));
-  const state = await pollState(statePath, (s) => s.text === value && s.clicks === 1, 15000, () => alive('after the helper accepted set_text and click'));
+  const state = await pollState(statePath, (s) => s.text === value && s.clicks === 1, 5000, () => alive('after the helper accepted set_text and click'));
   assert.equal(state.text, value);
   assert.equal(state.clicks, 1);
 });
