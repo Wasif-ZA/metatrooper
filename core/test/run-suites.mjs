@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 const TIMING = [
   ['test/core.test.ts', 'each Claude hook has a median under 250 ms over ten runs'],
   ['test/core.test.ts', 'M1-08 queued commands run in the order they were queued'],
+  ['test/core.test.ts', 'offline CLI rejects focus and engine checks, queues project.open, and replays it on core start'],
   ['test/m6-03-ports.test.ts', 'M6-03a a dev server in the session terminal gets an ancestry row within 2 s'],
   ['test/m6-05-hook-state.test.ts', 'M6-05a a Codex session with -c hooks shows waiting_for_you within 2 s'],
   ['test/m6-06-restart.test.ts', 'M6-06a killing the core brings 4 live sessions back within 30 s'],
