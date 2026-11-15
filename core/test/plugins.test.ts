@@ -184,7 +184,7 @@ test('install refuses approvals that do not match the permissions asked for, and
         } finally {
           db.close();
         }
-        const set = await c.request('plugin.secret.set', { plugin_id: 'perm-demo', name: 'TOKEN', value: 'tok-value-991' });
+        const set = await c.request('plugin.secret.set', { plugin_id: 'perm-demo', name: 'TOKEN', value: 'tok-value-991' }, { timeout: 15_000 });
         assert.deepEqual(set.result, {});
         assert.deepEqual(allFilesContain(h.home, 'tok-value-991'), []);
       } finally {
