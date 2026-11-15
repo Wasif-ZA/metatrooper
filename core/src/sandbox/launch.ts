@@ -21,11 +21,6 @@ export function containerName(sessionId: string): string {
   return `troop-${sessionId.slice(-8).toLowerCase()}`;
 }
 
-const inside = (child: string, parent: string) => {
-  const rel = path.relative(parent, child);
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
-};
-
 /** The worktree's gitdir and the main repo's .git, or a reason the worktree cannot be mounted safely. */
 export function gitLayout(worktree: string): { gitdir: string; common: string } | { refusal: string } {
   const pointer = path.join(worktree, '.git');
@@ -36,7 +31,7 @@ export function gitLayout(worktree: string): { gitdir: string; common: string } 
   const gitdir = path.resolve(worktree, m[1]);
   let common = '';
   try { common = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'commondir'), 'utf8').trim()); } catch { return { refusal: 'the worktree gitdir has no commondir' }; }
-  if (!inside(gitdir, path.join(common, 'worktrees'))) return { refusal: 'the worktree gitdir is not inside the repository .git/worktrees' };
+  if (path.dirname(gitdir) !== path.join(common, 'worktrees') || path.basename(common) !== '.git') return { refusal: 'the worktree gitdir is not inside the repository .git/worktrees' };
   let back = '';
   try { back = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'gitdir'), 'utf8').trim()); } catch {}
   if (path.resolve(back).toLowerCase() !== path.resolve(pointer).toLowerCase()) return { refusal: 'the repository does not point back at this worktree' };
