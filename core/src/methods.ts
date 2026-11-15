@@ -601,7 +601,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const repo = repoOf(project.path);
       if (!repo) return { repo: null, paths: [] };
-      const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
+      const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title === undefined ? undefined : scrub(t.title, knownSecretValues())]));
       return { repo, paths: owners(db, repo, titles) };
     },
   });

@@ -251,13 +251,31 @@ export const CREDENTIAL_PATTERNS: RegExp[] = [
 const LONG_RUN = /[A-Za-z0-9_+/=-]{32,}/g;
 const mixedCase = (run: string) => /[0-9]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
 
+const ENTROPY_RUN = /[A-Za-z0-9_-]{24,}/g;
+
+function highEntropy(run: string): boolean {
+  if (!/[0-9]/.test(run) || !/[a-z]/.test(run)) return false;
+  if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(run) || /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(run)) return false;
+  if (/^(?:[A-Za-z]+|[0-9]+)(?:[_-](?:[A-Za-z]+|[0-9]+))*$/.test(run)) return false;
+  const counts = new Map<string, number>();
+  for (const char of run) counts.set(char, (counts.get(char) ?? 0) + 1);
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const p = count / run.length;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy >= 3.5;
+}
+
 export function looksLikeCredential(text: string): boolean {
   return CREDENTIAL_PATTERNS.some((re) => re.test(text)) || (text.match(LONG_RUN) ?? []).some(mixedCase);
 }
 
 /** Replaces every credential-pattern match in text with [secret]. */
 export function redactCredentials(text: string): string {
-  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text).replace(LONG_RUN, (run) => (mixedCase(run) ? '[secret]' : run));
+  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text)
+    .replace(LONG_RUN, (run) => (mixedCase(run) ? '[secret]' : run))
+    .replace(ENTROPY_RUN, (run) => (highEntropy(run) ? '[secret]' : run));
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
@@ -271,11 +289,18 @@ export function redactSecretValues(text: string, values: Iterable<string>): stri
 }
 
 const TOKEN_KEY = /^(access_?token|refresh_?token|id_?token|token|auth|authorization|api_?key|apikey|key|secret|client_secret|password|passwd|pwd|session|sessionid|sid|sig|signature|code)$/i;
+const ASSIGNMENT_KEY = /password|passwd|(?:^|[_.-])pass(?:$|[_.-])|pwd|secret|token|api_?key|access_key|private_key|credential|authorization|(?:^|[_.-])auth(?:$|[_.-])/i;
 
 /** Browser output redaction: known secret values, bearer tokens, cookie values, URL credentials, token-named query values and credential-looking runs. */
 export function scrub(text: string, secrets: Iterable<string> = []): string {
   const out = redactSecretValues(text, secrets)
     .replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [secret]')
+    .replace(/(?<![A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:Bearer|Basic|Token)\s+)?[^\s"']+)/gi, (m, quote: string, key: string, sep: string, value: string) => {
+      if (!ASSIGNMENT_KEY.test(key)) return m;
+      const q = /^["']/.test(value) ? value[0] : '';
+      const scheme = /^(?:Bearer|Basic|Token)\s+/i.exec(value)?.[0] ?? '';
+      return `${quote}${key}${quote}${sep}${q}${scheme}[secret]${q}${!q && value.endsWith(',') ? ',' : ''}`;
+    })
     .replace(/\b((?:set-)?cookie)(["']?\s*[:=]\s*["']?)[^\r\n"']+/gi, '$1$2[secret]')
     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1[secret]@')
     .replace(/([?&#;])([^=&#\s]+)=([^&#\s"']+)/g, (m, sep: string, key: string, value: string) => (TOKEN_KEY.test(key) || looksLikeCredential(value) ? `${sep}${key}=[secret]` : m));

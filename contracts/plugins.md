@@ -137,7 +137,7 @@ How engines are pointed at the shim (child #13):
 | `mcp_attach.kind` | How |
 |---|---|
 | `claude-mcp-config-flag` | the core writes `~/.metatrooper/mcp/<session id>.json` with one shim entry per server and adds `--mcp-config <file>`; each launch deletes the files of sessions that have exited |
-| `codex-config` | `-c mcp_servers.<plugin>-<server>.command=<node>` and `-c ...args=[<shim>, <plugin>, <server>]` per server; `config.toml` is not edited |
+| `codex-config` | `-c mcp_servers.<plugin>-<server>.command=<node>` and `-c ...args=[<shim>, <plugin>, <server>]` per server; `env_vars` forwards session id, home and pipe prefix for stdio; `config.toml` is not edited |
 | `agy-config`, `env-file`, `none` | not attached yet |
 
 If a secret is missing (no DPAPI blob, or a `${VAR}` not set), the shim does not start the server; it answers
