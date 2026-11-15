@@ -13,8 +13,8 @@ Lead with the answer. The user often reads two lines and moves on.
   not by intent.
 - Every agent you started: `troop sessions --json` for state, `troop read <id> --json` for the
   last lines of any that look stuck.
-- Timing: when each finished step started and ended (commit times, session start times from
-  `troop sessions --json`).
+- Timing: when each finished step started and ended. Use commit times, plus whatever times
+  `troop sessions --json` shows. If neither has them, note the time yourself at each step.
 
 ## Report shape
 

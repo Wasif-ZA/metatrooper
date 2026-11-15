@@ -9,8 +9,8 @@ Evidence only. Every claim points to a session, commit or file; nothing is inven
 
 ## 1. Gather
 
-- Agent sessions in the window: start and end times, project, first prompt
-  (`troop sessions --json`, plus the engine's own transcript folders if the user allows it).
+- Agent sessions in the window: `troop sessions --json`, plus the engine's own transcript files
+  if the user allows it. Transcript lines carry timestamps; use the first and last as the span.
 - Commits: `git log --since=<start> --until=<end> --format='%ad %h %s' --date=iso` in each repo.
 - Files created or changed in the window, and any calendar or task list the user points to.
 
