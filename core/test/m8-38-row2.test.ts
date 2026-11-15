@@ -141,15 +141,17 @@ async function freshFixture(t: TestContext, size: number, extraArgs: string[] = 
   let fixtureStderr = '';
   fixture.stderr!.on('data', (chunk) => { fixtureStderr += String(chunk); });
   fixture.on('error', (error) => { fixtureFailure = error; });
-  const state = await pollState(statePath, (s) => Number.isSafeInteger(s.hwnd) && s.hwnd > 0, 60000, () => {
+  const alive = (when = 'before publishing HWND') => {
     if (fixtureFailure) throw fixtureFailure;
     if (fixture!.exitCode !== null || fixture!.signalCode !== null) {
-      throw new Error('fixture exited before publishing HWND: ' + fixtureStderr);
+      throw new Error(`fixture exited ${when}: ${fixture!.exitCode}/${fixture!.signalCode} ${fixtureStderr}`);
     }
-  });
+    if (helperFailure) throw helperFailure;
+  };
+  const state = await pollState(statePath, (s) => Number.isSafeInteger(s.hwnd) && s.hwnd > 0, 60000, () => alive());
   // No warm-up snapshot, list query or startup sleep after the state file yields its HWND.
   const snapshot = await ask({ op: 'snapshot', hwnd: state.hwnd, max_nodes: 400 }) as Snapshot;
-  return { snapshot, ask, hwnd: state.hwnd, ui, statePath };
+  return { snapshot, ask, hwnd: state.hwnd, ui, statePath, alive };
 }
 
 function control(snapshot: Snapshot, role: string, name: string, action: string) {
@@ -177,13 +179,13 @@ test('M8-38b: the first snapshot of a fresh size-8 Electron fixture contains its
 });
 
 test('M8-38b: controls from the first snapshot can set the input and submit once', OPTIONS, async (t) => {
-  const { snapshot, ask, hwnd, ui, statePath } = await freshFixture(t, 8);
+  const { snapshot, ask, hwnd, ui, statePath, alive } = await freshFixture(t, 8);
   const input = control(snapshot, 'edit', 'Fixture input', 'SetValue');
   const submit = control(snapshot, 'button', 'Fixture submit', 'Invoke');
   const value = 'm8-38-row2-' + randomUUID();
-  await ask({ op: 'set_text', hwnd, ref: input, value, ...ui });
-  await ask({ op: 'click', hwnd, ref: submit, ...ui });
-  const state = await pollState(statePath, (s) => s.text === value && s.clicks === 1, 5000);
+  const replies = [await ask({ op: 'set_text', hwnd, ref: input, value, ...ui }), await ask({ op: 'click', hwnd, ref: submit, ...ui })];
+  t.diagnostic('helper replies: ' + JSON.stringify(replies));
+  const state = await pollState(statePath, (s) => s.text === value && s.clicks === 1, 15000, () => alive('after the helper accepted set_text and click'));
   assert.equal(state.text, value);
   assert.equal(state.clicks, 1);
 });

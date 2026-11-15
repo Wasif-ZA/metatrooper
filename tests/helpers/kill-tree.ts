@@ -1,4 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * A process to end. A ChildProcess is ended only while Node has not seen it exit: until then Node holds its handle,
@@ -52,11 +54,21 @@ function posixKill(target: KillTarget): void {
   try { process.kill(-target.pid, 'SIGKILL'); } catch { try { process.kill(target.pid, 'SIGKILL'); } catch {} }
 }
 
+/** With METATROOPER_TEST_KILL_LOG set to a folder, appends one JSON line naming the killer and every process in the target's tree. */
+export function noteKill(pid: number, via: string): void {
+  const dir = process.env.METATROOPER_TEST_KILL_LOG;
+  if (!dir || process.platform !== 'win32') return;
+  const script = `$all = Get-CimInstance Win32_Process; $q = @(${Number(pid)}); $seen = @{}; while ($q.Count) { $p, $q = $q; if ($seen[$p]) { continue }; $seen[$p] = 1; $all | Where-Object { $_.ParentProcessId -eq $p -and $_.ProcessId -ne $p } | ForEach-Object { $q += $_.ProcessId } }; $all | Where-Object { $seen[$_.ProcessId] } | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }`;
+  const tree = (spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '').split(/\r?\n/).filter(Boolean);
+  mkdirSync(dir, { recursive: true });
+  appendFileSync(join(dir, 'kills.jsonl'), JSON.stringify({ at: new Date().toISOString(), via, pid, killer: process.argv.slice(1).join(' '), tree }) + '\n');
+}
+
 /** Ends a process and its children: `taskkill /T /F` on Windows, the process group elsewhere. */
 export function killTree(target: KillTarget): void {
   if (process.platform !== 'win32') return posixKill(target);
   const c = command(target);
-  if (c) spawnSync(c[0], c[1], { stdio: 'ignore', windowsHide: true });
+  if (c) { noteKill(target!.pid!, 'killTree'); spawnSync(c[0], c[1], { stdio: 'ignore', windowsHide: true }); }
 }
 
 /** `killTree` without blocking, resolved once the kill exits. */
@@ -64,6 +76,7 @@ export function killTreeAsync(target: KillTarget): Promise<void> {
   if (process.platform !== 'win32') { posixKill(target); return Promise.resolve(); }
   const c = command(target);
   if (!c) return Promise.resolve();
+  noteKill(target!.pid!, 'killTreeAsync');
   return new Promise(resolve => {
     const killer = spawn(c[0], c[1], { stdio: 'ignore', windowsHide: true });
     killer.once('error', () => resolve());
