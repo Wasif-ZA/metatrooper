@@ -58,6 +58,17 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
       raiseMissingSecret(db, pluginId, key);
     } else out.env[key] = value;
   }
+  delete out.env.CC_PLUGIN_DATA;
+  if (mcpWrites(server) === 'appdata') {
+    const dir = path.join(homeDir(), 'plugin-data', pluginId);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      if (!folderInsideHome(dir)) throw new Error('plugin data folder is outside the home');
+      out.env.CC_PLUGIN_DATA = dir;
+    } catch {
+      if (!out.missing.includes('CC_PLUGIN_DATA')) out.missing.push('CC_PLUGIN_DATA');
+    }
+  }
   return out;
 }
 
@@ -233,8 +244,12 @@ export function writeSessionFile(db: DatabaseSync | undefined, sessionId: string
 
 /** True when the file's folder is inside Ouros's home both by name and on disk, so no junction or symlink above it leads elsewhere. */
 function insideHome(file: string): boolean {
+  return folderInsideHome(path.dirname(file));
+}
+
+function folderInsideHome(folder: string): boolean {
   const home = path.resolve(homeDir());
-  const dir = path.resolve(path.dirname(file));
+  const dir = path.resolve(folder);
   const named = path.relative(home, dir);
   if (named.startsWith('..') || path.isAbsolute(named)) return false;
   try {

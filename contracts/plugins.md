@@ -117,8 +117,11 @@ agent session's cwd. Every `{{plugin_dir}}` occurrence within an arg becomes the
 An `mcp` entry with `transport: "http"` has a `url` (https only) instead of a `command`. `auth` is `none`,
 `engine-oauth` (the engine runs the sign-in and keeps the token) or `header`. `headers` maps a header name to a
 value that must contain at least one `${SECRET}`; each `SECRET` needs `secrets:SECRET` in `permissions`, and a
-literal header value fails validation. `writes` is `none`, `project` or `external`; an http server with no
+literal header value fails validation. `writes` is `none`, `project`, `appdata` or `external`; an http server with no
 `writes` counts as `external`.
+
+A stdio server with `writes: appdata` writes only in its own `<cc home>/plugin-data/<plugin id>` folder, supplied as `CC_PLUGIN_DATA`, and attaches to contained, isolated and pipeline sessions.
+The folder is declared only (like `project:write`, Windows does not stop the plugin process writing elsewhere); a junction out of the cc home is refused.
 
 Claude gets `{"type":"http","url":...}` in the per-session file, plus `headersHelper` (the quoted node and shim
 paths, then `headers <plugin id> <server id>`) when the server has `headers`. The shim's `headers` subcommand

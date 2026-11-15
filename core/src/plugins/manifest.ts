@@ -28,7 +28,7 @@ export interface McpSpec {
   url?: string;
   headers?: Record<string, string>;
   auth?: 'none' | 'header' | 'engine-oauth';
-  writes?: 'none' | 'project' | 'external';
+  writes?: 'none' | 'project' | 'appdata' | 'external';
 }
 
 /** Secret names a header value templates, in order. */
@@ -37,7 +37,7 @@ export function headerSecretNames(value: string): string[] {
 }
 
 /** An http server with no `writes` counts as external. */
-export function mcpWrites(s: McpSpec): 'none' | 'project' | 'external' {
+export function mcpWrites(s: McpSpec): 'none' | 'project' | 'appdata' | 'external' {
   return s.writes ?? (s.transport === 'http' ? 'external' : 'none');
 }
 
@@ -201,7 +201,7 @@ export function installScreen(m: Manifest, previous: string[] | null, pluginDir?
     engines: (m.engines ?? []).map((e) => ({ id: e.id, command: e.command, roles: e.roles })),
     mcp_servers: (m.mcp ?? []).map((s) => s.transport === 'http'
       ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'Ouros (header secret)' : 'the engine', writes: mcpWrites(s) }
-      : { id: s.id, command: [s.command, ...(s.args ?? []).map((a) => (pluginDir === undefined ? a : a.replaceAll('{{plugin_dir}}', () => pluginDir)))].join(' '), engines: s.engines }),
+      : { id: s.id, command: [s.command, ...(s.args ?? []).map((a) => (pluginDir === undefined ? a : a.replaceAll('{{plugin_dir}}', () => pluginDir)))].join(' '), engines: s.engines, writes: mcpWrites(s) }),
     warnings,
   };
 }
