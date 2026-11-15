@@ -150,7 +150,7 @@ export async function claimTurn(db              , sessionId        , endSeq     
   const s = db.prepare('SELECT id, cwd, turn_base, state FROM session WHERE id = ?').get(sessionId)                           ;
   const repo = await repoOfAsync(s?.cwd ?? null);
   if (!s || !repo) return null;
-  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.UserPromptSubmit','core.activity','launch') ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq)                                           ;
+  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.UserPromptSubmit','core.activity','launch','codex.turn','codex.Stop') ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq)                                           ;
   const end = db.prepare('SELECT at FROM event WHERE seq = ?').get(endSeq)                              ;
   const from = start?.at ?? nowIso();
   const at = end?.at ?? nowIso();
@@ -171,7 +171,7 @@ export async function claimTurn(db              , sessionId        , endSeq     
   const times = await commitTimesAsync(repo, changed);
   // nothing awaits from here to the insert
   const overlapping = others.filter((o) => o.state === 'working' || o.state === 'waiting_for_you'
-    || db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind LIKE 'claude.%' AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?) LIMIT 1").get(o.id, from, at));
+    || db.prepare("SELECT 1 FROM event WHERE session_id = ? AND (kind LIKE 'claude.%' OR kind LIKE 'codex.%') AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?) LIMIT 1").get(o.id, from, at));
   const hints = new Map                     ();
   const named = (id        , file        ) => {
     if (!hints.has(id)) {
