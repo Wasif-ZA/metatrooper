@@ -10,6 +10,17 @@ Agent skills bundled with Ouros. `troop skills install` copies them into
 | `troop` | Starting and following agent sessions through the `troop` CLI |
 | `second-opinion` | Asking a different engine to check a diff, plan or diagnosis, then comparing |
 
+## Efficiency (MIT, `skills/LICENSE`)
+
+| Skill | Use it for |
+|---|---|
+| `engine-routing` | Cheapest capable engine per task; the strongest model directs with exact scripts |
+| `usage-budget` | Estimating a run against remaining usage, checkpoints, stopping cleanly before the limit |
+| `reuse-first` | Searching earlier work, branches and running sessions before doing anything new |
+| `work-sizing` | Subagents for short helpers, sessions for real work, time boxes, no idle agents |
+| `lean-context` | Short shell output via `troop route`, ranged reads, findings in files not context |
+| `trap-log` | One `TRAPS.md` per project so no session repeats a known failure |
+
 ## Engineering (MIT, `skills/LICENSE`)
 
 | Skill | Use it for |
