@@ -59,6 +59,31 @@ async function harness(engineId: string, source: string) {
 
 const paths = (claim: { files: Array<{ path: string }> }) => claim.files.map((f) => f.path);
 
+test('a Claude permission wait preserves the turn base and claims edits from before and after the ask', { timeout: 60000 }, async () => {
+  const h = await harness('claude-like', 'hooks');
+  try {
+    h.put('claude.UserPromptSubmit');
+    const first = await until(() => h.state() === 'working' && h.base() || undefined, 10000);
+    h.write('a.txt', 'changed before permission\n');
+    h.put('claude.PermissionRequest', { tool_use_id: 'permission-tool' });
+    await until(() => h.state() === 'waiting_for_you' || undefined, 10000);
+    const atAsk = h.base();
+    assert.equal(atAsk, first);
+    h.put('claude.PostToolUse', { tool_use_id: 'permission-tool' });
+    await until(() => h.state() === 'working' || undefined, 10000);
+    await sleep(500);
+    const beforeStop = h.base();
+    h.write('c.txt', 'changed after permission\n');
+    h.put('claude.Stop');
+    await until(() => h.claims().length === 1 || undefined, 10000);
+    const claim = h.claims()[0];
+    assert.deepEqual(paths(claim), ['a.txt', 'c.txt']);
+    assert.equal(beforeStop, atAsk, 'answering permission must not retake the turn base');
+    assert.equal(claim.turn_base, atAsk, 'Stop must claim from the base used before the ask');
+    assert.equal(h.base(), atAsk);
+  } finally { await h.teardown(); }
+});
+
 test('a Codex turn end (notify, then a Stop hook) claims the tracked and new files it changed, from a base taken at launch and again after each turn', { timeout: 60000 }, async () => {
   const h = await harness('codex', 'notify');
   try {
