@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { connect } from 'node:net';
-import { tmpdir } from 'node:os';
+import { freemem, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { killTree, killTreeAsync, runningWith, startOf, stillRunning } from '../../tests/helpers/kill-tree.ts';
@@ -179,8 +179,23 @@ export async function uiHello(connection, home) {
   return reply;
 }
 
+/** With METATROOPER_TEST_KILL_LOG set, records a core that exits before its test stops it: code, free memory, other node processes, its log tail. */
+function noteCoreExit(child, isolated) {
+  const dir = process.env.METATROOPER_TEST_KILL_LOG;
+  if (!dir) return;
+  child.once('exit', (code, signal) => {
+    if (child.stopping) return;
+    let tail = [];
+    try { tail = readFileSync(join(isolated.home, 'logs', 'core.log'), 'utf8').split(/\r?\n/).slice(-30); } catch {}
+    const nodes = process.platform === 'win32' ? (spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" | ForEach-Object { "$($_.ProcessId) $([int]($_.WorkingSetSize/1MB))MB $($_.CommandLine)" }'], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '').split(/\r?\n/).filter(Boolean) : [];
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, 'core-exits.jsonl'), JSON.stringify({ at: new Date().toISOString(), pid: child.pid, code, signal, test: process.argv.slice(1).join(' '), home: isolated.home, free_mb: Math.round(freemem() / 1048576), tail, nodes }) + '\n');
+  });
+}
+
 export async function startCore(isolated) {
   const child = spawn(process.execPath, ['core/src/main.ts', ...(isolated.args ?? [])], { cwd: root, env: isolated.env, stdio: 'ignore', windowsHide: true });
+  noteCoreExit(child, isolated);
   try {
     await until(async () => {
       if (child.exitCode !== null) throw new Error(`core exited ${child.exitCode}`);
@@ -195,6 +210,7 @@ export async function startCore(isolated) {
 }
 
 export async function stopCore(child, isolated) {
+  if (child) child.stopping = true;
   if (!child || child.exitCode !== null) return;
   try {
     const connection = await client(isolated.prefix);
@@ -246,7 +262,7 @@ export async function teardownCore(child, isolated) {
     }
   } catch {} finally { try { db?.close(); } catch {} }
   if (sessionIds.length) await new Promise(resolve => {
-    const script = '$ids = $env:METATROOPER_CLEANUP_SESSION_IDS -split ","; $testPid = [int]$env:METATROOPER_CLEANUP_TEST_PID; foreach ($p in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) { if ($p.ProcessId -eq $PID -or $p.ProcessId -eq $testPid -or -not $p.CommandLine -or -not $p.CommandLine.Contains("launch.js")) { continue }; foreach ($id in $ids) { if ($p.CommandLine.Contains($id)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; break } } }';
+    const script = '$ids = $env:METATROOPER_CLEANUP_SESSION_IDS -split ","; $testPid = [int]$env:METATROOPER_CLEANUP_TEST_PID; foreach ($p in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) { if ($p.ProcessId -eq $PID -or $p.ProcessId -eq $testPid -or -not $p.CommandLine -or -not $p.CommandLine.Contains("launch.js")) { continue }; foreach ($id in $ids) { if ($p.CommandLine.Contains($id)) { if ($env:METATROOPER_TEST_KILL_LOG) { Add-Content -LiteralPath (Join-Path $env:METATROOPER_TEST_KILL_LOG "sweeps.log") -Value ("$(Get-Date -Format o) id=$id killer=$env:METATROOPER_CLEANUP_TEST_PID pid=$($p.ProcessId) $($p.CommandLine)") }; Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; break } } }';
     const sweep = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
       env: { ...process.env, METATROOPER_CLEANUP_SESSION_IDS: sessionIds.join(','), METATROOPER_CLEANUP_TEST_PID: String(process.pid) },
       stdio: 'ignore', windowsHide: true

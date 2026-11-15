@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { IPty } from 'node-pty';
+import { logOnce } from '../log.ts';
 import { homeDir } from '../paths.ts';
 import { settings } from '../settings.ts';
 import { PARENT_SESSION_ENV } from './parent-env.ts';
@@ -70,6 +71,8 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   head.loadAddon(ser);
   const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false, at: 0 };
   terms.set(id, t);
+  // node-pty 1.1 gives its Windows input pipe no error listener, so a failed write (seen: EAGAIN) would end the process.
+  inputSocket(proc)?.on('error', (e: NodeJS.ErrnoException) => logOnce(`terminal input write failed: ${e.code ?? e.message} (exited ${t.exitCode !== null}, killed ${t.killed})`));
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
   head.onData((reply) => { if (t.viewers.size === 0 && t.exitCode === null) t.proc.write(reply); });
@@ -97,6 +100,17 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     head.write('', () => { saveScreen(id, t); head.dispose(); terms.delete(id); });
   });
   return proc.pid;
+}
+
+/** The Windows input pipe node-pty writes keystrokes to; undefined elsewhere. */
+function inputSocket(proc: IPty): NodeJS.EventEmitter | undefined {
+  return (proc as unknown as { _agent?: { _inSocket?: NodeJS.EventEmitter } })._agent?._inSocket;
+}
+
+/** The input pipe of terminal `id`, while it is open. */
+export function inputSocketOf(id: string): NodeJS.EventEmitter | undefined {
+  const t = terms.get(id);
+  return t && inputSocket(t.proc);
 }
 
 /** Frees the conout worker and pipes that node-pty 1.1 on Windows frees only in kill(); without this an exited process leaves them and its conhost.exe running. */

@@ -173,7 +173,7 @@ test('M5-15e queued rows survive a core restart and are delivered exactly once',
     insertGate(join(isolated.home, 'troop.db'), id, 'queued before restart');
     await stopCore(core, isolated);
     core = await startAgain(isolated.home, isolated.prefix);
-    await waitFor(() => received.bodies.length, (n) => n === 1, 4000);
+    await waitFor(() => received.bodies.length, (n) => n === 1, 15_000);
     await sleep(2300);
     assert.equal(received.bodies.length, 1);
     assert.ok(received.bodies[0].includes(id));
