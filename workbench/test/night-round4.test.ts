@@ -140,7 +140,7 @@ test('2b8ac71a Add-ons cards prefix only bare numeric versions and omit the trai
   const versions = ['1.2.3', 'v2.0', 'nightly', '1.2.3.'];
   g.ui.snap.engines = versions.map((version, i) => ({ id: 'agent-' + i, light: 'green', version }));
   addonsStore.set({ rows: versions.map((version, i) => ({ id: 'plugin-' + i, enabled: true, permissions: [], version })) });
-  const cards = descendants(screen(Addons)).filter(n => hasClass(n, 'ou-acard'));
+  const cards = descendants(screen(Addons)).filter(n => hasClass(n, 'ou-acard') && n.key !== 'pro:cc-pro');
   const lines = cards.map(card => children(oneClass(card, 'ou-acard-name'))[1]);
   assert.deepEqual(lines.map(line => renderToStaticMarkup(line)), [
     '<span>Agent · v1.2.3</span>',

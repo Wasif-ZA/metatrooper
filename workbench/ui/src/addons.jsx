@@ -15,6 +15,9 @@ import { PluginInstall, ver } from './plugin-install.jsx';
 
 export const addonsStore = createStore({ tick: 0, rows: null });
 
+// swap for the checkout link when payments are live.
+export const PRO_LINK = 'https://github.com/Wasif-ZA/metatrooper/issues/new?title=cc%20Pro%3A%20Tasks%20pack&labels=cc-pro';
+
 const KIND = [['agent', 'Agents'], ['plugin', 'Plugins']];
 const STATE = [['on', 'On'], ['off', 'Off'], ['bad', 'Not ready']];
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -122,6 +125,16 @@ export function Addons() {
         <div className="ou-results">
           <div className="ou-addons-count" role="status">{shown.length} {shown.length === 1 ? 'result' : 'results'}</div>
           {shown.map((it) => card(it, it.kind === 'plugin' && open.includes(it.id), toggle, setGoing))}
+          {loaded && !rows.some((p) => p.id === 'cc-pro') && !filtered ? (
+            <article key="pro:cc-pro" className="ou-acard">
+              <span className="ou-acard-tile"><Ic.AddOnsIcon size={18} /></span>
+              <div className="ou-acard-name"><b>cc Pro</b><span>Paid add-on · A$19 a month</span></div>
+              <div className="ou-acard-slot">
+                <Button size="sm" variant="secondary" label="Get cc Pro" data-action="pro-get" onClick={() => api.openLink(PRO_LINK)} />
+              </div>
+              <p className="ou-acard-desc">Agents see your other tasks: what they do, what they changed, notes they left. Plus Proof. For Claude Code and Codex.</p>
+            </article>
+          ) : null}
           {!engines.length && !filtered ? <EmptyState title="No agents found." isCompact actions={<Button label="Check agents again" data-action="check-engines" />} /> : null}
           {wantPlugins && rows === null ? <Text color="secondary">Loading plugins.</Text> : null}
           {wantPlugins && rows === 'error' ? (
