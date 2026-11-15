@@ -9,6 +9,17 @@ Agent skills bundled with Ouros. `troop skills install` copies them into
 |---|---|
 | `troop` | Starting and following agent sessions through the `troop` CLI |
 | `second-opinion` | Asking a different engine to check a diff, plan or diagnosis, then comparing |
+| `lane-briefs` | Splitting big or overnight work into briefed lanes, one session and worktree each |
+| `handoff` | A resume note and paste-ready prompt before a clear or a device switch |
+| `progress-report` | Status, percent done and an ETA from measured step times |
+| `only-you` | Doing what the agent can, then a phone-readable list of what only the user can do |
+| `feedback-rounds` | A comment board per round, then a ledger proving every comment was applied |
+| `reference-first-design` | Design rounds from real product screenshots, one layer varied at a time |
+| `repo-scout` | Similar open-source projects, verified with `gh`, mined for features and gaps |
+| `rubric-check` | Grading a document against its rubric, marks lost and submit-readiness |
+| `work-retro` | Hours worked and what got done, from session and commit times |
+| `teach-back` | Teaching one piece at a time until the user can explain and defend it |
+| `tests-by-another-engine` | Tests written by a different engine from the spec, then a mutation check |
 
 ## Engineering (MIT, `skills/LICENSE`)
 
