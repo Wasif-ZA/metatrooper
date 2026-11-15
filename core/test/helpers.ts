@@ -116,11 +116,12 @@ export function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms
 export async function until(read, timeout = 3000) {
   const end = Date.now() + timeout;
   let last;
-  while (Date.now() < end) {
+  for (;;) {
     try {
       const value = await read();
       if (value) return value;
     } catch (error) { last = error; }
+    if (Date.now() >= end) break;
     await sleep(25);
   }
   throw last ?? new Error(`condition not met in ${timeout} ms`);
@@ -187,9 +188,15 @@ function noteCoreExit(child, isolated) {
     if (child.stopping) return;
     let tail = [];
     try { tail = readFileSync(join(isolated.home, 'logs', 'core.log'), 'utf8').split(/\r?\n/).slice(-30); } catch {}
-    const nodes = process.platform === 'win32' ? (spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" | ForEach-Object { "$($_.ProcessId) $([int]($_.WorkingSetSize/1MB))MB $($_.CommandLine)" }'], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '').split(/\r?\n/).filter(Boolean) : [];
-    mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, 'core-exits.jsonl'), JSON.stringify({ at: new Date().toISOString(), pid: child.pid, code, signal, test: process.argv.slice(1).join(' '), home: isolated.home, free_mb: Math.round(freemem() / 1048576), tail, nodes }) + '\n');
+    const at = new Date().toISOString();
+    const free_mb = Math.round(freemem() / 1048576);
+    const write = (nodes: string[]) => { try { mkdirSync(dir, { recursive: true }); appendFileSync(join(dir, 'core-exits.jsonl'), JSON.stringify({ at, pid: child.pid, code, signal, test: process.argv.slice(1).join(' '), home: isolated.home, free_mb, tail, nodes }) + '\n'); } catch {} };
+    if (process.platform !== 'win32') return write([]);
+    let out = '';
+    const ps = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" | ForEach-Object { "$($_.ProcessId) $([int]($_.WorkingSetSize/1MB))MB $($_.CommandLine)" }'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 15_000 });
+    ps.stdout!.on('data', (d) => { out += d; });
+    ps.once('error', () => write([]));
+    ps.once('close', () => write(out.split(/\r?\n/).filter(Boolean)));
   });
 }
 
