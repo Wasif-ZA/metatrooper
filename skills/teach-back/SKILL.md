@@ -1,6 +1,6 @@
 ---
 name: teach-back
-description: Teach the user a system, codebase, paper or piece of their own work until they can explain and defend it unaided - one piece at a time, worked example first, then a question, and a re-ask when they get it wrong. Use for "teach me", "help me understand", "walk me through", "prep me for my presentation/oral/review", or "quiz me".
+description: Teach the user a system, codebase, paper or piece of their own work until they can explain and defend it unaided - one piece at a time, worked example first, then a question, and a re-ask when they get it wrong. Use only when the user asks to be taught or tested - "teach me", "quiz me", "prep me for my presentation/oral/review", "I need to be able to defend this". A plain "explain this" or "help me understand" gets a direct explanation, not a quiz.
 ---
 
 # teach-back

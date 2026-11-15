@@ -1,12 +1,14 @@
 ---
 name: reference-first-design
-description: Design or redesign a screen, site, README or asset by starting from real products, not invention - collect real in-product screenshots, build a few variants that each differ on one layer, judge each against its reference, and only polish with a stated goal. Use for "make this look better", "five ways to lay this out", "take inspo from X", "it looks like slop", "redo the README", or any design round.
+description: The reference stage of a design round, after the requirements are settled - collect real in-product screenshots, build a few variants that each differ on one layer, judge each against its reference, and only polish with a stated goal. Use for "make this look better", "five ways to lay this out", "take inspo from X", "it looks like slop", "redo the README", once brainstorming has settled what the screen must do. Skip it when the user gives an exact design or says no references.
 ---
 
 # reference-first-design
 
 Invented looks get rejected; polish without a reference reads as "no change". Every design
 decision traces to a real product the user can see.
+
+If the user already gave an exact design, or says to skip references, build that and stop here.
 
 ## 1. Ask before building
 
@@ -21,7 +23,7 @@ what to keep from the current design, and what is out. Write the answers into th
 - For motion, look at the reference's code or a screen recording, not a description.
 - Put them on a contact sheet (`references.html`), rate each strong, medium or weak with the
   reason, and drop the weak ones.
-- Check the project's existing assets and earlier research first; reuse before redoing.
+- Check the project's existing assets and earlier research first (`reuse-first`).
 
 ## 3. Variants that differ on one layer
 
@@ -39,8 +41,8 @@ than the last round went the wrong way.
 ## 5. Apply
 
 Port only the picked variant into the project, inside the existing layout. A pick means keep
-refining, not ship: do not commit as final until the user says so. Show before and after
-side by side; if the difference is not visible at a glance, it is not done.
+refining, not final. Never commit; when the user calls it final, give them the commit command.
+Show before and after side by side; if the difference is not visible at a glance, it is not done.
 
 ## Rules
 

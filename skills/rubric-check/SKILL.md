@@ -1,6 +1,6 @@
 ---
 name: rubric-check
-description: Grade a report, thesis, assignment or application against its marking rubric or brief - criterion by criterion, with the evidence for each score, where marks are being lost, and a submit-ready checklist. Use for "is this ready to submit", "what mark would this get", "where am I losing marks", "check it against the rubric", or reviewing someone else's draft.
+description: Grade a report, thesis, assignment or application against a marking rubric or brief the user gives or names - criterion by criterion, with the evidence for each score, where marks are being lost, and a submit-ready checklist. Use only when a rubric, marking guide or brief exists, for "is this ready to submit", "what mark would this get", "where am I losing marks", "check it against the rubric". Not for code or design reviews.
 ---
 
 # rubric-check
