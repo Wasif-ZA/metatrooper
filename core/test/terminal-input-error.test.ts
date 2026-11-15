@@ -36,7 +36,7 @@ test('Windows terminal input survives an EAGAIN socket error', { skip: process.p
     await until(async () => (await term.screenText(id))?.includes('GOT:ping'), 5000);
   } finally {
     term.kill(id);
-    await until(() => !term.has(id), 5000);
+    await until(() => !term.anyOpen(), 5000);
   }
   assert.deepEqual(uncaught, []);
 });
