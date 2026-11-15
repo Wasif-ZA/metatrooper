@@ -11,14 +11,16 @@ Every line read stays in context and is paid for on every later turn.
 
 - Long output (test runs, builds, installs, logs, large diffs): `troop route exec -- <command>`.
   It prints the lines that matter and keeps the full log; `troop route log` reads it back only
-  if needed.
+  if needed. When a check decides whether work is done, read its full result
+  (`verification-before-completion`), not the summary alone.
 - Saved recipes: `troop route search <words>`, then `troop route run <recipe> [args]`.
 - Ask git for less: `--stat`, `--oneline`, `-n 20`, `-- <path>`.
 
 ## Files
 
 - Search first (`git grep -n`), then read only the lines around the match.
-- Never re-read a file you just wrote or edited; the edit tool already confirmed it.
+- Do not re-read a file only to confirm your own edit; the edit tool already did. Re-read it when
+  something else may have changed it or you need lines you have not seen.
 - Never paste a big file or output into a message to the user; give its path and the finding.
 
 ## Delegated work
@@ -29,4 +31,5 @@ Every line read stays in context and is paid for on every later turn.
 
 ## When context is filling
 
-Before it fills: commit, write a resume note (done, decided, the exact next step), and tell the user it is a good point to clear.
+Before it fills: write a resume note (done, decided, the exact next step, uncommitted files) and
+tell the user it is a good point to clear. Do not commit; leave the changes where they are.

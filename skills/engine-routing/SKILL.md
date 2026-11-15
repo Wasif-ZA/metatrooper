@@ -1,6 +1,6 @@
 ---
 name: engine-routing
-description: Send each piece of work to the cheapest engine and model that can do it well, with the strongest model only directing - writing exact instructions that cheaper models execute. Use before launching any agent or subagent, when usage is running high, or when the user says "use cheaper models", "use the other engines more", "you're eating my usage".
+description: Pick which engine and model runs each delegated task - the cheapest one that can pass the task's check, with the strongest model only directing through exact instructions. Use when choosing an engine or model for work you are handing off, when usage is running high, or when the user says "use cheaper models", "use the other engines more", "you're eating my usage". If the user or the plan already named the engine, or the plan says to work inline, follow that instead.
 ---
 
 # engine-routing
@@ -9,6 +9,9 @@ The strongest model's tokens are the scarce ones. Spend them on decisions, not o
 
 ## Tiers
 
+Capability first: a task goes to the cheapest engine that can pass its check, never a cheaper one
+that cannot.
+
 | Work | Goes to |
 |---|---|
 | Hard calls: design choices, diagnosis, plans, reviewing a result | strongest model |
@@ -16,7 +19,15 @@ The strongest model's tokens are the scarce ones. Spend them on decisions, not o
 | Mechanical: renames, bulk edits, extraction, formatting, test runs | cheapest model, or a local model |
 | A second opinion | a different engine family, not the same model again |
 
-`troop engines --json` lists healthy engines. Pick the model with `--model` on `troop launch`.
+`troop engines --json` lists which engines are installed and healthy. It does not list models or
+prices: take model names and their relative cost from the user or the engine's own docs, then
+pass one with `--model` on `troop launch`.
+
+## Clear it before it leaves the machine
+
+A remote engine is an external send. Before routing a task to one, check the user has cleared that
+code and data to leave the machine (as in `second-opinion`). Uncleared work stays on a local model
+or the engine already holding it.
 
 ## Direct, then delegate
 
