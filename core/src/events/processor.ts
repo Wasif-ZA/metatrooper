@@ -166,6 +166,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         // Codex never reports a turn start, so its next turn's base is taken at launch and at each turn end.
         if (!foreign && !late && (ev.kind === 'codex.turn' || ev.kind === 'codex.Stop')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq }, { kind: 'start', id: ev.session_id, seq: ev.seq });
         if (ev.kind === 'launch' && specOf(s.engine_id).source === 'notify') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
+        // A file-activity engine (agy) ends a turn when its session files go quiet.
+        if (!foreign && ev.kind === 'core.activity' && next === 'done' && s.state === 'working' && specOf(s.engine_id).source === 'file-activity') turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq, activity: true });
         // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
         const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
         const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input')) || (/^(opencode\.state|core\.title-state)$/.test(ev.kind) && payload.state === 'waiting');
@@ -187,7 +189,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
             turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq });
           }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
-          if (next === 'working' && specOf(s.engine_id).source !== 'notify') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
+          if (next === 'working' && specOf(s.engine_id).source !== 'notify' && !(s.state === 'waiting_for_you' && specOf(s.engine_id).source === 'file-activity')) turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0 && !userStop.get(ev.session_id)) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
@@ -208,7 +210,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     const idle = job.kind === 'end' && (getSession.get(job.id) as SessionRow | undefined)?.state === 'idle';
     chain(job.id, async () => {
       const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
-      if (job.kind === 'end') try { await claimTurn(db, job.id, job.seq, titles); } catch {}
+      if (job.kind === 'end') try { await claimTurn(db, job.id, job.seq, titles, job.activity); } catch {}
       if (job.kind === 'exit' || idle) try { await leftBehind(db, job.id, titles); } catch {}
       if (job.kind === 'exit') try { await handBack(db, job.id, titles); } catch {}
     });
@@ -224,7 +226,7 @@ function waitReason(kind: string, p: Record<string, unknown>): string | null {
   return null;
 }
 
-interface TurnJob { kind: 'start' | 'end' | 'exit'; id: string; seq: number }
+interface TurnJob { kind: 'start' | 'end' | 'exit'; id: string; seq: number; activity?: boolean }
 
 const chains = new Map<string, Promise<void>>();
 

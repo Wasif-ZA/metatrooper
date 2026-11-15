@@ -146,11 +146,12 @@ export function notice(db              , sessionId        , key        , text   
                                                                                                  
 
 /** Claims the files a session changed in the turn that just ended as one `core.claim` event; null outside a git repository. Git runs async; the claim is written last. */
-export async function claimTurn(db              , sessionId        , endSeq        , titles                                     = {})                        {
+export async function claimTurn(db              , sessionId        , endSeq        , titles                                     = {}, activityTurns = false)                        {
   const s = db.prepare('SELECT id, cwd, turn_base, state FROM session WHERE id = ?').get(sessionId)                           ;
   const repo = await repoOfAsync(s?.cwd ?? null);
   if (!s || !repo) return null;
-  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.UserPromptSubmit','core.activity','launch','codex.turn','codex.Stop') ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq)                                           ;
+  // A turn starts after the last prompt or turn end; a mid-turn core.activity (a wait answered) is not a start.
+  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND (kind IN ('claude.UserPromptSubmit','launch','codex.turn','codex.Stop') OR (? AND kind = 'core.activity' AND json_extract(payload, '$.state') = 'quiet')) ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq, activityTurns ? 1 : 0)                                           ;
   const end = db.prepare('SELECT at FROM event WHERE seq = ?').get(endSeq)                              ;
   const from = start?.at ?? nowIso();
   const at = end?.at ?? nowIso();
