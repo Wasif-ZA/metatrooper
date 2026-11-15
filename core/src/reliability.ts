@@ -95,7 +95,7 @@ export function checkBudgets(db: DatabaseSync): void {
   }
 }
 
-/** When a session reaches done: runs the project's check command if the user set one, then rewrites the open "finished" row to say whether a check passed on the files as they are now. */
+/** When a session reaches done: runs the project's check command if the user set one, then rewrites the open "finished" row with the check result and optional done-summary line. */
 export async function proveDone(db: DatabaseSync, sessionId: string): Promise<void> {
   const r = settings().reliability;
   if (!r.done_needs_check) return;
@@ -106,6 +106,8 @@ export async function proveDone(db: DatabaseSync, sessionId: string): Promise<vo
   const proof = has ? await runCheck(db, sessionId, command) : null;
   const passed = proof ? proof.exit_code === 0 : (await doneResult(db, sessionId)).result !== 'needs_review';
   if (proof && !passed) notice(db, sessionId, `check:${proof.id}`, `The project check \`${proof.command}\` failed with exit ${proof.exit_code ?? 'none (killed or timed out)'}. Fix what it reports before you finish. Last of its output:\n${proof.output_tail}`);
-  const label = !passed ? `needs your review (${has ? 'the check failed' : 'no check is set for this project'})` : 'checks passed';
+  let label = !passed ? `needs your review (${has ? 'the check failed' : 'no check is set for this project'})` : 'checks passed';
+  const summary = proof?.output_tail.split(/\r?\n/).filter(line => line.startsWith('done-summary: ')).map(line => line.slice(14).trim()).filter(Boolean).at(-1);
+  if (summary) label += `; ${summary}`;
   db.prepare("UPDATE needs_you SET text = ? WHERE ref = ? AND kind = 'done' AND resolved_at IS NULL").run(`${s.engine_id} finished: ${label}`, sessionId);
 }
