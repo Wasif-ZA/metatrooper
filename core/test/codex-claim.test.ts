@@ -8,7 +8,7 @@ import { buildGenerated, client, isolation, runNode, startCore, teardownCore, un
 
 before(buildGenerated);
 
-test('a Codex turn end claims the tracked and new files it changed, from a base taken at launch and again after each turn', { timeout: 60000 }, async () => {
+test('a Codex turn end (notify, then a Stop hook) claims the tracked and new files it changed, from a base taken at launch and again after each turn', { timeout: 60000 }, async () => {
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{
@@ -23,6 +23,8 @@ test('a Codex turn end claims the tracked and new files it changed, from a base 
   mkdirSync(repo);
   const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@x.example', ...a], { cwd: repo, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
+  git('config', 'user.name', 'T');
+  git('config', 'user.email', 't@x.example');
   for (const f of ['a.txt', 'b.txt', 'c.txt']) writeFileSync(join(repo, f), `${f}\n`);
   git('add', '-A');
   git('commit', '-q', '-m', 'init');
@@ -44,8 +46,15 @@ test('a Codex turn end claims the tracked and new files it changed, from a base 
     assert.ok(id, JSON.stringify(launched));
     const first = await until(() => base(id) ?? undefined, 10000);
 
-    writeFileSync(join(repo, 'a.txt'), 'changed by codex\n');
-    writeFileSync(join(repo, 'made.txt'), 'new\n');
+    writeFileSync(join(repo, 'a.txt'), 'changed by codex before an approval\n');
+    const state = (sid: string) => (db.prepare('SELECT state FROM session WHERE id = ?').get(sid) as { state: string }).state;
+    const put = db.prepare("INSERT INTO event (at, source, session_id, kind, payload) VALUES (?, 'core', ?, ?, '{}')");
+    put.run(new Date().toISOString(), id, 'term.bell');
+    await until(() => state(id) === 'waiting_for_you' || undefined, 10000);
+    put.run(new Date().toISOString(), id, 'term.output');
+    await until(() => state(id) === 'working' || undefined, 10000);
+    await new Promise((r) => setTimeout(r, 500));
+    writeFileSync(join(repo, 'made.txt'), 'new, after the approval\n');
     await notify(id);
     await until(() => claims(id).length === 1 || undefined, 10000);
     assert.deepEqual(claims(id)[0].files.map((f: { path: string }) => f.path), ['a.txt', 'made.txt']);
@@ -59,7 +68,7 @@ test('a Codex turn end claims the tracked and new files it changed, from a base 
 
     await until(() => (base(id) !== first) || undefined, 10000);
     writeFileSync(join(repo, 'c.txt'), 'second turn\n');
-    await notify(id);
+    put.run(new Date().toISOString(), id, 'codex.Stop');
     await until(() => claims(id).length === 2 || undefined, 10000);
     assert.deepEqual(claims(id)[1].files.map((f: { path: string }) => f.path), ['c.txt']);
   } finally {

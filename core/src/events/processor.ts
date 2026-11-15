@@ -187,7 +187,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
             turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq });
           }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
-          if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
+          if (next === 'working' && specOf(s.engine_id).source !== 'notify') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0 && !userStop.get(ev.session_id)) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
