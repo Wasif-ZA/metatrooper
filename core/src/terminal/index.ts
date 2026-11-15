@@ -252,15 +252,12 @@ export function kill(id: string): void {
   // node-pty 1.1's conpty kill() signals the shell's pid by number about 5 s later, when that pid may name another process; end the tree now, while the pty still holds the process.
   const agent = (t.proc as unknown as { _agent?: { _exitCode?: number; _getConsoleProcessList?: () => Promise<number[]> } })._agent;
   const close = () => { try { t.proc.kill(); } catch {} };
-  const list = agent?._getConsoleProcessList;
-  if (agent && list) agent._getConsoleProcessList = () => Promise.resolve([]);
+  if (agent?._getConsoleProcessList) agent._getConsoleProcessList = () => Promise.resolve([]);
   // Once the agent has seen the exit, node-pty reports it up to 1 s later and the pid may already be reused; it exited on its own, so it is not marked killed.
   if (agent?._exitCode !== undefined) return close();
   t.killed = true;
-  if (process.platform !== 'win32' || !agent || !list) return close();
-  // 128: the process was already gone.
-  const r = spawnSync('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10_000 });
-  if (r.error || (r.status !== 0 && r.status !== 128)) agent._getConsoleProcessList = list;
+  // If taskkill fails, closing the pseudoconsole still ends its attached processes; node-pty's late kill stays off, since it can hit a reused pid.
+  if (process.platform === 'win32' && agent) spawnSync('taskkill', ['/T', '/F', '/PID', String(t.proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10_000 });
   close();
 }
 

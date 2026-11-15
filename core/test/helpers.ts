@@ -116,12 +116,11 @@ export function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms
 export async function until(read, timeout = 3000) {
   const end = Date.now() + timeout;
   let last;
-  for (;;) {
+  while (Date.now() < end) {
     try {
       const value = await read();
       if (value) return value;
     } catch (error) { last = error; }
-    if (Date.now() >= end) break;
     await sleep(25);
   }
   throw last ?? new Error(`condition not met in ${timeout} ms`);
