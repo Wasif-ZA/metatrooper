@@ -145,11 +145,12 @@ export function notice(db: DatabaseSync, sessionId: string, key: string, text: s
 interface TurnSession { id: string; cwd: string | null; turn_base: string | null; state: string }
 
 /** Claims the files a session changed in the turn that just ended as one `core.claim` event; null outside a git repository. Git runs async; the claim is written last. */
-export async function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, titles: Record<string, string | undefined> = {}): Promise<Claim | null> {
+export async function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, titles: Record<string, string | undefined> = {}, activityTurns = false): Promise<Claim | null> {
   const s = db.prepare('SELECT id, cwd, turn_base, state FROM session WHERE id = ?').get(sessionId) as TurnSession | undefined;
   const repo = await repoOfAsync(s?.cwd ?? null);
   if (!s || !repo) return null;
-  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.UserPromptSubmit','core.activity','launch') ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq) as { seq: number; at: string } | undefined;
+  // A turn starts after the last prompt or turn end; a mid-turn core.activity (a wait answered) is not a start.
+  const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND (kind IN ('claude.UserPromptSubmit','launch','codex.turn','codex.Stop') OR (? AND kind = 'core.activity' AND json_extract(payload, '$.state') = 'quiet')) ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq, activityTurns ? 1 : 0) as { seq: number; at: string } | undefined;
   const end = db.prepare('SELECT at FROM event WHERE seq = ?').get(endSeq) as { at: string } | undefined;
   const from = start?.at ?? nowIso();
   const at = end?.at ?? nowIso();
@@ -170,7 +171,7 @@ export async function claimTurn(db: DatabaseSync, sessionId: string, endSeq: num
   const times = await commitTimesAsync(repo, changed);
   // nothing awaits from here to the insert
   const overlapping = others.filter((o) => o.state === 'working' || o.state === 'waiting_for_you'
-    || db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind LIKE 'claude.%' AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?) LIMIT 1").get(o.id, from, at));
+    || db.prepare("SELECT 1 FROM event WHERE session_id = ? AND (kind LIKE 'claude.%' OR kind LIKE 'codex.%') AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?) LIMIT 1").get(o.id, from, at));
   const hints = new Map<string, Set<string>>();
   const named = (id: string, file: string) => {
     if (!hints.has(id)) {
