@@ -7,6 +7,8 @@ import { imageTag, containerRuntime } from './checks.ts';
 import { NETWORK, PROXY } from './build.ts';
 import { spoolDir } from './spool.ts';
 import { EVENTS } from '../hooks/install.ts';
+import { canonical, homeDir } from '../paths.ts';
+import { E, RpcError } from '../pipe/errors.ts';
 
 const fwd = (p: string) => p.split(String.fromCharCode(92)).join('/');
 
@@ -21,11 +23,6 @@ export function containerName(sessionId: string): string {
   return `troop-${sessionId.slice(-8).toLowerCase()}`;
 }
 
-const inside = (child: string, parent: string) => {
-  const rel = path.relative(parent, child);
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
-};
-
 /** The worktree's gitdir and the main repo's .git, or a reason the worktree cannot be mounted safely. */
 export function gitLayout(worktree: string): { gitdir: string; common: string } | { refusal: string } {
   const pointer = path.join(worktree, '.git');
@@ -36,7 +33,7 @@ export function gitLayout(worktree: string): { gitdir: string; common: string } 
   const gitdir = path.resolve(worktree, m[1]);
   let common = '';
   try { common = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'commondir'), 'utf8').trim()); } catch { return { refusal: 'the worktree gitdir has no commondir' }; }
-  if (!inside(gitdir, path.join(common, 'worktrees'))) return { refusal: 'the worktree gitdir is not inside the repository .git/worktrees' };
+  if (path.dirname(gitdir) !== path.join(common, 'worktrees') || path.basename(common) !== '.git') return { refusal: 'the worktree gitdir is not inside the repository .git/worktrees' };
   let back = '';
   try { back = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'gitdir'), 'utf8').trim()); } catch {}
   if (path.resolve(back).toLowerCase() !== path.resolve(pointer).toLowerCase()) return { refusal: 'the repository does not point back at this worktree' };
@@ -47,6 +44,17 @@ const bind = (src: string, dst: string, ro = false) => ['--mount', `type=bind,so
 
 /** The docker run argv for a sandboxed session, per spec.md "Trooper sandbox host plugin" and the build plan's D2, D6, D7 and D9. */
 export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: string, layout: { gitdir: string; common: string }, inner: string[], runtime = 'docker', env: Record<string, string> = {}): string[] {
+  const coreHome = canonical(homeDir());
+  const inside = (parent: string, child: string) => {
+    const rel = path.relative(parent, child);
+    return rel === '' || (rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel));
+  };
+  for (const source of [worktree, layout.common]) {
+    const mount = canonical(source);
+    if (inside(mount, coreHome)) {
+      throw new RpcError(E.VALIDATION, 'sandbox mount source overlaps the core home');
+    }
+  }
   const home = os.homedir();
   const hooks = path.join(layout.common, 'hooks');
   fs.mkdirSync(hooks, { recursive: true });

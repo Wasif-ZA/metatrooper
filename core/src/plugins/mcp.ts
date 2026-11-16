@@ -4,10 +4,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
 import { codexConfigFile, coreDir, homeDir, repoDir } from '../paths.ts';
-import { getSecret } from '../secrets.ts';
+import { getSecret, getSecretAsync } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
-import { mcpWrites, type McpSpec } from './manifest.ts';
+import { headerSecretNames, mcpWrites, type McpSpec } from './manifest.ts';
 import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
 const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
@@ -21,17 +21,22 @@ export interface ResolvedServer {
   headers?: Record<string, string>;
 }
 
-/** What the shim needs to start one plugin MCP server: stored secret values, `${VAR}` names it resolves itself, and what is missing. */
-export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: string): ResolvedServer {
+function pluginServer(db: DatabaseSync, pluginId: string, serverId: string) {
   const plugin = loadPlugin(db, pluginId);
   if (!plugin) throw new RpcError(E.NOT_FOUND, 'plugin not found');
   const server = (plugin.manifest.mcp ?? []).find((s) => s.id === serverId);
   if (!server) throw new RpcError(E.NOT_FOUND, `MCP server ${serverId} not found in ${pluginId}`);
+  return { plugin, server };
+}
+
+/** What the shim needs to start one plugin MCP server: stored secret values, `${VAR}` names it resolves itself, and what is missing. */
+export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: string, readSecret = getSecret): ResolvedServer {
+  const { plugin, server } = pluginServer(db, pluginId, serverId);
   if (server.transport === 'http') {
     const out: ResolvedServer = { command: '', args: [], env: {}, refs: {}, missing: [], headers: {} };
     for (const [h, tpl] of Object.entries(server.headers ?? {})) {
       out.headers![h] = tpl.replace(/\$\{([A-Z][A-Z0-9_]{0,63})\}/g, (_, key: string) => {
-        const value = plugin.permissions.includes(`secrets:${key}`) ? getSecret(pluginId, key) : null;
+        const value = plugin.permissions.includes(`secrets:${key}`) ? readSecret(pluginId, key) : null;
         if (value === null) {
           if (!out.missing.includes(key)) out.missing.push(key);
           if (plugin.permissions.includes(`secrets:${key}`)) raiseMissingSecret(db, pluginId, key);
@@ -54,7 +59,7 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
       out.refs[key] = b.name;
       continue;
     }
-    const value = getSecret(pluginId, key);
+    const value = readSecret(pluginId, key);
     if (value === null) {
       out.missing.push(key);
       raiseMissingSecret(db, pluginId, key);
@@ -72,6 +77,15 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
     }
   }
   return out;
+}
+
+export async function resolveMcpServerAsync(db: DatabaseSync, pluginId: string, serverId: string): Promise<ResolvedServer> {
+  const { plugin, server } = pluginServer(db, pluginId, serverId);
+  const values = new Map<string, string | null>();
+  const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
+  const names = server.transport === 'http' ? Object.values(server.headers ?? {}).flatMap(headerSecretNames) : (server.env_keys ?? []).filter((name) => bindings[name]?.kind !== 'ref');
+  for (const name of new Set(names)) if (plugin.permissions.includes(`secrets:${name}`)) values.set(name, await getSecretAsync(pluginId, name));
+  return resolveMcpServer(db, pluginId, serverId, (_id, name) => values.get(name) ?? null);
 }
 
 const fallbackKey = crypto.randomBytes(32).toString('hex');
@@ -234,11 +248,11 @@ export function writeSessionFile(db: DatabaseSync | undefined, sessionId: string
   if (!db) return fs.writeFileSync(file, text);
   const list = recordedFiles(db, sessionId);
   const owned = list.includes(file);
-  if (!insideHome(file)) throw new Error(`${file} is not inside Ouros's home`);
+  if (!insideHome(file)) throw new Error(`${file} is not inside cc's home`);
   try {
     fs.writeFileSync(file, text, { flag: owned ? 'w' : 'wx' });
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`${file} already exists and Ouros did not write it; move it away and start the session again`);
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`${file} already exists and cc did not write it; move it away and start the session again`);
     throw e;
   }
   if (!owned) db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(`session_files:${sessionId}`, JSON.stringify([...list, file]));

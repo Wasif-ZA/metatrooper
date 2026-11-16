@@ -8,7 +8,7 @@ export type Run = (args: string[], input?: string, options?: { maxBuffer: number
 const exec = promisify(execFile);
 
 export interface GitFile { path: string; code: string; added: number | null; deleted: number | null }
-export interface GitView { branch: string; ahead: number; behind: number; staged: GitFile[]; changes: GitFile[]; log: string; groups?: OwnerGroup[] }
+export interface GitView { branch: string; upstream: string | null; ahead: number; behind: number; staged: GitFile[]; changes: GitFile[]; log: string; groups?: OwnerGroup[] }
 export interface OwnerGroup { key: string; title: string; state: string; files: GitFile[]; stage: boolean }
 
 /** Unstaged changes grouped by owning session; a shared file sits only in the shared group, which has no stage action. */
@@ -66,7 +66,8 @@ export async function gitView(git: Run): Promise<GitView> {
   const behind = Number(/behind (\d+)/.exec(head)?.[1] ?? 0);
   const staged = counts(stagedOut);
   const unstaged = counts(unstagedOut);
-  const view: GitView = { branch, ahead, behind, staged: [], changes: [], log: log.trimEnd() };
+  const upstream = /\.\.\.([^ ]+)/.exec(head)?.[1] ?? null;
+  const view: GitView = { branch, upstream, ahead, behind, staged: [], changes: [], log: log.trimEnd() };
   for (let i = 0; i < parts.length; i++) {
     const e = parts[i];
     if (e.length < 4) continue;

@@ -19,7 +19,7 @@ function request(method        , params                         , timeoutMs = 30
   return new Promise((resolve, reject) => {
     const socket = net.connect(corePipe());
     const id = `shim-${process.pid}-${Date.now()}`;
-    const timer = setTimeout(() => { socket.destroy(); reject(new Error('Ouros core did not answer')); }, timeoutMs);
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error('cc core did not answer')); }, timeoutMs);
     const decode = createDecoder((raw) => {
       const r = raw                                                                  ;
       if (r.id !== id) return;
@@ -29,7 +29,7 @@ function request(method        , params                         , timeoutMs = 30
       else resolve(r.result);
     });
     socket.on('data', (c) => { try { decode(c); } catch {} });
-    socket.once('error', () => { clearTimeout(timer); reject(new Error('Ouros core is not running')); });
+    socket.once('error', () => { clearTimeout(timer); reject(new Error('cc core is not running')); });
     socket.once('connect', () => socket.write(encode({ jsonrpc: '2.0', id, method, params, meta: { origin: 'cli' } })));
   });
 }
@@ -71,7 +71,7 @@ async function printHeaders(pluginId        , serverId        , token        )  
 
 const STEPS_TOOL          = {
   name: 'steps_set',
-  description: 'Show your plan to the user as a checklist in Ouros. Call it once you have a plan of 2 or more steps, and again each time a step is done or the plan changes. Send the whole list every time; it replaces the last one. Short step text, up to 30 steps.',
+  description: 'Show your plan to the user as a checklist in cc. Call it once you have a plan of 2 or more steps, and again each time a step is done or the plan changes. Send the whole list every time; it replaces the last one. Short step text, up to 30 steps.',
   inputSchema: {
     type: 'object',
     properties: { items: { type: 'array', maxItems: 30, items: { type: 'object', properties: { text: { type: 'string', maxLength: 200 }, done: { type: 'boolean' } }, required: ['text', 'done'] } } },
@@ -91,7 +91,7 @@ async function serveSteps()                {
     if (name !== 'steps_set') return fail(`unknown tool ${name}`);
     if (!Array.isArray(args.items)) return fail('items must be an array of {text, done}');
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
-    if (!sessionId) return fail('this process is not inside an Ouros session');
+    if (!sessionId) return fail('this process is not inside a cc session');
     const payload = buildPayload('core.steps', args)                        ;
     try {
       appendEvent('core.steps', sessionId, payload, undefined, 2000)?.close();
@@ -104,7 +104,7 @@ async function serveSteps()                {
 
 const UI_TOOL          = {
   name: 'ouros_ui',
-  description: 'Draw a screen for the user in Ouros as a tab. Send JSON naming catalogue parts; Ouros checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}.',
+  description: 'Draw a screen for the user in cc as a tab. Send JSON naming catalogue parts; cc checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -128,9 +128,9 @@ async function serveUi()                {
     const fail = (text        ) => ({ content: [{ type: 'text', text }], isError: true });
     if (name !== 'ouros_ui') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
-    if (!sessionId) return fail('this process is not inside an Ouros session');
+    if (!sessionId) return fail('this process is not inside a cc session');
     const out = await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
-    if (out.kind !== 'reply') return fail('the Ouros core is offline; nothing was drawn');
+    if (out.kind !== 'reply') return fail('the cc core is offline; nothing was drawn');
     if (out.reply.error) return fail(out.reply.error.message);
     return { content: [{ type: 'text', text: JSON.stringify(out.reply.result) }] };
   });

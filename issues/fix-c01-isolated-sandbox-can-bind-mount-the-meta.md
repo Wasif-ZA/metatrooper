@@ -20,9 +20,9 @@ Read-only audit of core/src, 2026-10-31. Tests at audit time: `node --test "test
 
 ## Acceptance criteria
 
-- [ ] FIX-C1a. gitLayout refuses the crafted layout (gitdir = worktree, commondir `../../..`).
-- [ ] FIX-C1b. gitLayout still accepts a real `git worktree add` layout.
-- [ ] FIX-C1c. sandbox-selftest.test.ts covers the crafted layout.
+- [x] FIX-C1a. gitLayout refuses the crafted layout (gitdir = worktree, commondir `../../..`).
+- [x] FIX-C1b. gitLayout still accepts a real `git worktree add` layout.
+- [x] FIX-C1c. sandbox-selftest.test.ts covers the crafted layout.
 - [ ] FIX-C1d. dockerArgv never emits a read-write mount whose source contains the core home.
 
 ## Rules

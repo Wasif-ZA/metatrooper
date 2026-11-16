@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { notifyText } from './redact.ts';
-import { deleteSecret, getSecret, setSecret } from './secrets.ts';
+import { deleteSecret, getSecretAsync, setSecret } from './secrets.ts';
 import { nowIso, ulid } from './time.ts';
 
 export const NOTIFY_PLUGIN = 'core-notify';
@@ -63,7 +63,7 @@ function request(kind: SinkRow['kind'], item: Item, text: string, link: string):
   const json = { 'Content-Type': 'application/json' };
   switch (kind) {
     case 'ntfy':
-      return { headers: { Title: `Ouros: ${item.kind}`, Priority: item.kind === 'gate' || item.kind === 'handoff' ? 'high' : 'default', Click: link }, body: text };
+      return { headers: { Title: `cc: ${item.kind}`, Priority: item.kind === 'gate' || item.kind === 'handoff' ? 'high' : 'default', Click: link }, body: text };
     case 'slack-webhook':
       return { headers: json, body: JSON.stringify({ text: `${text}\n${link}` }) };
     case 'discord-webhook':
@@ -97,7 +97,7 @@ function runCommand(argv: string[], message: string): Promise<string | null> {
 
 /** Sends one item to one sink; null on success, else a short reason that never holds the destination. */
 async function deliver(sink: SinkRow, item: Item): Promise<string | null> {
-  const dest = getSecret(NOTIFY_PLUGIN, secretName(sink.id));
+  const dest = await getSecretAsync(NOTIFY_PLUGIN, secretName(sink.id));
   if (dest === null) return 'destination secret missing';
   const link = `metatrooper://needs-you/${item.id}`;
   const text = notifyText(item.kind, item.text);
@@ -203,7 +203,7 @@ export function listSinks(db: DatabaseSync): { sinks: Array<Record<string, unkno
 }
 
 export async function testSink(db: DatabaseSync, id: string): Promise<{ ok: boolean; error?: string }> {
-  const error = await deliver(find(db, id), { id: 'test', at: nowIso(), kind: 'other', text: 'Test message from Ouros' });
+  const error = await deliver(find(db, id), { id: 'test', at: nowIso(), kind: 'other', text: 'Test message from cc' });
   return error === null ? { ok: true } : { ok: false, error };
 }
 

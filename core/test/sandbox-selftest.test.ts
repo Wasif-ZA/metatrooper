@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { dockerArgv, gitLayout, mapPath, containerName } from '../src/sandbox/launch.ts';
 import { runSelftest } from '../src/sandbox/selftest.ts';
 import { BUILT_IN } from '../src/engines/registry.ts';
@@ -41,7 +42,7 @@ test('gitLayout refuses missing pointers, external gitdirs, and mismatched back-
     fs.mkdirSync(missing);
     assert.match('refusal' in gitLayout(missing) ? gitLayout(missing).refusal! : '', /no \.git file/);
     const worktree = path.join(base, 'wt');
-    const common = path.join(base, 'repo.git');
+    const common = path.join(base, 'repo', '.git');
     const gitdir = path.join(common, 'worktrees', 'wt');
     fs.mkdirSync(gitdir, { recursive: true });
     fs.mkdirSync(worktree);
@@ -54,6 +55,36 @@ test('gitLayout refuses missing pointers, external gitdirs, and mismatched back-
     fs.writeFileSync(path.join(outside, 'commondir'), common);
     fs.writeFileSync(path.join(worktree, '.git'), `gitdir: ${outside}`);
     assert.match('refusal' in gitLayout(worktree) ? gitLayout(worktree).refusal! : '', /not inside/);
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('gitLayout refuses a worktree whose commondir climbs to a directory that is not a .git', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'sandbox-layout-'));
+  try {
+    const home = path.join(base, '.metatrooper');
+    const worktree = path.join(home, 'worktrees', 'wt');
+    fs.mkdirSync(worktree, { recursive: true });
+    fs.writeFileSync(path.join(worktree, '.git'), 'gitdir: .');
+    fs.writeFileSync(path.join(worktree, 'commondir'), '../..');
+    fs.writeFileSync(path.join(worktree, 'gitdir'), '.git');
+    const r = gitLayout(worktree);
+    assert.ok('refusal' in r, JSON.stringify(r));
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('gitLayout accepts a real git worktree and dockerArgv never mounts a non-.git common read-write', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'sandbox-layout-'));
+  try {
+    const run = (cwd: string, ...a: string[]) => execFileSync('git', a, { cwd, stdio: 'pipe' });
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo);
+    run(repo, 'init', '-q');
+    run(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'x');
+    const worktree = path.join(base, 'wt');
+    run(repo, 'worktree', 'add', '-q', worktree, '-b', 'b');
+    const r = gitLayout(worktree);
+    assert.ok(!('refusal' in r), JSON.stringify(r));
+    assert.equal(fs.realpathSync(r.common), fs.realpathSync(path.join(repo, '.git')));
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
 

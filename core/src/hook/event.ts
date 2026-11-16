@@ -56,8 +56,8 @@ async function deliverComments(db: DatabaseSync, sessionId: string): Promise<voi
   const comments = rows.filter((r) => r.kind !== 'notice');
   const notices = rows.filter((r) => r.kind === 'notice');
   const context = [
-    comments.length ? 'Comments from the Ouros browser:\n\n' + comments.map((r) => r.body).join('\n\n') : '',
-    notices.length ? 'Notices from Ouros:\n\n' + notices.map((r) => r.body).join('\n\n') : '',
+    comments.length ? 'Comments from the cc browser:\n\n' + comments.map((r) => r.body).join('\n\n') : '',
+    notices.length ? 'Notices from cc:\n\n' + notices.map((r) => r.body).join('\n\n') : '',
   ].filter(Boolean).join('\n\n');
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }) + '\n';
   await new Promise<void>((resolve) => process.stdout.write(line, () => resolve()));
@@ -95,7 +95,7 @@ async function warnOwner(db: DatabaseSync, sessionId: string, payload: Record<st
 
 async function main(): Promise<void> {
   const { kind, flags } = parseArgs(process.argv.slice(2));
-  if (!kind) return;
+  if (!kind || kind.startsWith('core.')) return;
   const sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
   if (!sessionId) return;
   let raw: Record<string, unknown> = {};

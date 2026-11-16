@@ -233,7 +233,7 @@ export function notifyText(kind: string, text: string): string {
     .replace(/[A-Za-z0-9_+=-]{24,}/g, '<redacted>')
     .trim()
     .slice(0, 160);
-  return `Ouros (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+  return `cc (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
 }
 
 export const CREDENTIAL_PATTERNS: RegExp[] = [
@@ -295,7 +295,7 @@ const ASSIGNMENT_KEY = /password|passwd|(?:^|[_.-])pass(?:$|[_.-])|pwd|secret|to
 export function scrub(text: string, secrets: Iterable<string> = []): string {
   const out = redactSecretValues(text, secrets)
     .replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [secret]')
-    .replace(/(?<![A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:Bearer|Basic|Token)\s+)?[^\s"']+)/gi, (m, quote: string, key: string, sep: string, value: string) => {
+    .replace(/(?<![A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]+)\1(\s*(?::\s*[A-Za-z_][\w.<>[\]|]*\s*=(?![=>])|:=|=>|==|[:=])\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:Bearer|Basic|Token)\s+)?[^\s"']+)/gi, (m, quote: string, key: string, sep: string, value: string) => {
       if (!ASSIGNMENT_KEY.test(key)) return m;
       const q = /^["']/.test(value) ? value[0] : '';
       const scheme = /^(?:Bearer|Basic|Token)\s+/i.exec(value)?.[0] ?? '';

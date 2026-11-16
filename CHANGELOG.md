@@ -6,6 +6,12 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ## [Unreleased]
 
+### Upgrade note
+
+- Sessions started before this upgrade have no recorded approval, so the core reads them as `ask`. A child that such
+  a session launches, for example from a running `contained` orchestrator, may drop to `ask` or get -32012 until that
+  parent session is restarted.
+
 ### Added
 
 Milestone 6 makes MetaTrooper four parts: the wall, browser use, computer use and core services (spec.md D52).

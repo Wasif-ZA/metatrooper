@@ -252,6 +252,16 @@ test('staged rename diff reads HEAD at the old path', async () => {
   assert.deepEqual(sides, { original: 'a\nb\n', modified: 'a\nB\n' });
 });
 
+test('unstaged diff reads the working file, not tab text that still holds the index copy', async () => {
+  g.api.git = async (_pid: string, op: string) => (op === 'show' ? 'a\nb\n' : '');
+  const read = g.api.fsRead;
+  g.api.fsRead = async () => ({ text: 'a\nB\n' });
+  try {
+    const sides = await diffSides({ pid: 'p1' }, { path: 'x.ts', gitDiff: true, text: 'a\nb\n', diff: '' });
+    assert.deepEqual(sides, { original: 'a\nb\n', modified: 'a\nB\n' });
+  } finally { g.api.fsRead = read; }
+});
+
 test('IDE editor groups: Split editor right opens the active file in a right group; closing its last tab collapses back to one group', async () => {
   const h = await explorer();
   await open(h, 'outside.ts');

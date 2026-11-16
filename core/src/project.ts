@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { homeDir } from './paths.ts';
 
 const BS = String.fromCharCode(92);
@@ -62,6 +63,18 @@ export function resolveProjectPath(input: string): string {
   } catch {
     // not a git repo: the folder itself is the project
   }
+  return canonicalPath(top);
+}
+
+const execFileAsync = promisify(execFile);
+
+export async function resolveProjectPathAsync(input: string): Promise<string> {
+  const real = fs.realpathSync.native(input);
+  let top = real;
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', real, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+    if (stdout.trim()) top = fs.realpathSync.native(stdout.trim());
+  } catch {}
   return canonicalPath(top);
 }
 

@@ -20,9 +20,9 @@ Read-only audit of workbench, 2026-10-31. `npm test`: 282 tests, 244 pass, 0 fai
 
 ## Acceptance criteria
 
-- [ ] FIX-W1a. With project A selected and an agent working in B, closing shows the Keep / Stop / Cancel dialog.
-- [ ] FIX-W1b. With no project selected and any agent running, closing shows the dialog.
-- [ ] FIX-W1c. A test covers busy() across two projects.
+- [x] FIX-W1a. With project A selected and an agent working in B, closing shows the Keep / Stop / Cancel dialog.
+- [x] FIX-W1b. With no project selected and any agent running, closing shows the dialog.
+- [x] FIX-W1c. A test covers busy() across two projects.
 
 ## Rules
 

@@ -9,7 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop } from './words.js';
+import { NOT_SENT, canStop, defaultEngine } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
@@ -593,7 +593,7 @@ export function Inbox() {
     const prompt = (subDraft || '').trim();
     if (!prompt || !sessionObj) return;
     setSubDraft(null);
-    const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: engine || (s.engines || [])[0]?.id, prompt, parent_id: sessionObj.id });
+    const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: engine || defaultEngine((s.engines || []).filter((e) => e.light !== 'red')), prompt, parent_id: sessionObj.id });
     if (r && r.result) toast('Sub-task started');
     else if (inboxStore.get().selectedId === selectedId) setSubDraft(prompt);
   };
@@ -711,7 +711,7 @@ export function Inbox() {
           </div>
           <Bar key={sessionObj.id} done={subDone} total={children.length} />
         </div>
-        <div className="ou-ny-sub-state">{!children.length ? 'No sub-tasks yet' : subDone === children.length ? 'All sub-tasks done' : `${plural(children.length - subDone, 'sub-task')} open`}</div>
+        {children.length ? <div className="ou-ny-sub-state">{subDone === children.length ? 'All sub-tasks done' : `${plural(children.length - subDone, 'sub-task')} open`}</div> : null}
       </div>
       <div className="ou-ny-sub-tools">
         <Button size="sm" icon={I.plus} label="New sub-task" isDisabled={!sessionObj} onClick={() => setSubDraft('')} />
@@ -809,7 +809,7 @@ export function Inbox() {
         ) : none())}
         {prop('Parent', parent ? (
           <button type="button" className="ou-ny-parent" title={taskOf(parent)} onClick={() => goTo(parent)}>
-            <span className="ou-ny-mono">{sid(parent.id)}</span> {taskOf(parent)} {I.arrow}
+            {taskOf(parent)} {I.arrow}
           </button>
         ) : none())}
         {prop('Blocked by', sessionObj?.id ? (
@@ -868,6 +868,17 @@ export function Inbox() {
     <div
       className="ou-inbox"
       onKeyDown={(e) => {
+        if (e.defaultPrevented) return;
+        if (e.key === 'Escape') {
+          const filter = e.currentTarget?.querySelector?.('[role="combobox"][aria-expanded="true"]');
+          if (filter) {
+            e.preventDefault();
+            e.stopPropagation();
+            filter.click();
+            filter.focus();
+            return;
+          }
+        }
         if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], [role="listbox"], [role="combobox"][aria-expanded="true"], input, textarea, select, [contenteditable]')) {
           e.preventDefault();
           close();

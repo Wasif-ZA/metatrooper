@@ -3,6 +3,8 @@
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tests/release.ps1 [-AllowSkip docker,network]
 param([string[]]$AllowSkip = @())
 
+$AllowSkip = @($AllowSkip | ForEach-Object { $_ -split ',' })
+
 $root = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $logs = Join-Path $root "tests/release-logs/$version"

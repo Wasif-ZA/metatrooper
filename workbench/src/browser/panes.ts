@@ -218,7 +218,7 @@ export interface Hooks {
   paneEvent: (ev: Record<string, unknown>) => void;
   note?: (paneId: string, text: string) => void;
   /** Opens a user pane in the project at this URL. */
-  openPane: (projectId: string, url: string) => void;
+  openPane: (projectId: string, url: string, userTyped?: boolean) => void;
   /** How a session's agent cursor looks and moves (agent_cursor settings, its colour and chip). */
   cursor?: (sessionId: string) => Partial<CursorLook>;
 }
@@ -265,7 +265,6 @@ export class PaneManager {
   private panes = new Map<string, Pane>();
   private shown: string | null = null;
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
-  private policyCache = new Map<string, { at: number; hosts: Set<string> }>();
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
@@ -303,24 +302,12 @@ export class PaneManager {
         for (const r of db.prepare("SELECT port FROM session_dev_server WHERE session_id = ? AND status = 'ready'").all(row.session_id) as Array<{ port: number }>) owned.add(Number(r.port));
       } catch {}
     } else if (row) for (const p of typed) owned.add(p);
-    return { ownedPorts: owned, allowHosts: row ? this.allowHosts(row.project_id) : new Set(), lookup: cachedLookup };
+    return { ownedPorts: owned, allowHosts: row ? this.allowHosts() : new Set(), lookup: cachedLookup };
   }
 
-  private allowHosts(projectId: string): Set<string> {
-    const hit = this.policyCache.get(projectId);
-    if (hit && Date.now() - hit.at < 2000) return hit.hosts;
-    const db = this.hooks.db();
+  private allowHosts(): Set<string> {
     const allow = new Set<string>();
-    if (db) {
-      try {
-        const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
-        if (project) {
-          const cfg = JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) as { allow_hosts?: unknown };
-          if (Array.isArray(cfg.allow_hosts)) for (const h of cfg.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
-        }
-      } catch {}
-    }
-    this.policyCache.set(projectId, { at: Date.now(), hosts: allow });
+    for (const h of settings().browser.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
     return allow;
   }
 
@@ -417,14 +404,28 @@ export class PaneManager {
     for (const row of open.values()) if (!this.panes.has(row.id) && Date.now() >= (this.failed.get(row.id)?.until ?? 0)) this.create(row).catch(() => {});
   }
 
-  private async create(row: PaneRow): Promise<void> {
+  /** Opens a URL from the window UI and grants its loopback port to a user pane. */
+  async userOpen(id: string, url: string): Promise<void> {
+    const row = this.hooks.db()?.prepare('SELECT * FROM browser_pane WHERE id = ? AND open = 1').get(id) as PaneRow | undefined;
+    if (!row || row.session_id || row.id.startsWith('bp_agent_')) return;
+    const pane = this.panes.get(id);
+    if (!pane) {
+      await this.create(row, url);
+      return;
+    }
+    await pane.ready;
+    await this.userNavigate(id, url);
+  }
+
+  private async create(row: PaneRow, userUrl?: string): Promise<void> {
     const ses = this.guardPartition(row);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false, docs: new Map() };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false, docs: new Map() };
     this.panes.set(row.id, pane);
+    if (userUrl !== undefined && !row.session_id && !row.id.startsWith('bp_agent_')) for (const p of loopbackPort(userUrl)) pane.typed.add(p);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
@@ -444,7 +445,9 @@ export class PaneManager {
     pane.dbg.on('detach', (_e, reason) => this.onDetach(pane, reason));
     await this.attach(pane);
     this.layout();
-    if (row.url) await this.load(pane, row.url).catch(() => {});
+    if (row.url) await this.load(pane, row.url).catch((e) => {
+      if (e instanceof ToolError && e.code === -32031) this.showError(pane, row.url!, 'blocked', e.message);
+    });
     this.layout();
   }
 
@@ -553,7 +556,7 @@ export class PaneManager {
     wc.on('context-menu', (_e, p) => {
       const items: MenuItemConstructorOptions[] = [];
       if (p.linkURL && /^https?:/.test(p.linkURL)) {
-        items.push({ label: 'Open link in new pane', click: () => this.hooks.openPane(pane.row.project_id, p.linkURL) });
+        items.push({ label: 'Open link in new pane', click: () => this.hooks.openPane(pane.row.project_id, p.linkURL, true) });
         items.push({ label: 'Copy link', click: () => clipboard.writeText(p.linkURL) });
         items.push({ type: 'separator' });
       }
@@ -1806,7 +1809,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   /** Loads what the user typed; a user pane may then load that loopback port. */
   async userNavigate(id: string, url: string): Promise<void> {
     const pane = this.pane(id);
-    if (!pane.row.session_id) for (const p of loopbackPort(url)) pane.typed.add(p);
+    if (!pane.row.session_id && !pane.row.id.startsWith('bp_agent_')) for (const p of loopbackPort(url)) pane.typed.add(p);
     await this.load(pane, url);
   }
 

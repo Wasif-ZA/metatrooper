@@ -41,7 +41,7 @@ def wrap_bash(tool_input, cwd=""):
 
 def main():
     try:
-        event = json.load(sys.stdin)
+        event = json.loads(sys.stdin.buffer.read().decode("utf-8"))
         if event.get("tool_name") != "Bash" or os.environ.get("METAROUTER_HOOK") == "off":
             return
         updated = wrap_bash(event.get("tool_input") or {}, event.get("cwd") or "")

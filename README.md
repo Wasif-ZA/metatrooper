@@ -61,15 +61,34 @@ Built in around the screens:
 
 | Part | What it does |
 |---|---|
-| **Browser use** | Agents drive browser panes inside the app. New sites, password fields and send buttons stop for your approval. |
-| **Computer use** (Windows) | Agents act on the app windows you give them, with their own visible cursor. One key takes over. |
+| **Browser use** | Agents that take cc's tools drive browser panes inside the app. New sites, password fields and send buttons stop for your approval. |
+| **Computer use** (Windows) | Agents that take cc's tools act on the app windows you give them, with their own visible cursor. One key takes over. |
 | **Core services** | A background service owns the terminals. Sessions come back after a restart, dev servers get previews, and other tools can drive it. |
 
 cc runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads their login
 tokens. It is not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft.
 
+### What each agent gets
+
+Every agent runs in a terminal tile that the core keeps running, and shows on the Wall and in Home. The rest depends
+on what its CLI lets cc hook into:
+
+| Agent | How cc knows its status | cc's tools (steps, browser, computer use, plugins) | Tokens, cost and limits | cc Pro |
+|---|---|---|---|---|
+| Claude Code (`claude`) | Its hooks: working, waiting for you, done | Yes | Yes | Tasks, Proof, Review |
+| Codex (`codex`) | Its notify setting | Yes | Yes | Tasks, Proof, Review |
+| opencode (`opencode`) | A state plugin cc loads into it | Yes (not yet tested end to end) | No | Tasks (not yet tested) |
+| Antigravity (`agy`) | Activity in its log files | No | No | No |
+| Gemini CLI (`gemini`) | Its process only | No | No | No |
+| GitHub Copilot CLI (`copilot`) | Its process only | No | No | No |
+| pi (`pi`) | Its process only | No | No | No |
+
+"Its process only" means a simpler status, so the tile may not turn orange when the agent asks you something. Computer use also needs Windows
+and an agent started in `ask` or `edits`. The engine files are in [`engines/`](engines) and
+[`core/src/engines/registry.ts`](core/src/engines/registry.ts).
+
 The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name
-MetaTrooper. The window's mark says cc; some Settings and Add-ons text still says Ouros.
+MetaTrooper. The window says cc.
 
 ## What's next
 
@@ -144,15 +163,16 @@ What to expect:
 - **Keys that leave your terminal alone.** Wall keys use Alt, so a focused terminal keeps every Ctrl key. Alt+arrow
   moves between tiles. Alt+J jumps to the session that has waited longest. Alt+N labels each tile with a letter.
 - **Ctrl+K searches sessions, commands and terminal output.** One search over all three, across every live terminal.
-- **What each tile shows.** Tokens and cost, how full the context window is, how many files the session changed,
-  and an "Open preview" chip when it started a dev server. Ctrl+B shows the agent list and how much of each engine's
-  limit you have used.
+- **What each tile shows.** How many files the session changed and an "Open preview" chip when it started a dev
+  server. Claude Code and Codex tiles also show tokens, cost and how full the context window is. Ctrl+B shows the
+  agent list and how much of the Claude Code and Codex limits you have used.
 - **Agent input.** Shift+Enter adds a newline in every engine. A pasted image is saved and its path is pasted.
   File paths and URLs in terminal output are links.
 
 ## Browser use
 
-Agents drive browser panes in the window through the `metatrooper-browser` MCP server. There is no remote debugging
+Claude Code, Codex and opencode agents drive browser panes in the window through the `metatrooper-browser` MCP
+server. Other agents cannot take the tool yet. There is no remote debugging
 port and no browser extension. Full rules: [`contracts/browser-tools.md`](contracts/browser-tools.md).
 
 - **Approvals.** Some actions stop and wait for you: typing into a password field, typing text that looks like a
@@ -179,7 +199,8 @@ port and no browser extension. Full rules: [`contracts/browser-tools.md`](contra
 
 ## Computer use (Windows)
 
-Agents can act on Windows app windows through the `metatrooper-desktop` MCP server. It uses UI Automation, which is
+Claude Code, Codex and opencode agents started in `ask` or `edits` can act on Windows app windows through the
+`metatrooper-desktop` MCP server. It uses UI Automation, which is
 built into Windows, so nothing is installed. Full rules: [`contracts/desktop-tools.md`](contracts/desktop-tools.md).
 
 - **Grants.** An agent acts only on windows you give it. On its tile, pick **Give window** and choose one. The grant
@@ -374,8 +395,9 @@ No. A background service owns each agent's terminal. After a restart it resumes 
 3 at a time.
 
 **Which agents does it run?**
-7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads
-their login tokens.
+7 CLI agents: Claude Code, Codex, opencode, Antigravity, Gemini CLI, GitHub Copilot CLI and pi. Claude Code and Codex
+get the most; [What each agent gets](#what-each-agent-gets) has the table. You install and sign in to each yourself;
+cc never reads their login tokens.
 
 **Does it work on macOS or Linux?**
 Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
@@ -386,7 +408,7 @@ separate private add-on at A$19 a month. It is not in this repo and not on sale 
 tasks and gives them tools about your other tasks: what is running, another task's output and changed files, which task
 already touched a file (file attribution for Claude Code tasks), and a shared note board.
 The pipe methods it uses are public, so you can build your own. It includes Proof, which checks whether an agent's tests
-catch bugs.
+catch bugs, and Review, which has a second agent review a change and shows its evidence.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.

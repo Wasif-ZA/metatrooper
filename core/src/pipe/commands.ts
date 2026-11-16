@@ -18,6 +18,8 @@ export type Handler = (params: Record<string, unknown>, ctx: CallContext) => unk
 
 export interface MethodSpec {
   handler: Handler;
+  // Pipe dispatch and queue recovery prefer this handler while direct callers keep the synchronous contract.
+  asyncHandler?: Handler;
   needsUi?: boolean;
   queued?: boolean;
 }
@@ -76,7 +78,7 @@ export class CommandRunner {
     const spec = this.methods.get(req.method);
     if (!spec) throw new RpcError(E.METHOD_NOT_FOUND, /^(run|variant)\./.test(req.method) ? 'moved to the pipeline products' : `unknown method ${req.method}`);
     if (spec.needsUi && !ctx.ui) throw new RpcError(E.NEEDS_UI, `${req.method} needs a trusted UI connection (ui.hello)`);
-    if (!isQueueable(req.method)) return spec.handler(req.params, ctx);
+    if (!isQueueable(req.method)) return (spec.asyncHandler ?? spec.handler)(req.params, ctx);
     return this.runOnce(req, spec, ctx);
   }
 
@@ -95,7 +97,7 @@ export class CommandRunner {
     this.db.prepare("UPDATE command SET status = 'running' WHERE id = ?").run(id);
     const scrubbed = JSON.stringify(scrubParams(params));
     try {
-      const result = await spec.handler(params, ctx);
+      const result = await (spec.asyncHandler ?? spec.handler)(params, ctx);
       this.db
         .prepare("UPDATE command SET status = 'ok', result = ?, done_at = ?, params = ? WHERE id = ?")
         .run(JSON.stringify(result ?? {}), nowIso(), scrubbed, id);

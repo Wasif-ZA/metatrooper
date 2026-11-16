@@ -6,9 +6,10 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
+import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, ProjectIcon, FolderIcon, LaptopIcon, Branch, AddOnsIcon, ChangesIcon, LearnIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
+import { defaultEngine } from './words.js';
 
 /** Delete with a confirm step; `done` runs after the core removed it. */
 function DeleteAutomation({ a, label = 'Delete', done }) {
@@ -48,7 +49,7 @@ export function Automations() {
   };
   useEffect(() => { void load(); }, [pid]);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
-  const engine = form.engine_id || (engines[0] ? engines[0].id : '');
+  const engine = form.engine_id || defaultEngine(engines);
   const ready = Boolean(pid && form.name.trim() && form.runner.trim() && form.script.trim() && form.prompt.trim() && engine && Number.isInteger(form.every_min) && form.every_min >= 1);
   const add = async () => {
     if (!ready || adding) return;
@@ -125,7 +126,12 @@ const filterIcon = <Filter size={14} />;
 
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const EMOJI = ['⚙️', '\u{1F319}', '\u{1F9EA}', '\u{1F4DA}', '\u{1F50D}', '\u{1F41B}', '\u{1F9F9}', '\u{1F4E6}', '\u{1F512}', '\u{1F680}', '\u{1F4CA}', '\u{1F4DD}', '\u{1F514}', '\u{1F9ED}', '\u{1F527}', '✅'];
+const ICONS = { schedule: Schedule, search: Search, addons: AddOnsIcon, changes: ChangesIcon, learn: LearnIcon, run: Run };
+const LEGACY_ICONS = { '\u{1F319}': 'schedule', '\u{1F9EA}': 'run', '\u{1F50D}': 'search', '\u{1F4E6}': 'addons', '\u{1F4DD}': 'changes', '\u{1F9F9}': 'changes' };
+function AutomationIcon({ name, size = 16 }) {
+  const Icon = ICONS[LEGACY_ICONS[name] || name] || Schedule;
+  return <Icon size={size} />;
+}
 
 export function presetOf(cron, every) {
   if (!cron && every) return { preset: 'every', minute: 0, time: '09:00', day: 1 };
@@ -160,7 +166,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const every = !initial?.cron && initial?.every_min ? initial.every_min : null;
   const [form, setForm] = useState({
     icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
-    prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
+    prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || defaultEngine(engines), labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
   const [picking, setPicking] = useState(false);
@@ -214,8 +220,8 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <div className="ou-ae-row">
           <span className="ou-ae-emoji" onKeyDown={(e) => { if (e.key === 'Escape' && picking) { e.stopPropagation(); closeEmoji(true); } }}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeEmoji(false); }}>
-            <button ref={emojiBtn} type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
-            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); closeEmoji(true); }}>{e}</button>)}</span> : null}
+            <button ref={emojiBtn} type="button" className="ou-ae-emojibtn" aria-label="Pick an icon" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking(!picking)}><AutomationIcon name={form.icon} /></button>
+            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Icon">{Object.keys(ICONS).map((e) => <button key={e} type="button" role="option" aria-label={e} aria-selected={e === (LEGACY_ICONS[form.icon] || form.icon)} onClick={() => { set('icon')(e); closeEmoji(true); }}><AutomationIcon name={e} /></button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
@@ -298,7 +304,7 @@ function TemplateCards({ onPick }) {
       {TEMPLATES.map((t) => (
         <li key={t.name}>
           <button type="button" className="ou-ap-template" onClick={() => onPick(t)}>
-            <span className="ou-ap-emoji" aria-hidden="true">{t.icon}</span>
+            <span className="ou-ap-emoji" aria-hidden="true"><AutomationIcon name={t.icon} /></span>
             <span className="ou-ap-ttext"><b>{t.name}</b><span>{t.prompt}</span></span>
           </button>
         </li>
@@ -371,7 +377,7 @@ export function AutomationsPage() {
       <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" aria-label={`Edit ${a.name}`} onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setEditing(a); } }}>
         <span className="ou-ap-itop">
-          <span className="ou-ap-emoji" aria-hidden="true">{a.icon || <Schedule size={16} />}</span>
+          <span className="ou-ap-emoji" aria-hidden="true"><AutomationIcon name={a.icon} /></span>
           <span className="ou-ap-name">{a.name}</span>
           {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
           <span className="ou-ap-gap" />

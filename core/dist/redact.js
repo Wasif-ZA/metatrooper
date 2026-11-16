@@ -234,7 +234,7 @@ export function notifyText(kind        , text        )         {
     .replace(/[A-Za-z0-9_+=-]{24,}/g, '<redacted>')
     .trim()
     .slice(0, 160);
-  return `Ouros (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+  return `cc (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
 }
 
 export const CREDENTIAL_PATTERNS           = [

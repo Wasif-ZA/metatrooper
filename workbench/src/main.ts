@@ -39,7 +39,7 @@ import { attachTerm, detachAll, detachTerm, termInput, termResize, type TermMess
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
 import { ghIssues, ghPr, mergePr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
-import { crashAction, freshNeeds, watchDb } from './queries.ts';
+import { anyOpenSession, crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -134,6 +134,16 @@ function syncPanes(): void {
   try {
     panes.sync(d.prepare('SELECT * FROM browser_pane WHERE open = 1').all() as unknown as PaneRow[]);
   } catch {}
+}
+
+/** Applies user-started pane grants from the window UI after the core creates the row. */
+async function callUi(method: string, params: Record<string, unknown>) {
+  const out = await call(method, params, { ui: true });
+  if (method === 'pane.open' && params.user_typed === true && params.agent !== true && !params.session_id && typeof params.url === 'string') {
+    const paneId = out.kind === 'reply' && !out.reply.error ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
+    if (paneId) await panes?.userOpen(paneId, params.url);
+  }
+  return out;
 }
 
 /** How a session's agent cursor looks and moves: agent_cursor settings, reduced motion, its colour and its chip. */
@@ -349,7 +359,7 @@ function handlers(): void {
     if (method === 'project.icon-set') return setProjectIcon(params);
     if (method === 'gh.issues') return { kind: 'reply', reply: { id: null, result: await issuesOf((params as { project_id?: unknown } | null)?.project_id) } };
     if (typeof method !== 'string' || !UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${String(method)}` } } };
-    const out = await call(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>, { ui: true });
+    const out = await callUi(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>);
     schedulePush();
     return out;
   });
@@ -886,8 +896,8 @@ function createWindow(): void {
     paneEvent: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('pane-event', ev); },
     note: (paneId, text) => { void call('pane.note', { pane_id: paneId, text }, { ui: true }).then(() => schedulePush()); },
     cursor: cursorLook,
-    openPane: (projectId, url) => {
-      void call('pane.open', { project_id: projectId, url }, { ui: true }).then((out) => {
+    openPane: (projectId, url, userTyped = false) => {
+      void callUi('pane.open', { project_id: projectId, url, ...(userTyped ? { user_typed: true } : {}) }).then((out) => {
         const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
         if (paneId && win && !win.isDestroyed()) win.webContents.send('pane-event', { kind: 'opened', pane_id: paneId });
         schedulePush();
@@ -1032,8 +1042,11 @@ async function restartCore(): Promise<void> {
 
 /** Any open agent session counts, so an agent waiting on the user is never stopped unasked. */
 function busy(): boolean {
-  const s = lastGood;
-  return !!s && s.sessions.some((x) => x.state !== 'exited');
+  try {
+    const d = db();
+    if (d) return anyOpenSession(d);
+  } catch {}
+  return !!lastGood && lastGood.sessions.some((x) => x.state !== 'exited');
 }
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */

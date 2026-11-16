@@ -27,6 +27,7 @@ export const DEFAULTS = {
   },
   browser: {
     allow_origins: [] as string[],
+    allow_hosts: [] as string[],
     lent: {} as Record<string, string[]>,
   },
   agent_cursor: {
@@ -87,7 +88,7 @@ export const DEFAULTS = {
         del_bg: '#c8695c17', del_fg: '#dc8174', font_ui: "'Space Mono', ui-monospace, Consolas, monospace", font_mono: DITHER_MONO,
       },
       ouros: {
-        label: 'Ouros', look: 'plain', scheme: 'dark', bg: '#0a0a0a', panel: '#171717', panel2: '#262626', line: '#222222', line_strong: '#303030',
+        label: 'cc', look: 'plain', scheme: 'dark', bg: '#0a0a0a', panel: '#171717', panel2: '#262626', line: '#222222', line_strong: '#303030',
         text: '#fafafa', body_strong: '#e5e5e5', body: '#a1a1a1', muted: '#858585', faint: '#6a6a6a', accent: '#e5e5e5', on_accent: '#171717', ok: '#e5e5e5',
         warn: '#ff7a1a', bad: '#fca5a5', grey: '#5a5a5a', unseen: '#a1a1a1', term_bg: '#0c0c0c', term_fg: '#c8c8c8', add_bg: '#86efac1f', add_fg: '#86efac',
         del_bg: '#fca5a51f', del_fg: '#fca5a5', font_ui: "'Geist', 'Segoe UI', sans-serif", font_mono: DITHER_MONO,

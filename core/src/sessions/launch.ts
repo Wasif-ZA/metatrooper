@@ -16,6 +16,7 @@ import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
 import { beingRemoved } from '../worktree.ts';
 import { finishedOk } from './finished.ts';
+import { dropSecret, issueSecret } from './secret.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -122,8 +123,9 @@ export function launchSession(
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
-    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env });
+    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env, TROOP_SESSION_SECRET: issueSecret(id, approval) });
   } catch {
+    dropSecret(id);
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }
   if (!plan.promptDelivered && opts.prompt) pendingPrompts.set(id, { prompt: opts.prompt, at: Date.now() });
