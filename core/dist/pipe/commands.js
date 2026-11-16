@@ -24,6 +24,7 @@ import { E, RpcError, toRpcError } from './errors.js';
  
 
 export const NOT_QUEUED = new Set([
+  'auth.signIn', 'auth.status', 'auth.signOut',
   'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'session.live-text', 'engines.check',
   'session.search',
   'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve', 'notify.sink.set',
