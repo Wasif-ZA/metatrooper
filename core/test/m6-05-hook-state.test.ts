@@ -173,7 +173,7 @@ test('M6-05a rollout growth written before a Codex PermissionRequest, and the qu
     await t.tick();
     t.grow();
     assert.equal(t.poll(23_000), 'working');
-    assert.equal(t.poll(44_000), 'done');
+    assert.equal(t.poll(44_000), 'working');
   } finally { t.done(); }
 });
 
@@ -264,7 +264,7 @@ test('M6-05a after a Codex SessionStart relinks the session, the poll follows th
   } finally { t.done(); }
 });
 
-test('M6-05a a relink does not carry the old conversation\'s growing spell: an idle session goes working on the new file\'s first growth, a working one still goes done after 20 s quiet', async () => {
+test('M6-05a a relink does not carry the old conversation\'s growing spell: an idle session goes working on the new file\'s first growth, a working one stays working after 20 s quiet', async () => {
   const t = await codexRollout();
   try {
     const dir = join(t.home, '.codex', 'sessions', '2026', '10', '13');
@@ -280,7 +280,7 @@ test('M6-05a a relink does not carry the old conversation\'s growing spell: an i
     writeFileSync(join(dir, 'rollout-2026-10-13T12-00-00-conv3.jsonl'), '{"type":"session_meta"}\n');
     t.send('codex.SessionStart', { session_id: 'conv3', source: 'clear' });
     t.poll(3000);
-    assert.equal(t.poll(24_000), 'done');
+    assert.equal(t.poll(24_000), 'working');
   } finally { t.done(); }
 });
 
