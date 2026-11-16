@@ -23,6 +23,7 @@ export const DEFAULTS = {
   },
   browser: {
     allow_origins: []            ,
+    allow_hosts: []            ,
     lent: {}                            ,
   },
   agent_cursor: {
