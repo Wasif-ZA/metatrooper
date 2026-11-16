@@ -6,7 +6,7 @@ Part of M10-0 (launch), G3(g). Priority: High. Effort: not sized. Depends on: no
 
 - Home chat shows Allow and Deny on a permission request (d73d0654, 0cec1637): `workbench/ui/src/chat.jsx:91-92`.
 - The keys sent come from `approvalInput` in `workbench/ui/src/chat-model.js:5`. It returns `'1'` / Esc for Claude and `null` for every other engine, so both buttons are disabled for Codex and agy and the person must type into the terminal.
-- The screen walk of the 11-10 build (D02) found a free-text answer box and no Allow or Deny at all for `wait_reason=permission`.
+- The screen walk of the 11-10 build found a free-text answer box and no Allow or Deny at all for `wait_reason=permission`.
 - Browser-pane site permissions already have Allow and Block (`workbench/renderer/app.js:240`); not part of this issue.
 
 ## Goal
@@ -19,7 +19,7 @@ When a session waits on a permission request, the person can answer it with one 
 |---|---|
 | 1 | Find, from a real capture per engine, the input that approves and the input that denies a permission prompt. Only live-captured inputs ship (same rule as M6-23). |
 | 2 | `approvalInput` returns those inputs for each engine with a capture; it stays `null` for an engine without one, and the chat says "answer in the terminal" for it. |
-| 3 | Wherever Home shows a session that waits with `wait_reason=permission`, Allow and Deny replace the free-text box; the "Ask an agent" composer hides while that session needs you (walk D02). |
+| 3 | Wherever Home shows a session that waits with `wait_reason=permission`, Allow and Deny replace the free-text box; the "Ask an agent" composer hides while that session needs you. |
 | 4 | One answer per request: buttons lock after the first click (as 0cec1637 does for Claude). |
 
 ## Out of scope
