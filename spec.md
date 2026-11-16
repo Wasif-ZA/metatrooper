@@ -58,6 +58,11 @@ Agents run as the user. Any agent with a shell can already do anything the user'
 `~/.metatrooper/ui.key` or driving Windows apps without MetaTrooper. So MetaTrooper does not claim to stop a hostile
 process running as the user, and nothing in this spec says it does.
 
+Session launch secret (FIX-C2): each session gets a fresh secret in its environment (`TROOP_SESSION_SECRET`), and
+the core keeps only its hash in memory. `troop launch` sends it, so a child a session starts through `troop` can never
+run with more approval than that session. This stops the normal agent path. It does not stop an agent that strips its
+secret (the core then treats the call as the user) or reads `ui.key` (the call is then the window itself).
+
 Agents keep their auto mode (D70), so an agent can also script the desktop through its own shell and skip
 MetaTrooper's tools. That is covered by watching, not by blocking: the watch layout and the input watcher (M6-22).
 

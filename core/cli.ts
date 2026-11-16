@@ -373,6 +373,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   if (job.model) params.model = job.model;
   const parent = process.env.TROOP_SESSION_ID;
   if (parent) params.parent_id = parent;
+  if (process.env.TROOP_SESSION_SECRET) params.session_secret = process.env.TROOP_SESSION_SECRET;
   let r = await rpc('session.launch', params, json, parent ? 'parent session not found' : undefined);
   if (parent && r.error === 'parent session not found') {
     console.error(`TROOP_SESSION_ID ${parent} names no session in this core, so this launch has no parent`);

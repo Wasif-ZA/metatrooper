@@ -41,7 +41,7 @@ export function pipePrefix(): string {
 }
 
 /** `p` with links resolved through its deepest existing folder, lowercased on Windows. */
-function canonical(p: string): string {
+export function canonical(p: string): string {
   let dir = path.resolve(p);
   const tail: string[] = [];
   while (!fs.existsSync(dir) && path.dirname(dir) !== dir) { tail.unshift(path.basename(dir)); dir = path.dirname(dir); }
