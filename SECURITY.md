@@ -33,6 +33,9 @@ Out of scope:
 - Anything that needs another process already running as the same Windows or Linux user. That process can read
   your files and drive your apps anyway. See "Threat model" in `spec.md`.
 - Limits already listed under "Known limits" in the README, `spec.md` and the contracts.
+- A session that starts a looser child after stripping `TROOP_SESSION_SECRET` from its environment, or after reading
+  `~/.metatrooper/ui.key`. The session secret guards the normal `troop launch` path only; see "Threat model" in
+  `spec.md`. A child started through `troop` with the secret that runs looser than its parent is in scope.
 
 ## Supported versions
 

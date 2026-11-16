@@ -38,6 +38,7 @@ import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
 import { Desktop } from './desktop/driver.ts';
 import { endAllGrants, endOrphanGrants } from './grants.ts';
 
+delete process.env.TROOP_SESSION_SECRET;
 process.removeAllListeners('warning');
 process.on('warning', () => {});
 

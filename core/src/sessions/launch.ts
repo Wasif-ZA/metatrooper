@@ -16,6 +16,7 @@ import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
 import { beingRemoved } from '../worktree.ts';
 import { finishedOk } from './finished.ts';
+import { dropSecret, issueSecret } from './secret.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -117,14 +118,14 @@ export function launchSession(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
   ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, opts.prompt || null, startedAt, startedAt);
   db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)').run(id, startedAt, 'starting');
-  appendEvent('core.session-approval', id, { approval }, db);
   const block = db.prepare('INSERT OR IGNORE INTO session_block (blocked_id, blocker_id) VALUES (?, ?)');
   for (const b of blockers) block.run(id, b);
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
-    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env });
+    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env, TROOP_SESSION_SECRET: issueSecret(id, approval) });
   } catch {
+    dropSecret(id);
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }
   if (!plan.promptDelivered && opts.prompt) pendingPrompts.set(id, { prompt: opts.prompt, at: Date.now() });

@@ -96,7 +96,7 @@ async function warnOwner(db              , sessionId        , payload           
 
 async function main()                {
   const { kind, flags } = parseArgs(process.argv.slice(2));
-  if (!kind) return;
+  if (!kind || kind.startsWith('core.')) return;
   const sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
   if (!sessionId) return;
   let raw                          = {};

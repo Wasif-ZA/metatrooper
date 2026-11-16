@@ -37,7 +37,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   project.open            {path}  (stable)
   project.clear           {project_id}
   project.hide            {project_id}
-  session.launch          {project_id, engine_id, prompt?, approval?: "ask"|"edits"|"contained"|"isolated", model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?, blocker_ids?: string[]}  (stable)
+  session.launch          {project_id, engine_id, prompt?, approval?: "ask"|"edits"|"contained"|"isolated", session_secret?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?, blocker_ids?: string[]}  (stable)
   session.list            {project_id?, all?: bool}  (stable)
   audit.list              {project_id, limit?, before?, before_id?}
   session.wait            {session_id, states: [state, ...], timeout_ms, settle_ms?}  (stable)

@@ -95,7 +95,7 @@ async function warnOwner(db: DatabaseSync, sessionId: string, payload: Record<st
 
 async function main(): Promise<void> {
   const { kind, flags } = parseArgs(process.argv.slice(2));
-  if (!kind) return;
+  if (!kind || kind.startsWith('core.')) return;
   const sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
   if (!sessionId) return;
   let raw: Record<string, unknown> = {};
