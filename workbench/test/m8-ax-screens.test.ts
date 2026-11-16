@@ -986,7 +986,7 @@ test('chat box access label names the level from Settings', () => {
   const h = harness(Home); h.draw();
   const access = h.one(label('Approval'));
   assert.equal(access.props.renderValue(), 'Auto');
-  assert.equal(access.props.options[0].label, 'Auto: cannot control your desktop (default)');
+  assert.equal(access.props.options[0].label, 'Auto: cannot control your desktop or outside services (default)');
   access.props.onChange('edits'); h.draw();
   assert.equal(h.one(label('Approval')).props.renderValue(), 'Edits allowed');
   g.ui.settingsLook = { themes: [] };

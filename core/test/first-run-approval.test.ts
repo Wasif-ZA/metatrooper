@@ -17,6 +17,18 @@ test('fresh METATROOPER_HOME defaults sessions.approval to contained', () => {
   }
 });
 
+test('settings.json that exists but does not parse gives sessions.approval ask', () => {
+  const home = mkdtempSync(join(tmpdir(), 'first-run-appr-'));
+  try {
+    withEnv({ METATROOPER_HOME: home }, () => {
+      writeFileSync(join(home, 'settings.json'), '{"broken json');
+      assert.equal(settings().sessions.approval, 'ask');
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('setSetting on fresh home preserves approval contained and writes contained to file', () => {
   const home = mkdtempSync(join(tmpdir(), 'first-run-appr-'));
   try {

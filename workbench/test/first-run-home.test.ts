@@ -127,7 +127,12 @@ beforeEach(() => {
       makeTaskFolder: async (task: string) => '/projects/task',
       pickFolder: async () => '/projects/picked',
     },
-    rpc: async (...args: any[]) => { calls.push(['rpc', ...args]); return { result: { session_id: 's1' } }; },
+    rpc: async (method: string, params: any) => {
+      calls.push(['rpc', method, params]);
+      if (method === 'project.open') return { result: { project_id: 'p-new' } };
+      if (method === 'session.launch') return { result: { session_id: 's1' } };
+      return { result: { session_id: 's1' } };
+    },
     toast: (...args: any[]) => calls.push(['toast', ...args]),
     project: () => g.ui.snap.projects.find((p: any) => p.id === g.ui.projectId),
     waitingAll: () => [],
@@ -291,8 +296,8 @@ test('approval chip shows Auto when engine supports contained, Ask first when it
   const accessContained = h.one(label('Approval'));
   assert.equal(accessContained.props.renderValue(), 'Auto');
   const optsContained = accessContained.props.options;
-  assert.ok(optsContained.some((o: any) => o.label === 'Auto: cannot control your desktop (default)'));
-  assert.ok(optsContained.some((o: any) => o.label === 'Ask first: can control your desktop'));
+  assert.ok(optsContained.some((o: any) => o.label === 'Auto: cannot control your desktop or outside services (default)'));
+  assert.ok(optsContained.some((o: any) => o.label === 'Ask first: can control your desktop and outside services'));
   assert.ok(!optsContained.some((o: any) => o.value === 'contained'));
 
   g.ui.snap.engines = [{ id: 'gemini', light: 'green', approvals: ['ask', 'edits'] }];
@@ -303,6 +308,157 @@ test('approval chip shows Auto when engine supports contained, Ask first when it
   assert.equal(accessAsk.props.renderValue(), 'Ask first');
 
   const options = accessAsk.props.options;
-  assert.ok(options.some((o: any) => o.label === 'Ask first: can control your desktop (default)'));
+  assert.ok(options.some((o: any) => o.label === 'Ask first: can control your desktop and outside services (default)'));
   assert.ok(!options.some((o: any) => o.value === 'ask'));
+});
+
+test('no-project Start flow end to end for Make a new folder and Choose a folder', async () => {
+  g.ui.projectId = null;
+  g.ui.snap.engines = [
+    { id: 'claude', light: 'green', approvals: ['ask', 'edits', 'contained'] },
+    { id: 'codex', light: 'green', approvals: ['ask', 'edits', 'contained'] },
+  ];
+  g.ui.drafts = {};
+  homeStore.set({ open: [], tick: 0 });
+
+  const events: any[] = [];
+  g.api.makeTaskFolder = async (task: string) => {
+    events.push(['makeTaskFolder', task]);
+    return '/path/to/make-folder';
+  };
+  g.api.pickFolder = async () => {
+    events.push(['pickFolder']);
+    return '/path/to/pick-folder';
+  };
+  g.rpc = async (method: string, params: any) => {
+    events.push(['rpc', method, params]);
+    if (method === 'project.open') return { result: { project_id: 'p-new' } };
+    if (method === 'session.launch') return { result: { session_id: 's1' } };
+    return { result: {} };
+  };
+  g.switchProject = (id: string) => {
+    events.push(['switchProject', id]);
+    g.ui.projectId = id;
+  };
+
+  const h = harness(Home);
+  h.draw();
+
+  h.one(label('Task for a new agent')).props.onChange('Build my app');
+  h.one(label('Agent')).props.onChange('codex');
+  h.one(label('Agent')).props.onChange('model:o3-mini');
+  h.one(label('Approval')).props.onChange('ask');
+  h.draw();
+
+  await h.one(label('Start')).props.onClick();
+  h.draw();
+
+  const dialog = h.one((n: any) => n.props?.['aria-label'] === 'Where should the agent work?');
+  assert.ok(dialog);
+
+  events.length = 0;
+  await h.one(label('Make a new folder')).props.onClick();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(events, [
+    ['makeTaskFolder', 'Build my app'],
+    ['rpc', 'project.open', { path: '/path/to/make-folder' }],
+    ['switchProject', 'p-new'],
+    ['rpc', 'session.launch', {
+      project_id: 'p-new',
+      engine_id: 'codex',
+      prompt: 'Build my app',
+      model: 'o3-mini',
+      approval: 'ask',
+    }],
+  ]);
+
+  g.ui.projectId = null;
+  h.draw();
+  h.one(label('Task for a new agent')).props.onChange('Build my app');
+  h.draw();
+  await h.one(label('Start')).props.onClick();
+  h.draw();
+
+  events.length = 0;
+  await h.one(label('Choose a folder')).props.onClick();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(events, [
+    ['pickFolder'],
+    ['rpc', 'project.open', { path: '/path/to/pick-folder' }],
+    ['switchProject', 'p-new'],
+    ['rpc', 'session.launch', {
+      project_id: 'p-new',
+      engine_id: 'codex',
+      prompt: 'Build my app',
+      model: 'o3-mini',
+      approval: 'ask',
+    }],
+  ]);
+
+  g.ui.projectId = null;
+  h.draw();
+  h.one(label('Task for a new agent')).props.onChange('Build my app');
+  h.draw();
+  await h.one(label('Start')).props.onClick();
+  h.draw();
+
+  g.api.pickFolder = async () => {
+    events.push(['pickFolder']);
+    return null;
+  };
+  events.length = 0;
+  await h.one(label('Choose a folder')).props.onClick();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(events, [
+    ['pickFolder'],
+  ]);
+});
+
+test('Home shows with no project: homeView.shown is true and renderStart keeps #start hidden', () => {
+  const homeJs = readFileSync(resolve(import.meta.dirname, '../renderer/home.js'), 'utf8');
+  const appJs = readFileSync(resolve(import.meta.dirname, '../renderer/app.js'), 'utf8');
+
+  const fn = (name: string, code = appJs) => {
+    const match = code.match(new RegExp(`^(?:async )?function ${name}\\([^]*?\\r?\\n}`, 'm'));
+    assert.ok(match, 'real renderer function exists: ' + name);
+    return match[0];
+  };
+
+  const startEl = { hidden: false, innerHTML: '' };
+  const mockDoc = {
+    getElementById: (id: string) => (id === 'start' ? startEl : id === 'home' || id === 'centre' ? { hidden: true } : null),
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+  };
+
+  const testUi: any = {
+    view: 'home',
+    projectId: null,
+    snap: { projects: [], sessions: [], live: [], engines: [], needs_you: [] },
+  };
+
+  new Function('ui', 'document', 'project', 'esc', 'setHtml', homeJs)(testUi, mockDoc, () => null, (s: any) => s, () => {});
+
+  testUi.view = 'home';
+  assert.equal(globalThis.homeView.shown(), true);
+
+  testUi.view = 'wall';
+  assert.equal(globalThis.homeView.shown(), false);
+
+  const renderStartFn = new Function('ui', 'project', 'document', 'setHtml', 'esc', 'shortPath', 'engineTip',
+    fn('renderStart') + '\nreturn renderStart;'
+  )(testUi, () => null, mockDoc, (id: string, html: string) => { if (id === 'start') startEl.innerHTML = html; }, (s: any) => s, (p: string) => p, () => '');
+
+  testUi.view = 'home';
+  startEl.hidden = false;
+  renderStartFn();
+  assert.equal(startEl.hidden, true);
+
+  testUi.view = 'wall';
+  startEl.hidden = true;
+  renderStartFn();
+  assert.equal(startEl.hidden, false);
 });
