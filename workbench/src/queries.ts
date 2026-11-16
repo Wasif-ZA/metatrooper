@@ -180,8 +180,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            ${est}, ${labels}, ${priority('s')}, ${blocks('s')}, ${monitor('s.id')}, ${reviews('s')},
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
-         FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
-      ).all(projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking' | 'steps'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string; steps: string | null }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[], steps: JSON.parse(row.steps ?? 'null') as Steps }))
+         FROM session s WHERE s.project_id = ? AND s.hidden = 0
+           AND (s.state != 'exited' OR s.id IN (SELECT id FROM session WHERE project_id = ? AND hidden = 0 ORDER BY julianday(started_at) DESC LIMIT 50))
+         ORDER BY julianday(s.started_at) DESC`,
+      ).all(projectId, projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking' | 'steps'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string; steps: string | null }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[], steps: JSON.parse(row.steps ?? 'null') as Steps }))
     : [];
 
   const panes = projectId

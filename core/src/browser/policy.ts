@@ -17,7 +17,7 @@ blocked6.addSubnet('ff00::', 8, 'ipv6');
 export interface PolicyContext {
   /** Ports this pane's project owns (`browser_pane.dev_port`). */
   ownedPorts: Set<number>;
-  /** Hosts the project's `.troop/config.json` allows in spite of the address rules. */
+  /** Hosts the user's `browser.allow_hosts` setting allows through the address rules. */
   allowHosts: Set<string>;
   /** Resolves a host to every address; defaults to `dns.lookup(host, {all: true})`. */
   lookup?: (host: string) => Promise<string[]>;
