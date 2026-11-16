@@ -75,6 +75,7 @@ CREATE TABLE session (
   ended_at      TEXT,
   outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')), -- set when the session exits
   prompt        TEXT,
+  approval      TEXT,
   priority      TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent'))
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
