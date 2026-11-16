@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('troop', {
   openInVsCode: (projectId, rel) => ipcRenderer.invoke('openInVsCode', projectId, rel),
   addons: () => ipcRenderer.invoke('addons'),
   settingsPage: () => ipcRenderer.invoke('settingsPage'),
+  setTour: (v) => ipcRenderer.invoke('setTour', v),
   setSetting: (key, value) => ipcRenderer.invoke('setSetting', key, value),
   setCheck: (projectId, command) => ipcRenderer.invoke('setCheck', projectId, command),
   runCheck: (sessionId) => ipcRenderer.invoke('runCheck', sessionId),

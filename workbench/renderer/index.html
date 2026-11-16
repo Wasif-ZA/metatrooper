@@ -1,8 +1,8 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en" data-look="dither">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://img.clerk.com; frame-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <title>cc</title>
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
   <link rel="stylesheet" href="vendor/fonts/fonts.css">
@@ -25,7 +25,7 @@
     <div class="fsec">Agents</div>
     <div class="fagents" id="frame-agents"></div>
     <div class="hside" id="hside" aria-label="Workspaces and agents"></div>
-    <div class="ffoot"><button data-action="view" data-view="addons" title="Add-ons" aria-label="Add-ons"><span class="fi" data-icon="addOns"></span><span class="fl">Add-ons</span></button><button data-action="report-issue" title="Report issue on GitHub" aria-label="Report issue"><span class="fi" data-icon="flag"></span><span class="fl">Report issue</span></button><button data-action="settings" title="Settings" aria-label="Settings"><span class="fi" data-icon="settings"></span><span class="fl">Settings</span></button></div>
+    <div class="ffoot"><button data-action="view" data-view="addons" title="Add-ons" aria-label="Add-ons"><span class="fi" data-icon="addOns"></span><span class="fl">Add-ons</span></button><button data-action="report-issue" title="Report issue on GitHub" aria-label="Report issue"><span class="fi" data-icon="flag"></span><span class="fl">Report issue</span></button><button data-action="settings" title="Settings" aria-label="Settings"><span class="fi" data-icon="settings"></span><span class="fl">Settings</span></button><button id="account" data-action="account" title="Account" aria-label="Account"><span class="fi" data-icon="person"></span><span class="fl">Account</span></button></div>
   </aside>
   <header class="title">
     <button class="ib" id="listBtn" data-action="list" title="Agent list" aria-label="Agent list" aria-pressed="false"><span data-icon="listView"></span></button>

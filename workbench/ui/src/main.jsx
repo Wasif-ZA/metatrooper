@@ -13,6 +13,7 @@ import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from '.
 import { Palette, paletteView } from './palette.jsx';
 import { createStore } from './store.js';
 import { syncDrawn } from './kit/DrawnTabs.jsx';
+import { AccountTour } from './tour.jsx';
 
 // `ui` is app.js's top-level const: global, but not a globalThis property.
 const schemeOf = () => (typeof ui !== 'undefined' && ui.look?.theme?.scheme === 'light' ? 'light' : 'dark');
@@ -43,6 +44,11 @@ const start = () => {
   cmdk.id = 'cmdk';
   document.body.appendChild(cmdk);
   mount('cmdk', Palette);
+  const accountTour = document.createElement('div');
+  accountTour.id = 'account-tour';
+  document.body.appendChild(accountTour);
+  new MutationObserver(() => reportPaneBounds()).observe(accountTour, { attributes: true, attributeFilter: ['data-overlay'] });
+  mount('account-tour', AccountTour);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 

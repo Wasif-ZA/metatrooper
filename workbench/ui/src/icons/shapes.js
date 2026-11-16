@@ -19,6 +19,7 @@ export const SHAPES = {
   panel: `${BOX}<path d="M6 2.5v11"/>`,
   addOns: '<path d="M6 2.5h4v3h3v4h-3v4H6v-4H3v-4h3z"/>',
   flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.75 2.75L11.5 8.5h-8"/>',
+  person: '<circle cx="8" cy="5.5" r="2.75"/><path d="M2.75 13.5a5.25 5.25 0 0 1 10.5 0"/>',
   settings: '<circle cx="8" cy="8" r="2"/><path d="M8 1.75v1.5M8 12.75v1.5M14.25 8h-1.5M3.25 8h-1.5M12.4 3.6l-1.06 1.06M4.66 11.34 3.6 12.4M12.4 12.4l-1.06-1.06M4.66 4.66 3.6 3.6"/><circle cx="8" cy="8" r="4.25"/>',
   chevronRight: '<path d="m6.5 4.5 3.5 3.5-3.5 3.5"/>',
   options: '<path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6"/><circle cx="10" cy="4.5" r="1.5"/><circle cx="6" cy="11.5" r="1.5"/>',

@@ -75,6 +75,7 @@ export const DEFAULTS = {
     }                                                                            ,
   },
   ui: {
+    tour: '',
     theme: 'dither',
     rail_width: 290,
     split_width: 420,

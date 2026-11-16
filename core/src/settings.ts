@@ -74,6 +74,7 @@ export const DEFAULTS = {
     } as Record<string, { label: string; command: string[]; fallback: string[] }>,
   },
   ui: {
+    tour: '',
     theme: 'dither',
     rail_width: 290,
     split_width: 420,
