@@ -187,27 +187,27 @@ function StartBox({ ready, strip }) {
       { key: 'gap', gap: true },
       { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" placement="above" value={approval} onChange={setApproval}
         renderValue={() => ACCESS[approval === 'default' ? resolvedDefault : approval] || 'Ask first'} options={[
-        { value: 'default', label: `${resolvedDefault === 'contained' ? 'Auto: no desktop control' : resolvedDefault === 'ask' ? 'Ask first: allows desktop control' : ACCESS[resolvedDefault]} (default)` },
-        ...[{ value: 'ask', label: 'Ask first: allows desktop control' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto: no desktop control' }].filter((o) => can.includes(o.value)),
+        { value: 'default', label: `${resolvedDefault === 'contained' ? 'Auto: cannot control your desktop' : resolvedDefault === 'ask' ? 'Ask first: can control your desktop' : ACCESS[resolvedDefault]} (default)` },
+        ...[{ value: 'ask', label: 'Ask first: can control your desktop' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto: cannot control your desktop' }].filter((o) => can.includes(o.value) && o.value !== resolvedDefault),
       ]} /> },
     ],
   })}
-    {!strip && !task.trim() ? <div className="ou-hm-starters">{STARTERS.map(([label, prompt]) => <Button key={label} size="sm" variant="secondary" label={label} onClick={() => { edit(prompt); document.querySelector('#home .ou-hm-task textarea')?.focus(); }} />)}</div> : null}
-    {folderSheet ? <Dialog isOpen onOpenChange={(open) => { if (!starting) setFolderSheet(open); }} width={420} purpose="form" aria-label="Where should the agent work?">
-      <Layout content={<LayoutContent><Heading level={2}>Where should the agent work?</Heading></LayoutContent>}
+    {!strip && !task.trim() ? <div className="ou-hm-starters">{STARTERS.map(([label, prompt]) => <Button key={label} size="sm" variant="ghost" label={label} onClick={() => { edit(prompt); document.querySelector('#home .ou-hm-task textarea')?.focus(); }} />)}</div> : null}
+    {folderSheet ? <Dialog className="ou-hm-foldersheet" isOpen onOpenChange={(open) => { if (!starting) setFolderSheet(open); }} width={420} purpose="form" aria-label="Where should the agent work?">
+      <Layout content={<LayoutContent><Heading level={2}>Where should the agent work?</Heading><p className="ou-hm-folderhint">A new folder is made in Documents\cc, named after your task.</p></LayoutContent>}
         footer={<LayoutFooter><div className="ou-hm-folderactions">
           <Button variant="ghost" label="Cancel" isDisabled={starting} onClick={() => setFolderSheet(false)} />
-          <Button variant="secondary" label="Choose a folder" isDisabled={starting} onClick={() => void chooseFolder(false)} />
-          <Button label="Make a new folder" isDisabled={starting} onClick={() => void chooseFolder(true)} />
+          <Button variant="secondary" label="Make a new folder" isDisabled={starting} onClick={() => void chooseFolder(true)} />
+          <Button variant="primary" label="Choose a folder" data-autofocus isDisabled={starting} onClick={() => void chooseFolder(false)} />
         </div></LayoutFooter>} />
     </Dialog> : null}
   </>;
 }
 
 const STARTERS = [
-  ['Explain this project', 'Explain how this project is laid out and what each part does.'],
-  ['Fix a bug', 'Help me find and fix a bug in this project.'],
-  ['Build a page', 'Build a page for this project. Help me decide what it should include.'],
+  ['Explain this project', 'Explain how my project is laid out and what each part does.'],
+  ['Fix a bug', 'Help me find and fix a bug in my project.'],
+  ['Build a page', 'Build a web page. Help me decide what it should include.'],
 ];
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
@@ -355,7 +355,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   );
 }
 
-export const NEW_USER_HEADING = 'What should an agent do?';
+export const NEW_USER_HEADING = 'What do you want done?';
 
 function StartState({ composer }) {
   return (

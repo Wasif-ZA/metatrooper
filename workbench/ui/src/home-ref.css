@@ -118,5 +118,8 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 /* Pressed, after every hover rule above */
 :is(.ou-hm-worked, .ou-hm-slimrow)[role="button"]:active, .ou-hm-stop:active, .ou-hm-startitem:active, .ou-hm-pclick:active, .ou-hm-pact:active { background: color-mix(in srgb, var(--ink) 12%, transparent); }
 
-.ou-hm-starters, .ou-hm-folderactions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.ou-hm-starters { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.ou-hm-starters .astryx-button { font-weight: 400; color: var(--mute); border: 1px solid var(--hairline); }
+.ou-hm-folderactions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); width: 100%; }
+.ou-hm-folderhint { margin: var(--sp-2) 0 0; font-size: 13px; color: var(--mute); }
 .ou-hm-start { min-width: 0; box-sizing: border-box; }
