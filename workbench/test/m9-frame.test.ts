@@ -124,7 +124,7 @@ function createFrameHarness(initialStorage: Record<string, string> = {}) {
       saved.push({ key, value });
     },
     esc: (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]),
-    taskOf: (x: any) => x.task || x.prompt || x.id,
+    taskOf: (x: any) => x.title || x.task || x.prompt || x.id,
     setHtml: (id: string, html: string) => {
       if (id === 'frame-agents') frameAgents.innerHTML = html;
     },

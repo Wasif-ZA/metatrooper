@@ -96,7 +96,7 @@ export function wireTermEvents(db: DatabaseSync): void {
       const key = title.replace(/^[\p{S}\p{P}\s]+/u, '');
       if (titleKeys.get(id) === key) return;
       titleKeys.set(id, key);
-      put(id, 'title', key);
+      put(id, 'title', title);
     },
     onExit: (id, code, killed) => {
       belled.delete(id);

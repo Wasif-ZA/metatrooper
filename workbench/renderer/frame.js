@@ -165,7 +165,7 @@ globalThis.frameView = (() => {
     return `<div class="fthw${n ? ' haskids' : ''}${open ? ' open' : ''}" data-key="s:${esc(x.id)}"><button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
       + `<span class="fth1"><span class="ft">${esc(name)}</span><span class="fthtime">${when}</span></span>`
       + `<span class="fth2">${statusHtml(x)}<span class="fthsep">·</span><span class="fthpn" data-proj="${esc(t.project_id)}">${esc(t.project)}</span>${t.branch ? `<span class="fthsep">·</span><span class="fthbr">${esc(t.branch)}</span>` : ''}</span>`
-      + (crew.length > 1 ? `<span class="fth3"><span class="fthmks">${engines}</span></span>` : '') + `</button>${toggle}${kids}</div>`;
+      + `<span class="fth3"><span class="fthmks">${engines}</span></span></button>${toggle}${kids}</div>`;
   }
 
   function shelfHtml(key, label, list, rows) {
