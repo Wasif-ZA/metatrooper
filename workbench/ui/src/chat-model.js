@@ -1,6 +1,7 @@
 export const chatModeOf = (engineId, source) => source === 'transcript' ? 'chat' : 'terminal';
 
 export const TERMINAL_ONLY_NOTE = 'This agent shares no chat record, so cc shows its terminal only.';
+export const PERMISSION_TERMINAL_NOTE = 'This agent asks for permission. Answer in its terminal.';
 
 export const approvalInput = (engineId, allow) => engineId === 'claude' ? allow ? '1' : '\x1b' : null;
 
