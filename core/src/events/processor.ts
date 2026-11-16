@@ -156,7 +156,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
-        const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq);
+        const ignored = (ev.kind === 'core.activity' && payload.state === 'quiet' && specOf(s.engine_id).source === 'notify')
+          || (ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq));
         // A hook event that happened before one already applied (it waited on the lock, or came through the spool) moves no state: state follows event time, not arrival (D16).
         const late = spoolKind(ev.kind) && Boolean(newerHook.get(ev.session_id, ev.seq, ev.at, ...hookKinds));
         if (!foreign && !late && /^(claude|codex)\.(PreToolUse|PostToolUse)$|^core\.steps$/.test(ev.kind)) planSteps(ev.session_id, ev.kind, payload);
