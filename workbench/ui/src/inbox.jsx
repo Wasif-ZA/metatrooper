@@ -711,7 +711,7 @@ export function Inbox() {
           </div>
           <Bar key={sessionObj.id} done={subDone} total={children.length} />
         </div>
-        <div className="ou-ny-sub-state">{children.length ? subDone === children.length ? 'All sub-tasks done' : `${plural(children.length - subDone, 'sub-task')} open` : null}</div>
+        {children.length ? <div className="ou-ny-sub-state">{subDone === children.length ? 'All sub-tasks done' : `${plural(children.length - subDone, 'sub-task')} open`}</div> : null}
       </div>
       <div className="ou-ny-sub-tools">
         <Button size="sm" icon={I.plus} label="New sub-task" isDisabled={!sessionObj} onClick={() => setSubDraft('')} />
@@ -869,6 +869,16 @@ export function Inbox() {
       className="ou-inbox"
       onKeyDown={(e) => {
         if (e.defaultPrevented) return;
+        if (e.key === 'Escape') {
+          const filter = e.currentTarget?.querySelector?.('[role="combobox"][aria-expanded="true"]');
+          if (filter) {
+            e.preventDefault();
+            e.stopPropagation();
+            filter.click();
+            filter.focus();
+            return;
+          }
+        }
         if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], [role="listbox"], [role="combobox"][aria-expanded="true"], input, textarea, select, [contenteditable]')) {
           e.preventDefault();
           close();

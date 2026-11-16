@@ -158,7 +158,8 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .tile-more { position: relative; display: inline-flex; }
 .pane.compact-head .tile-more { display: inline-flex !important; }
 .pane.compact-head .tile-more .act { display: contents; }
-.pane.compact-head .tile-more menu .tx { width: auto; }
+.pane.compact-head .tile-more menu :is(button, .btn, .pb) { width: auto; min-width: 0; padding: 0 8px; gap: 8px; text-align: left; justify-content: flex-start; }
+.pane.compact-head .tile-more menu :is(.mx, button.tx)::after { content: attr(aria-label); }
 .pane.compact-head .tile-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 :is(.pane.big, .paired .pane, .tile.shell) .tile-more:not(:has(.tile-previews > *, .tile-desk > *)) { display: none; }
 .tile-more summary::-webkit-details-marker, .tile-more summary::marker { display: none; }

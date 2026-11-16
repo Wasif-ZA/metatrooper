@@ -108,9 +108,16 @@ function terminalTile(online = false, withUi = true) {
   });
   show();
   const tile = ctx.termView.tile('s1');
+  const row = tile.querySelector('.r1');
+  let neededWidth = 600;
+  Object.defineProperty(row, 'scrollWidth', { get: () => {
+    assert.equal(tile.classList.contains('compact-head'), false, 'measure the expanded header');
+    assert.equal(tile.querySelector('.act').parentNode, tile.querySelector('.ou-ah-acts'), 'restore actions before measuring');
+    return Math.max(row.clientWidth, neededWidth);
+  } });
   return {
     tile, show, attaches, exited, written: () => written,
-    resize: (width: number) => { tile.clientWidth = width; resized(); },
+    resize: (width: number, needed = neededWidth) => { neededWidth = needed; tile.clientWidth = row.clientWidth = width; resized(); },
     close: () => onTerm('s1', { op: 'closed' }),
     retry() {
       assert.equal(timers.length, 1);
@@ -121,7 +128,7 @@ function terminalTile(online = false, withUi = true) {
   };
 }
 
-test('narrow headers move actions into More and restore their order at 600 px, tolerating missing containers', () => {
+test('narrow headers move actions into More and restore their order when they fit, tolerating missing containers', () => {
   const t = terminalTile();
   const acts = t.tile.querySelector('.ou-ah-acts');
   const more = acts.querySelector('.tile-more');
@@ -142,12 +149,58 @@ test('narrow headers move actions into More and restore their order at 600 px, t
     assert.deepEqual(acts.children, original);
     assert.deepEqual(menu.children, fixed, 'preview, desktop and Pair entries stay in the menu');
   }
-  for (const selector of ['.ou-ah-acts', '.tile-more', 'menu']) {
+  for (const selector of ['.r1', '.ou-ah-acts', '.tile-more', 'menu']) {
     const missing = terminalTile();
     missing.tile.querySelector(selector).remove();
     assert.doesNotThrow(() => missing.resize(599), `missing ${selector}`);
     assert.doesNotThrow(() => missing.resize(800), `missing ${selector}`);
   }
+});
+
+test('header collapse follows measured overflow rather than a fixed pane width', () => {
+  const t = terminalTile();
+  const acts = t.tile.querySelector('.ou-ah-acts'), more = acts.querySelector('.tile-more');
+  const original = [...acts.children];
+  for (const [available, needed, compact] of [[580, 560, false], [580, 581, true], [580, 580, false], [800, 820, true], [800, 790, false]] as const) {
+    t.resize(available, needed);
+    assert.equal(t.tile.classList.contains('compact-head'), compact, `${needed} px needed in ${available} px`);
+    assert.deepEqual(acts.children, compact ? [more] : original);
+  }
+});
+
+const inboxSource = () => readFileSync(new URL('../ui/src/inbox.jsx', import.meta.url), 'utf8');
+
+test('Escape dismisses each expanded Needs you filter before closing the selected item', () => {
+  const handler = inboxSource().match(/className="ou-inbox"\s+onKeyDown=\{\(e\) => \{([^]*?)\n      \}\}/)![1];
+  for (const label of ['Kinds', 'Agents', 'Projects']) {
+    let selected = 's1', open = true, stopped = false, focused = false;
+    const trigger = { click: () => { open = false; }, focus: () => { focused = true; } };
+    const ctx = vm.createContext({ close: () => { selected = ''; } });
+    const key = vm.runInContext(`(e) => {${handler}}`, ctx);
+    const escape = () => key({
+      key: 'Escape', defaultPrevented: false,
+      preventDefault() {}, stopPropagation() { stopped = true; },
+      target: { closest: () => null },
+      currentTarget: { querySelector: (selector: string) => {
+        assert.match(selector, /\[aria-expanded="true"\]/);
+        return open ? trigger : null;
+      } },
+    });
+    escape();
+    assert.equal(open, false, `${label} menu closes`);
+    assert.equal(selected, 's1', `${label} preserves the selected item`);
+    assert.equal(stopped, true);
+    assert.equal(focused, true);
+    escape();
+    assert.equal(selected, '', 'the second Escape closes the item');
+  }
+});
+
+test('the sub-task status box is omitted when there are no children', () => {
+  const state = inboxSource().split(/\r?\n/).find((line) => line.includes('className="ou-ny-sub-state"'))!;
+  assert.match(state, /\{children\.length\s*\?\s*<div className="ou-ny-sub-state">[^]*<\/div>\s*:\s*null\}/);
+  assert.match(state, /subDone === children\.length\s*\?\s*'All sub-tasks done'/);
+  assert.match(state, /plural\(children\.length - subDone, 'sub-task'\)/);
 });
 
 test('updates target the hide button inside More, preserving the summary visibility and title', () => {

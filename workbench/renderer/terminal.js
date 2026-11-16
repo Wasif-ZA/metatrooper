@@ -86,15 +86,17 @@ const termView = (() => {
   // xterm darkens any cell below this contrast, so dark-theme greys an agent prints stay readable on a light background.
   const contrast = () => (look.theme.scheme === 'light' ? 4.5 : 1);
 
-  // Below 600 px the header buttons move into the "..." menu, and back out when the pane widens.
+  // Measure the expanded row so actions can move back out as soon as they fit.
   function compactHead(el) {
-    const acts = el.querySelector('.ou-ah-acts'), more = el.querySelector('.tile-more'), menu = more?.querySelector?.('menu');
-    if (!acts?.children || !menu?.append) return;
-    const narrow = el.clientWidth < 600;
-    if (el.classList.contains('compact-head') === narrow) return;
+    const row = el.querySelector('.r1'), acts = el.querySelector('.ou-ah-acts'), more = el.querySelector('.tile-more'), menu = more?.querySelector?.('menu');
+    if (!row || !acts?.children || !menu?.append) return;
+    if (el.classList.contains('compact-head')) {
+      el.classList.remove('compact-head');
+      more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb)'));
+    }
+    const narrow = row.scrollWidth > row.clientWidth;
     el.classList.toggle('compact-head', narrow);
     if (narrow) menu.append(...[...acts.children].filter((n) => n !== more));
-    else more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb)'));
   }
 
   function create(sessionId) {
