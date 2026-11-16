@@ -47,21 +47,15 @@ const SECTIONS = [
     { title: 'Finishing', rows: [
       { key: 'reliability.done_needs_check', label: 'Say done only when a check passed', hint: 'A finished agent with no passing check reads "needs your review".' },
       { check: true, label: 'Check command for this project', hint: 'Runs where the agent worked, when it finishes. Empty: every finish needs your review.' },
-      { soon: true, label: 'Fix failing checks, up to 3 tries', hint: 'Each try starts from clean files. Tests and check settings are protected from edits.' },
-      { soon: true, label: 'Check after every edit', hint: 'Typecheck, lint and the nearest tests.' },
     ] },
     { title: 'Watching', rows: [
       { key: 'reliability.loop_alarm', label: 'Loop alarm', hint: 'Claude agents only. Watches for the same call giving the same result.' },
       { key: 'reliability.loop_nudge_at', label: 'Ask me after', unit: 'identical calls', min: 2, max: 20 },
       { key: 'reliability.loop_stop_at', label: 'Stop the agent after', unit: 'identical calls', min: 3, max: 50 },
       { read: (s) => String(s.reliability.false_alarms), label: 'False alarms so far', hint: 'Times you answered "Not a loop".' },
-      { soon: true, label: 'Retry provider errors', hint: 'Backs off and retries. Asks before switching model.' },
-      { soon: true, label: 'Ask when a request can mean two things', hint: 'Shows as one Needs you card.' },
-      { soon: true, label: 'Keep runs going when cc closes', hint: 'Resumes from the last step. Sends and deploys always ask again.' },
     ] },
     { title: 'Budgets', rows: [
       { key: 'reliability.token_limit', label: 'Token limit per agent', hint: 'A log line at 80%. At 100% the agent is paused and you are asked. 0 turns it off.', unit: 'tokens', min: 0, max: 100000000, step: 10000 },
-      { soon: true, label: 'Checkpoint every turn', hint: 'Undo takes the files back to any turn.' },
     ] },
   ] },
   { id: 'savings', label: 'Savings', note: 'Each one trades some detail for fewer tokens. All start off.', groups: [{ rows: [
@@ -142,7 +136,6 @@ function CheckCommand({ row, data }) {
 }
 
 function Control({ row, data }) {
-  if (row.soon) return <span className="ou-soontag">Not built yet</span>;
   if (row.check) return <CheckCommand key={ui.projectId || ''} row={row} data={data} />;
   if (row.lent) {
     const sites = (data.browser.lent || {})[ui.projectId] || [];
@@ -165,7 +158,7 @@ function Row({ row, data }) {
   const def = row.key && data.defaults ? data.defaults[row.key] : undefined;
   const changed = def !== undefined && valueOf(data, row.key) !== def;
   return (
-    <div className={row.soon ? 'ou-row ou-soon' : 'ou-row'}>
+    <div className="ou-row">
       <div className="ou-rowtext">
         <span className="ou-rowtitle">{row.label}{changed ? <IconButton size="sm" variant="ghost" label="Reset to default" tooltip={`Reset to ${def === true ? 'on' : def === false ? 'off' : def}`} icon={<Sc.UndoIcon size={14} />} onClick={() => write(row.key, def)} /> : null}</span>
         {row.hint ? <span className="ou-rowhint">{row.hint}</span> : null}

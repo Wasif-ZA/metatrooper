@@ -67,7 +67,7 @@
 
 /* Round 3: darker status colours in light, sub-agent rows. */
 :root[data-theme='light'], :root[data-theme='light'] .ou-hm { --hm-working: #9a6700; --hm-done: #1a7f37; --hm-failed: #cf222e; --hm-waiting: #a16207; }
-.fthw { position: relative; display: flex; flex-direction: column; }
+.fthw { position: relative; display: flex; flex-direction: column; flex: none; }
 .fthw.haskids .fth3 { padding-right: 22px; }
 .fthx:hover { background: var(--canvas); color: var(--ink); }
 .fthx svg { transition: transform var(--ease-fast); }

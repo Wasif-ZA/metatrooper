@@ -83,6 +83,20 @@ const termView = (() => {
     return { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: `${t.accent}55` };
   }
 
+  // xterm darkens any cell below this contrast, so dark-theme greys an agent prints stay readable on a light background.
+  const contrast = () => (look.theme.scheme === 'light' ? 4.5 : 1);
+
+  // Below 600 px the header buttons move into the "..." menu, and back out when the pane widens.
+  function compactHead(el) {
+    const acts = el.querySelector('.ou-ah-acts'), more = el.querySelector('.tile-more'), menu = more?.querySelector?.('menu');
+    if (!acts?.children || !menu?.append) return;
+    const narrow = el.clientWidth < 600;
+    if (el.classList.contains('compact-head') === narrow) return;
+    el.classList.toggle('compact-head', narrow);
+    if (narrow) menu.append(...[...acts.children].filter((n) => n !== more));
+    else more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb)'));
+  }
+
   function create(sessionId) {
     const el = document.createElement('div');
     el.className = 'tile pane';
@@ -94,7 +108,7 @@ const termView = (() => {
     // a UI Automation invoke clicks the tile itself, not a point inside it
     el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
-    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme() });
+    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme(), minimumContrastRatio: contrast() });
     const fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
     term.open(body);
@@ -144,7 +158,10 @@ const termView = (() => {
       if (k === 'v') { void paste(); e.preventDefault(); return false; }
       return true;
     });
-    t.sizes = new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); });
+    t.sizes = new ResizeObserver(() => {
+      compactHead(el);
+      clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150);
+    });
     t.sizes.observe(body);
     terms.set(sessionId, t);
     return t;
@@ -155,7 +172,7 @@ const termView = (() => {
     if (!t.el.isConnected || !t.el.offsetWidth || t.el.classList.contains('fold')) return;
     const cell = t.term.element && t.term.element.querySelector('.xterm-rows > div');
     if (t.el.querySelector('.tile-body').clientHeight < (cell ? cell.offsetHeight * 2 : 30)) return;
-    if (t.outside) return;
+    if (t.outside) { try { t.fit.fit(); } catch {} return; }
     if (!t.attached) { t.attached = true; attach(t); t.cols = t.term.cols; t.rows = t.term.rows; return; }
     try { t.fit.fit(); } catch { return; }
     if (t.term.cols === t.cols && t.term.rows === t.rows) return;
@@ -210,7 +227,8 @@ const termView = (() => {
       // one re-attach decides it: a live terminal answers with a snapshot, a dead one or an offline core closes again
       if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');
-      t.term.write('\r\n[disconnected from the core]\r\n');
+      const ended = t.el.dataset.state === 'exited' || t.el.dataset.state === 'done';
+      t.term.write(ended ? '\r\n[session ended]\r\n' : '\r\n[disconnected from the core]\r\n');
       if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
       t.held = undefined;
       onExit(sessionId);
@@ -350,6 +368,7 @@ const termView = (() => {
       t.term.options.fontSize = look.terminal.font_size;
       t.term.options.scrollback = look.terminal.scrollback;
       t.term.options.theme = xtermTheme();
+      t.term.options.minimumContrastRatio = contrast();
       resize(t);
     }
   }

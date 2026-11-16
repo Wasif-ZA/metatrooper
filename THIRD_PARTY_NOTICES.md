@@ -2,7 +2,7 @@
 
 Windows and Linux (beta). Local only: no account, no telemetry.
 
-MetaTrooper ships the third-party software below. Each keeps its own licence; none is relicensed under the AGPL-3.0
+cc ships the third-party software below. Each keeps its own licence; none is relicensed under the AGPL-3.0
 or MIT terms of this repository.
 
 | Component | Where | Version | Licence |
@@ -23,7 +23,7 @@ or MIT terms of this repository.
 | herdr (modified: Wall sidebar glyphs and colours, Wall layout, opencode state plugin) | `workbench/renderer/wall-side.js`, `workbench/renderer/wall-ref.css`, `engines/plugins/opencode-state.js` | | Apache-2.0 |
 | skill-creator | `skills/skill-creator/`, with its `LICENSE.txt` | anthropics/skills at dbd4588 | Apache-2.0 |
 
-`workbench/renderer/vendor/fonts/fonts.css` is MetaTrooper's own file (the `@font-face` rules for the fonts above).
+`workbench/renderer/vendor/fonts/fonts.css` is cc's own file (the `@font-face` rules for the fonts above).
 
 ## Trademarks
 
@@ -165,7 +165,7 @@ SOFTWARE.
 
 The terms are the GSAP Standard License at https://gsap.com/standard-license (last modified 2025-05-30). It grants
 use "on any website, web application, or digital interface", commercial use included, and prohibits use in tools that
-build visual animations without code in competition with Webflow. The file is not covered by MetaTrooper's AGPL-3.0.
+build visual animations without code in competition with Webflow. The file is not covered by cc's AGPL-3.0.
 
 ## Fonts: SIL Open Font License 1.1
 

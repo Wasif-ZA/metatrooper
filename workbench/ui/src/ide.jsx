@@ -1006,7 +1006,11 @@ export async function diffSides(st, t) {
   const owner = t.gitDiff ? null : ownerOf(t.path, t.owner);
   let original = null, modified = null;
   if (t.gitDiff && t.staged) [original, modified] = await Promise.all([show('HEAD', t.from ? { path: t.from } : {}), show(':')]);
-  else if (t.gitDiff) { original = await show(':'); modified = t.text ?? ''; }
+  else if (t.gitDiff) {
+    original = await show(':');
+    const file = await api.fsRead(st.pid, t.path);
+    modified = file?.text ?? (file?.error ? '' : t.text ?? '');
+  }
   else if (owner) {
     // The session copy: the base in the session cwd with the session patch applied.
     original = await show('base', { session_id: owner, scope: 'uncommitted' });

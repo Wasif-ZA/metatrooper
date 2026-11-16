@@ -218,12 +218,10 @@ for (const [section, text, key, min, max, current] of [
   assert.deepEqual(calls.filter(c => c[0] === 'setSetting'), current === min ? [['setSetting', key, max]] : [['setSetting', key, min], ['setSetting', key, max]]);
 });
 
-test('Reliability has exactly six unavailable rows with no interactive control', () => {
+test('Reliability has no unavailable placeholder rows', () => {
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); const html = h.html();
-  assert.equal(h.all(hasClass('ou-soontag')).length, 6); assert.ok(h.all(hasClass('ou-soontag')).every(n => textContent(n) === 'Not built yet'));
-  const rows = h.all((n: any) => n.type === 'div' && n.props.className === 'ou-row ou-soon');
-  assert.equal(rows.length, 6);
-  for (const row of rows) { const markup = renderToStaticMarkup(React.createElement(row.type, row.props)); assert.doesNotMatch(markup, /<(button|input|select|textarea)\b/); }
+  assert.doesNotMatch(html, /Not built yet/);
+  assert.equal(h.all(hasClass('ou-soon')).length, 0);
 });
 
 test('lent sites belong only to the current project and Remove revokes that origin', async () => {
@@ -600,7 +598,7 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
   assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets']);
   assert.equal(h.all(hasClass('ou-rows')).length, 3);
-  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when cc closes', 'Token limit per agent', 'Checkpoint every turn']);
+  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Token limit per agent']);
   assert.deepEqual(h.all((n: any) => n.type === 'h1').map(textContent), ['Reliability']);
   assert.equal(textContent(h.one(hasClass('ou-crumb'))), 'Settings›Reliability');
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');

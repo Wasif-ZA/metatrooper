@@ -113,6 +113,8 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 
 .pane { position: absolute; display: flex; flex-direction: column; min-height: 0; border-radius: 0; background: var(--pane); border: 1px solid var(--hairline); container-type: inline-size; overflow: hidden; }
 .pane.on, .pane:focus-within { border-color: var(--hairline-strong); }
+#wall-empty { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+#wall-empty > * { pointer-events: auto; }
 .tile-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .spk { flex: none; display: block; }
 .spk rect { fill: #29292a; }
@@ -154,6 +156,10 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ou-ah-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ph .ou-ah-acts .btn { height: 24px; padding: 0 6px; font-size: 10.5px; }
 .tile-more { position: relative; display: inline-flex; }
+.pane.compact-head .tile-more { display: inline-flex !important; }
+.pane.compact-head .tile-more .act { display: contents; }
+.pane.compact-head .tile-more menu .tx { width: auto; }
+.pane.compact-head .tile-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 :is(.pane.big, .paired .pane, .tile.shell) .tile-more:not(:has(.tile-previews > *, .tile-desk > *)) { display: none; }
 .tile-more summary::-webkit-details-marker, .tile-more summary::marker { display: none; }
 .tile-more summary { list-style: none; user-select: none; }
