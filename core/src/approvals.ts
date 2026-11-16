@@ -153,9 +153,9 @@ export class Approvals {
   private hooks: ApprovalHooks;
   private waiters = new Map<string, (d: 'approved' | 'rejected' | 'expired', instruction?: string) => void>();
 
-  private secrets: () => string[] | Promise<string[]>;
+  private secrets: () => string[];
 
-  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, secrets: () => string[] | Promise<string[]> = () => [], hooks: ApprovalHooks = {}) {
+  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, secrets: () => string[] = () => [], hooks: ApprovalHooks = {}) {
     ensureActionOutcomes(db);
     this.db = db;
     this.timeoutMs = timeoutMs;
@@ -197,7 +197,7 @@ export class Approvals {
     if (!reason) return { decision: 'allow' };
     let secrets: string[];
     try {
-      secrets = await this.secrets();
+      secrets = this.secrets();
     } catch {
       return { decision: 'deny', reason: 'a saved browser secret could not be read, so this action cannot be recorded safely' };
     }

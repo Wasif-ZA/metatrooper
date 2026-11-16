@@ -242,7 +242,7 @@ async function sweep(options) {
     }
   }
 
-  const status = git(['status', '--porcelain', '-z', '--untracked-files=all']).stdout.split('\0');
+  const status = git(['--no-optional-locks', 'status', '--porcelain', '-z', '--untracked-files=all']).stdout.split('\0');
   for (let index = 0; index < status.length; index++) {
     const entry = status[index];
     if (entry.startsWith('?? ') && junkPath(entry.slice(3))) {

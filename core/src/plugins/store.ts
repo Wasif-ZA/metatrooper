@@ -44,7 +44,15 @@ export function pluginsDir(): string {
 }
 
 export function isLocalSource(source: string): boolean {
-  return /^file:\/\//i.test(source) || (!/^[a-z][a-z0-9+.-]*:\/\//i.test(source) && !/^git@/.test(source));
+  if (/^[\\/]{2}/.test(source)) return false;
+  if (/^file:/i.test(source)) {
+    if (!/^file:\/\/(?:\/|localhost(?:\/|$))/i.test(source)) return false;
+    try {
+      const url = new URL(source);
+      return (url.hostname === '' || url.hostname === 'localhost') && !/^[\\/]{2}/.test(url.pathname);
+    } catch { return false; }
+  }
+  return /^[a-z]:/i.test(source) || (!/^[a-z][a-z0-9+.-]*:\/\//i.test(source) && !/^git@/.test(source));
 }
 
 export function isGitUrl(s: string): boolean {
@@ -188,7 +196,14 @@ export interface InstallRequest {
 }
 
 export function installPlugin(db: DatabaseSync, req: InstallRequest): { plugin_id: string; missing_secrets: string[] } {
-  const p = prepare(req.source);
+  return installPrepared(db, req, prepare(req.source));
+}
+
+export async function installPluginAsync(db: DatabaseSync, req: InstallRequest): Promise<{ plugin_id: string; missing_secrets: string[] }> {
+  return installPrepared(db, req, await prepareAsync(req.source));
+}
+
+function installPrepared(db: DatabaseSync, req: InstallRequest, p: Prepared): { plugin_id: string; missing_secrets: string[] } {
   try {
     const errors = checks(db, p);
     if (errors.length) throw new RpcError(E.VALIDATION, 'plugin manifest is invalid', { errors });

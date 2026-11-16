@@ -8,7 +8,7 @@ import { knownSecretValues, scrubSecretValuesAsync, setBrowserSecret } from './s
 import { scrub } from './redact.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
-import { canonicalPath, projectId, resolveProjectPathAsync } from './project.ts';
+import { canonicalPath, projectId, resolveProjectPath, resolveProjectPathAsync } from './project.ts';
 import { repeatReads, saverReport, sessionUsage, usageSummary } from './usage.ts';
 import { checkStats, sessionStats } from './stats.ts';
 import { cronNext, cronWords, nowIso, ulid } from './time.ts';
@@ -27,7 +27,7 @@ import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { homeDir, repoDir } from './paths.ts';
-import { installPlugin, isGitUrl, isLocalSource, previewPluginAsync, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
+import { installPluginAsync, isLocalSource, previewPluginAsync, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { checkShimToken, resolveMcpServerAsync } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
@@ -137,7 +137,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'engines.models', errors: [E.NOT_FOUND], params: '{engine_id}', result: '{models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
   { name: 'hooks.uninstall', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
-  { name: 'plugin.preview', errors: [E.NEEDS_UI], params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. Remote git URLs and claude-marketplace sources require ui.hello (-32012 otherwise); local folders and file:// URLs do not. Git allows HTTPS and local sources only. `screen` is what the install screen shows (`plugins.md`, Install)' },
+  { name: 'plugin.preview', errors: [E.NEEDS_UI], params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. Remote sources and claude-marketplace sources require ui.hello (-32012 otherwise); local folders and file URLs with an empty host or localhost do not. Git allows HTTPS and local sources only. `screen` is what the install screen shows (`plugins.md`, Install)' },
   { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{plugin_id, on: boolean}', result: '{enabled}; persists the switch; a disabled plugin contributes no engines, MCP servers or actions to new sessions until it is turned on again' },
@@ -250,22 +250,29 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('core.stop', { needsUi: true, handler: () => { setTimeout(() => ctl.stop(), 10); return {}; } });
 
+  const registerProject = (canonical: string) => {
+    const id = projectId(canonical);
+    const now = nowIso();
+    db.prepare(
+      `INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened, hidden = 0, older = 0`,
+    ).run(id, canonical, path.posix.basename(canonical), now, now);
+    return { project_id: id };
+  };
   m.set('project.open', {
-    handler: async (p) => {
+    handler: (p) => {
       const input = str(p, 'path');
       let canonical: string;
-      try {
-        canonical = await resolveProjectPathAsync(input);
-      } catch {
-        throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`);
-      }
-      const id = projectId(canonical);
-      const now = nowIso();
-      db.prepare(
-        `INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened, hidden = 0, older = 0`,
-      ).run(id, canonical, path.posix.basename(canonical), now, now);
-      return { project_id: id };
+      try { canonical = resolveProjectPath(input); }
+      catch { throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`); }
+      return registerProject(canonical);
+    },
+    asyncHandler: async (p) => {
+      const input = str(p, 'path');
+      let canonical: string;
+      try { canonical = await resolveProjectPathAsync(input); }
+      catch { throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`); }
+      return registerProject(canonical);
     },
   });
 
@@ -297,7 +304,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const parent = str(p, 'parent_id', false) || undefined;
       const caller = parent ? db.prepare('SELECT id FROM session WHERE id = ?').get(parent) as { id: string } | undefined : undefined;
       if (parent && !caller) throw new RpcError(E.NOT_FOUND, 'parent session not found');
-      if (!ctx.ui && parent) {
+      if (!ctx?.ui && parent) {
         const levels = ['ask', 'edits', 'contained', 'isolated'];
         const ceiling = (db.prepare("SELECT json_extract(payload, '$.approval') AS approval FROM event WHERE session_id = ? AND kind = 'core.session-approval' ORDER BY seq DESC LIMIT 1").get(parent) as { approval: string } | undefined)?.approval ?? 'ask';
         if (!requested && levels.indexOf(approval) > levels.indexOf(ceiling)) approval = ceiling === 'ask' || engine.approval_profiles?.[ceiling] ? ceiling : 'ask';
@@ -863,19 +870,19 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('plugin.preview', { handler: (p, ctx) => {
     const source = str(p, 'source');
-    if (!ctx.ui && ((isGitUrl(source) && !isLocalSource(source)) || source.startsWith('claude-marketplace:'))) throw new RpcError(E.NEEDS_UI, 'git plugin previews need a trusted UI connection (ui.hello)');
+    if (!ctx?.ui && (!isLocalSource(source) || source.startsWith('claude-marketplace:'))) throw new RpcError(E.NEEDS_UI, 'git plugin previews need a trusted UI connection (ui.hello)');
     return previewPluginAsync(db, source);
   } });
 
   m.set('plugin.install', {
-    handler: (p) => {
+    handler: async (p) => {
       const approved = p.approved_permissions;
       if (!Array.isArray(approved) || approved.some((x) => typeof x !== 'string')) throw new RpcError(E.INVALID_PARAMS, 'approved_permissions must be an array of strings');
       const secrets = p.secrets ?? {};
       if (typeof secrets !== 'object' || Array.isArray(secrets) || Object.values(secrets).some((v) => typeof v !== 'string')) {
         throw new RpcError(E.INVALID_PARAMS, 'secrets must map names to strings');
       }
-      const r = installPlugin(db, {
+      const r = await installPluginAsync(db, {
         source: str(p, 'source'),
         approved_permissions: approved as string[],
         manifest_hash: str(p, 'manifest_hash', false) || undefined,
@@ -1077,8 +1084,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   const desktop = ctl.desktop ?? new Desktop(db);
   desktop.methods(m);
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValuesAsync, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
-  m.set('approval.check', { handler: (p) => approvals.check(p) });
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, knownSecretValues, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
+  m.set('approval.check', {
+    handler: (p) => approvals.check(p),
+    asyncHandler: async (p) => {
+      try { await scrubSecretValuesAsync(); }
+      catch { return { decision: 'deny', reason: 'a saved browser secret could not be read, so this action cannot be recorded safely' }; }
+      return approvals.check(p);
+    },
+  });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 
   const labelsOf = (id: string) => db.prepare('SELECT l.name, l.colour FROM automation_label a JOIN label l ON l.name = a.name WHERE a.automation_id = ? ORDER BY l.name').all(id) as Array<{ name: string; colour: string }>;

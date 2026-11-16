@@ -7,6 +7,8 @@ import { imageTag, containerRuntime } from './checks.ts';
 import { NETWORK, PROXY } from './build.ts';
 import { spoolDir } from './spool.ts';
 import { EVENTS } from '../hooks/install.ts';
+import { canonical, homeDir } from '../paths.ts';
+import { E, RpcError } from '../pipe/errors.ts';
 
 const fwd = (p: string) => p.split(String.fromCharCode(92)).join('/');
 
@@ -42,6 +44,17 @@ const bind = (src: string, dst: string, ro = false) => ['--mount', `type=bind,so
 
 /** The docker run argv for a sandboxed session, per spec.md "Trooper sandbox host plugin" and the build plan's D2, D6, D7 and D9. */
 export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: string, layout: { gitdir: string; common: string }, inner: string[], runtime = 'docker', env: Record<string, string> = {}): string[] {
+  const coreHome = canonical(homeDir());
+  const inside = (parent: string, child: string) => {
+    const rel = path.relative(parent, child);
+    return rel === '' || (rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel));
+  };
+  for (const source of [worktree, layout.common]) {
+    const mount = canonical(source);
+    if (inside(mount, coreHome)) {
+      throw new RpcError(E.VALIDATION, 'sandbox mount source overlaps the core home');
+    }
+  }
   const home = os.homedir();
   const hooks = path.join(layout.common, 'hooks');
   fs.mkdirSync(hooks, { recursive: true });
