@@ -88,7 +88,7 @@ test('wire-00 exact 73 IPC methods pass with UI authentication; other methods ar
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });
   const decl = extract(/export const UI_METHODS = new Set\([^]*?\n\]\);/).replace('export ', '');
-  vm.runInContext(stripTypeScriptTypes(decl + '\n' + extract(/  on\('call', async[^]*?\n  \}\);/)), c);
+  vm.runInContext(stripTypeScriptTypes(decl + '\n' + extract(/^async function callUi\([^]*?^}/m) + '\n' + extract(/  on\('call', async[^]*?\n  \}\);/)), c);
   assert.deepEqual(Array.from(vm.runInContext('[...UI_METHODS]', c)).sort(), [...expected].sort());
   for (const name of expected) await handler(name, { test: true });
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), expected.map(name => [name, { test: true }, { ui: true }]));

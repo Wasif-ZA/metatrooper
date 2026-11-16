@@ -72,5 +72,5 @@ test('panel local links use xterm ranges, hover underline and the shell project 
   assert.deepEqual(JSON.parse(JSON.stringify(link.range)), { start: { x: 4, y: 2 }, end: { x: 29, y: 2 } });
   assert.equal(link.decorations.underline, true);
   link.activate({});
-  assert.deepEqual(JSON.parse(JSON.stringify(opened)), [['pane.open', { project_id: 'p1', url: 'http://localhost:3000/path' }]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(opened)), [['pane.open', { project_id: 'p1', url: 'http://localhost:3000/path', user_typed: true }]]);
 });
