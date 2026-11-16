@@ -265,7 +265,6 @@ export class PaneManager {
   private panes = new Map<string, Pane>();
   private shown: string | null = null;
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
-  private policyCache = new Map<string, { at: number; hosts: Set<string> }>();
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
@@ -303,24 +302,12 @@ export class PaneManager {
         for (const r of db.prepare("SELECT port FROM session_dev_server WHERE session_id = ? AND status = 'ready'").all(row.session_id) as Array<{ port: number }>) owned.add(Number(r.port));
       } catch {}
     } else if (row) for (const p of typed) owned.add(p);
-    return { ownedPorts: owned, allowHosts: row ? this.allowHosts(row.project_id) : new Set(), lookup: cachedLookup };
+    return { ownedPorts: owned, allowHosts: row ? this.allowHosts() : new Set(), lookup: cachedLookup };
   }
 
-  private allowHosts(projectId: string): Set<string> {
-    const hit = this.policyCache.get(projectId);
-    if (hit && Date.now() - hit.at < 2000) return hit.hosts;
-    const db = this.hooks.db();
+  private allowHosts(): Set<string> {
     const allow = new Set<string>();
-    if (db) {
-      try {
-        const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
-        if (project) {
-          const cfg = JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) as { allow_hosts?: unknown };
-          if (Array.isArray(cfg.allow_hosts)) for (const h of cfg.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
-        }
-      } catch {}
-    }
-    this.policyCache.set(projectId, { at: Date.now(), hosts: allow });
+    for (const h of settings().browser.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
     return allow;
   }
 

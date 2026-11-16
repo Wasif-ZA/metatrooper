@@ -22,6 +22,7 @@ export const DEFAULTS = {
   },
   browser: {
     allow_origins: [] as string[],
+    allow_hosts: [] as string[],
     lent: {} as Record<string, string[]>,
   },
   agent_cursor: {

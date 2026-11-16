@@ -95,9 +95,8 @@ async function paneApprovalsE2e() {
 
     const project = join(iso.home, 'project');
     mkdirSync(project);
-    // The project allows 127.0.0.1, so the fixture page loads before M6-3 session ports exist
-    mkdirSync(join(project, '.troop'));
-    writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_hosts: ['127.0.0.1'] }));
+    // User settings allow the fixture's loopback host.
+    assert.deepEqual((await initPipe.request('settings.set', { key: 'browser.allow_hosts', value: ['127.0.0.1'] })).result, {});
     assert.deepEqual((await initPipe.request('settings.set', { key: 'browser.allow_origins', value: [`http://127.0.0.1:${fixtureServer.port}`, otherOrigin] })).result, {});
     const opened = await initPipe.request('project.open', { path: project });
     const projectId = opened.result.project_id as string;
