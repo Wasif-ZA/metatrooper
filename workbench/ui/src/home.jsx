@@ -21,6 +21,8 @@ import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
 import './frame-ref.css';
 
+let firstRunFired = false;
+
 function WallEmpty() {
   const empty = ui.view === 'wall' && project() && !(ui.snap?.sessions || []).some((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected)) && !shellRows().length;
   return empty ? <div id="wall-empty"><EmptyState title="No agents running" description="Start an agent in this project." actions={<Button label="Start an agent" data-action="launch-menu" />} /></div> : null;
@@ -126,6 +128,10 @@ function StartBox({ ready, strip }) {
     }
     const r = await rpc('session.launch', { project_id: target, engine_id: chosen, ...(text ? { prompt: text } : {}), ...(model.trim() ? { model: model.trim() } : {}), ...(approval !== 'default' ? { approval } : {}) });
     if (!r.result) return;
+    if (ui.snap?.has_sessions === false && !firstRunFired && globalThis.window?.dispatchEvent) {
+      firstRunFired = true;
+      globalThis.window.dispatchEvent(new CustomEvent('cc:first-run-done', { detail: { session_id: r.result.session_id, project_id: target } }));
+    }
     delete ui.drafts['home-task'];
     setTask('');
     save('engine', chosen);

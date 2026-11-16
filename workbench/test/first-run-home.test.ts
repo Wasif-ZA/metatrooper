@@ -462,3 +462,28 @@ test('Home shows with no project: homeView.shown is true and renderStart keeps #
   renderStartFn();
   assert.equal(startEl.hidden, false);
 });
+
+test('cc:first-run-done fires once, on the first successful launch of a fresh home only', async () => {
+  const seen: any[] = [];
+  g.window = new EventTarget();
+  g.window.addEventListener('cc:first-run-done', (e: any) => seen.push(e.detail));
+  try {
+    const start = async () => {
+      const h = harness(Home);
+      h.draw();
+      h.one(label('Task for a new agent')).props.onChange('Build my app');
+      h.draw();
+      await h.one(label('Start')).props.onClick();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    g.ui.snap.has_sessions = true;
+    await start();
+    assert.deepEqual(seen, []);
+    g.ui.snap.has_sessions = false;
+    await start();
+    await start();
+    assert.deepEqual(seen, [{ session_id: 's1', project_id: 'p1' }]);
+  } finally {
+    delete g.window;
+  }
+});
