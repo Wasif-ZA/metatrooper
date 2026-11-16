@@ -1,5 +1,11 @@
 // Engine names and status words. One source for the React screens and the plain-script sidebar (globalThis.ccWords).
 const NAMES = { claude: 'Claude', codex: 'Codex', agy: 'Antigravity', gemini: 'Gemini', copilot: 'Copilot', opencode: 'OpenCode', pi: 'Pi' };
+const DEFAULT_ENGINE_ORDER = ['claude', 'codex', 'gemini', 'agy', 'opencode'];
+
+export function defaultEngine(ready, lastPick) {
+  if (ready.some((e) => e.id === lastPick)) return lastPick;
+  return DEFAULT_ENGINE_ORDER.find((id) => ready.some((e) => e.id === id)) || ready[0]?.id || '';
+}
 
 export function engineName(id) {
   const raw = String(id || '').trim();

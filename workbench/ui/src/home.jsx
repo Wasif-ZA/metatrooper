@@ -15,7 +15,7 @@ import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop } from './words.js';
+import { NOT_SENT, canStop, defaultEngine } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
@@ -88,8 +88,8 @@ const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
 function StartBox({ ready, strip }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
-  const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
-  const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
+  const [engine, setEngine] = useState(defaultEngine(ready, ui.drafts['home-engine'] || load('engine')));
+  const chosen = defaultEngine(ready, engine);
   const [more, setMore] = useState(false);
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');

@@ -6,6 +6,13 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ## [Unreleased]
 
+### Upgrade note
+
+- Each session now gets a launch secret (`TROOP_SESSION_SECRET`), and a child it starts through `troop launch` cannot
+  run with more approval than it has. Sessions started before this upgrade have no secret, so their launches are
+  treated as the user's, as before, until they are restarted. After a core restart a session's old secret no longer
+  works; `troop launch` then fails with "unknown session secret" instead of launching without a parent.
+
 ### Added
 
 Milestone 6 makes MetaTrooper four parts: the wall, browser use, computer use and core services (spec.md D52).

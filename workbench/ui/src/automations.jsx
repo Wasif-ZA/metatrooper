@@ -9,6 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, ProjectIcon, FolderIcon, LaptopIcon, Branch, AddOnsIcon, ChangesIcon, LearnIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
+import { defaultEngine } from './words.js';
 
 /** Delete with a confirm step; `done` runs after the core removed it. */
 function DeleteAutomation({ a, label = 'Delete', done }) {
@@ -48,7 +49,7 @@ export function Automations() {
   };
   useEffect(() => { void load(); }, [pid]);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
-  const engine = form.engine_id || (engines[0] ? engines[0].id : '');
+  const engine = form.engine_id || defaultEngine(engines);
   const ready = Boolean(pid && form.name.trim() && form.runner.trim() && form.script.trim() && form.prompt.trim() && engine && Number.isInteger(form.every_min) && form.every_min >= 1);
   const add = async () => {
     if (!ready || adding) return;
@@ -165,7 +166,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
   const every = !initial?.cron && initial?.every_min ? initial.every_min : null;
   const [form, setForm] = useState({
     icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
-    prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
+    prompt: initial?.prompt || '', approval: initial?.approval || 'ask', engine_id: initial?.engine_id || defaultEngine(engines), labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
   const [picking, setPicking] = useState(false);

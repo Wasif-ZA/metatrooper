@@ -7,6 +7,7 @@ import { holdsStop, nextState, stateChanged } from './state.ts';
 import { getEngine } from '../engines/registry.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
+import { dropSecret } from '../sessions/secret.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 import { limitHit } from '../sessions/limit-resume.ts';
@@ -187,6 +188,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
             const outcome = stopped ? 'cancelled' : proof ? (proof.exit_code === 0 ? 'succeeded' : 'failed') : typeof payload.code === 'number' && payload.code !== 0 ? 'failed' : s.state === 'done' ? 'succeeded' : 'cancelled';
             setOutcome.run(outcome, ev.session_id);
             removeSessionFiles(db, ev.session_id);
+            dropSecret(ev.session_id);
             turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq });
           }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');

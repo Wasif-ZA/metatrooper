@@ -153,6 +153,10 @@ function setHtml(id, html) {
   if (ui.rendered[id] === html) return;
   ui.rendered[id] = html;
   const el = document.getElementById(id);
+  if (id === 'view' && el.querySelector('#hb-note') && !html.includes('id="hb-note"')) {
+    delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
+    ui.hbLine = null;
+  }
   const focused = el.contains(document.activeElement) ? document.activeElement : null;
   const key = focused && focused.dataset ? focused.dataset.key : null;
   const pos = focused && 'selectionStart' in focused ? [focused.selectionStart, focused.selectionEnd] : null;
@@ -375,7 +379,7 @@ async function gitDo(op, arg) {
   if (ui.projectId !== id) return render();
   if (r && r.error) { if (op === 'view') ui.git = { project: id, at: Date.now(), error: r.error }; else toast(r.error, true); }
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
-  if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; clearDrafts('git-msg'); toast('Committed.'); }
+  if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; delete ui.drafts?.['git-msg']; toast('Committed.'); }
   if (op === 'push' && r && !r.error) toast('Pushed.');
   if (op === 'pull' && r && !r.error) toast('Pulled.');
   render();
@@ -414,6 +418,7 @@ function renderGit() {
 }
 
 function refreshHandback() {
+  delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
   ui.handback = undefined;
   ui.hbFile = null;
   ui.hbLine = null;
@@ -769,9 +774,18 @@ function renderDiffTab(sel) {
   if (!ui.sdFile || !(d.files.some((f) => f.path === ui.sdFile) || d.untracked.includes(ui.sdFile))) ui.sdFile = d.files[0] ? d.files[0].path : null;
   const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
+    delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
+    ui.hbLine = null;
     ui.sdKey = want;
     const file = ui.sdFile;
-    void api.sessionDiffFile(sel.id, file, ui.diffScope).then((text) => { if (ui.sdKey === want && ui.sdFile === file) { ui.hbFile = file; ui.hbDiff = text; render(); } });
+    void api.sessionDiffFile(sel.id, file, ui.diffScope).then((text) => {
+      if (ui.sdKey !== want || ui.sdFile !== file) return;
+      delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
+      ui.hbLine = null;
+      ui.hbFile = file;
+      ui.hbDiff = text;
+      render();
+    });
   }
   const chips = d.files.map((f) => `<button class="chip ${ui.sdFile === f.path ? 'on' : ''}" data-action="sd-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></button>`).join('');
   ui.hbFile = ui.sdFile;
@@ -1060,6 +1074,10 @@ async function runPalette(i, enter = false) {
 }
 
 async function openTab(tab) {
+  if (tab !== ui.tab) {
+    delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
+    ui.hbLine = null;
+  }
   if (tab === 'browser' && ui.projectId && !ui.snap.panes.length) {
     const r = await rpc('pane.open', { project_id: ui.projectId });
     if (r.result) ui.paneId = r.result.pane_id;
@@ -1546,7 +1564,7 @@ async function onClick(e) {
       const params = { project_id: ui.projectId, engine_id: ui.startEngine };
       if (task.trim()) params.prompt = task.trim();
       const r = await rpc('session.launch', params);
-      if (r.result) { clearDrafts('start-task'); ui.startEngine = null; await pick(r.result.session_id); }
+      if (r.result) { delete ui.drafts?.['start-task']; ui.startEngine = null; await pick(r.result.session_id); }
       return;
     }
     case 'project':
@@ -1641,6 +1659,7 @@ async function onClick(e) {
       await gitDo('pull');
       return;
     case 'git-file': {
+      delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
       const file = el.dataset.file;
       ui.gitFile = true;
       ui.hbFile = file;
@@ -1652,6 +1671,7 @@ async function onClick(e) {
       return;
     }
     case 'hb-file': {
+      delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
       const file = el.dataset.file;
       ui.gitFile = false;
       ui.hbFile = file;
@@ -1685,11 +1705,12 @@ async function onClick(e) {
       render();
       return;
     case 'hb-line':
+      delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
       ui.hbLine = Number(el.dataset.i);
       render();
       return;
     case 'hb-cancel':
-      clearDrafts('hb-note', 'hb-session');
+      delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
       ui.hbLine = null;
       render();
       return;
@@ -1702,7 +1723,7 @@ async function onClick(e) {
         const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
         if (!r.ok) { toast(r.error, true); return; }
         toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
-        clearDrafts('hb-note', 'hb-session');
+        delete ui.drafts?.['hb-note']; delete ui.drafts?.['hb-session'];
         ui.hbLine = null;
         render();
       });

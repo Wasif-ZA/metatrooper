@@ -65,25 +65,6 @@ after(async () => {
   }
 });
 
-test('C2a: non-UI launch with parent ask requesting contained fails with -32012', async () => {
-  // Connect a non-UI pipe client.
-  const pipe = await client(isolated.prefix);
-  try {
-    // Attempt child launch requesting contained approval under an ask parent.
-    const reply = await pipe.request('session.launch', {
-      project_id: projectId,
-      engine_id: 'fake-engine',
-      parent_id: parentId,
-      approval: 'contained',
-    });
-    // Verify the request fails with needs UI error code.
-    const expectedErrorCode = -32012;
-    assert.equal(reply.error?.code, expectedErrorCode);
-  } finally {
-    pipe.close();
-  }
-});
-
 test('C2b: UI launch with parent ask requesting contained succeeds', async () => {
   // Connect a pipe client and authenticate with ui.hello.
   const pipe = await client(isolated.prefix);

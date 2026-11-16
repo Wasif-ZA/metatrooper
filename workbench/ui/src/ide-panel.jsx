@@ -44,7 +44,7 @@ function make(pid) {
         range: { start: { x: l.start + 1, y }, end: { x: l.end, y } },
         text: l.url,
         decorations: { underline: true, pointerCursor: true },
-        activate: () => { void rpc('pane.open', { project_id: t.pid, url: l.url }); },
+        activate: () => { void rpc('pane.open', { project_id: t.pid, url: l.url, user_typed: true }); },
       })));
     },
   });

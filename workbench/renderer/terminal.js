@@ -45,7 +45,7 @@ const termView = (() => {
   }
 
   async function openLocalLink(url) {
-    const r = await rpc('pane.open', { project_id: ui.projectId, url });
+    const r = await rpc('pane.open', { project_id: ui.projectId, url, user_typed: true });
     if (!r?.result) return;
     ui.paneId = r.result.pane_id;
     ui.urlDraft = null;
