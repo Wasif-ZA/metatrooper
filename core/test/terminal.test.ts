@@ -315,7 +315,7 @@ test('a session core kills raises no failed notice; one that exits non-zero on i
   try {
     const killed = `killed-${randomUUID()}`;
     session(killed);
-    term.open(killed, [process.execPath, '-e', "process.stdout.write('KILL-READY\r\n');setInterval(()=>{},1000)"], moduleHome.home, process.env);
+    term.open(killed, [process.execPath, '-e', "process.stdout.write('KILL-READY\\r\\n');setInterval(()=>{},1000)"], moduleHome.home, process.env);
     await until(async () => (await term.snapshot(killed))?.includes('KILL-READY'));
     term.kill(killed);
     await until(() => !term.has(killed));

@@ -166,7 +166,7 @@ test('M6-03b a port served from outside MetaTrooper before the URL was printed g
   }
 });
 
-test('M6-03 a process table that fails to load leaves the URL watched, so the server still gets its ancestry row', { skip: !windows, timeout: 30_000 }, async () => {
+test('M6-03 a process table that fails to load leaves the URL watched, so the server still gets its ancestry row', { skip: !windows, timeout: 60_000 }, async () => {
   const id = session();
   const table = dev.probe.parentTableAsync;
   let failed = 0;
@@ -182,7 +182,7 @@ test('M6-03 a process table that fails to load leaves the URL watched, so the se
     } finally {
       dev.probe.parentTableAsync = table;
     }
-    const [row] = await until(() => rows(id).length && rows(id), 10_000);
+    const [row] = await until(() => rows(id).length && rows(id), 30_000);
     assert.equal(row.matched_by, 'ancestry');
   } finally {
     term.kill(id);

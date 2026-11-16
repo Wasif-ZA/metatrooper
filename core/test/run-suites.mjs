@@ -7,12 +7,15 @@ import { readFileSync } from 'node:fs';
 const TIMING = [
   ['test/core.test.ts', 'each Claude hook has a median under 250 ms over ten runs'],
   ['test/core.test.ts', 'M1-08 queued commands run in the order they were queued'],
+  ['test/core.test.ts', 'offline CLI rejects focus and engine checks, queues project.open, and replays it on core start'],
   ['test/m6-03-ports.test.ts', 'M6-03a a dev server in the session terminal gets an ancestry row within 2 s'],
   ['test/m6-05-hook-state.test.ts', 'M6-05a a Codex session with -c hooks shows waiting_for_you within 2 s'],
   ['test/m6-06-restart.test.ts', 'M6-06a killing the core brings 4 live sessions back within 30 s'],
   ['test/m6-17-public-api.test.ts', 'session.wait over real pipe returns within 1 s of state change'],
   ['test/m6-17-public-api.test.ts', 'session.wait already in target state returns in under 300 ms'],
   ['test/m6-19-search.test.ts', 'M6-19a a unique marker printed in one of 4 terminals is found case insensitively within 1 s'],
+  ['test/session-owners.test.ts', 'M4-28: an Edit on a file a working session owns prints a warning naming it, an unclaimed file prints nothing, inside the hook budget'],
+  ['test/session-owners.test.ts', 'claims from other repositories never push a still-dirty file out of the owners lookup or the edit warning'],
   ['test/m6-22-watcher.test.ts', 'M6-22a on this desktop: SendKeys from another program raises one item within 1 s'],
 ];
 

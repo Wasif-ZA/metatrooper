@@ -117,8 +117,11 @@ agent session's cwd. Every `{{plugin_dir}}` occurrence within an arg becomes the
 An `mcp` entry with `transport: "http"` has a `url` (https only) instead of a `command`. `auth` is `none`,
 `engine-oauth` (the engine runs the sign-in and keeps the token) or `header`. `headers` maps a header name to a
 value that must contain at least one `${SECRET}`; each `SECRET` needs `secrets:SECRET` in `permissions`, and a
-literal header value fails validation. `writes` is `none`, `project` or `external`; an http server with no
+literal header value fails validation. `writes` is `none`, `project`, `appdata` or `external`; an http server with no
 `writes` counts as `external`.
+
+A stdio server with `writes: appdata` writes only in its own `<cc home>/plugin-data/<plugin id>` folder, supplied as `CC_PLUGIN_DATA`, and attaches to contained, isolated and pipeline sessions.
+The folder is declared only (like `project:write`, Windows does not stop the plugin process writing elsewhere); a junction out of the cc home is refused.
 
 Claude gets `{"type":"http","url":...}` in the per-session file, plus `headersHelper` (the quoted node and shim
 paths, then `headers <plugin id> <server id>`) when the server has `headers`. The shim's `headers` subcommand
@@ -134,7 +137,7 @@ How engines are pointed at the shim (child #13):
 | `mcp_attach.kind` | How |
 |---|---|
 | `claude-mcp-config-flag` | the core writes `~/.metatrooper/mcp/<session id>.json` with one shim entry per server and adds `--mcp-config <file>`; each launch deletes the files of sessions that have exited |
-| `codex-config` | `-c mcp_servers.<plugin>-<server>.command=<node>` and `-c ...args=[<shim>, <plugin>, <server>]` per server; `config.toml` is not edited |
+| `codex-config` | `-c mcp_servers.<plugin>-<server>.command=<node>` and `-c ...args=[<shim>, <plugin>, <server>]` per server; `env_vars` forwards session id, home and pipe prefix for stdio; `config.toml` is not edited |
 | `agy-config`, `env-file`, `none` | not attached yet |
 
 If a secret is missing (no DPAPI blob, or a `${VAR}` not set), the shim does not start the server; it answers

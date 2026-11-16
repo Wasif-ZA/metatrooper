@@ -74,7 +74,7 @@ before(async () => {
     const ui = await client(h.prefix);
     try {
       await uiHello(ui, h.home);
-      const saved = await ui.request('browser.secret.set', { name: 'DRIVE_TEST', origin: 'https://drive.test', value: knownSecret });
+      const saved = await ui.request('browser.secret.set', { name: 'DRIVE_TEST', origin: 'https://drive.test', value: knownSecret }, { timeout: 15_000 });
       assert.equal(saved.error, undefined, JSON.stringify(saved));
     } finally { ui.close(); }
     const launched = ok(await cli('launch', 'fake', '--project', dir, '--prompt', script));

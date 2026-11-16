@@ -10,6 +10,8 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { mcpWrites, type McpSpec } from './manifest.ts';
 import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
+const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
+
 export interface ResolvedServer {
   command: string;
   args: string[];
@@ -57,6 +59,17 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
       out.missing.push(key);
       raiseMissingSecret(db, pluginId, key);
     } else out.env[key] = value;
+  }
+  delete out.env.CC_PLUGIN_DATA;
+  if (mcpWrites(server) === 'appdata') {
+    const dir = path.join(homeDir(), 'plugin-data', pluginId);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      if (!folderInsideHome(dir)) throw new Error('plugin data folder is outside the home');
+      out.env.CC_PLUGIN_DATA = dir;
+    } catch {
+      if (!out.missing.includes('CC_PLUGIN_DATA')) out.missing.push('CC_PLUGIN_DATA');
+    }
   }
   return out;
 }
@@ -191,8 +204,8 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const file = codexConfigFile();
       const user = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(CODEX_BLOCK, '') : '';
       return servers
-        .filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(user))
-        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`]);
+        .filter((s) => !new RegExp(`^\\[\\s*mcp_servers\\s*\\.\\s*(?:${s.name}|"${s.name}"|'${s.name}')\\s*\\]`, 'm').test(user))
+        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`, '-c', `mcp_servers.${s.name}.env_vars=${JSON.stringify(CODEX_ENV_VARS)}`]);
     }
     case 'args-template': {
       const template = engine.mcp_attach.template ?? [];
@@ -233,8 +246,12 @@ export function writeSessionFile(db: DatabaseSync | undefined, sessionId: string
 
 /** True when the file's folder is inside Ouros's home both by name and on disk, so no junction or symlink above it leads elsewhere. */
 function insideHome(file: string): boolean {
+  return folderInsideHome(path.dirname(file));
+}
+
+function folderInsideHome(folder: string): boolean {
   const home = path.resolve(homeDir());
-  const dir = path.resolve(path.dirname(file));
+  const dir = path.resolve(folder);
   const named = path.relative(home, dir);
   if (named.startsWith('..') || path.isAbsolute(named)) return false;
   try {

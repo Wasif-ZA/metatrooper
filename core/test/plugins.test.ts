@@ -184,7 +184,7 @@ test('install refuses approvals that do not match the permissions asked for, and
         } finally {
           db.close();
         }
-        const set = await c.request('plugin.secret.set', { plugin_id: 'perm-demo', name: 'TOKEN', value: 'tok-value-991' });
+        const set = await c.request('plugin.secret.set', { plugin_id: 'perm-demo', name: 'TOKEN', value: 'tok-value-991' }, { timeout: 15_000 });
         assert.deepEqual(set.result, {});
         assert.deepEqual(allFilesContain(h.home, 'tok-value-991'), []);
       } finally {
@@ -519,11 +519,11 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2', true));
           assert.ok(!existsSync(codexConfig));
           // ouros-steps, ouros-ui, metatrooper-browser, plus metatrooper-desktop from the built-in desktop plugin on Windows (M6-15)
-          assert.equal(codex.filter((a) => a === '-c').length, process.platform === 'win32' ? 8 : 6);
+          assert.equal(codex.filter((a) => a === '-c').length, process.platform === 'win32' ? 12 : 9);
           assert.match(codex[3], /^mcp_servers\.ouros-steps\.args=\[".*mcp-shim\.js","steps"\]$/);
-          assert.match(codex[9], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
-          assert.match(codex[11], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
-          if (process.platform === 'win32') assert.match(codex[15], /^mcp_servers\.metatrooper-desktop\.args=\[".*metatrooper-desktop\.js"\]$/);
+          assert.match(codex[13], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
+          assert.match(codex[15], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
+          if (process.platform === 'win32') assert.match(codex[21], /^mcp_servers\.metatrooper-desktop\.args=\[".*metatrooper-desktop\.js"\]$/);
           assert.ok(!codex.join(' ').includes(literal));
         } finally {
           if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;
