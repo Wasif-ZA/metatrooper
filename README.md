@@ -88,7 +88,7 @@ and an agent started in `ask` or `edits`. The engine files are in [`engines/`](e
 [`core/src/engines/registry.ts`](core/src/engines/registry.ts).
 
 The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name
-MetaTrooper. The window's mark says cc; some Settings and Add-ons text still says Ouros.
+MetaTrooper. The window says cc.
 
 ## What's next
 
