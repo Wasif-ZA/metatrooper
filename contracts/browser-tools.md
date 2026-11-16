@@ -344,7 +344,11 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 2. Navigation allowlist: `http:` and `https:` (and `ws:` and `wss:`, checked the same way) to public addresses, plus `http://localhost:<port>` and
    `http://127.0.0.1:<port>` and `http://[::1]:<port>` only for owned ports (D60): a pane a session drives owns the
    ports of that session's `ready` `session_dev_server` rows; a user pane (`session_id` NULL) owns the loopback ports
-   the user typed into its URL box. `browser.allow_hosts` lives in `~/.metatrooper/settings.json` and
+   the user opened through its URL box, a terminal link click (including the Editor terminal), or the native
+   Open link in new pane menu. Explicit URL opens from the window UI pass `user_typed: true`; only the trusted
+   workbench UI call path honours this flag, and only for panes without `agent: true` or a `session_id`.
+   Page `window.open`, restored rows and agent pipe calls never grant typed ports. Grants are held in memory
+   for the pane's lifetime. `browser.allow_hosts` lives in `~/.metatrooper/settings.json` and
    `settings.set` requires a trusted UI connection; `allow_hosts` in `.troop/config.json` is ignored.
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the user's
    `browser.allow_hosts` setting lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
