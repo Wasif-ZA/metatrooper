@@ -138,15 +138,17 @@ const wall = (() => {
     }
     // an open side panel owns the right column, so the other tiles leave it (the sidebar still lists them)
     const rest = document.body.classList.contains('no-split') ? ORDER.filter((id) => !BIG.includes(id)) : [];
-    const C = rest.length || !document.body.classList.contains('no-split') ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
+    const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
+    // only folded bars beside the big tile: a narrow list from the top, the big tile takes the rest
+    const idle = rest.length && !work.length && !open.length;
+    const C = idle ? W - 16 - G - Math.min(360, (W - 16 - G) / 3) : rest.length || !document.body.classList.contains('no-split') ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
-    const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
-    const all = rest.filter((id) => folded(S[id])), cap = Math.max(0, Math.floor((H * 0.5) / (BAR + G)));
+    const all = rest.filter((id) => folded(S[id])), cap = Math.max(0, Math.floor((H * (idle ? 1 : 0.5)) / (BAR + G)));
     // past the cap the last slot counts the rest, so no session leaves the wall unseen
     const bars = all.length > cap ? all.slice(0, Math.max(0, cap - 1)) : all;
     const more = all.length - bars.length;
-    const A = H - (bars.length + (more ? 1 : 0)) * (BAR + G);
+    const A = idle ? -G : H - (bars.length + (more ? 1 : 0)) * (BAR + G);
     const wh = !open.length ? A : !work.length ? 0 : (A - G) * 1.2 / 2.2;
     const row = (list, y, hh) => {
       const cols = Math.min(list.length, Math.max(1, Math.floor((RW + G) / (200 + G)))), rows = Math.ceil(list.length / cols);

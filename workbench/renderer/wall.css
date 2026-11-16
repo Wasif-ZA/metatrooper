@@ -142,7 +142,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 
 .pane.fold .ph:hover { background: var(--canvas-soft); }
 .pane.fold .ph .task { flex: 0 1 auto; max-width: 320px; font-weight: 500; color: var(--body-strong); }
-.pane.fold .ph .fl { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+.pane.fold .ph .tile-last { display: none; }
 .pane.fold :is(.badge, .br, .spk, .eq, .act, .meta, .tile-more) { display: none !important; }
 .pane.done-open .ph { cursor: pointer; }
 .fold-more { position: absolute; border-radius: 0; background: var(--pane); border: 1px solid var(--hairline); color: var(--faint); font: inherit; font-family: var(--mono); font-size: 11px; text-align: left; padding: 0 12px; cursor: pointer; }

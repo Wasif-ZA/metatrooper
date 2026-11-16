@@ -455,10 +455,18 @@ function short(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+const GENERIC_TITLE = /^(claude|codex|gemini|agy|pwsh|powershell|bash|cmd)$/i;
+const PROMPT_LEAD = /^(you are( the| an?)?|please|can you|i want( you)? to|help me( to)?|let'?s)\s+/i;
+const FILLER_TAIL = /\s+(to|for|the|a|an|of|and|in|with|on)$/i;
+
+/** Title, else the prompt's first clause without its role preamble; at most four words. */
 function taskOf(x) {
-  const t = (x.title || '').trim();
-  if (t && !/[\\/]/.test(t)) return t;
-  return x.step_id || openedIn(x);
+  const clean = (s) => String(s || '').replace(/^[\p{S}\p{P}\s]+/u, '').replace(/\s+/g, ' ').trim();
+  let t = clean(x.title);
+  if (!t || /[\\/]/.test(t) || GENERIC_TITLE.test(t)) t = clean(clean(x.prompt).split(/[.:\n]/)[0].replace(PROMPT_LEAD, ''));
+  if (!t) return x.step_id || openedIn(x);
+  t = t.split(' ').slice(0, 4).join(' ').replace(FILLER_TAIL, '');
+  return t[0].toUpperCase() + t.slice(1);
 }
 
 function openedIn(x) {
