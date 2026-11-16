@@ -54,8 +54,8 @@ export function openCoreDb(): DatabaseSync {
     addColumn('session', 'browser_grant', 'TEXT');
     addColumn('session', 'outcome', "TEXT CHECK (outcome IN ('succeeded','failed','cancelled'))");
     addColumn('session', 'prompt', 'TEXT');
-    addColumn('session', 'approval', 'TEXT');
-    addColumn('session', 'priority', "TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent'))");
+      addColumn('session', 'priority', "TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent'))");
+  addColumn('session', 'approval', 'TEXT');
     const hadEst = (db.prepare('PRAGMA table_info(usage)').all() as Array<{ name: string }>).some((c) => c.name === 'usd_estimated');
     addColumn('usage', 'usd_estimated', 'INTEGER NOT NULL DEFAULT 0');
     // Backfill once on first add: every gpt model is priced by the estimated gpt-* fallback.

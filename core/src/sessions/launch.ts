@@ -114,9 +114,9 @@ export function launchSession(
   const launcher = path.join(coreDir, 'launch.js');
   const startedAt = nowIso();
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser_grant, prompt, approval, state, state_at, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, opts.prompt || null, approval, startedAt, startedAt);
+    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser_grant, prompt, state, state_at, started_at, approval)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, opts.prompt || null, startedAt, startedAt, approval);
   db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)').run(id, startedAt, 'starting');
   const block = db.prepare('INSERT OR IGNORE INTO session_block (blocked_id, blocker_id) VALUES (?, ?)');
   for (const b of blockers) block.run(id, b);
