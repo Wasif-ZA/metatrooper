@@ -3,6 +3,8 @@
 Part of Ouros, Milestone 9 (daily driver by 2026-11-16). Priority: Blocker. Effort: 0.5 d. Depends on: M9-06.
 **Lands 2026-11-11. The loop runs every day from 2026-11-16.**
 
+**Update 2026-11-17:** Report issue stays on the public repo. The launch head opens `Wasif-ZA/metatrooper/issues/new?template=bug.yml` (`workbench/src/report-issue.ts:1`, tested in `workbench/test/m9-report-issue.test.ts:9`). The private-repo target below is superseded; read every `metatrooper-private` in this file as the public repo.
+
 ## Source of truth
 
 - Commit `aaba260`: the sidebar row and palette entry open a prefilled issue on `Wasif-ZA/metatrooper-private`. Built, never clicked live.
