@@ -132,6 +132,19 @@ test('the browser pane bounds are reported again once the split panel finishes s
   assert.ok(reported > 0);
 });
 
+test('Wall does not position or fold a terminal lent to Home', () => {
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, remove() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const tile = node(); tile.dataset.lent = 'true';
+  const moved: any[] = [];
+  const tween = (el: any) => { moved.push(el); return { kill() {} }; };
+  const ctx = vm.createContext({ gsap: { to: tween, set: tween, fromTo: tween, delayedCall: tween }, termView: { tile: () => tile }, matchMedia: () => ({ matches: false }), document: { body: node(), querySelector: () => node(), createElement: () => ({ content: { firstChild: node() } }) }, addEventListener() {}, setInterval() {}, innerWidth: 1400, innerHeight: 900 });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.decide([{ id: 'agent', state: 'working' }], null);
+  ctx.wall.apply('single');
+  assert.equal(moved.includes(tile), false);
+  assert.equal(tile.hidden, undefined);
+});
+
 test('keys typed while a tile re-attaches are sent after it reconnects, or reported as dropped', () => {
   const live = shellTile();
   live.send({ op: 'closed' });

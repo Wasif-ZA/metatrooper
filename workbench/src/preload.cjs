@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('troop', {
   pasteImage: (sessionId) => ipcRenderer.invoke('pasteImage', sessionId),
   linkCheck: (sessionId, candidates) => ipcRenderer.invoke('linkCheck', sessionId, candidates),
   openLink: (target, line, col) => ipcRenderer.invoke('openLink', target, line, col),
+  installAgent: (engineId) => ipcRenderer.invoke('agent-install', engineId),
   openFolder: (sessionId) => ipcRenderer.invoke('openFolder', sessionId),
   prMerge: (sessionId) => ipcRenderer.invoke('prMerge', sessionId),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),

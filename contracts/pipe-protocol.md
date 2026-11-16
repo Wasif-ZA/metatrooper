@@ -174,6 +174,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
 | `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
 | `session.read` | `{session_id, lines?}` | {session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted | -32002, -32602 |  |  |
+| `session.chat` | `{session_id, limit?}` | {session_id, engine_id, source: 'transcript'\|'none', waiting, items}: the last `limit` (1 to 500, default 200) chat messages and tool rows, with known secrets redacted | -32002, -32602 |  |  |
 | `session.handoff` | `{session_id}` | {handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} \| null}: the latest handoff by at | -32002, -32602 |  |  |
 | `session.labels-set` | `{session_id, labels: string[]}` | {labels} | -32602, -32002 |  | yes |
 | `session.priority-set` | `{session_id, priority: "none"\|"low"\|"medium"\|"high"\|"urgent"}` | {ok: true} | -32602, -32002 |  | yes |

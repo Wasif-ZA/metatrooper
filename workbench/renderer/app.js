@@ -24,7 +24,7 @@ const ui = {
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: load('split') === '1',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
-  view: ['home', 'ide', 'inbox', 'addons'].includes(load('view')) ? load('view') : 'wall',
+  view: ['wall', 'home', 'ide', 'inbox', 'addons'].includes(load('view')) ? load('view') : 'home',
   localSel: null,
   shells: [],
   shellKinds: [],
@@ -700,6 +700,7 @@ function renderStart() {
   const cards = !engines.length || engines.some((e) => e.light !== 'red') ? '' : `<h3>No agent is ready yet</h3><div class="ecards">${engines.filter((e) => e.install).map((e) => `<div class="ecard">
     <b>${esc(e.id)}</b>${e.fix ? `<p class="fix">${esc(e.fix)}</p>` : ''}
     <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
+    ${e.id === 'claude' || e.id === 'codex' ? `<button class="primary" data-action="install-engine" data-engine="${esc(e.id)}">Install ${esc(e.id)}</button>` : ''}
     <button data-action="check-engines">Check again</button></div>`).join('')}</div>`;
   setHtml('start', `${firstRun}${cards}<h3>Start an agent</h3><ol>
     <li class="${p ? 'done' : ''}">${p ? `Folder: <b>${esc(p.name)}</b> <span class="meta" title="${esc(p.path)}">${esc(shortPath(p.path))}</span>` : '<button class="primary" data-action="open-folder">Open a project folder</button>'}</li>
@@ -1561,6 +1562,12 @@ async function onClick(e) {
         toast('Copied. Run it yourself.');
       }
       return;
+    case 'install-engine': {
+      const r = await api.installAgent(el.dataset.engine);
+      if (r.error) toast(r.error, true);
+      else toast('Installing in a new window. Sign in there, then press Check again.');
+      return;
+    }
     case 'check-engines':
       await rpc('engines.check', {});
       return;

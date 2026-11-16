@@ -50,14 +50,14 @@ async function bundle(contents: string, output: string) {
     });
   }
 }
-await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
+await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export { Chat, useChat } from './src/chat.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
 const screens = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
-const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore, lineageTitle } = screens;
+const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore, lineageTitle, Chat, useChat } = screens;
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'AutomationsPage', 'TemplateCards', 'AutomationEditor', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'TaskPanel', 'RailCard', 'ChatFixture', 'Chat', 'ToolSteps', 'ToolRow', 'EditCard', 'Approval', 'AutomationsPage', 'TemplateCards', 'AutomationEditor', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -313,11 +313,87 @@ test('Home start box appears only with a non-red engine and ends with the Start 
   assert.equal(h.all((n: any) => n.props.keys === 'Ctrl+Enter').length, 0);
 });
 
+test('Home chat renders bubbles, paragraphs, collapsible steps and compact edit cards', async () => {
+  const x = session('chat', 'working', { engine_id: 'claude' });
+  g.ui.snap.projects[0].path = 'C:/project';
+  const chat = { source: 'transcript', engine_id: 'claude', items: [
+    { kind: 'user', text: 'Fix it' }, { kind: 'text', text: 'Checking the tests.' },
+    { kind: 'tool', id: 'a', name: 'Read', label: 'Read app.js', status: 'ok' },
+    { kind: 'tool', id: 'b', name: 'Bash', label: 'Ran npm test', status: 'error' },
+    { kind: 'tool', id: 'c', file: 'C:\\project\\src\\app.js', status: 'ok', preview: { added: 4, removed: 1, lines: [], more: 0 } },
+    { kind: 'tool', id: 'd', file: 'C:\\project\\src\\app.js', status: 'ok', preview: { added: 3, removed: 2, lines: [], more: 0 } },
+  ] };
+  g.ideView = { open: async (rel: string) => calls.push(['open', rel]) };
+  function ChatFixture() { return React.createElement(Chat, { x, chat, openInEditor: async () => calls.push(['editor', x.id]) }); }
+  const h = harness(ChatFixture); const html = h.html();
+  assert.match(html, /ou-hm-user/); assert.match(html, /Checking the tests\./);
+  assert.doesNotMatch(html, /2 steps/); assert.match(html, /<span class="ou-hm-toolverb">Read<\/span> <code>app\.js<\/code>/);
+  assert.match(html, /<span class="ou-hm-toolverb">Ran<\/span> <code>npm test<\/code><\/span><span class="ou-hm-bad">failed/);
+  assert.match(html, /<strong>Edited<\/strong><code[^>]*>C:/); assert.match(html, /Open in IDE/);
+  assert.match(html, /· file \+7 -3/);
+  assert.match(html, /Bash · failed/);
+  const rows = h.all(hasClass('ou-hm-tool'));
+  assert.deepEqual(rows.map((n: any) => n.props['aria-expanded']), [false, true]);
+  assert.equal(h.all(hasClass('ou-hm-chevbox')).length, 2);
+  rows[0].props.onClick({ stopPropagation() {} }); assert.match(h.html(), /Read · finished/);
+  h.all(hasClass('ou-hm-tool'))[0].props.onClick({ stopPropagation() {} }); assert.doesNotMatch(h.html(), /Read · finished/);
+  await h.one(label('Open in IDE')).props.onClick(); await flush();
+  assert.deepEqual(calls, [['editor', 'chat'], ['open', 'src/app.js']]);
+  delete g.ideView;
+});
+
+test('Home chat approvals send Claude keys and report input that was not sent', async () => {
+  const x = session('chat', 'waiting_for_you', { engine_id: 'claude' });
+  const chat = { source: 'transcript', engine_id: 'claude', items: [{ kind: 'tool', id: 'ask', name: 'Bash', label: 'Ran npm test', status: 'waiting' }] };
+  g.troop = { termInput: async (...args: any[]) => { calls.push(['input', ...args]); return false; } };
+  function ChatFixture() { return React.createElement(Chat, { x, chat }); }
+  const h = harness(ChatFixture); assert.match(h.html(), /Allow Claude to run/);
+  await h.one(label('Allow')).props.onClick(); await flush(); h.draw();
+  await h.one(label('Deny')).props.onClick(); await flush();
+  assert.deepEqual(calls.filter((c) => c[0] === 'input'), [['input', 'chat', '1'], ['input', 'chat', '\x1b']]);
+  assert.equal(calls.filter((c) => c[0] === 'toast' && c[2] === true).length, 2);
+  delete g.troop;
+});
+
+test('Home chat without a transcript shows the terminal-only note', () => {
+  function ChatFixture() { return React.createElement(Chat, { x: session('chat', 'working'), chat: { source: 'none', items: [] } }); }
+  assert.match(harness(ChatFixture).html(), /This agent shares no chat record, so cc shows its terminal only\./);
+});
+
+test('Home polls chat every 1.5 seconds, cancels on cleanup and ignores replies from the previous task', async () => {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const previous = internals.H;
+  const originalTimeout = g.setTimeout, originalClear = g.clearTimeout;
+  const effects: Function[] = [], replies: Function[] = [], timers = new Map<number, Function>();
+  let state: any = null, serial = 0;
+  g.rpc = (...args: any[]) => { calls.push(args); return new Promise((resolve) => replies.push(resolve)); };
+  g.setTimeout = (fn: Function, ms: number) => { assert.equal(ms, 1500); timers.set(++serial, fn); return serial; };
+  g.clearTimeout = (id: number) => timers.delete(id);
+  internals.H = { useState: () => [state, (v: any) => { state = typeof v === 'function' ? v(state) : v; }], useEffect: (fn: Function) => effects.push(fn) };
+  try {
+    assert.equal(useChat('first'), null);
+    const stopFirst = effects.shift()!();
+    replies.shift()!({ result: { session_id: 'first', items: [] } }); await flush();
+    assert.equal(state.session_id, 'first'); assert.equal(timers.size, 1);
+    const tick = timers.get(serial)!; timers.delete(serial); tick();
+    stopFirst();
+    assert.equal(useChat('second'), null, 'old chat is hidden during a task change');
+    const stopSecond = effects.shift()!();
+    replies.shift()!({ result: { session_id: 'first', items: [{ kind: 'text', text: 'stale' }] } }); await flush();
+    assert.deepEqual(state.items, []);
+    replies.shift()!({ result: { session_id: 'second', items: [] } }); await flush();
+    assert.equal(state.session_id, 'second');
+    stopSecond(); assert.equal(timers.size, 0);
+    assert.deepEqual(calls, [['session.chat', { session_id: 'first' }, true], ['session.chat', { session_id: 'first' }, true], ['session.chat', { session_id: 'second' }, true]]);
+  } finally { internals.H = previous; g.setTimeout = originalTimeout; g.clearTimeout = originalClear; }
+});
+
 for (const [text, prompt] of [['', undefined], ['   ', undefined], ['  fix fixtures  ', 'fix fixtures']] as const) test('Home launch payload for ' + JSON.stringify(text), async () => {
   g.ui.snap.engines = [{ id: 'engine-a', light: 'green' }, { id: 'engine-b', light: 'yellow' }]; const h = harness(Home); h.draw();
   h.one(label('Task for a new agent')).props.onChange(text); h.one(label('Agent')).props.onChange('engine-b'); h.draw(); await h.one(label('Start')).props.onClick();
-  assert.deepEqual(calls, [['rpc', 'session.launch', prompt === undefined ? { project_id: 'p1', engine_id: 'engine-b' } : { project_id: 'p1', engine_id: 'engine-b', prompt }], ['save', 'engine', 'engine-b'], ['view', 'wall'], ['pick', 'new-session']]);
-  assert.equal(g.ui.drafts['home-task'], undefined);
+  assert.deepEqual(calls, [['rpc', 'session.launch', prompt === undefined ? { project_id: 'p1', engine_id: 'engine-b' } : { project_id: 'p1', engine_id: 'engine-b', prompt }], ['save', 'engine', 'engine-b']]);
+  assert.equal(g.ui.drafts['home-task'], undefined); assert.equal(g.ui.homeSel, 'new-session');
+  h.draw(); assert.equal(g.ui.homeSel, 'new-session', 'selection survives until the launch appears in the snapshot');
 });
 
 test('Home launch without a result preserves the draft and does nothing else', async () => {
@@ -329,7 +405,7 @@ test('Home launch without a result preserves the draft and does nothing else', a
 test('Home launches the ready fallback when a saved engine is unavailable', async () => {
   g.load = () => 'uninstalled'; g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
   const h = harness(Home); h.draw(); assert.equal(h.one(label('Agent')).props.value, 'ready'); await h.one(label('Start')).props.onClick();
-  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'ready' }], ['save', 'engine', 'ready'], ['view', 'wall'], ['pick', 'new-session']]);
+  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'ready' }], ['save', 'engine', 'ready']]);
 });
 
 
@@ -350,7 +426,7 @@ test('Home picks the oldest waiting task, else the newest working one; a picked 
   g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
 });
 
-test('Home task view: prompt bubble, worked line, a collapsed subagents trigger in status colours, the latest line, and waiting-on with Stop; opening lists slim rows with the orchestrator first and steps only after a row is clicked', () => {
+test('Home task view: prompt bubble, worked line, a collapsed subagents trigger in status colours, the chat, and waiting-on with Stop; opening lists slim rows with the orchestrator first and steps only after a row is clicked', () => {
   homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'lead';
   const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
   g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'Okay, splitting the checkout.', steps, prompt: 'Split the checkout', started_at: new Date(Date.now() - 65000).toISOString() }),
@@ -364,7 +440,7 @@ test('Home task view: prompt bubble, worked line, a collapsed subagents trigger 
   assert.doesNotMatch(html, /<h1|ou-hm-crumb/);
   const order = ['aria-label="Alpha: Task lead"', '<div class="ou-hm-user"><p>Split the checkout</p></div>', '<span class="ou-st ou-st-running">Running</span><span class="ou-hm-worktime">for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
     '<span class="ou-st-running">1 running</span>', '<span class="ou-st-done">1 done</span>', '<span class="ou-st-failed">1 failed</span>',
-    '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
+    'Loading chat', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
   assert.doesNotMatch(html.slice(0, html.indexOf('ou-hm-subs')), /1\/2 steps/);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /ou-hm-slimlist|Plan|Build/);
@@ -408,6 +484,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   g.ui.snap.live = [older]; g.ui.snap.sessions = [older, session('kid', 'working', { parent_id: 'older' })];
   g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
   const h = harness(Home); h.draw();
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
   const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid', '<span class="ou-st ou-st-running">Running</span>'].map(at);
@@ -415,7 +492,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
   assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard')), /QZ/, 'the workspace row draws the project icon');
-  assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Keep the retry\?/);
+  assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Answer Task older/);
   assert.deepEqual(calls, []);
 });
 
@@ -678,8 +755,8 @@ test('Home Ctrl+Enter launches the current draft and selected engine like Start'
   await flush(); assert.deepEqual(calls, []); assert.equal(prevented, 0);
   keydown({ key: 'Enter', ctrlKey: true, preventDefault: () => prevented++ }); await flush();
   assert.equal(prevented, 1);
-  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'engine-b', prompt: 'keyboard fixture' }], ['save', 'engine', 'engine-b'], ['view', 'wall'], ['pick', 'new-session']]);
-  assert.equal(g.ui.drafts['home-task'], undefined);
+  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'engine-b', prompt: 'keyboard fixture' }], ['save', 'engine', 'engine-b']]);
+  assert.equal(g.ui.drafts['home-task'], undefined); assert.equal(g.ui.homeSel, 'new-session');
 });
 
 test('Add-ons has a scoped root and plain page and section headings', () => {
@@ -925,6 +1002,7 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead, session('k1', 'working', { parent_id: 'lead' }), session('k2', 'done', { parent_id: 'lead' })];
   g.ui.snap.git = { lead: { branch: 'feat/y', added: 1, deleted: 0, changed: [] } };
   const h = harness(Home); h.draw(); calls.length = 0;
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   h.one(label('Open in editor')).props.onClick({ stopPropagation() {} });
   assert.deepEqual(switched, ['p2']); assert.deepEqual(calls, [['view', 'ide']]);
   g.ui.view = 'home'; h.draw(); calls.length = 0;
@@ -940,17 +1018,17 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   delete g.api.openFolder; g.ui.snap.git = undefined;
 });
 
-test('Home details toggle in the bar hides and shows the details card; the centre takes the full width while it is hidden', () => {
+test('Home details toggle in the bar hides and shows the task panel; the centre takes the full width while it is hidden', () => {
   homeStore.set({ open: [], tick: 0, details: true }); g.ui.homeSel = 'lead';
   const lead = session('lead', 'working'); g.ui.snap.live = [lead]; g.ui.snap.sessions = [lead];
   const h = harness(Home); h.draw();
   const head = () => h.one((n: any) => n.type?.name === 'HeadTitle');
-  assert.equal(head().props.details, true); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
+  assert.equal(head().props.details, true); assert.equal(h.all((n: any) => n.type?.name === 'TaskPanel').length, 1);
   head().props.toggleDetails(); h.draw();
-  assert.equal(head().props.details, false); assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 0);
+  assert.equal(head().props.details, false); assert.equal(h.all((n: any) => n.type?.name === 'TaskPanel').length, 0);
   assert.match(h.html(), /class="ou-home ou-hm ou-hm-solo"/);
   head().props.toggleDetails(); h.draw();
-  assert.equal(h.all((n: any) => n.type?.name === 'RailCard').length, 1);
+  assert.equal(h.all((n: any) => n.type?.name === 'TaskPanel').length, 1);
 });
 
 test('openFolder in main opens the recorded folder of the session and refuses one without a folder', () => {
@@ -966,6 +1044,7 @@ test('Merge confirm calls prMerge for the task and toasts the result', async () 
   g.ui.snap.git = { lead: { branch: 'feat/m', added: 1, deleted: 0, changed: [], pr: { number: 9, state: 'OPEN', url: '', checks: 'pass' } } };
   g.api.prMerge = async (id: string) => { calls.push(['prMerge', id]); return { ok: true }; };
   const h = harness(Home); h.draw(); calls.length = 0;
+  h.one(label('Task panel')).props.onChange('details'); h.draw();
   h.one(label('Merge')).props.onClick({ stopPropagation() {} }); h.draw();
   const dialog = h.one((n: any) => n.props?.title === 'Merge PR #9?');
   await dialog.props.onAction();

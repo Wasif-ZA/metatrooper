@@ -59,6 +59,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.clear-status    {session_id}
   session.owners          {project_id}
   session.read            {session_id, lines?}
+  session.chat            {session_id, limit?}
   session.handoff         {session_id}
   session.labels-set      {session_id, labels: string[]}
   session.priority-set    {session_id, priority: "none"|"low"|"medium"|"high"|"urgent"}

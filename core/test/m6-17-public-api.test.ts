@@ -55,6 +55,7 @@ const EXPECTED_METHODS = [
   'session.clear-status',
   'session.owners',
   'session.read',
+  'session.chat',
   'session.handoff',
   'session.labels-set',
   'session.priority-set',

@@ -16,6 +16,7 @@ import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
+import { parseChat } from './sessions/chat.ts';
 import { beingRemoved } from './worktree.ts';
 import { tx } from './store/db.ts';
 import * as term from './terminal/index.ts';
@@ -108,6 +109,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
+  { name: 'session.chat', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, limit?}', result: "{session_id, engine_id, source: 'transcript'|'none', waiting, items}: the last `limit` (1 to 500, default 200) chat messages and tool rows, with known secrets redacted" },
   { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
   { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
   { name: 'session.priority-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, priority: "none"|"low"|"medium"|"high"|"urgent"}', result: '{ok: true}' },
@@ -615,6 +617,47 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
       const secrets = knownSecretValues();
       return { session_id: id, state: row.state, lines: ((await term.readLines(id, n)) ?? []).map((l) => scrub(l, secrets)) };
+    },
+  });
+
+  m.set('session.chat', {
+    handler: async (p) => {
+      const id = str(p, 'session_id');
+      const limit = p.limit === undefined ? 200 : p.limit;
+      if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 500) throw new RpcError(E.INVALID_PARAMS, 'limit must be a whole number from 1 to 500');
+      const row = db.prepare('SELECT state, engine_id, cwd FROM session WHERE id = ?').get(id) as { state: string; engine_id: string; cwd: string | null } | undefined;
+      if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(id) as { t: unknown } | undefined)?.t;
+      const source = typeof transcript === 'string' && transcript.toLowerCase().endsWith('.jsonl') ? 'transcript' : 'none';
+      let lines: string[] = [];
+      if (source === 'transcript') {
+        try {
+          const file = await fs.promises.open(transcript as string, 'r');
+          try {
+            const size = (await file.stat()).size;
+            const start = Math.max(0, size - 2 * 1024 * 1024);
+            const buffer = Buffer.alloc(size - start);
+            let read = 0;
+            while (read < buffer.length) {
+              const { bytesRead } = await file.read(buffer, read, buffer.length - read, start + read);
+              if (!bytesRead) break;
+              read += bytesRead;
+            }
+            lines = buffer.subarray(0, read).toString('utf8').split('\n');
+            if (start > 0) lines.shift();
+          } finally { await file.close(); }
+        } catch {}
+      }
+      const permission = row.state === 'waiting_for_you'
+        ? db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS tool_use_id FROM event WHERE session_id = ? AND kind = 'claude.PermissionRequest' ORDER BY seq DESC LIMIT 1").get(id) as { tool_use_id: unknown } | undefined
+        : undefined;
+      const { items, waiting } = parseChat(lines, row.state, row.cwd, typeof permission?.tool_use_id === 'string' ? permission.tool_use_id : null);
+      const secrets = knownSecretValues();
+      return { session_id: id, engine_id: row.engine_id, source, waiting, items: items.slice(-limit).map((item) => item.kind === 'tool'
+        ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }),
+          ...(item.preview === undefined ? {} : { preview: { ...item.preview, lines: item.preview.lines.map((line) => ({ ...line, text: scrub(line.text, secrets) })) } }),
+          ...(item.output === undefined ? {} : { output: item.output.map((line) => scrub(line, secrets)) }) }
+        : { ...item, text: scrub(item.text, secrets) }) };
     },
   });
 

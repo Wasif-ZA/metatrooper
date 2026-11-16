@@ -47,7 +47,7 @@ function createHarness() {
       tagName: tag.toUpperCase(),
       className,
       dataset,
-      style: {},
+      style: { removeProperty() {} },
       hidden: false,
       title: '',
       textContent: '',
@@ -142,6 +142,40 @@ function createHarness() {
 
   return { ctx, troop, sentInputs, createdTerms, termView };
 }
+
+test('Home borrows the existing terminal without show moving or dropping it', () => {
+  const h = createHarness();
+  const row = { id: 'agent', state: 'working', engine_id: 'claude' };
+  h.termView.show({ mode: 'single', selected: 'agent', sessions: [row] });
+  const tile = h.termView.tile('agent');
+  const centre = tile.parentNode;
+  const host = h.ctx.document.createElement('div');
+  h.termView.lend('agent', host);
+  assert.equal(tile.parentNode, host);
+  assert.equal(tile.dataset.lent, 'true');
+  h.termView.show({ mode: 'single', selected: 'agent', sessions: [row] });
+  assert.equal(tile.parentNode, host);
+  h.termView.show({ mode: 'single', selected: null, sessions: [] });
+  assert.equal(h.termView.tile('agent'), tile);
+  assert.equal(h.createdTerms.size, 1);
+  h.termView.lend(null);
+  assert.equal(tile.parentNode, centre);
+  assert.equal(tile.dataset.lent, undefined);
+  h.termView.show({ mode: 'single', selected: null, sessions: [] });
+  assert.equal(h.termView.tile('agent'), null);
+});
+
+test('Home can borrow a new terminal and returns the previous tile when the task changes', () => {
+  const h = createHarness();
+  const host = h.ctx.document.createElement('div');
+  h.termView.lend('first', host);
+  const first = h.termView.tile('first');
+  h.termView.lend('second', host);
+  assert.equal(first.parentNode, h.ctx.document.getElementById('centre'));
+  assert.equal(first.dataset.lent, undefined);
+  assert.equal(h.termView.tile('second').parentNode, host);
+  assert.equal(h.createdTerms.size, 2);
+});
 
 test('Shift+Enter in a .shell tile sends escape carriage return', () => {
   const h = createHarness();

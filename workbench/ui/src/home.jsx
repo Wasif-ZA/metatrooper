@@ -6,13 +6,15 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { Chat, useChat } from './chat.jsx';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { NOT_SENT, canStop } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
-import { ExternalLinkIcon } from './icons/screens.jsx';
+import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
 import './frame-ref.css';
 
@@ -27,7 +29,7 @@ export const openNewTask = () => {
   setTimeout(focus, 50);
 };
 
-function Drop({ open, className, children }) {
+export function Drop({ open, className, children }) {
   const ref = useRef(null);
   const kept = useRef(children);
   const first = useRef(true);
@@ -111,10 +113,10 @@ function StartBox({ ready, strip }) {
     delete ui.drafts['home-task'];
     setTask('');
     save('engine', chosen);
-    homeView.set('wall');
     setBranch('');
-    if (target !== ui.projectId) { ui.pendingPick = r.result.session_id; switchProject(target); return; }
-    await pick(r.result.session_id);
+    ui.homeSel = r.result.session_id;
+    homeStore.set({ tick: homeStore.get().tick + 1, selected: r.result.session_id });
+    if (target !== ui.projectId) switchProject(target);
   };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   const proj = projectOf({ project_id: ui.projectId });
@@ -203,7 +205,7 @@ function StatusCounts({ statuses }) {
 const detailOf = (k) => String((settled(k) ? k.reason || k.last_line : k.last_line || k.reason) || '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
 const tipOf = (k) => [nameOf(k), [engineName(k.engine_id), k.model, STATUS_WORD[statusOf(k)], elapsedOf([k])].filter(Boolean).join(' · '), detailOf(k)].filter(Boolean).join('\n');
 
-const press = (fn) => ({
+export const press = (fn) => ({
   role: 'button', tabIndex: 0,
   onClick: (e) => { e.stopPropagation(); fn(); },
   onKeyDown: (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); fn(); } },
@@ -254,6 +256,7 @@ function Trigger({ x, kids, open, toggle }) {
 
 function TaskView({ x, kids, openList, toggle, picked }) {
   const [answer, setAnswer] = useState('');
+  const chat = useChat(x.id);
   const ask = picked && picked !== x && statusOf(picked) === 'waiting' ? picked : statusOf(x) === 'waiting' ? x : null;
   const here = !ask?.project_id || ask.project_id === ui.projectId;
   const send = async () => {
@@ -273,7 +276,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   };
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
-      {x.prompt ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
+      {x.prompt && !chat?.items?.some((item) => item.kind === 'user') ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
           <Status k={x} />
@@ -292,8 +295,8 @@ function TaskView({ x, kids, openList, toggle, picked }) {
             </Drop>
           </div>
         ) : null}
-        {x.last_line || x.reason ? <p className="ou-hm-latest">{x.last_line || x.reason}</p> : null}
-        {ask ? (
+        <Chat x={x} chat={chat} openInEditor={openInEditor} />
+        {ask && !chat?.waiting ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
         {pending.length ? (
@@ -352,6 +355,28 @@ const openInEditor = async (x) => {
   if (target && target !== ui.projectId) switchProject(target);
   homeView.set('ide');
 };
+
+function HomeTerminal({ id }) {
+  const host = useRef(null);
+  useLayoutEffect(() => {
+    termView.lend(id, host.current);
+    return () => termView.lend(null);
+  }, [id]);
+  return <div ref={host} className="ou-hm-term" aria-label="Agent terminal" />;
+}
+
+function TaskPanel({ task, kids }) {
+  const [tab, setTab] = useState('terminal');
+  return <>
+    <SegmentedControl label="Task panel" size="sm" value={tab} onChange={setTab}>
+      <SegmentedControlItem value="terminal" label="Terminal" icon={<TerminalIcon size={14} />} />
+      <SegmentedControlItem value="details" label="Details" icon={<PanelToggle size={14} />} />
+    </SegmentedControl>
+    <div id="home-panel-body" className="ou-hm-panelbody" role="tabpanel" aria-label={tab === 'terminal' ? 'Agent terminal' : 'Task details'}>
+      {tab === 'terminal' ? <HomeTerminal id={task.id} /> : <RailCard sel={task} kids={kids} />}
+    </div>
+  </>;
+}
 
 const openChanges = async (x) => {
   openOnWall(x);
@@ -475,9 +500,12 @@ function HeadTitle({ x, details, toggleDetails }) {
 }
 
 export function Home() {
-  const { open = [], details = true } = homeStore.use();
+  const { open = [], details = true, selected: launched } = homeStore.use();
   const selected = ui.homeSel;
   useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
+  useEffect(() => {
+    if (launched && [...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].some((x) => x.id === launched)) homeStore.set({ selected: null });
+  }, [launched, ui.snap]);
   if (ui.view === 'automations' && project()) return <AutomationsPage />;
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
@@ -500,7 +528,7 @@ export function Home() {
     homeStore.set({ open: cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id] });
   };
   if (task && !selected) ui.homeSel = task.id;
-  if (!task && selected !== '') ui.homeSel = '';
+  if (!task && selected !== '' && selected !== launched) ui.homeSel = '';
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
   const composer = ready.length ? <StartBox ready={ready} strip={Boolean(task)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
@@ -509,12 +537,12 @@ export function Home() {
         {task ? (
           <>
             <HeadTitle x={task} details={details} toggleDetails={() => homeStore.set({ details: !details })} />
-            <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} picked={picked} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
+            <div className="ou-hm-center"><Swap k={task.id}><TaskView key={task.id} x={task} picked={picked} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
             <div className="ou-hm-dock">{composer}</div>
           </>
         ) : <StartState composer={composer} />}
       </div>
-      {task && details ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
+      {task && details ? <aside className="ou-hm-rail"><TaskPanel task={task} kids={kidsOf(task.id)} /></aside> : null}
     </div>
   );
 }
