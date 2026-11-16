@@ -23,11 +23,14 @@ export interface Knobs {
   refreshDelayMs?: number;
   tokenDelayMs?: number;
   jwkNoAlg?: boolean;
+  ec?: boolean;
+  noRefresh?: boolean;
+  revokeDelayMs?: number;
 }
 
 /** A local OIDC provider: discovery, authorize, token (PKCE S256, single-use codes, refresh rotation with reuse detection), jwks, revoke. */
 export async function startMock(knobs: Knobs = {}) {
-  const key = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const key = knobs.ec ? generateKeyPairSync('ec', { namedCurve: 'P-256' }) : generateKeyPairSync('rsa', { modulusLength: 2048 });
   const attacker = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const codes = new Map<string, { challenge: string; method: string; redirect: string; nonce: string; used: boolean }>();
   const live = new Map<string, string>();
@@ -37,7 +40,7 @@ export async function startMock(knobs: Knobs = {}) {
 
   function idToken(nonce: string): string {
     const now = Math.floor(Date.now() / 1000);
-    const alg = knobs.alg ?? 'RS256';
+    const alg = knobs.alg ?? (knobs.ec ? 'ES256' : 'RS256');
     const header = { alg, typ: 'JWT', kid: knobs.kid ?? 'k1' };
     const claims: Record<string, unknown> = {
       iss: knobs.iss ?? issuer, aud: knobs.aud ?? CLIENT_ID, sub: 'user_123', name: 'Test User', email: 'test@example.com',
@@ -48,7 +51,7 @@ export async function startMock(knobs: Knobs = {}) {
     if (alg === 'none') return `${input}.`;
     if (alg === 'HS256') return `${input}.${b64u(createHmac('sha256', CLIENT_ID).update(input).digest())}`;
     const signer: KeyObject = knobs.wrongKey ? attacker.privateKey : key.privateKey;
-    return `${input}.${b64u(sign('sha256', Buffer.from(input), signer))}`;
+    return `${input}.${b64u(sign('sha256', Buffer.from(input), knobs.ec ? { key: signer, dsaEncoding: 'ieee-p1363' } : signer))}`;
   }
 
   function issueRefresh(family: string): string {
@@ -81,7 +84,7 @@ export async function startMock(knobs: Knobs = {}) {
       });
     }
     if (url.pathname === '/jwks') {
-      return json(res, 200, { keys: [{ ...key.publicKey.export({ format: 'jwk' }), kid: 'k1', ...(knobs.jwkNoAlg ? {} : { alg: 'RS256' }), use: 'sig' }] });
+      return json(res, 200, { keys: [{ ...key.publicKey.export({ format: 'jwk' }), kid: 'k1', ...(knobs.jwkNoAlg ? {} : { alg: knobs.ec ? 'ES256' : 'RS256' }), use: 'sig' }] });
     }
     if (url.pathname === '/authorize') {
       const q = url.searchParams;
@@ -112,11 +115,10 @@ export async function startMock(knobs: Knobs = {}) {
         const verifier = form.get('code_verifier') ?? '';
         if (c.method !== 'S256' || b64u(createHash('sha256').update(verifier).digest()) !== c.challenge) return json(res, 400, { error: 'invalid_grant', error_description: 'PKCE check failed' });
         if (form.get('redirect_uri') !== c.redirect) return json(res, 400, { error: 'invalid_grant', error_description: 'redirect_uri mismatch' });
-        return json(res, 200, { access_token: `at_${randomBytes(8).toString('hex')}`, token_type: 'Bearer', expires_in: knobs.accessTtlSec ?? 3600, refresh_token: issueRefresh(randomBytes(4).toString('hex')), id_token: idToken(c.nonce) });
+        return json(res, 200, { access_token: `at_${randomBytes(8).toString('hex')}`, token_type: 'Bearer', expires_in: knobs.accessTtlSec ?? 3600, ...(knobs.noRefresh ? {} : { refresh_token: issueRefresh(randomBytes(4).toString('hex')) }), id_token: idToken(c.nonce) });
       }
       if (grant === 'refresh_token') {
         stats.refreshCalls++;
-        if (knobs.refreshDelayMs) await new Promise((r) => setTimeout(r, knobs.refreshDelayMs));
         const t = form.get('refresh_token') ?? '';
         const family = live.get(t);
         if (!family) {
@@ -129,11 +131,14 @@ export async function startMock(knobs: Knobs = {}) {
         }
         live.delete(t);
         spent.set(t, family);
-        return json(res, 200, { access_token: `at_${randomBytes(8).toString('hex')}`, token_type: 'Bearer', expires_in: knobs.accessTtlSec ?? 3600, refresh_token: issueRefresh(family) });
+        const next = issueRefresh(family);
+        if (knobs.refreshDelayMs) await new Promise((r) => setTimeout(r, knobs.refreshDelayMs));
+        return json(res, 200, { access_token: `at_${randomBytes(8).toString('hex')}`, token_type: 'Bearer', expires_in: knobs.accessTtlSec ?? 3600, refresh_token: next });
       }
       return json(res, 400, { error: 'unsupported_grant_type' });
     }
     if (url.pathname === '/revoke' && req.method === 'POST') {
+      if (knobs.revokeDelayMs) await new Promise((r) => setTimeout(r, knobs.revokeDelayMs));
       const t = form.get('token') ?? '';
       stats.revoked.push(t);
       live.delete(t);

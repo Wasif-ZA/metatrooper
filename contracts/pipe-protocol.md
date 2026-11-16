@@ -151,7 +151,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `label.set` | `{name, colour}` | {name, colour}; creates the label or changes its `#rrggbb` colour | -32602 |  | yes |
 | `cron.next` | `{cron, n?}` | {ok: true, runs: [ISO local, up to n (1-5, default 3)], words} or {ok: false, error}; the scheduler uses the same matcher |  |  |  |
 | `core.stop` | `{}` | {}; the core exits a moment after replying |  |  | yes |
-| `account.state` | `{}` | {state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in |  |  |  |
+| `account.state` | `{}` | {state: "signed_in" \| "signed_out"}; reflects the local sign-in status |  |  |  |
 | `project.open` | `{path}` | {project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` | -32002 | yes |  |
 | `project.clear` | `{project_id}` | {}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused |  |  |  |
 | `project.hide` | `{project_id}` | {}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back | -32002, -32003 |  |  |

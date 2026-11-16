@@ -87,7 +87,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'label.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, colour}', result: '{name, colour}; creates the label or changes its `#rrggbb` colour' },
   { name: 'cron.next', params: '{cron, n?}', result: '{ok: true, runs: [ISO local, up to n (1-5, default 3)], words} or {ok: false, error}; the scheduler uses the same matcher' },
   { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
-  { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
+  { name: 'account.state', params: '{}', result: '{state: "signed_in" | "signed_out"}; reflects the local sign-in status' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
@@ -241,7 +241,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     return ids;
   };
 
-  m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
+  m.set('account.state', { handler: () => ({ state: auth.status().signed_in ? 'signed_in' : 'signed_out' }) });
 
   const startedAt = nowIso();
   const version = String((JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');

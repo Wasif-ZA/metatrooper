@@ -98,13 +98,21 @@ export function status(): AuthStatus {
   } catch { return { signed_in: false }; }
 }
 
-function saveProfile(p: AuthStatus): void {
+function storedConfig(): Config | null {
+  try {
+    const p = JSON.parse(fs.readFileSync(profileFile(), 'utf8'));
+    if (typeof p.issuer !== 'string' || !p.issuer || typeof p.client_id !== 'string' || !p.client_id) return null;
+    return { issuer: endpoint(p.issuer), client_id: p.client_id };
+  } catch { return null; }
+}
+
+function saveProfile(p: AuthStatus, c: Config): void {
   const file = profileFile();
   const tmp = `${file}.${process.pid}.tmp`;
   const { signed_in, ...profile } = p;
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   try {
-    fs.writeFileSync(tmp, JSON.stringify(profile), { mode: 0o600 });
+    fs.writeFileSync(tmp, JSON.stringify({ ...profile, ...c }), { mode: 0o600 });
     if (process.platform !== 'win32') fs.chmodSync(tmp, 0o600);
     fs.renameSync(tmp, file);
   } finally { fs.rmSync(tmp, { force: true }); }
@@ -144,7 +152,7 @@ async function listen(server: Server, ports: number[], signal: AbortSignal): Pro
       if (signal.aborted) { close(server); signal.throwIfAborted(); }
       return (server.address() as { port: number }).port;
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw e;
+      if (!['EADDRINUSE', 'EACCES'].includes((e as NodeJS.ErrnoException).code ?? '')) throw e;
     }
   }
   throw failed(`no free port (tried ${ports.join(', ')})`);
@@ -201,6 +209,15 @@ function access(value: Record<string, unknown>, now: number): { token: string; e
   return { token: value.access_token, expires: now + value.expires_in * 1000 };
 }
 
+async function revoke(token: string, c: Config, d?: Discovery, signal?: AbortSignal): Promise<boolean> {
+  try {
+    d ??= await discover(c, signal ?? AbortSignal.timeout(15_000));
+    if (!d.revocation_endpoint) return false;
+    const r = await fetch(d.revocation_endpoint, { method: 'POST', body: new URLSearchParams({ token, token_type_hint: 'refresh_token', client_id: c.client_id }), signal: signal ?? AbortSignal.timeout(15_000) });
+    return r.ok;
+  } catch { return false; }
+}
+
 /** Signs in with the system browser and a one-use loopback callback. */
 export async function signIn(db: DatabaseSync, deps: AuthDeps = {}): Promise<AuthStatus> {
   pending?.abort(new RpcError(E.INTERRUPTED, 'cancelled: newer sign-in'));
@@ -255,6 +272,7 @@ export async function signIn(db: DatabaseSync, deps: AuthDeps = {}): Promise<Aut
       const code = await Promise.race([callback, aborted]);
       const { response, value } = await tokens(d.token_endpoint, { grant_type: 'authorization_code', code, redirect_uri, client_id: c.client_id, code_verifier: verifier }, signal);
       if (!response.ok) throw failed('token exchange');
+      if (typeof value.refresh_token !== 'string' || !value.refresh_token) throw failed('no refresh token');
       const now = (deps.now ?? Date.now)();
       const p = await claims(value.id_token, d, c, nonce, now, signal);
       const a = access(value, now);
@@ -262,10 +280,12 @@ export async function signIn(db: DatabaseSync, deps: AuthDeps = {}): Promise<Aut
       if (epoch !== generation) throw new RpcError(E.INTERRUPTED, 'cancelled');
       const profile: AuthStatus = { signed_in: true, sub: p.sub as string, signed_in_at: new Date(now).toISOString() };
       for (const key of ['name', 'email', 'picture'] as const) if (typeof p[key] === 'string') profile[key] = p[key];
-      if (typeof value.refresh_token === 'string') setSecret(db, 'core-auth', 'refresh_token', value.refresh_token);
-      else deleteSecret('core-auth', 'refresh_token');
-      try { saveProfile(profile); } catch { clear(); throw failed('profile storage'); }
+      const oldToken = getSecret('core-auth', 'refresh_token');
+      const oldConfig = storedConfig();
+      setSecret(db, 'core-auth', 'refresh_token', value.refresh_token);
+      try { saveProfile(profile, c); } catch { clear(); throw failed('profile storage'); }
       memory = { home: homeDir(), ...a, config: c, discovery: d };
+      if (oldToken && oldConfig) void revoke(oldToken, oldConfig, undefined, AbortSignal.timeout(10_000));
       return status();
     };
     return await Promise.race([flow(), aborted]);
@@ -282,19 +302,23 @@ export async function signIn(db: DatabaseSync, deps: AuthDeps = {}): Promise<Aut
 
 /** Returns the access token, sharing an expired token's refresh request. */
 export async function accessToken(db: DatabaseSync, deps: AuthDeps = {}): Promise<string | null> {
+  const c = storedConfig();
+  if (!c) { clear(); return null; }
   if (!status().signed_in) return null;
   const home = homeDir();
   const now = (deps.now ?? Date.now)();
-  if (memory?.home === home && memory.expires > now + 60_000) return memory.token;
+  if (memory?.home === home && memory.config.issuer === c.issuer && memory.config.client_id === c.client_id && memory.expires > now + 60_000) return memory.token;
   if (refreshing?.home === home && refreshing.generation === generation) return refreshing.promise;
   const epoch = generation;
   const refresh = async () => {
     const token = getSecret('core-auth', 'refresh_token');
     if (!token) return null;
-    const c = memory?.home === home ? { ...memory.config, ...deps } : config(deps);
-    const d = memory?.home === home ? memory.discovery : await discover(c);
-    const { response, value } = await tokens(d.token_endpoint, { grant_type: 'refresh_token', refresh_token: token, client_id: c.client_id });
-    if (epoch !== generation || home !== homeDir()) return null;
+    const d = memory?.home === home && memory.config.issuer === c.issuer && memory.config.client_id === c.client_id ? memory.discovery : await discover(c, AbortSignal.timeout(15_000));
+    const { response, value } = await tokens(d.token_endpoint, { grant_type: 'refresh_token', refresh_token: token, client_id: c.client_id }, AbortSignal.timeout(15_000));
+    if (epoch !== generation || home !== homeDir() || !status().signed_in || getSecret('core-auth', 'refresh_token') !== token) {
+      if (typeof value.refresh_token === 'string' && value.refresh_token) await revoke(value.refresh_token, c, d);
+      return null;
+    }
     if (value.error === 'invalid_grant') { clear(); return null; }
     if (!response.ok) throw failed('refresh');
     const a = access(value, (deps.now ?? Date.now)());
@@ -309,23 +333,15 @@ export async function accessToken(db: DatabaseSync, deps: AuthDeps = {}): Promis
 }
 
 /** Revokes the refresh token when supported and clears local sign-in state. */
-export async function signOut(_db: DatabaseSync, deps: AuthDeps = {}): Promise<{ signed_in: false; revoked: boolean }> {
+export async function signOut(_db: DatabaseSync, _deps: AuthDeps = {}): Promise<{ signed_in: false; revoked: boolean }> {
   pending?.abort(new RpcError(E.INTERRUPTED, 'cancelled: signed out'));
-  const epoch = ++generation;
-  let revoked = false;
+  ++generation;
+  let token: string | null = null;
+  let c: Config | null = null;
   try {
-    if (status().signed_in) {
-      const token = getSecret('core-auth', 'refresh_token');
-      if (token) {
-        const c = memory?.home === homeDir() ? { ...memory.config, ...deps } : config(deps);
-        const signal = AbortSignal.timeout(10_000);
-        const d = memory?.home === homeDir() ? memory.discovery : await discover(c, signal);
-        if (d.revocation_endpoint) {
-          const r = await fetch(d.revocation_endpoint, { method: 'POST', body: new URLSearchParams({ token, token_type_hint: 'refresh_token', client_id: c.client_id }), signal });
-          revoked = r.ok;
-        }
-      }
-    }
-  } catch {} finally { if (epoch === generation) clear(); }
+    token = getSecret('core-auth', 'refresh_token');
+    c = storedConfig();
+  } catch {} finally { clear(); }
+  const revoked = token && c ? await revoke(token, c) : false;
   return { signed_in: false, revoked };
 }

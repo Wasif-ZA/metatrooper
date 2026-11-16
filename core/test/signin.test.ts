@@ -305,3 +305,110 @@ test('signed-out cc over the pipe: auth.status works, sign-in is UI-only, the co
     await teardownCore(child, iso);
   }
 });
+
+const later = () => Date.now() + 2 * 3600_000;
+const freePort = async () => { const s = net.createServer(); await new Promise<void>((r) => s.listen(0, '127.0.0.1', r)); const p = (s.address() as net.AddressInfo).port; await new Promise<void>((r) => s.close(() => r())); return p; };
+
+test('fix 1: refresh and sign out go to the issuer the token came from, never a later setting', async () => {
+  const real = await mock();
+  const evil = await mock();
+  await signIn(db, deps(real, { open: browser().open }));
+  const rt = getSecret('core-auth', 'refresh_token');
+  assert.ok(await accessToken(db, { issuer: evil.issuer, client_id: CLIENT_ID, now: later }));
+  assert.equal(real.stats.refreshCalls, 1);
+  await signOut(db, { issuer: evil.issuer, client_id: CLIENT_ID });
+  assert.equal(evil.stats.tokenCalls, 0);
+  assert.deepEqual(evil.stats.revoked, []);
+  assert.equal(real.stats.revoked.length, 1);
+  assert.notEqual(real.stats.revoked[0], rt, 'the rotated token is the one revoked');
+});
+
+test('fix 1b: after a core restart a changed issuer setting still never receives the token', async () => {
+  const real = await mock();
+  const evil = await mock();
+  await signIn(db, deps(real, { open: browser().open }));
+  const { execFile } = await import('node:child_process');
+  const auth = new URL('../src/auth.ts', import.meta.url).href;
+  const script = `import { DatabaseSync } from 'node:sqlite'; const a = await import(${JSON.stringify(auth)}); const db = new DatabaseSync(':memory:'); const d = { issuer: ${JSON.stringify(evil.issuer)}, client_id: ${JSON.stringify(CLIENT_ID)} }; await a.accessToken(db, { ...d, now: () => Date.now() + 7200000 }).catch(() => {}); await a.signOut(db, d).catch(() => {});`;
+  await new Promise<void>((resolve, reject) => execFile(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, METATROOPER_HOME: home } }, (e) => (e ? reject(e) : resolve())));
+  assert.equal(evil.stats.tokenCalls, 0, 'no refresh sent to the new issuer');
+  assert.deepEqual(evil.stats.revoked, [], 'no revoke sent to the new issuer');
+  assert.equal(real.stats.refreshCalls, 1);
+  assert.equal(real.stats.revoked.length, 1);
+});
+
+test('fix 2: sign out clears at once, even if a sign-in starts while the revoke is in flight', async () => {
+  const m = await mock({ revokeDelayMs: 800 });
+  await signIn(db, deps(m, { open: browser().open }));
+  const out = signOut(db, deps(m));
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(status().signed_in, false);
+  const again = signIn(db, deps(m, { open: () => {} }));
+  const againDone = assert.rejects(again, /cancelled/);
+  await out;
+  assert.equal(status().signed_in, false);
+  assert.ok(!fs.existsSync(refreshFile()));
+  await signOut(db, deps(m));
+  await againDone;
+});
+
+test('fix 3: a refresh that lands after sign out revokes the rotated token instead of dropping it', async () => {
+  const m = await mock({ refreshDelayMs: 600 });
+  await signIn(db, deps(m, { open: browser().open }));
+  const pending = accessToken(db, deps(m, { now: later }));
+  await new Promise((r) => setTimeout(r, 100));
+  await signOut(db, deps(m));
+  assert.equal(await pending, null);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(m.live.size, 0, 'no live refresh token left at the provider');
+  assert.equal(status().signed_in, false);
+});
+
+test('fix 4: an excluded (EACCES) port is skipped like a busy one', async (t) => {
+  const tryPort = (p: number) => new Promise<string>((r) => { const s = net.createServer(); s.once('error', (e: NodeJS.ErrnoException) => r(e.code ?? '')); s.listen(p, '127.0.0.1', () => { s.close(); r('ok'); }); });
+  let denied = 0;
+  for (const p of [5357, 27339, 28385, 28390, 50000, 60740, 60840]) if (await tryPort(p) === 'EACCES') { denied = p; break; }
+  if (!denied) return t.skip('no EACCES port found on this machine');
+  const m = await mock();
+  const free = await freePort();
+  const b = browser();
+  await signIn(db, deps(m, { ports: [denied, free], open: b.open }));
+  assert.equal(port(b.seen[0]), free);
+});
+
+test('fix 5: signing in again revokes the previous refresh token', async () => {
+  const m = await mock();
+  await signIn(db, deps(m, { open: browser().open }));
+  const first = getSecret('core-auth', 'refresh_token');
+  await signIn(db, deps(m, { open: browser().open }));
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(m.stats.revoked.includes(first!));
+  assert.notEqual(getSecret('core-auth', 'refresh_token'), first);
+});
+
+test('fix 6: no refresh token in the answer means no sign-in', async () => {
+  const m = await mock({ noRefresh: true });
+  await assert.rejects(signIn(db, deps(m, { open: browser().open })), /no refresh token/);
+  assert.equal(status().signed_in, false);
+  assert.ok(!fs.existsSync(path.join(home, 'auth', 'profile.json')));
+});
+
+test('ES256 id tokens verify', async () => {
+  const m = await mock({ ec: true });
+  assert.equal((await signIn(db, deps(m, { open: browser().open }))).signed_in, true);
+});
+
+test('the listener is not reachable on a non-loopback address', async (t) => {
+  const ip = Object.values(os.networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;
+  if (!ip) return t.skip('no non-loopback IPv4 address');
+  const m = await mock();
+  let outside: boolean | undefined;
+  const open = (url: string) => {
+    void (async () => {
+      outside = await new Promise<boolean>((r) => { const s = net.connect(port(url), ip); s.once('connect', () => { s.destroy(); r(true); }); s.once('error', () => r(false)); });
+      await fetch(await authorize(url));
+    })();
+  };
+  await signIn(db, deps(m, { open }));
+  assert.equal(outside, false);
+});
