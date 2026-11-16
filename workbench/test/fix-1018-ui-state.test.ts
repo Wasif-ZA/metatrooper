@@ -7,6 +7,10 @@ const src = (f: string) => readFileSync(new URL(`../renderer/${f}`, import.meta.
 const UI_METHODS: Set<string> = new Function(`${readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8').match(/^export const UI_METHODS\s*=\s*new Set\(\[[^]*?\]\);/m)![0].replace(/^export\s+/, '')}; return UI_METHODS;`)();
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
 
+test('settings refresh does not reintroduce the unused firstRun flag', () => {
+  assert.doesNotMatch(readFileSync(new URL('../ui/src/settings.jsx', import.meta.url), 'utf8'), /\bfirstRun\b/);
+});
+
 function makeEl(id = '', tagName = 'DIV'): any {
   const listeners: Record<string, Array<(e: any) => void>> = {};
   const classes = new Set<string>();
