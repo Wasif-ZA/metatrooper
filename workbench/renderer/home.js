@@ -1,7 +1,7 @@
 /* The Home screen: what is happening and what needs you, from the same snapshot the wall draws. */
 globalThis.homeView = (() => {
   const el = () => document.getElementById('home');
-  const shown = () => ui.view === 'home' && Boolean(project());
+  const shown = () => ui.view === 'home';
 
   function greeting() {
     const h = new Date().getHours();

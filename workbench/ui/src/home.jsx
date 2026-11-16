@@ -1,6 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
+import { Heading } from '@astryxdesign/core/Heading';
+import { Layout, LayoutContent, LayoutFooter } from '@astryxdesign/core/Layout';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
@@ -10,7 +13,7 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { Chat, useChat } from './chat.jsx';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, WallIcon as Wall, LearnIcon as Learn, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
+import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
 import { NOT_SENT, canStop } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
@@ -92,6 +95,13 @@ function StartBox({ ready, strip }) {
   const can = ready.find((e) => e.id === chosen)?.approvals || ['ask', 'edits', 'contained'];
   const approval = picked === 'default' || can.includes(picked) ? picked : 'default';
   const [starting, setStarting] = useState(false);
+  const [folderSheet, setFolderSheet] = useState(false);
+  const proj = projectOf({ project_id: ui.projectId });
+  const normalizedPath = (v) => String(v || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const worktrees = normalizedPath(ui.settingsLook?.worktreesRoot);
+  const inWorktree = worktrees && normalizedPath(proj?.path).startsWith(`${worktrees}/`);
+  const defaultApproval = branch.trim() || inWorktree ? 'contained' : ui.settingsLook?.approval || 'contained';
+  const resolvedDefault = defaultApproval !== 'isolated' && can.includes(defaultApproval) ? defaultApproval : 'ask';
   const [models, setModels] = useState({});
   useEffect(() => {
     if (models[chosen] || typeof rpc !== 'function') return;
@@ -100,14 +110,15 @@ function StartBox({ ready, strip }) {
 
   const start = async () => {
     if (starting) return;
+    if (!ui.projectId) { setFolderSheet(true); return; }
     setStarting(true);
-    try { await launch(); } finally { setStarting(false); }
+    try { await launch(ui.projectId); } catch (err) { toast(String(err?.message || err), true); } finally { setStarting(false); }
   };
-  const launch = async () => {
+  const launch = async (projectId) => {
     const text = task.trim();
-    let target = ui.projectId;
+    let target = projectId;
     if (branch.trim()) {
-      const wt = await rpc('worktree.create', { project_id: ui.projectId, branch: branch.trim() });
+      const wt = await rpc('worktree.create', { project_id: projectId, branch: branch.trim() });
       if (!wt.result) return;
       const opened = await rpc('project.open', { path: wt.result.path });
       if (!opened.result) return;
@@ -123,16 +134,28 @@ function StartBox({ ready, strip }) {
     homeStore.set({ tick: homeStore.get().tick + 1, selected: r.result.session_id });
     if (target !== ui.projectId) switchProject(target);
   };
+  const chooseFolder = async (make) => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      const path = make ? await api.makeTaskFolder(task) : await api.pickFolder();
+      if (!path) return;
+      const opened = await rpc('project.open', { path });
+      if (!opened?.result) return;
+      setFolderSheet(false);
+      switchProject(opened.result.project_id);
+      await launch(opened.result.project_id);
+    } catch (err) { toast(String(err?.message || err), true); } finally { setStarting(false); }
+  };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
-  const proj = projectOf({ project_id: ui.projectId });
   const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
   const active = new Map([...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].map((x) => [x.id, x])).values().filter((x) => x.project_id === ui.projectId && ACTIVE_STATES.has(x.state)).toArray().length;
-  return composer({
+  return <>{composer({
     className: 'ou-hm-composerwrap ou-hm-task',
     strip,
     filled: Boolean(task.trim()),
     onKeyDown: (e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } },
-    field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask an agent to do something. @ for files, / for commands" onChange={edit} />,
+    field: <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder={ui.projectId ? 'Ask an agent to do something. @ for files, / for commands' : 'Ask an agent to do something'} onChange={edit} />,
     opts: more ? (
       <div className="ou-composerfoot ou-hm-opts">
         <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
@@ -157,19 +180,35 @@ function StartBox({ ready, strip }) {
     },
     status: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
     context: [
-      { key: 'project', plain: true, icon: folderSmall, node: <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+      { key: 'project', plain: true, icon: folderSmall, node: !ui.projectId ? <span>No folder</span> : <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
       { key: 'machine', icon: laptopSmall, text: 'Local', title: 'Agents run on this computer' },
       branch.trim() || gitBranch ? { key: 'branch', icon: branchSmall, text: branch.trim() ? `${branch.trim()} (new worktree)` : gitBranch } : null,
       { key: 'gap', gap: true },
       { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" placement="above" value={approval} onChange={setApproval}
-        renderValue={() => ACCESS[approval === 'default' ? ui.settingsLook?.approval || 'ask' : approval] || 'Ask first'} options={[
-        { value: 'default', label: `${ACCESS[ui.settingsLook?.approval] || 'Ask first'} (from Settings)` },
-        ...[{ value: 'ask', label: 'Ask first' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto' }].filter((o) => can.includes(o.value)),
+        renderValue={() => ACCESS[approval === 'default' ? resolvedDefault : approval] || 'Ask first'} options={[
+        { value: 'default', label: `${resolvedDefault === 'contained' ? 'Auto: no desktop control' : resolvedDefault === 'ask' ? 'Ask first: allows desktop control' : ACCESS[resolvedDefault]} (default)` },
+        ...[{ value: 'ask', label: 'Ask first: allows desktop control' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto: no desktop control' }].filter((o) => can.includes(o.value)),
       ]} /> },
     ],
-  });
+  })}
+    {!strip && !task.trim() ? <div className="ou-hm-starters">{STARTERS.map(([label, prompt]) => <Button key={label} size="sm" variant="secondary" label={label} onClick={() => { edit(prompt); document.querySelector('#home .ou-hm-task textarea')?.focus(); }} />)}</div> : null}
+    {folderSheet ? <Dialog isOpen onOpenChange={(open) => { if (!starting) setFolderSheet(open); }} width={420} purpose="form" aria-label="Where should the agent work?">
+      <Layout content={<LayoutContent><Heading level={2}>Where should the agent work?</Heading></LayoutContent>}
+        footer={<LayoutFooter><div className="ou-hm-folderactions">
+          <Button variant="ghost" label="Cancel" isDisabled={starting} onClick={() => setFolderSheet(false)} />
+          <Button variant="secondary" label="Choose a folder" isDisabled={starting} onClick={() => void chooseFolder(false)} />
+          <Button label="Make a new folder" isDisabled={starting} onClick={() => void chooseFolder(true)} />
+        </div></LayoutFooter>} />
+    </Dialog> : null}
+  </>;
 }
+
+const STARTERS = [
+  ['Explain this project', 'Explain how this project is laid out and what each part does.'],
+  ['Fix a bug', 'Help me find and fix a bug in this project.'],
+  ['Build a page', 'Build a page for this project. Help me decide what it should include.'],
+];
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
 const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', isolated: 'Full access' };
@@ -316,28 +355,12 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   );
 }
 
-const startIcons = { folder: <FolderAdd size={18} />, clock: <Calendar size={18} />, wall: <Wall size={18} />, book: <Learn size={18} /> };
+export const NEW_USER_HEADING = 'What should an agent do?';
 
 function StartState({ composer }) {
-  const items = [
-    ['folder', 'Import projects', 'Add a folder from this computer', null, 'open-folder'],
-    ['clock', 'Automations', 'Agents that start on a schedule', () => homeView.set('automations')],
-    ['wall', 'Open the Wall', 'Every agent terminal side by side', () => homeView.set('wall')],
-    ['book', 'Learn cc', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
-  ];
   return (
     <div className="ou-hm-start">
-      <h1 className="ou-hm-hello">Pick up where your agents left off</h1>
-      <ul className="ou-hm-startlist">
-        {items.map(([icon, title, sub, run, action]) => (
-          <li key={title}>
-            <button type="button" className="ou-hm-startitem" data-action={action} onClick={run || undefined}>
-              <span className="ou-hm-starticon">{startIcons[icon]}</span>
-              <span className="ou-hm-starttext"><b>{title}</b><span>{sub}</span></span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <h1 className="ou-hm-hello">{ui.snap?.has_sessions === false ? NEW_USER_HEADING : 'Pick up where your agents left off'}</h1>
       {composer}
     </div>
   );
@@ -536,7 +559,7 @@ export function Home() {
   if (task && !selected) ui.homeSel = task.id;
   if (!task && selected !== '' && selected !== launched) ui.homeSel = '';
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
-  const composer = ready.length ? <StartBox ready={ready} strip={Boolean(task)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
+  const composer = ready.length ? <StartBox ready={ready} strip={Boolean(task)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact actions={<div className="ou-hm-starters"><Button size="sm" variant="secondary" label="Check again" onClick={() => void rpc('engines.check', {})} /><Button size="sm" variant="ghost" label="Add-ons" onClick={() => homeView.set('addons')} /></div>} />;
   return (
     <div className={`ou-home ou-hm${task && details ? '' : ' ou-hm-solo'}`}>
       <div className="ou-hm-main">

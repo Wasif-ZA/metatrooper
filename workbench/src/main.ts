@@ -2,6 +2,7 @@ import { createEntry, deleteTarget, inside as fsInside, listDir, openOutside, ra
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
+import { makeTaskFolder } from './task-folder.ts';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -36,7 +37,7 @@ import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { formatComment } from './editor-comment.js';
 import { attachTerm, detachAll, detachTerm, termInput, termResize, type TermMessage } from './terminals.ts';
-import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
+import { activeTheme, DEFAULTS, settings, settingsError } from '../../core/src/settings.ts';
 import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
 import { ghIssues, ghPr, mergePr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
 import { anyOpenSession, crashAction, freshNeeds, watchDb } from './queries.ts';
@@ -386,6 +387,11 @@ function handlers(): void {
     }
   });
 
+  on('makeTaskFolder', (task: unknown) => {
+    if (typeof task !== 'string') throw new Error('Task must be text');
+    return makeTaskFolder(process.env.METATROOPER_NEW_FOLDER_ROOT || path.join(app.getPath('documents'), 'cc'), task);
+  });
+
   on('pickFolder', async () => {
     if (!win) return null;
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
@@ -616,7 +622,7 @@ function handlers(): void {
     void attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), toWindow);
     return { windows_build: windowsBuild() };
   });
-  on('uiSettings', () => ({ approval: settings().sessions.approval, terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()), home: app.getPath('home') }));
+  on('uiSettings', () => ({ approval: settings().sessions.approval, worktreesRoot: path.join(homeDir(), 'worktrees'), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
   on('setTheme', async (name: unknown) => {
     if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);

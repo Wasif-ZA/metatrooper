@@ -689,21 +689,18 @@ function engineTip(e) {
 
 function renderStart() {
   const el = document.getElementById('start');
-  const show = !project() || (!ui.snap.sessions.length && !shellRows().length);
+  const show = ui.view !== 'home' && (!project() || (!ui.snap.sessions.length && !shellRows().length));
   el.hidden = !show;
   document.getElementById('centre').hidden = show;
   if (!show) return;
   const p = project();
   const engines = ui.snap.engines;
-  const firstRun = ui.settingsLook && ui.settingsLook.firstRun ? `<div class="firstrun"><h3>Before each tool call</h3>
-    <button class="primary" data-action="first-approval" data-value="ask">Ask before each tool call (recommended)</button>
-    <button data-action="first-approval" data-value="contained">Auto mode in cc worktrees</button></div>` : '';
   const cards = !engines.length || engines.some((e) => e.light !== 'red') ? '' : `<h3>No agent is ready yet</h3><div class="ecards">${engines.filter((e) => e.install).map((e) => `<div class="ecard">
     <b>${esc(e.id)}</b>${e.fix ? `<p class="fix">${esc(e.fix)}</p>` : ''}
     <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
     ${e.id === 'claude' || e.id === 'codex' ? `<button class="primary" data-action="install-engine" data-engine="${esc(e.id)}">Install ${esc(e.id)}</button>` : ''}
     <button data-action="check-engines">Check again</button></div>`).join('')}</div>`;
-  setHtml('start', `${firstRun}${cards}<h3>Start an agent</h3><ol>
+  setHtml('start', `${cards}<h3>Start an agent</h3><ol>
     <li class="${p ? 'done' : ''}">${p ? `Folder: <b>${esc(p.name)}</b> <span class="meta" title="${esc(p.path)}">${esc(shortPath(p.path))}</span>` : '<button class="primary" data-action="open-folder">Open a project folder</button>'}</li>
     <li>${p ? `Agent: ${engines.map((e) => `<button class="${ui.startEngine === e.id ? 'primary' : ''}" data-action="start-engine" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">${esc(e.id)}</button>`).join(' ')}` : 'Pick an agent'}</li>
     <li>${p ? `Task (optional):<textarea rows="3" id="start-task" data-key="start-task" placeholder="What should it do? Leave empty to just open it."></textarea>
@@ -1576,11 +1573,6 @@ async function onClick(e) {
     case 'check-engines':
       await rpc('engines.check', {});
       return;
-    case 'first-approval': {
-      const r = await api.setApproval(el.dataset.value);
-      if (r && r.ok) { ui.settingsLook.firstRun = false; render(); } else if (r) toast(r.error, true);
-      return;
-    }
     case 'restart-core':
       if (!restartArmed()) { ui.restartAt = Date.now(); render(); setTimeout(render, ARM_MS); return; }
       ui.restartAt = 0;
