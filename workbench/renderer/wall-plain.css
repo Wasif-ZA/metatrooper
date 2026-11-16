@@ -52,8 +52,8 @@
 :root:not([data-look="dither"]) .ph .dot, :root:not([data-look="dither"]) .cdot { display: none !important; }
 :root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr) { height: 24px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
 :root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr):hover { background: var(--canvas-soft); color: var(--ink); }
-:root:not([data-look="dither"]) .ph :is(.tx, .tile-more-toggle) { width: 28px; height: 28px; border-radius: 6px; }
-:root:not([data-look="dither"]) .ph :is(.tx, .tile-more-toggle):hover { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .ph .tx { width: 28px; height: 28px; border-radius: 6px; }
+:root:not([data-look="dither"]) .ph .tx:hover { background: var(--canvas-soft); }
 :root:not([data-look="dither"]) .tile-desk .btn.warn, :root:not([data-look="dither"]) .tile-desk .badge.warn { color: var(--wait); }
 :root:not([data-look="dither"]) .ph .tile-changed { font-family: var(--ui); font-size: 12px; color: var(--body); background: none; border: 0; padding: 0; text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 3px; }
 :root:not([data-look="dither"]) .spk rect { fill: var(--hairline); }
@@ -62,7 +62,7 @@
 :root:not([data-look="dither"]) .pane.fold .ph .r2 { padding: 0; border-bottom: 0; }
 :root:not([data-look="dither"]) .pane.fold .ph .task { font-size: 13px; }
 :root:not([data-look="dither"]) .fold-more { border-style: solid; border-color: var(--hairline); border-radius: 0; font-family: var(--ui); font-size: 12.5px; }
-:root:not([data-look="dither"]) .ph :is(button, .tx, .tile-more-toggle):focus-visible, :root:not([data-look="dither"]) .strip :is(button, .link):focus-visible, :root:not([data-look="dither"]) .sheet :is(button, input, .tab):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:root:not([data-look="dither"]) .ph :is(button, .tx):focus-visible, :root:not([data-look="dither"]) .strip :is(button, .link):focus-visible, :root:not([data-look="dither"]) .sheet :is(button, input, .tab):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* footer strip */
 :root:not([data-look="dither"]) .strip { height: 44px; padding: 0 8px 0 14px; gap: 8px; border-radius: 0; border: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--mute); font-size: 12.5px; }

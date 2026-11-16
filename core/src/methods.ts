@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { knownSecretValues, scrubSecretValuesAsync, setBrowserSecret } from './secrets.ts';
+import { knownSecretValues, scrubSecretValues, scrubSecretValuesAsync, setBrowserSecret } from './secrets.ts';
 import { scrub } from './redact.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
@@ -1088,7 +1088,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   const desktop = ctl.desktop ?? new Desktop(db);
   desktop.methods(m);
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs, knownSecretValues, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValues, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
   m.set('approval.check', {
     handler: (p) => approvals.check(p),
     asyncHandler: async (p) => {

@@ -18,7 +18,7 @@ const label = new Function('selected', 'escapeAttr', 'deskHtml', `${fn('label', 
 function fakeTile() {
   const els = new Map<string, any>();
   const el = (sel: string) => {
-    if (!els.has(sel)) els.set(sel, { textContent: '', className: '', innerHTML: '', hidden: false, dataset: sel === '.tx' ? { action: 'hide' } : {}, classList: { toggle() {} } });
+    if (!els.has(sel)) els.set(sel, { textContent: '', className: '', innerHTML: '', hidden: false, dataset: sel === 'button.tx' ? { action: 'hide' } : {}, classList: { toggle() {} } });
     return els.get(sel);
   };
   return { el: { dataset: {}, classList: { add() {}, toggle() {} }, querySelector: el }, term: { options: {}, write() {} } };
@@ -26,7 +26,7 @@ function fakeTile() {
 
 // counts the tile's elements carrying data-action="hide", shown or not
 const tileHides = (t: any) => {
-  const tx = t.el.querySelector('.tx');
+  const tx = t.el.querySelector('button.tx');
   return (tx.dataset.action === 'hide' ? 1 : 0) + (t.el.querySelector('.tile-previews').innerHTML.match(/data-action="hide"/g) || []).length;
 };
 
@@ -42,13 +42,13 @@ test('M6-27a tile: no hide x while starting, working, waiting_for_you or unknown
     const t = fakeTile();
     label(t, session(state));
     assert.equal(tileHides(t), 0, state);
-    assert.equal(t.el.querySelector('.tx').hidden, true, state);
+    assert.equal(t.el.querySelector('button.tx').hidden, true, state);
   }
   for (const state of SETTLED) {
     const t = fakeTile();
     label(t, session(state));
     assert.equal(tileHides(t), 1, state);
-    assert.equal(t.el.querySelector('.tx').hidden, false, state);
+    assert.equal(t.el.querySelector('button.tx').hidden, false, state);
   }
 });
 
@@ -59,7 +59,7 @@ test('M6-27a tile: a shell keeps its close button in every state', () => {
   for (const state of [...LIVE, ...SETTLED]) {
     const t = fakeTile();
     label(t, session(state, { shell: true }));
-    const tx = t.el.querySelector('.tx');
+    const tx = t.el.querySelector('button.tx');
     assert.equal(tx.hidden, false, state);
     assert.equal(tx.dataset.action, 'shell-close', state);
   }
