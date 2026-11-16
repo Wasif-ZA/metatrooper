@@ -8,6 +8,11 @@ const MONO = "'Cascadia Mono', Consolas, monospace";
 const DITHER_MONO = "'Geist Mono', ui-monospace, Consolas, monospace";
 
 export const DEFAULTS = {
+  auth: {
+    issuer: '',
+    client_id: '',
+    ports: [] as number[],
+  },
   projects: {
     default: '',
   },

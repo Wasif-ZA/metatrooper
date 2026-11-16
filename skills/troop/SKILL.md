@@ -21,6 +21,9 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 
 <!-- methods:start -->
 ```text
+  auth.signIn             {timeout_ms?}
+  auth.status             {}
+  auth.signOut            {}
   core.ping               {}  (stable)
   settings.set            {key, value}
   automation.set          {project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"|"edits"|"contained", id?}

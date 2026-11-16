@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import * as auth from './auth.ts';
 import { DEFAULTS, setSetting, settings } from './settings.ts';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -71,6 +72,9 @@ export interface MethodDecl {
 }
 
 export const METHODS: MethodDecl[] = [
+  { name: 'auth.signIn', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION, E.INTERRUPTED], params: '{timeout_ms?}', result: '{signed_in, sub?, name?, email?, picture?, signed_in_at?}; opens the system browser and waits up to timeout_ms (1000..600000, default 300000); never queued' },
+  { name: 'auth.status', needsUi: true, params: '{}', result: '{signed_in, sub?, name?, email?, picture?, signed_in_at?}; local public profile only; never queued' },
+  { name: 'auth.signOut', needsUi: true, params: '{}', result: '{signed_in: false, revoked}; cancels a pending sign-in, revokes the refresh token when supported and clears local state; never queued' },
   { name: 'core.ping', stable: true, params: '{}', result: '{ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued' },
   { name: 'settings.set', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION], params: '{key, value}', result: '{}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4)' },
   { name: 'automation.set', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"|"edits"|"contained", id?}', result: '{id, next_due}; `approval` is the woken agent\'s approval level (null or missing means ask); `cron` is a 5-field local-time cron that wins over `every_min` (default 60); a non-empty `script` (relative to the project folder) is hashed and pinned on every save, run on schedule, and wakes the engine only when it exits 1; an empty script launches the engine on schedule; unknown labels are created with a default colour' },
@@ -213,6 +217,21 @@ function int(p: Record<string, unknown>, key: string): number {
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
   const m = new Map<string, MethodSpec>();
+  m.set('auth.signIn', {
+    needsUi: true,
+    handler: (p) => {
+      if (Object.keys(p).some((k) => k !== 'timeout_ms') || (p.timeout_ms !== undefined && (typeof p.timeout_ms !== 'number' || !Number.isInteger(p.timeout_ms) || p.timeout_ms < 1000 || p.timeout_ms > 600_000))) throw new RpcError(E.INVALID_PARAMS, 'timeout_ms must be 1000..600000');
+      return auth.signIn(db, { timeout_ms: p.timeout_ms as number | undefined });
+    },
+  });
+  m.set('auth.status', { needsUi: true, handler: (p) => {
+    if (Object.keys(p).length) throw new RpcError(E.INVALID_PARAMS, 'auth.status takes no params');
+    return auth.status();
+  } });
+  m.set('auth.signOut', { needsUi: true, handler: (p) => {
+    if (Object.keys(p).length) throw new RpcError(E.INVALID_PARAMS, 'auth.signOut takes no params');
+    return auth.signOut(db);
+  } });
   const blockerList = (v: unknown): string[] => {
     if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new RpcError(E.INVALID_PARAMS, 'blocker_ids must be an array of strings');
     const ids = [...new Set(v as string[])];
