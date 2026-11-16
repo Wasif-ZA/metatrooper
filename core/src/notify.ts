@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { notifyText } from './redact.ts';
-import { deleteSecret, getSecret, setSecret } from './secrets.ts';
+import { deleteSecret, getSecretAsync, setSecret } from './secrets.ts';
 import { nowIso, ulid } from './time.ts';
 
 export const NOTIFY_PLUGIN = 'core-notify';
@@ -97,7 +97,7 @@ function runCommand(argv: string[], message: string): Promise<string | null> {
 
 /** Sends one item to one sink; null on success, else a short reason that never holds the destination. */
 async function deliver(sink: SinkRow, item: Item): Promise<string | null> {
-  const dest = getSecret(NOTIFY_PLUGIN, secretName(sink.id));
+  const dest = await getSecretAsync(NOTIFY_PLUGIN, secretName(sink.id));
   if (dest === null) return 'destination secret missing';
   const link = `metatrooper://needs-you/${item.id}`;
   const text = notifyText(item.kind, item.text);

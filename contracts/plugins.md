@@ -12,7 +12,7 @@ keeps the core secrets.
 
 ## Install
 
-1. Source: a local folder, or a git URL cloned into `~/.metatrooper/plugins/<id>/`.
+1. Source: a local folder, or an HTTPS or file:// git URL cloned into `~/.metatrooper/plugins/<id>/`.
 2. The manifest is validated. The install screen lists every permission in plain words, every action marked
    `external`, every engine added and every MCP server added. The user approves or cancels. Approved
    permissions are stored in `plugin.permissions`; a later version asking for more permissions needs approval
@@ -22,6 +22,10 @@ keeps the core secrets.
    permissions the user approved (all of them; approval is all or nothing), the preview's `manifest_hash`
    (so what installs is what was shown) and any secret values typed on the screen. A git source is cloned
    into a staging folder under `~/.metatrooper/plugins/` for each call and moved to `<id>/` on install.
+   Previews of remote git URLs and `claude-marketplace:` sources require `ui.hello` and fail with -32012
+   on other connections. Local folder, local git path and `file://` previews do not require `ui.hello`.
+   Clones allow HTTPS and local sources only. Preview git subprocesses and secret cache-miss lookups run
+   asynchronously, so the core continues serving requests and updating its heartbeat while they wait.
 5. An importer is a source too: `claude-import:<plugin folder>`, `codex-import:<config.toml>[;project=<dir>]`,
    `agy-import:<mcp_config.json>[;project=<dir>]`. Its plugin folder is `~/.metatrooper/plugins/<id>/`, holding
    the generated `troop-plugin.json` and `import.json` (source, original path, and for each env key either
