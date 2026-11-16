@@ -136,6 +136,16 @@ function syncPanes(): void {
   } catch {}
 }
 
+/** Applies user-started pane grants from the window UI after the core creates the row. */
+async function callUi(method: string, params: Record<string, unknown>) {
+  const out = await call(method, params, { ui: true });
+  if (method === 'pane.open' && params.user_typed === true && params.agent !== true && !params.session_id && typeof params.url === 'string') {
+    const paneId = out.kind === 'reply' && !out.reply.error ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
+    if (paneId) await panes?.userOpen(paneId, params.url);
+  }
+  return out;
+}
+
 /** How a session's agent cursor looks and moves: agent_cursor settings, reduced motion, its colour and its chip. */
 function cursorLook(sessionId: string): DesktopLook {
   const c = settings().agent_cursor;
@@ -349,7 +359,7 @@ function handlers(): void {
     if (method === 'project.icon-set') return setProjectIcon(params);
     if (method === 'gh.issues') return { kind: 'reply', reply: { id: null, result: await issuesOf((params as { project_id?: unknown } | null)?.project_id) } };
     if (typeof method !== 'string' || !UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${String(method)}` } } };
-    const out = await call(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>, { ui: true });
+    const out = await callUi(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>);
     schedulePush();
     return out;
   });
@@ -886,8 +896,8 @@ function createWindow(): void {
     paneEvent: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('pane-event', ev); },
     note: (paneId, text) => { void call('pane.note', { pane_id: paneId, text }, { ui: true }).then(() => schedulePush()); },
     cursor: cursorLook,
-    openPane: (projectId, url) => {
-      void call('pane.open', { project_id: projectId, url }, { ui: true }).then((out) => {
+    openPane: (projectId, url, userTyped = false) => {
+      void callUi('pane.open', { project_id: projectId, url, ...(userTyped ? { user_typed: true } : {}) }).then((out) => {
         const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
         if (paneId && win && !win.isDestroyed()) win.webContents.send('pane-event', { kind: 'opened', pane_id: paneId });
         schedulePush();
