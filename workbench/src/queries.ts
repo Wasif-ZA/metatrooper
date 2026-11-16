@@ -33,6 +33,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number; icon?: import('./projecticon.ts').ProjectIcon }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; approvals: string[]; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
+  has_sessions?: boolean;
   sessions: Array<{ id: string; project_id: string; steps: Steps; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
@@ -230,6 +231,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     projects,
     engines,
     sessions,
+    has_sessions: Boolean(db.prepare('SELECT 1 FROM session LIMIT 1').get()),
     needs_you,
     approvals,
     grants,
