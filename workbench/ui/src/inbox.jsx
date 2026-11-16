@@ -9,7 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop } from './words.js';
+import { NOT_SENT, canStop, defaultEngine } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
@@ -593,7 +593,7 @@ export function Inbox() {
     const prompt = (subDraft || '').trim();
     if (!prompt || !sessionObj) return;
     setSubDraft(null);
-    const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: engine || (s.engines || [])[0]?.id, prompt, parent_id: sessionObj.id });
+    const r = await rpc('session.launch', { project_id: sessionObj.project_id || ui.projectId, engine_id: engine || defaultEngine((s.engines || []).filter((e) => e.light !== 'red')), prompt, parent_id: sessionObj.id });
     if (r && r.result) toast('Sub-task started');
     else if (inboxStore.get().selectedId === selectedId) setSubDraft(prompt);
   };
