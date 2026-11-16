@@ -17,7 +17,7 @@ export const DEFAULTS = {
     default: '',
   },
   sessions: {
-    approval: 'ask',
+    approval: 'contained',
     ask_paths: [] as string[],
     metarouter: true,
   },
@@ -150,8 +150,7 @@ export function settings(): Settings {
     } catch {}
   }
   const value = merge(DEFAULTS, raw) as Settings;
-  // A settings file from before M5-D6 keeps the old contained default.
-  if (parsed && typeof (raw.sessions as { approval?: unknown } | undefined)?.approval !== 'string') value.sessions.approval = 'contained';
+  if (mtime >= 0 && !parsed) value.sessions.approval = 'ask';
   cache = { mtime, value };
   return value;
 }
@@ -180,10 +179,10 @@ function badTokenAt(text: string): number {
   return Math.max(0, lo - 1);
 }
 
-/** Sets `section.key` in settings.json by writing settings.json.tmp-<pid>, flushing it and renaming it over the file; refuses a file that does not parse. A new file starts with approval ask (M5-D6). */
+/** Sets `section.key` in settings.json by writing settings.json.tmp-<pid>, flushing it and renaming it over the file; refuses a file that does not parse. A new file starts with approval contained. */
 export function setSetting(section: string, key: string, value: unknown): void {
   const file = settingsFile();
-  let raw: Record<string, any> = { sessions: { approval: 'ask' } };
+  let raw: Record<string, any> = { sessions: { approval: 'contained' } };
   if (fs.existsSync(file)) {
     const error = settingsError();
     if (error) throw new Error(error);
