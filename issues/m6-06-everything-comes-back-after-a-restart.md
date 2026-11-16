@@ -9,7 +9,11 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 4.0 
 
 ## Acceptance criteria
 
-- [ ] M6-06a. With 4 live sessions (claude, codex, gemini, a shell), killing the core and the workbench and starting them again brings all 4 back in their tiles, in the same layout, within 30 s, never more than 3 resuming at once.
+- [x] M6-06a. With 4 live sessions (claude, codex, gemini, a shell), killing the core and the workbench and starting them again brings all 4 back in their tiles, in the same layout, within 30 s, never more than 3 resuming at once.
+  Passed 2026-11-17 on launch/cc-1117 f57c4c89, full core suite run 1: core/test/m6-06-restart.test.ts, all four
+  M6-06a tests ("killing the core brings 4 live sessions back within 30 s, never more than 3 starting in any 10 s",
+  "a second core restart while resumes are still queued resumes the rest", and the two pacing tests). The test kills
+  and restarts the core only; the workbench re-layout half is not covered by an automated test.
 - [ ] M6-06b. An engine whose resume fails twice with its `auth_error` output stops being resumed and raises one needs-you item. A session that exited shows its saved last screen.
 
 ## Rules that bind every child

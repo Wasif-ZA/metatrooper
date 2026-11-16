@@ -74,7 +74,7 @@ export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: stri
     ...bind(path.join(worktree, '.git'), `${mapPath(worktree)}/.git`, true),
     ...bind(spoolDir(sessionId), '/troop/spool'),
     ...logins,
-    '-e', `TROOP_SESSION_ID=${sessionId}`, '-e', 'METATROOPER_SPOOL=/troop/spool',
+    '-e', `TROOP_SESSION_ID=${sessionId}`, '-e', 'TROOP_SESSION_SECRET', '-e', 'METATROOPER_SPOOL=/troop/spool',
     '-e', `HTTPS_PROXY=http://${PROXY}:3128`, '-e', `HTTP_PROXY=http://${PROXY}:3128`, '-e', 'NO_PROXY=',
     '-e', `GIT_DIR=${mapPath(layout.gitdir)}`, '-e', `GIT_WORK_TREE=${mapPath(worktree)}`,
     ...Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]),

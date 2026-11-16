@@ -161,6 +161,7 @@ async function main()                {
     try { await request('mcp.missing', { plugin_id: pluginId, names: unsetRefs, token }); } catch {}
   }
   if (missing.length) return refuse(`set ${missing.join(', ')} for ${pluginId}; MCP server ${serverId} did not start`);
+  delete env.TROOP_SESSION_SECRET;
 
   const resolved = resolveCommand(r.command) ?? [r.command];
   const args = r.args.map((a) => (a === '{{cwd}}' ? process.cwd() : a));
