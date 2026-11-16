@@ -227,7 +227,8 @@ const termView = (() => {
       // one re-attach decides it: a live terminal answers with a snapshot, a dead one or an offline core closes again
       if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');
-      const ended = t.el.dataset.state === 'exited' || t.el.dataset.state === 'done';
+      // a re-attach that closes again while the core is online means the session's terminal is gone, not the core
+      const ended = ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
       t.term.write(ended ? '\r\n[session ended]\r\n' : '\r\n[disconnected from the core]\r\n');
       if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
       t.held = undefined;
