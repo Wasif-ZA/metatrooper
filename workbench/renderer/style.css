@@ -251,7 +251,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .git-group { border-top: 1px dotted var(--line); padding-top: 6px; margin-top: 6px; }
 .git-group.shared .toolbar b { color: var(--wait); }
 /* METATROOPER_DEMO=1 hides meters and usage limits for capture */
-.demo #usage, .demo .lfoot { display: none !important; }
+.demo #usage, .demo #frameUsage, .demo .lfoot { display: none !important; }
 .title .branch { display: inline-flex; align-items: center; gap: 5px; color: var(--body-strong); font-size: 12px; }
 .title .branch .s { color: var(--faint); margin-right: 2px; }
 .title .branch:empty { display: none; }

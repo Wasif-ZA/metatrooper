@@ -83,6 +83,22 @@ const termView = (() => {
     return { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: `${t.accent}55` };
   }
 
+  // xterm darkens any cell below this contrast, so dark-theme greys an agent prints stay readable on a light background.
+  const contrast = () => (look.theme.scheme === 'light' ? 4.5 : 1);
+
+  // Measure the expanded row so actions can move back out as soon as they fit.
+  function compactHead(el) {
+    const row = el.querySelector('.r1'), acts = el.querySelector('.ou-ah-acts'), more = el.querySelector('.tile-more'), menu = more?.querySelector?.('menu');
+    if (!row || !acts?.children || !menu?.append) return;
+    if (el.classList.contains('compact-head')) {
+      el.classList.remove('compact-head');
+      more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb)'));
+    }
+    const narrow = row.scrollWidth > row.clientWidth;
+    el.classList.toggle('compact-head', narrow);
+    if (narrow) menu.append(...[...acts.children].filter((n) => n !== more));
+  }
+
   function create(sessionId) {
     const el = document.createElement('div');
     el.className = 'tile pane';
@@ -94,7 +110,7 @@ const termView = (() => {
     // a UI Automation invoke clicks the tile itself, not a point inside it
     el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
-    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme() });
+    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme(), minimumContrastRatio: contrast() });
     const fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
     term.open(body);
@@ -144,7 +160,10 @@ const termView = (() => {
       if (k === 'v') { void paste(); e.preventDefault(); return false; }
       return true;
     });
-    t.sizes = new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); });
+    t.sizes = new ResizeObserver(() => {
+      compactHead(el);
+      clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150);
+    });
     t.sizes.observe(body);
     terms.set(sessionId, t);
     return t;
@@ -155,7 +174,7 @@ const termView = (() => {
     if (!t.el.isConnected || !t.el.offsetWidth || t.el.classList.contains('fold')) return;
     const cell = t.term.element && t.term.element.querySelector('.xterm-rows > div');
     if (t.el.querySelector('.tile-body').clientHeight < (cell ? cell.offsetHeight * 2 : 30)) return;
-    if (t.outside) return;
+    if (t.outside) { try { t.fit.fit(); } catch {} return; }
     if (!t.attached) { t.attached = true; attach(t); t.cols = t.term.cols; t.rows = t.term.rows; return; }
     try { t.fit.fit(); } catch { return; }
     if (t.term.cols === t.cols && t.term.rows === t.rows) return;
@@ -210,7 +229,9 @@ const termView = (() => {
       // one re-attach decides it: a live terminal answers with a snapshot, a dead one or an offline core closes again
       if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');
-      t.term.write('\r\n[disconnected from the core]\r\n');
+      // a re-attach that closes again while the core is online means the session's terminal is gone, not the core
+      const ended = ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
+      t.term.write(ended ? '\r\n[session ended]\r\n' : '\r\n[disconnected from the core]\r\n');
       if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
       t.held = undefined;
       onExit(sessionId);
@@ -284,7 +305,7 @@ const termView = (() => {
     lr.ariaPressed = String(x.limitResume !== false);
     set('.lr', x.limitResume === false ? 'At reset: wait' : 'At reset: go on');
     t.el.classList.toggle('shell', Boolean(x.shell));
-    const tx = t.el.querySelector('.tx');
+    const tx = t.el.querySelector('button.tx');
     // M6-27: no hide on a live agent or one in an unknown state, matching wall.css; a shell keeps its close
     const live = !x.shell && ['starting', 'working', 'waiting_for_you', 'unknown'].includes(x.state);
     tx.hidden = live;
@@ -350,6 +371,7 @@ const termView = (() => {
       t.term.options.fontSize = look.terminal.font_size;
       t.term.options.scrollback = look.terminal.scrollback;
       t.term.options.theme = xtermTheme();
+      t.term.options.minimumContrastRatio = contrast();
       resize(t);
     }
   }

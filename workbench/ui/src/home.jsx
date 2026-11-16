@@ -18,6 +18,11 @@ import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
 import './frame-ref.css';
 
+function WallEmpty() {
+  const empty = ui.view === 'wall' && project() && !(ui.snap?.sessions || []).some((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected)) && !shellRows().length;
+  return empty ? <div id="wall-empty"><EmptyState title="No agents running" description="Start an agent in this project." actions={<Button label="Start an agent" data-action="launch-menu" />} /></div> : null;
+}
+
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
 export const openNewTask = () => {
@@ -507,6 +512,7 @@ export function Home() {
     if (launched && [...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].some((x) => x.id === launched)) homeStore.set({ selected: null });
   }, [launched, ui.snap]);
   if (ui.view === 'automations' && project()) return <AutomationsPage />;
+  if (ui.view === 'wall') { const centre = document.getElementById('centre'); return centre?.nodeType === 1 ? createPortal(<WallEmpty />, centre) : null; }
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
   const live = s.live || [];

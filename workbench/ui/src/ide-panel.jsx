@@ -8,7 +8,7 @@ function look() {
   const l = ui.look || ui.settingsLook || { terminal: {}, theme: {} };
   const t = l.theme || {};
   return {
-    fontFamily: t.font_mono, fontSize: l.terminal?.font_size || 14, letterSpacing: 0, lineHeight: 1.0,
+    fontFamily: t.font_mono, fontSize: l.terminal?.font_size || 14, letterSpacing: 0, lineHeight: 1.0, minimumContrastRatio: t.scheme === 'light' ? 4.5 : 1,
     theme: { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: t.accent ? `${t.accent}55` : undefined },
   };
 }
@@ -32,8 +32,7 @@ function listen() {
 function make(pid) {
   const el = document.createElement('div');
   el.className = 'ou-ip-xterm';
-  const { fontFamily, fontSize, letterSpacing, lineHeight, theme } = look();
-  const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: 10000, fontFamily, fontSize, letterSpacing, lineHeight, theme });
+  const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: 10000, ...look() });
   const fit = new window.FitAddon.FitAddon();
   term.loadAddon(fit);
   const t = { pid, id: null, el, term, fit, cols: 0, rows: 0, opened: false, gone: false };

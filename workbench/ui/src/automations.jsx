@@ -6,7 +6,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon, FolderIcon, LaptopIcon, Branch } from './icons/index.js';
+import { EngineMark, engineName, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, ProjectIcon, FolderIcon, LaptopIcon, Branch, AddOnsIcon, ChangesIcon, LearnIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 import { composer, atRefs } from './composer.jsx';
 
@@ -125,7 +125,12 @@ const filterIcon = <Filter size={14} />;
 
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const EMOJI = ['⚙️', '\u{1F319}', '\u{1F9EA}', '\u{1F4DA}', '\u{1F50D}', '\u{1F41B}', '\u{1F9F9}', '\u{1F4E6}', '\u{1F512}', '\u{1F680}', '\u{1F4CA}', '\u{1F4DD}', '\u{1F514}', '\u{1F9ED}', '\u{1F527}', '✅'];
+const ICONS = { schedule: Schedule, search: Search, addons: AddOnsIcon, changes: ChangesIcon, learn: LearnIcon, run: Run };
+const LEGACY_ICONS = { '\u{1F319}': 'schedule', '\u{1F9EA}': 'run', '\u{1F50D}': 'search', '\u{1F4E6}': 'addons', '\u{1F4DD}': 'changes', '\u{1F9F9}': 'changes' };
+function AutomationIcon({ name, size = 16 }) {
+  const Icon = ICONS[LEGACY_ICONS[name] || name] || Schedule;
+  return <Icon size={size} />;
+}
 
 export function presetOf(cron, every) {
   if (!cron && every) return { preset: 'every', minute: 0, time: '09:00', day: 1 };
@@ -214,8 +219,8 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <div className="ou-ae-row">
           <span className="ou-ae-emoji" onKeyDown={(e) => { if (e.key === 'Escape' && picking) { e.stopPropagation(); closeEmoji(true); } }}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeEmoji(false); }}>
-            <button ref={emojiBtn} type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
-            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); closeEmoji(true); }}>{e}</button>)}</span> : null}
+            <button ref={emojiBtn} type="button" className="ou-ae-emojibtn" aria-label="Pick an icon" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking(!picking)}><AutomationIcon name={form.icon} /></button>
+            {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Icon">{Object.keys(ICONS).map((e) => <button key={e} type="button" role="option" aria-label={e} aria-selected={e === (LEGACY_ICONS[form.icon] || form.icon)} onClick={() => { set('icon')(e); closeEmoji(true); }}><AutomationIcon name={e} /></button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
@@ -298,7 +303,7 @@ function TemplateCards({ onPick }) {
       {TEMPLATES.map((t) => (
         <li key={t.name}>
           <button type="button" className="ou-ap-template" onClick={() => onPick(t)}>
-            <span className="ou-ap-emoji" aria-hidden="true">{t.icon}</span>
+            <span className="ou-ap-emoji" aria-hidden="true"><AutomationIcon name={t.icon} /></span>
             <span className="ou-ap-ttext"><b>{t.name}</b><span>{t.prompt}</span></span>
           </button>
         </li>
@@ -371,7 +376,7 @@ export function AutomationsPage() {
       <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" aria-label={`Edit ${a.name}`} onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setEditing(a); } }}>
         <span className="ou-ap-itop">
-          <span className="ou-ap-emoji" aria-hidden="true">{a.icon || <Schedule size={16} />}</span>
+          <span className="ou-ap-emoji" aria-hidden="true"><AutomationIcon name={a.icon} /></span>
           <span className="ou-ap-name">{a.name}</span>
           {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
           <span className="ou-ap-gap" />

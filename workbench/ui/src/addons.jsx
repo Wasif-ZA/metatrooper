@@ -49,7 +49,7 @@ function card(it, open, toggle, remove) {
   const shown = open ? perms : perms.slice(0, 3);
   return (
     <article key={`${it.kind}:${it.id}`} className={open ? 'ou-acard ou-acard-open' : 'ou-acard'}>
-      <span className="ou-acard-tile">{p ? <Ic.AddOnsIcon size={18} /> : <Sc.TerminalIcon size={18} />}</span>
+      <span className="ou-acard-tile">{p ? <Ic.AddOnsIcon size={18} /> : <Ic.EngineMark id={e.id} size={18} />}</span>
       <div className="ou-acard-name"><b>{it.id}</b><span>{source}</span></div>
       <div className="ou-acard-slot">
         {p ? <><Switch size="sm" label={`${p.id} is ${p.enabled ? 'on' : 'off'}`} isLabelHidden value={!!p.enabled} data-id={p.id} onChange={(on) => void setEnabled(p.id, on)} /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
@@ -147,7 +147,7 @@ export function Addons() {
       {adding ? <PluginInstall onClose={(done) => { setAdding(false); if (done) retry(); }} /> : null}
       <AlertDialog isOpen={going !== null} onOpenChange={(isOpen) => { if (!isOpen) setGoing(null); }} title={`Remove ${going || 'this plugin'}?`} description="Its tools stop for new sessions. Open sessions keep what they started with." actionLabel="Remove" actionVariant="destructive"
         onAction={async () => { const id = going; setGoing(null); const r = await rpc('plugin.remove', { plugin_id: id }); if (r.result) { toast(`Removed ${id}`); retry(); } }} />
-      <Text as="p" color="secondary">Install or remove a plugin from a terminal: <Code>troop plugin install &lt;folder or URL&gt;</Code>, <Code>troop plugin remove &lt;id&gt;</Code>. cc shows what a plugin may do before it installs.</Text>
+      <Text as="p" color="secondary">Add add-on installs a plugin from a folder or git URL. cc shows what a plugin may do before it installs.</Text>
     </div>
   );
 }

@@ -399,7 +399,7 @@ function renderGit() {
   const n = g.staged.length;
   const history = (g.log || '').split('\n').filter(Boolean).map((l) => { const [subject, when] = l.split('\t'); return `<div class="git-hist"><span class="grow">${esc(subject)}</span><span class="meta">${esc(when || '')}</span></div>`; }).join('');
   return `<div class="panel">
-    <div class="git-sync"><div class="toolbar"><h3 style="margin:0" class="grow">${esc(g.branch)}</h3><span class="meta">${g.ahead || g.behind ? `${[g.ahead && `${g.ahead} ahead`, g.behind && `${g.behind} behind`].filter(Boolean).join(', ')} origin` : 'up to date with origin'}</span></div>
+    <div class="git-sync"><div class="toolbar"><h3 style="margin:0" class="grow">${esc(g.branch)}</h3><span class="meta">${g.upstream === null ? 'no remote' : g.ahead || g.behind ? `${[g.ahead && `${g.ahead} ahead`, g.behind && `${g.behind} behind`].filter(Boolean).join(', ')} origin` : 'up to date with origin'}</span></div>
       <div class="actions"><button class="btn${g.ahead ? ' acc' : ''}" data-action="git-push" ${busy || (g.ahead ? '' : 'disabled')}>${ui.gitBusy === 'push' ? 'Pushing' : `Push${g.ahead ? ` ${g.ahead} commit${g.ahead === 1 ? '' : 's'}` : ''}`}</button>
         <button class="btn" data-action="git-pull" ${busy || (g.behind ? '' : 'disabled')} title="Bring in commits from origin">${ui.gitBusy === 'pull' ? 'Pulling' : `Pull${g.behind ? ` ${g.behind} commit${g.behind === 1 ? '' : 's'}` : ''}`}</button></div></div>
     <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button class="btn sm" data-action="git-stage" data-file="" ${busy}>Stage all</button>` : ''}</div>
@@ -774,7 +774,7 @@ function renderDiffTab(sel) {
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
     const file = ui.sdFile;
-    void api.sessionDiffFile(sel.id, file, ui.diffScope).then((text) => { if (ui.sdFile === file) { ui.hbFile = file; ui.hbDiff = text; render(); } });
+    void api.sessionDiffFile(sel.id, file, ui.diffScope).then((text) => { if (ui.sdKey === want && ui.sdFile === file) { ui.hbFile = file; ui.hbDiff = text; render(); } });
   }
   const chips = d.files.map((f) => `<button class="chip ${ui.sdFile === f.path ? 'on' : ''}" data-action="sd-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></button>`).join('');
   ui.hbFile = ui.sdFile;
@@ -1299,6 +1299,9 @@ function setView() {
 function switchProject(id) {
   for (const key of ['comment-note', 'comment-session', 'hb-note', 'hb-session']) delete ui.drafts?.[key];
   ui.projectId = id;
+  ui.sdiff = null;
+  ui.sdFile = null;
+  ui.sdKey = null;
   ui.handback = undefined;
   ui.hbFile = null;
   ui.hbDiff = undefined;
@@ -1990,6 +1993,7 @@ document.addEventListener('drop', async (e) => {
   toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}` : r.error, !r.ok);
 });
 document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return;
   const palette = !document.getElementById('palette').hidden;
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if (globalThis.paletteView) paletteView.toggle(); else if (palette) closePalette(); else openPalette(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setMode(ui.mode === 'grid' ? 'single' : 'grid'); return; }

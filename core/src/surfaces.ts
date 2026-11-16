@@ -12,7 +12,7 @@ export interface UiResult { surface: string; status: 'drawn' | 'partly' | 'rejec
 export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiResult {
   const sessionId = typeof p.session_id === 'string' ? p.session_id : '';
   const row = sessionId ? (db.prepare('SELECT project_id FROM session WHERE id = ?').get(sessionId) as { project_id: string } | undefined) : undefined;
-  if (!row) throw new RpcError(E.NOT_FOUND, 'session not found; ouros_ui can only be called from an Ouros session');
+  if (!row) throw new RpcError(E.NOT_FOUND, 'session not found; ouros_ui can only be called from a cc session');
   const surface = p.surface;
   if (typeof surface !== 'string' || !ID.test(surface)) throw new RpcError(E.INVALID_PARAMS, 'surface must be 1 to 64 letters, digits, dots, dashes or underscores');
   const zone = p.zone === undefined ? 'tab' : p.zone;

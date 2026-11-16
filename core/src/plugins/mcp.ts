@@ -234,11 +234,11 @@ export function writeSessionFile(db: DatabaseSync | undefined, sessionId: string
   if (!db) return fs.writeFileSync(file, text);
   const list = recordedFiles(db, sessionId);
   const owned = list.includes(file);
-  if (!insideHome(file)) throw new Error(`${file} is not inside Ouros's home`);
+  if (!insideHome(file)) throw new Error(`${file} is not inside cc's home`);
   try {
     fs.writeFileSync(file, text, { flag: owned ? 'w' : 'wx' });
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`${file} already exists and Ouros did not write it; move it away and start the session again`);
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`${file} already exists and cc did not write it; move it away and start the session again`);
     throw e;
   }
   if (!owned) db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(`session_files:${sessionId}`, JSON.stringify([...list, file]));
