@@ -157,7 +157,7 @@ function setHtml(id, html) {
   const key = focused && focused.dataset ? focused.dataset.key : null;
   const pos = focused && 'selectionStart' in focused ? [focused.selectionStart, focused.selectionEnd] : null;
   el.innerHTML = html;
-  for (const d of el.querySelectorAll('[data-key]')) if (d.dataset.key in ui.drafts) d[d.type === 'checkbox' ? 'checked' : 'value'] = ui.drafts[d.dataset.key];
+  for (const d of el.querySelectorAll('[data-key]')) if (d.dataset.key !== 'url' && d.dataset.key !== 'find' && d.dataset.key in ui.drafts) d[d.type === 'checkbox' ? 'checked' : 'value'] = ui.drafts[d.dataset.key];
   if (key) {
     const again = el.querySelector(`[data-key="${CSS.escape(key)}"]`);
     if (again) {
@@ -165,6 +165,10 @@ function setHtml(id, html) {
       if (pos && 'setSelectionRange' in again) try { again.setSelectionRange(pos[0], pos[1]); } catch {}
     }
   }
+}
+
+function clearDrafts(...keys) {
+  for (const key of keys) delete ui.drafts[key];
 }
 
 function project() {
@@ -356,7 +360,7 @@ function renderDiff() {
       <label>Line</label><div class="meta">${esc(ui.hbFile)}:${picked.line}${picked.kind === 'del' ? ' (removed line, old numbering)' : ''}</div>
       <label>Note</label><textarea rows="2" id="hb-note" data-key="hb-note"></textarea>
       <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(sessionLabel(x))}</option>`).join('')}</select>
-      <span></span><div><button class="primary" data-action="hb-send" ${sessions.length ? '' : 'disabled'}>Send</button> ${sessions.length ? '' : '<span class="meta">No live session to send to.</span>'}</div>
+      <span></span><div><button class="primary" data-action="hb-send" ${sessions.length ? '' : 'disabled'}>Send</button> <button data-action="hb-cancel">Cancel</button> ${sessions.length ? '' : '<span class="meta">No live session to send to.</span>'}</div>
     </div>` : '';
   return `<div class="diff">${rows}</div>${form}`;
 }
@@ -371,7 +375,7 @@ async function gitDo(op, arg) {
   if (ui.projectId !== id) return render();
   if (r && r.error) { if (op === 'view') ui.git = { project: id, at: Date.now(), error: r.error }; else toast(r.error, true); }
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
-  if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
+  if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; clearDrafts('git-msg'); toast('Committed.'); }
   if (op === 'push' && r && !r.error) toast('Pushed.');
   if (op === 'pull' && r && !r.error) toast('Pulled.');
   render();
@@ -1293,6 +1297,7 @@ function setView() {
 
 // Opens the browser split on the open run's panes: all of them when the run is opened, then each new one as it appears.
 function switchProject(id) {
+  for (const key of ['comment-note', 'comment-session', 'hb-note', 'hb-session']) delete ui.drafts?.[key];
   ui.projectId = id;
   ui.handback = undefined;
   ui.hbFile = null;
@@ -1541,7 +1546,7 @@ async function onClick(e) {
       const params = { project_id: ui.projectId, engine_id: ui.startEngine };
       if (task.trim()) params.prompt = task.trim();
       const r = await rpc('session.launch', params);
-      if (r.result) { ui.startEngine = null; await pick(r.result.session_id); }
+      if (r.result) { clearDrafts('start-task'); ui.startEngine = null; await pick(r.result.session_id); }
       return;
     }
     case 'project':
@@ -1688,6 +1693,11 @@ async function onClick(e) {
       ui.hbLine = Number(el.dataset.i);
       render();
       return;
+    case 'hb-cancel':
+      clearDrafts('hb-note', 'hb-session');
+      ui.hbLine = null;
+      render();
+      return;
     case 'hb-send': {
       const l = diffLines(ui.hbDiff || '')[ui.hbLine];
       const note = (document.getElementById('hb-note') || {}).value || '';
@@ -1697,6 +1707,7 @@ async function onClick(e) {
         const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
         if (!r.ok) { toast(r.error, true); return; }
         toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
+        clearDrafts('hb-note', 'hb-session');
         ui.hbLine = null;
         render();
       });
@@ -1796,6 +1807,7 @@ async function onClick(e) {
       render();
       return;
     case 'comment-cancel':
+      clearDrafts('comment-note', 'comment-session');
       ui.comment = null;
       render();
       return;
@@ -1807,6 +1819,7 @@ async function onClick(e) {
         const r = await api.commentSave({ ...ui.comment, session_id, note });
         if (!r.ok) return toast(r.error, true);
         toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
+        clearDrafts('comment-note', 'comment-session');
         ui.comment = null;
         render();
       });
@@ -1831,6 +1844,8 @@ async function onClick(e) {
 
 function onInput(e) {
   const el = e.target;
+  if (el.dataset.key) ui.drafts[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.id === 'git-msg') ui.gitMsg = el.value;
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
     disarm();
@@ -1927,10 +1942,6 @@ api.onSnapshot(async (s) => {
   render();
 });
 
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'git-msg') ui.gitMsg = e.target.value;
-  if (e.target.dataset.key?.startsWith('approval-note:')) ui.drafts[e.target.dataset.key] = e.target.value;
-});
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#usage')) document.getElementById('usage').classList.remove('open');
   const item =e.target.closest && e.target.closest('[data-palette]');
