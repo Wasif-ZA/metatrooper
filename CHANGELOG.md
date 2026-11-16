@@ -8,9 +8,10 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ### Upgrade note
 
-- Sessions started before this upgrade have no recorded approval, so the core reads them as `ask`. A child that such
-  a session launches, for example from a running `contained` orchestrator, may drop to `ask` or get -32012 until that
-  parent session is restarted.
+- Each session now gets a launch secret (`TROOP_SESSION_SECRET`), and a child it starts through `troop launch` cannot
+  run with more approval than it has. Sessions started before this upgrade have no secret, so their launches are
+  treated as the user's, as before, until they are restarted. After a core restart a session's old secret no longer
+  works; `troop launch` then fails with "unknown session secret" instead of launching without a parent.
 
 ### Added
 

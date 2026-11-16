@@ -380,6 +380,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
     delete params.parent_id;
     r = await rpc('session.launch', params, json);
   }
+  if (r.error === 'unknown session secret') console.error('TROOP_SESSION_SECRET belongs to no live session in this core (the session ended or the core restarted); start the child from that session\'s own terminal, or from the window');
   if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
   return r.code;
 }
