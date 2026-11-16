@@ -117,6 +117,7 @@ export function launchSession(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
   ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, opts.prompt || null, startedAt, startedAt);
   db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)').run(id, startedAt, 'starting');
+  appendEvent('core.session-approval', id, { approval }, db);
   const block = db.prepare('INSERT OR IGNORE INTO session_block (blocked_id, blocker_id) VALUES (?, ?)');
   for (const b of blockers) block.run(id, b);
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { homeDir, repoDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
@@ -11,7 +12,7 @@ import {
   currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, reservedId, validateManifest,
   type InstallScreen, type Manifest,
 } from './manifest.ts';
-import { importFromSource, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
+import { importFromSource, importFromSourceAsync, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
 
 export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'marketplace-import' | 'registry-import' | 'builtin';
 
@@ -42,7 +43,11 @@ export function pluginsDir(): string {
   return path.join(homeDir(), 'plugins');
 }
 
-function isGitUrl(s: string): boolean {
+export function isLocalSource(source: string): boolean {
+  return /^file:\/\//i.test(source) || (!/^[a-z][a-z0-9+.-]*:\/\//i.test(source) && !/^git@/.test(source));
+}
+
+export function isGitUrl(s: string): boolean {
   return /^(https?:\/\/|ssh:\/\/|git@|git:\/\/|file:\/\/)/.test(s) || /\.git$/.test(s);
 }
 
@@ -66,7 +71,7 @@ function prepare(source: string): Prepared {
     const dir = path.join(pluginsDir(), `.staging-${ulid().toLowerCase()}`);
     fs.mkdirSync(pluginsDir(), { recursive: true });
     try {
-      execFileSync('git', ['clone', '--depth', '1', '--', source, dir], { stdio: 'pipe', timeout: 120_000, windowsHide: true });
+      execFileSync('git', ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', ...(isLocalSource(source) ? ['-c', 'protocol.file.allow=always'] : []), 'clone', '--depth', '1', '--', source, dir], { stdio: 'pipe', timeout: 120_000, windowsHide: true });
     } catch (e) {
       fs.rmSync(dir, { recursive: true, force: true });
       throw new RpcError(E.VALIDATION, `git clone failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`, { errors: ['git clone failed'] });
@@ -76,6 +81,26 @@ function prepare(source: string): Prepared {
   const dir = path.resolve(source);
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) throw new RpcError(E.NOT_FOUND, `plugin folder not found: ${source}`);
   return { ...readOrFail(dir, false), source: 'native', staged: false, imported: null };
+}
+
+const execFileAsync = promisify(execFile);
+
+async function prepareAsync(source: string): Promise<Prepared> {
+  const imported = await importFromSourceAsync(source);
+  if (imported) {
+    const text = JSON.stringify(imported.manifest, null, 2) + '\n';
+    return { dir: '', text, manifest: imported.manifest, source: imported.source, staged: false, imported, errors: imported.errors };
+  }
+  if (!isGitUrl(source)) return prepare(source);
+  const dir = path.join(pluginsDir(), `.staging-${ulid().toLowerCase()}`);
+  fs.mkdirSync(pluginsDir(), { recursive: true });
+  try {
+    await execFileAsync('git', ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', ...(isLocalSource(source) ? ['-c', 'protocol.file.allow=always'] : []), 'clone', '--depth', '1', '--', source, dir], { timeout: 120_000, windowsHide: true });
+  } catch (e) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new RpcError(E.VALIDATION, `git clone failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`, { errors: ['git clone failed'] });
+  }
+  return { ...readOrFail(dir, true), source: 'native', staged: true, imported: null };
 }
 
 function readOrFail(dir: string, staged: boolean): { dir: string; text: string; manifest: unknown; errors: string[] } {
@@ -114,7 +139,14 @@ export interface Preview {
 }
 
 export function previewPlugin(db: DatabaseSync, source: string): Preview {
-  const p = prepare(source);
+  return previewPrepared(db, prepare(source));
+}
+
+export async function previewPluginAsync(db: DatabaseSync, source: string): Promise<Preview> {
+  return previewPrepared(db, await prepareAsync(source));
+}
+
+function previewPrepared(db: DatabaseSync, p: Prepared): Preview {
   try {
     const errors = checks(db, p);
     const hash = manifestHash(p.text);

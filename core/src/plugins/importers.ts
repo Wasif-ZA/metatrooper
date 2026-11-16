@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { homeDir } from '../paths.ts';
 import { headerSecretNames, insideDir, type Manifest, type McpSpec } from './manifest.ts';
 
@@ -494,4 +495,102 @@ export function importFromSource(source: string): ImportPlan | null {
   if (m[1] === 'codex') return importCodex(target, project);
   if (m[1] === 'registry') return importRegistry(target, opts.find((o) => o.startsWith('file='))?.slice(5));
   return importAgy(target, project);
+}
+
+
+const execFileAsync = promisify(execFile);
+
+async function gitAsync(args: string[], cwd?: string, local = false): Promise<string> {
+  const { stdout } = await execFileAsync('git', ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', ...(local ? ['-c', 'protocol.file.allow=always'] : []), ...args], { cwd, timeout: 120_000, windowsHide: true });
+  return stdout.trim();
+}
+
+const checkouts = new Map<string, Promise<string>>();
+
+async function checkoutAtAsync(url: string, sha: string, local = false): Promise<string> {
+  const pending = checkouts.get(sha);
+  if (pending) return pending;
+  const run = checkoutAtValueAsync(url, sha, local);
+  checkouts.set(sha, run);
+  try { return await run; } finally { if (checkouts.get(sha) === run) checkouts.delete(sha); }
+}
+
+async function checkoutAtValueAsync(url: string, sha: string, local = false): Promise<string> {
+  const dir = path.join(homeDir(), 'plugins', '.sources', sha);
+  if (fs.existsSync(path.join(dir, '.git'))) {
+    try { if ((await gitAsync(['rev-parse', 'HEAD'], dir)) === sha) return dir; } catch {}
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    await gitAsync(['init', '-q'], dir);
+    await gitAsync(['fetch', '-q', '--depth', '1', '--', url, sha], dir, local);
+    await gitAsync(['checkout', '-q', '--detach', 'FETCH_HEAD'], dir);
+    if ((await gitAsync(['rev-parse', 'HEAD'], dir)) !== sha) throw new Error('checked out the wrong commit');
+  } catch (e) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new Error(`git fetch of ${url} at ${sha} failed: ${String((e as { stderr?: Buffer }).stderr ?? (e as Error).message).trim()}`);
+  }
+  return dir;
+}
+
+/** `<owner/repo | git url | local folder>[#<plugin>]`: reads `.claude-plugin/marketplace.json`, fetches the plugin at its listed sha, then runs the Claude importer. */
+export async function importMarketplaceAsync(spec: string): Promise<ImportPlan> {
+  const [repo, want] = spec.split('#');
+  const local = path.resolve(home(repo));
+  let root = local;
+  let sha = '';
+  let localMarketplace = false;
+  if (fs.existsSync(path.join(local, '.claude-plugin', 'marketplace.json'))) {
+    try { sha = await gitAsync(['rev-parse', 'HEAD'], local); } catch { throw new Error(`${local} is not a git repository, so nothing pins what would be imported`); }
+    localMarketplace = true;
+    if ((await gitAsync(['status', '--porcelain'], local))) throw new Error(`${local} has uncommitted changes; commit them so the import is pinned to ${sha.slice(0, 12)}`);
+  } else {
+    const url = httpsOnly(/^[\w.-]+\/[\w.-]+$/.test(repo) ? `https://github.com/${repo}.git` : repo, 'marketplace');
+    sha = (await gitAsync(['ls-remote', '--', url, 'HEAD'])).split(/\s/)[0].toLowerCase();
+    if (!SHA.test(sha)) throw new Error(`no HEAD commit at ${url}`);
+    root = await checkoutAtAsync(url, sha);
+  }
+  const listed = readJson(path.join(root, '.claude-plugin', 'marketplace.json'));
+  const plugins = (Array.isArray(listed.plugins) ? listed.plugins : []) as Array<Record<string, unknown>>;
+  const names = plugins.map((p) => String(p.name)).join(', ');
+  const entry = want ? plugins.find((p) => p.name === want) : plugins.length === 1 ? plugins[0] : undefined;
+  if (!entry) throw new Error(want ? `${repo} has no plugin ${want}; it lists: ${names}` : `${repo} lists ${plugins.length} plugins, pick one with #<name>: ${names}`);
+  const name = String(entry.name);
+  let dir: string | null;
+  if (typeof entry.source === 'string') {
+    dir = /^\.\/?$/.test(entry.source) ? root : insideDir(root, entry.source);
+  } else {
+    const s = (entry.source ?? {}) as Record<string, unknown>;
+    const url = s.source === 'github' && typeof s.repo === 'string' ? `https://github.com/${s.repo}.git` : (s.source === 'url' || s.source === 'git-subdir') && typeof s.url === 'string' ? s.url : '';
+    if (!url) throw new Error(`plugin ${name}: source ${String(s.source)} is not supported`);
+    if (typeof s.sha !== 'string' || !SHA.test(s.sha)) throw new Error(`plugin ${name}: no pinned sha listed, so it is not imported`);
+    sha = s.sha.toLowerCase();
+    const isLocal = localMarketplace && !/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && path.isAbsolute(url);
+    const checkout = isLocal ? await checkoutAtAsync(path.resolve(url), sha, true) : await checkoutAtAsync(httpsOnly(url, `plugin ${name}`), sha);
+    dir = realInside(checkout, s.source === 'git-subdir' ? insideDir(checkout, String(s.path ?? '')) : checkout);
+  }
+  if (typeof entry.source === 'string') dir = realInside(root, dir);
+  if (!dir) throw new Error(`plugin ${name}: source path leaves the repository`);
+  const plan = importClaude(dir);
+  plan.source = 'marketplace-import';
+  plan.origin = { kind: 'marketplace', name: `${repo}#${name}`, version: typeof entry.version === 'string' ? entry.version : plan.manifest.version, sha };
+  return plan;
+}
+
+
+export async function importFromSourceAsync(source: string): Promise<ImportPlan | null> {
+  if (source.startsWith('claude-marketplace:')) return importMarketplaceAsync(source.slice('claude-marketplace:'.length));
+  const m = /^registry-import:(.+)$/.exec(source);
+  if (!m) return importFromSource(source);
+  const [name, ...opts] = m[1].split(';');
+  const file = opts.find((o) => o.startsWith('file='))?.slice(5);
+  if (file) return importRegistry(name, file);
+  const url = `${REGISTRY_URL}?search=${encodeURIComponent(name)}&version=latest`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const rows = ((await response.json() as { servers?: Array<{ server: Record<string, unknown> }> }).servers ?? []).map((r) => r.server);
+  const server = rows.find((s) => s.name === name);
+  if (!server) throw new Error(`no registry server named ${name}${rows.length ? `; close matches: ${rows.map((s) => s.name).join(', ')}` : ''}`);
+  return mapRegistryServer(server, url);
 }

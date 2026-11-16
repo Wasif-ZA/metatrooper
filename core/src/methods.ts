@@ -4,18 +4,18 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { knownSecretValues, scrubSecretValues, setBrowserSecret } from './secrets.ts';
+import { knownSecretValues, scrubSecretValuesAsync, setBrowserSecret } from './secrets.ts';
 import { scrub } from './redact.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
-import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
+import { canonicalPath, projectId, resolveProjectPathAsync } from './project.ts';
 import { repeatReads, saverReport, sessionUsage, usageSummary } from './usage.ts';
 import { checkStats, sessionStats } from './stats.ts';
 import { cronNext, cronWords, nowIso, ulid } from './time.ts';
 import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
-import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
+import { folderApproval, heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { parseChat } from './sessions/chat.ts';
 import { beingRemoved } from './worktree.ts';
 import { tx } from './store/db.ts';
@@ -27,15 +27,15 @@ import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { homeDir, repoDir } from './paths.ts';
-import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
-import { checkShimToken, resolveMcpServer } from './plugins/mcp.ts';
+import { installPlugin, isGitUrl, isLocalSource, previewPluginAsync, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
+import { checkShimToken, resolveMcpServerAsync } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
-import { owners, repoOf } from './sessions/owners.ts';
+import { ownersAsync, repoOfAsync } from './sessions/owners.ts';
 import { Approvals } from './approvals.ts';
 import { auditRows } from './audit.ts';
 import { nextDue, realDeps, runAutomationNow, sha256File, type AutomationDeps } from './automations.ts';
@@ -87,7 +87,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
-  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?, blocker_ids?: string[]}', result: '{session_id, prompt_delivered, model?}: with `blocker_ids` the prompt is held until every blocker exits with outcome succeeded.`browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project\'s `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine.' },
+  { name: 'session.launch', stable: true, errors: [E.NEEDS_UI, E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, approval?: "ask"|"edits"|"contained"|"isolated", model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?, blocker_ids?: string[]}', result: '{session_id, prompt_delivered, model?}: with `blocker_ids` the prompt is held until every blocker exits with outcome succeeded.`browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project\'s `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine. Non-UI launches naming `parent_id` (including the caller\'s `TROOP_SESSION_ID` forwarded by the CLI) cannot exceed that session\'s recorded approval; parents without an approval record use ask. Omitted approval is capped automatically; an explicitly looser profile fails with -32012. Launches without a parent keep the requested approval or settings default. Trusted UI launches may choose any supported profile.' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'audit.list', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{project_id, limit?, before?, before_id?}', result: "{rows: [{id, at, session_id, agent, action, detail, source}]}: newest first; source is system (gate decisions, core events) or agent (the agent's own call or words); next page: pass the last row's at and id as before and before_id; read only, secrets scrubbed (M8-F21)" },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out, wait_reason, waiting_on_person}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
@@ -137,7 +137,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'engines.models', errors: [E.NOT_FOUND], params: '{engine_id}', result: '{models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
   { name: 'hooks.uninstall', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
-  { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install)' },
+  { name: 'plugin.preview', errors: [E.NEEDS_UI], params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. Remote git URLs and claude-marketplace sources require ui.hello (-32012 otherwise); local folders and file:// URLs do not. Git allows HTTPS and local sources only. `screen` is what the install screen shows (`plugins.md`, Install)' },
   { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{plugin_id, on: boolean}', result: '{enabled}; persists the switch; a disabled plugin contributes no engines, MCP servers or actions to new sessions until it is turned on again' },
@@ -251,11 +251,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('core.stop', { needsUi: true, handler: () => { setTimeout(() => ctl.stop(), 10); return {}; } });
 
   m.set('project.open', {
-    handler: (p) => {
+    handler: async (p) => {
       const input = str(p, 'path');
       let canonical: string;
       try {
-        canonical = resolveProjectPath(input);
+        canonical = await resolveProjectPathAsync(input);
       } catch {
         throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`);
       }
@@ -270,7 +270,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('session.launch', {
-    handler: (p) => {
+    handler: (p, ctx) => {
       const project = db.prepare('SELECT id, path, name FROM project WHERE id = ?').get(str(p, 'project_id')) as
         | { id: string; path: string; name: string }
         | undefined;
@@ -290,12 +290,22 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
       const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
       const fallback = project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : settings().sessions.approval;
-      const approval = requested || (fallback !== 'isolated' && (fallback === 'ask' || engine.approval_profiles?.[fallback]) ? fallback : 'ask');
+      let approval = requested || (fallback !== 'isolated' && (fallback === 'ask' || engine.approval_profiles?.[fallback]) ? fallback : 'ask');
       if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
         throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
       }
       const parent = str(p, 'parent_id', false) || undefined;
-      if (parent && !db.prepare('SELECT 1 FROM session WHERE id = ?').get(parent)) throw new RpcError(E.NOT_FOUND, 'parent session not found');
+      const caller = parent ? db.prepare('SELECT id FROM session WHERE id = ?').get(parent) as { id: string } | undefined : undefined;
+      if (parent && !caller) throw new RpcError(E.NOT_FOUND, 'parent session not found');
+      if (!ctx.ui && parent) {
+        const levels = ['ask', 'edits', 'contained', 'isolated'];
+        const ceiling = (db.prepare("SELECT json_extract(payload, '$.approval') AS approval FROM event WHERE session_id = ? AND kind = 'core.session-approval' ORDER BY seq DESC LIMIT 1").get(parent) as { approval: string } | undefined)?.approval ?? 'ask';
+        if (!requested && levels.indexOf(approval) > levels.indexOf(ceiling)) approval = ceiling === 'ask' || engine.approval_profiles?.[ceiling] ? ceiling : 'ask';
+        const effective = folderApproval(project.path, approval, engine);
+        if (levels.indexOf(effective) < 0 || levels.indexOf(ceiling) < 0 || levels.indexOf(effective) > levels.indexOf(ceiling) || (requested && levels.indexOf(requested) > levels.indexOf(ceiling))) {
+          throw new RpcError(E.NEEDS_UI, 'a looser approval profile needs a trusted UI connection (ui.hello)');
+        }
+      }
       const blockerIds = p.blocker_ids === undefined || p.blocker_ids === null ? [] : blockerList(p.blocker_ids);
       if (host === 'sandbox') {
         const refusal = sandboxRefusal(engine, project.path);
@@ -338,7 +348,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('audit.list', {
     needsUi: true,
-    handler: (p) => {
+    handler: async (p) => {
       const id = str(p, 'project_id');
       if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'project not found');
       const limit = p.limit;
@@ -348,7 +358,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const beforeId = p.before_id;
       if (beforeId !== undefined && typeof beforeId !== 'string') throw new RpcError(E.INVALID_PARAMS, 'before_id must be a string');
       if (beforeId !== undefined && before === undefined) throw new RpcError(E.INVALID_PARAMS, 'before_id needs before');
-      return { rows: auditRows(db, id, { limit, before, before_id: beforeId }, scrubSecretValues()) };
+      return { rows: auditRows(db, id, { limit, before, before_id: beforeId }, await scrubSecretValuesAsync()) };
     },
   });
 
@@ -598,13 +608,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('session.owners', {
-    handler: (p) => {
+    handler: async (p) => {
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
-      const repo = repoOf(project.path);
+      const repo = await repoOfAsync(project.path);
       if (!repo) return { repo: null, paths: [] };
       const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title === undefined ? undefined : scrub(t.title, knownSecretValues())]));
-      return { repo, paths: owners(db, repo, titles) };
+      return { repo, paths: await ownersAsync(db, repo, titles) };
     },
   });
 
@@ -784,7 +794,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('engines.check', { handler: () => { void checkAll(db, ctl.engines()); return {}; } });
+  m.set('engines.check', { handler: () => { void checkAll(db, ctl.engines()).catch(() => {}); return {}; } });
   m.set('engines.models', {
     handler: (p) => {
       const engine = ctl.engines().find((e) => e.id === str(p, 'engine_id'));
@@ -851,7 +861,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('plugin.preview', { handler: (p) => previewPlugin(db, str(p, 'source')) });
+  m.set('plugin.preview', { handler: (p, ctx) => {
+    const source = str(p, 'source');
+    if (!ctx.ui && ((isGitUrl(source) && !isLocalSource(source)) || source.startsWith('claude-marketplace:'))) throw new RpcError(E.NEEDS_UI, 'git plugin previews need a trusted UI connection (ui.hello)');
+    return previewPluginAsync(db, source);
+  } });
 
   m.set('plugin.install', {
     handler: (p) => {
@@ -917,7 +931,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('mcp.resolve', {
     handler: (p) => {
       checkShimToken(str(p, 'plugin_id'), str(p, 'token'));
-      return resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id'));
+      return resolveMcpServerAsync(db, str(p, 'plugin_id'), str(p, 'server_id'));
     },
   });
 
@@ -1063,7 +1077,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   const desktop = ctl.desktop ?? new Desktop(db);
   desktop.methods(m);
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValues, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValuesAsync, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
   m.set('approval.check', { handler: (p) => approvals.check(p) });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 

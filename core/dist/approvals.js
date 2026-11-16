@@ -154,9 +154,9 @@ export class Approvals {
           hooks               ;
           waiters = new Map                                                                                ();
 
-          secrets                ;
+          secrets                                    ;
 
-  constructor(db              , timeoutMs = APPROVAL_TIMEOUT_MS, secrets                 = () => [], hooks                = {}) {
+  constructor(db              , timeoutMs = APPROVAL_TIMEOUT_MS, secrets                                     = () => [], hooks                = {}) {
     ensureActionOutcomes(db);
     this.db = db;
     this.timeoutMs = timeoutMs;
@@ -198,7 +198,7 @@ export class Approvals {
     if (!reason) return { decision: 'allow' };
     let secrets          ;
     try {
-      secrets = this.secrets();
+      secrets = await this.secrets();
     } catch {
       return { decision: 'deny', reason: 'a saved browser secret could not be read, so this action cannot be recorded safely' };
     }

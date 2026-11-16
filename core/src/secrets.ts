@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { homeDir } from './paths.ts';
@@ -238,6 +238,68 @@ export function scrubSecretValues(): string[] {
   }
   for (const name of savedNames.names) {
     if (getSecret(BROWSER_SECRETS, name) === null) throw new Error('saved secret unavailable for scrubbing');
+  }
+  return knownSecretValues();
+}
+
+function secretProcess(command: string, args: string[], input: string, env = process.env): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(command, args, { encoding: 'utf8', windowsHide: true, env }, (error, stdout) => {
+      if (error) reject(new Error(`${command} failed`));
+      else resolve(stdout);
+    });
+    child.stdin?.on('error', () => {});
+    child.stdin?.end(input);
+  });
+}
+
+async function powershellAsync(script: string, stdin: string): Promise<string> {
+  const out = await secretProcess('powershell', ['-NoProfile', '-NonInteractive', '-Command', '-'], `$out = & { ${script} }; [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$out))\n`, { ...process.env, TROOP_SECRET_IN: stdin });
+  return Buffer.from(out.trim(), 'base64').toString('utf8');
+}
+
+async function secretToolAsync(args: string[], stdin = ''): Promise<string> {
+  return secretProcess('secret-tool', args, stdin);
+}
+
+export async function getSecretAsync(pluginId: string, name: string): Promise<string | null> {
+  const key = `${pluginId}/${name}`;
+  const file = secretPath(pluginId, name);
+  const stamp = fileStamp(file);
+  const hit = cache.get(key);
+  if (hit !== undefined && stamp === stamps.get(key)) return hit;
+  if (!stamp) {
+    if (hit !== undefined) retired.add(hit);
+    cache.delete(key);
+    return null;
+  }
+  let value: string;
+  if (fakeDpapi()) value = Buffer.from(fs.readFileSync(file, 'utf8').slice(FAKE_PREFIX.length), 'base64').reverse().toString('utf8');
+  else if (process.platform !== 'win32') {
+    const blob = fs.readFileSync(file, 'utf8');
+    value = blob.startsWith(KEYRING_PREFIX) ? await secretToolAsync(['lookup', ...keyringAttrs(pluginId, name, keyringId(blob))]) : blob.slice(PLAIN_PREFIX.length);
+  } else {
+    const script =
+      `$s = Get-Content -Raw -LiteralPath $env:TROOP_SECRET_IN | ConvertTo-SecureString; ` +
+      `[Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))`;
+    value = await powershellAsync(script, file);
+  }
+  if (fileStamp(file) !== stamp) return getSecretAsync(pluginId, name);
+  if (hit !== undefined && hit !== value) retired.add(hit);
+  cache.set(key, value);
+  stamps.set(key, stamp);
+  return value;
+}
+
+export async function scrubSecretValuesAsync(): Promise<string[]> {
+  const dir = path.join(homeDir(), 'secrets', BROWSER_SECRETS);
+  const stamp = `${dir}:${fs.statSync(dir, { throwIfNoEntry: false })?.mtimeMs ?? -1}`;
+  if (savedNames.stamp !== stamp) {
+    const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.dpapi')).map((f) => f.slice(0, -'.dpapi'.length)) : [];
+    savedNames = { stamp, names };
+  }
+  for (const name of savedNames.names) {
+    if (await getSecretAsync(BROWSER_SECRETS, name) === null) throw new Error('saved secret unavailable for scrubbing');
   }
   return knownSecretValues();
 }
