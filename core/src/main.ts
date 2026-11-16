@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   const methods = buildMethods(db, ctl);
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;
-  if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
+  if (home) try { await methods.get('project.open')!.asyncHandler!({ path: home }, { ui: false, origin: 'projects.default' }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
   await commands.recover();
   markGone(db, wereLive);
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}

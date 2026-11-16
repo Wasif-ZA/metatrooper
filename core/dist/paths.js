@@ -42,7 +42,7 @@ export function pipePrefix()         {
 }
 
 /** `p` with links resolved through its deepest existing folder, lowercased on Windows. */
-function canonical(p        )         {
+export function canonical(p        )         {
   let dir = path.resolve(p);
   const tail           = [];
   while (!fs.existsSync(dir) && path.dirname(dir) !== dir) { tail.unshift(path.basename(dir)); dir = path.dirname(dir); }
