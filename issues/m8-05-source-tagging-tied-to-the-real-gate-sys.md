@@ -2,6 +2,8 @@
 
 Part of Ouros, Milestone 8. Build step G5. Priority: Critical. Effort: not sized (sized after M8-0). Depends on: M8-2, M8-21.
 
+**Launch (2026-11-17):** M8-05a is a launch check, G3(g) row 3 in M10-0, because drawn screens launch in cc tabs. Test `core/test/m8-05-source.test.ts` (3 cases, written by Gemini) passes on the launch head and fails when an approve event writes an approval or when `gate` is drawn. On branch `feat/g3-approvals-1117`. M8-05b to M8-05d stay after launch.
+
 ## Source of truth
 
 - `ouros-spec.md` section 3, 7; `spec.md` Milestone 8 children table row M8-5.

@@ -2,6 +2,8 @@
 
 Part of Ouros, Milestone 8, feature 8 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Long runs.
 
+**Launch (2026-11-17): cut from the 12-09 launch and its copy (M10-0, G3(g) row 6).** Not built. Comes after launch. Restart survival (M6-06) is a separate feature on the launch list.
+
 ## Source of truth
 
 - `ouros-spec.md` section 6e (6e row 7), "Features that make the loops visible".
