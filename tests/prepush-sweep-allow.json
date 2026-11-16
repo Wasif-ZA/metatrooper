@@ -1,0 +1,22 @@
+[
+  {
+    "check": "secrets",
+    "path": "core/test/redact-wide.test.ts",
+    "reason": "Fake secrets that test the redactor."
+  },
+  {
+    "check": "secrets",
+    "path": "workbench/renderer/ui.bundle.js",
+    "reason": "Minified build output; generic key=value pattern only."
+  },
+  {
+    "check": "personal-paths",
+    "path": "core/test/packaged-node-hooks.test.ts",
+    "reason": "Test fixture paths."
+  },
+  {
+    "check": "personal-paths",
+    "path": "core/test/redact-wide.test.ts",
+    "reason": "Test fixture paths."
+  }
+]
