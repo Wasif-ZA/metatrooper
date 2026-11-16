@@ -345,8 +345,8 @@ test('7. visibility rules filter out invalid elements and adjust tour total', as
   assert.equal(tour.label(), '2 of 2');
 });
 
-// protects=createTour switches view only when stop view differs and restores initial view upon tour termination
-// fails_when=setView is invoked when view already matches or fails to restore starting view at end
+// protects=createTour switches view only when stop view differs and restores initial view for null view stops and upon tour termination
+// fails_when=setView is invoked when view already matches or fails to restore starting view for null view stops or at end
 // no_claim=animation or timing during view transition
 test('8. View switching and restoration', async () => {
   const { createTour } = await import(new URL('../ui/src/tour.js', import.meta.url).href);
@@ -382,19 +382,26 @@ test('8. View switching and restoration', async () => {
     onEnd: () => {},
   });
 
+  // Verifies tour start in matching view does not call setView.
   tour.start();
-  assert.equal(viewCalls.length, 0);
+  assert.deepEqual(viewCalls, []);
 
+  // Verifies advancing to different view calls setView.
   tour.next();
   assert.equal(curView, 'ide');
   assert.deepEqual(viewCalls, ['ide']);
 
+  // Verifies advancing to matching view does not call setView again.
   tour.next();
+  assert.equal(curView, 'ide');
   assert.deepEqual(viewCalls, ['ide']);
 
+  // Verifies advancing to null-view stop restores initial view.
   tour.next();
-  assert.deepEqual(viewCalls, ['ide']);
+  assert.equal(curView, 'wall');
+  assert.deepEqual(viewCalls, ['ide', 'wall']);
 
+  // Verifies ending tour when already in startView does not call setView again.
   tour.next();
   assert.deepEqual(viewCalls, ['ide', 'wall']);
   assert.equal(curView, 'wall');
@@ -431,8 +438,8 @@ test('9. Zero visible stops: start ends immediately and triggers onEnd once', as
   assert.equal(ended, 1);
 });
 
-// protects=menuItems returns expected action identifiers for unconfigured signed out and signed in states
-// fails_when=menuItems deviates from specified lists or exposes signin when unconfigured
+// protects=menuItems returns expected action identifiers for unconfigured signed out and signed in states with manage flag
+// fails_when=menuItems deviates from specified lists exposes signin when unconfigured or includes manage when false or missing
 // no_claim=visual rendering and placement of dropdown menu items
 test('10. menuItems returns correct actions across configuration and sign in states', async () => {
   const { menuItems } = await import(new URL('../ui/src/tour.js', import.meta.url).href);
@@ -447,9 +454,15 @@ test('10. menuItems returns correct actions across configuration and sign in sta
   assert.deepEqual(menuItems({ configured: true, status: { signed_in: null }, pro: false }), ['signin', 'tour']);
   assert.deepEqual(menuItems({ configured: true, status: {}, pro: false }), ['signin', 'tour']);
 
-  // Verifies configured and signed in states produce complete menu item list.
-  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: false }), ['who', 'manage', 'plan', 'tour', 'signout']);
-  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: true }), ['who', 'manage', 'plan', 'tour', 'signout']);
+  // Verifies configured and signed in states with manage true produce complete menu item list.
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: false, manage: true }), ['who', 'manage', 'plan', 'tour', 'signout']);
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: true, manage: true }), ['who', 'manage', 'plan', 'tour', 'signout']);
+
+  // Verifies configured and signed in states with manage false or missing omit manage item.
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: false, manage: false }), ['who', 'plan', 'tour', 'signout']);
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: true, manage: false }), ['who', 'plan', 'tour', 'signout']);
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: false }), ['who', 'plan', 'tour', 'signout']);
+  assert.deepEqual(menuItems({ configured: true, status: { signed_in: true }, pro: true }), ['who', 'plan', 'tour', 'signout']);
 });
 
 // protects=profileOf strips tokens and subject identifier while retaining user profile fields
@@ -494,8 +507,8 @@ test('12. planLabel formats pro status label', async () => {
   assert.equal(planLabel(null), 'Plan: Free');
 });
 
-// protects=STOPS definition contains thirteen stops in order with valid line lengths and account selector
-// fails_when=stop count order id set length limits or selector requirements are violated
+// protects=STOPS definition contains thirteen stops in order with valid metadata and notify line without completed work phrasing
+// fails_when=stop count order id set length limits selector requirements or notify line phrasing is violated
 // no_claim=stop position coordinates or element existence in live DOM
 test('13. STOPS array defines thirteen ordered stops with valid metadata', async () => {
   const { STOPS } = await import(new URL('../ui/src/tour.js', import.meta.url).href);
@@ -516,9 +529,15 @@ test('13. STOPS array defines thirteen ordered stops with valid metadata', async
     assert.equal(s.line.includes('\u2014'), false, `line for stop ${s.id} contains em dash`);
   }
 
+  // Verifies account stop uses id selector.
   const accountStop = STOPS.find((s: any) => s.id === 'account');
   assert.ok(accountStop, 'account stop found');
   assert.equal(accountStop.selector, '#account');
+
+  // Verifies notify stop description does not reference completed work.
+  const notifyStop = STOPS.find((s: any) => s.id === 'notify');
+  assert.ok(notifyStop, 'notify stop found');
+  assert.equal(notifyStop.line.includes('when work is done'), false);
 });
 
 // protects=createByte under reduced motion draws initial frame without requesting animation frames
@@ -713,4 +732,70 @@ test('19. index.html account button in ffoot', () => {
   const lastButtonAttrs = buttonMatches[buttonMatches.length - 1][1];
   assert.ok(/\bid="account"/.test(lastButtonAttrs), 'last button has id="account"');
   assert.ok(/\bdata-action="account"/.test(lastButtonAttrs), 'last button has data-action="account"');
+});
+
+// protects=null-view stop restores initial view when tour started in a different view
+// fails_when=advancing to null-view stop fails to call setView with starting view
+// no_claim=visual transition styling during view restoration
+test('20. null-view stop restores initial view upon entry', async () => {
+  const { createTour } = await import(new URL('../ui/src/tour.js', import.meta.url).href);
+  const el1 = makeFakeElement();
+  const el2 = makeFakeElement();
+  const doc = {
+    querySelector: (sel: string) => {
+      if (sel === '#s1') return el1;
+      if (sel === '#s2') return el2;
+      return null;
+    },
+  };
+  const stops = [
+    { id: 's1', selector: '#s1', view: 'ide', morph: 'a', line: 'IDE stop' },
+    { id: 's2', selector: '#s2', view: null, morph: 'b', line: 'Null view stop' },
+  ];
+  let curView = 'home';
+  const viewCalls: string[] = [];
+  const tour = createTour({
+    doc,
+    stops,
+    getView: () => curView,
+    setView: (v: string) => {
+      viewCalls.push(v);
+      curView = v;
+    },
+    onEnd: () => {},
+  });
+
+  // Verifies tour start switches to first stop view.
+  tour.start();
+  assert.equal(curView, 'ide');
+  assert.deepEqual(viewCalls, ['ide']);
+
+  // Verifies advancing to null-view stop restores starting view via setView.
+  tour.next();
+  assert.equal(curView, 'home');
+  assert.deepEqual(viewCalls, ['ide', 'home']);
+});
+
+// protects=STOPS selectors for data-view stops are scoped to a container and do not match root html element
+// fails_when=selector for needs wall ide or pro starts with open bracket
+// no_claim=specific container selector or class name used to scope the element
+test('21. STOPS selectors for view stops do not match root html element', async () => {
+  const { STOPS } = await import(new URL('../ui/src/tour.js', import.meta.url).href);
+
+  // Verifies selectors for data-view stops do not start with open bracket.
+  const needsStop = STOPS.find((s: any) => s.id === 'needs');
+  assert.ok(needsStop, 'needs stop found');
+  assert.equal(needsStop.selector.startsWith('['), false);
+
+  const wallStop = STOPS.find((s: any) => s.id === 'wall');
+  assert.ok(wallStop, 'wall stop found');
+  assert.equal(wallStop.selector.startsWith('['), false);
+
+  const ideStop = STOPS.find((s: any) => s.id === 'ide');
+  assert.ok(ideStop, 'ide stop found');
+  assert.equal(ideStop.selector.startsWith('['), false);
+
+  const proStop = STOPS.find((s: any) => s.id === 'pro');
+  assert.ok(proStop, 'pro stop found');
+  assert.equal(proStop.selector.startsWith('['), false);
 });

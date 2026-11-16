@@ -11,6 +11,9 @@ function bodyPoints(t) {
 export function createByte(canvas, options = {}) {
   const ctx = canvas.getContext('2d');
   const win = canvas.ownerDocument?.defaultView || globalThis;
+  const size = 128, dpr = win.devicePixelRatio || 1;
+  canvas.width = canvas.height = size * dpr;
+  ctx?.setTransform?.(dpr, 0, 0, dpr, 0, 0);
   const token = (name, fallback) => typeof win.getComputedStyle === 'function' ? win.getComputedStyle(canvas).getPropertyValue(name).trim() || fallback : fallback;
   const { reducedMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false,
     color = () => token('--color-text-primary', '#fff'),
@@ -19,7 +22,7 @@ export function createByte(canvas, options = {}) {
   const cache = new Map();
   const dots = bodyPoints(1).map(([x, y]) => ({ x, y, vx: 0, vy: 0, s: 0.6 + Math.random() * 0.8 }));
   let alive = !reducedMotion, pending, label = null, until = 0, blinkAt = now() + 1500;
-  let x = canvas.width / 2, y = canvas.height / 2, targetX = x, targetY = y;
+  let x = size / 2, y = size / 2, targetX = x, targetY = y;
 
   function glyphPoints(text) {
     if (cache.has(text)) return cache.get(text);
@@ -29,7 +32,7 @@ export function createByte(canvas, options = {}) {
     const g = c.getContext('2d');
     if (!g || typeof g.fillText !== 'function' || typeof g.getImageData !== 'function') return null;
     g.fillStyle = '#000'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `800 ${text.length > 2 ? 40 : text.length > 1 ? 56 : 74}px monospace`;
+    g.font = `800 ${text.length > 2 ? 40 : text.length > 1 ? 56 : 74}px ${token('--mono', '"JetBrains Mono", monospace')}`;
     g.fillText(text, 48, 51);
     const data = g.getImageData(0, 0, 96, 96).data, pts = [];
     for (let j = 0; j < 96; j += 2) for (let i = 0; i < 96; i += 2) if (data[(j * 96 + i) * 4 + 3] > 128) pts.push([(i - 48) / 48, (j - 48) / 48]);
@@ -47,11 +50,11 @@ export function createByte(canvas, options = {}) {
   }
   function draw() {
     if (!ctx) return;
-    const time = now(), r = Math.min(canvas.width, canvas.height) * 0.36, ink = color();
+    const time = now(), r = size * 0.36, ink = color();
     const glyph = !reducedMotion && label && time < until ? glyphPoints(label) : null;
     const targets = glyph || bodyPoints(reducedMotion ? 1 : time / 1000);
     x += (targetX - x) * 0.12; y += (targetY - y) * 0.12;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, size, size);
     ctx.fillStyle = ink;
     dots.forEach((d, k) => {
       d.vx = (d.vx + (targets[k][0] - d.x) * 0.09) * 0.8;

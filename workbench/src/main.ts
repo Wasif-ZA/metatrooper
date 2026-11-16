@@ -638,17 +638,19 @@ function handlers(): void {
     void attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), toWindow);
     return { windows_build: windowsBuild() };
   });
-  on('uiSettings', () => ({ authConfigured: Boolean(settings().auth.issuer.trim() && settings().auth.client_id.trim()), approval: settings().sessions.approval, worktreesRoot: worktreesRoot(), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
+  on('uiSettings', () => ({ authConfigured: Boolean(settings().auth.issuer.trim() && settings().auth.client_id.trim()), manageConfigured: Boolean(URL.canParse(settings().auth.account_url) && settings().auth.account_url.startsWith('https://')), approval: settings().sessions.approval, worktreesRoot: worktreesRoot(), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
   on('setTheme', async (name: unknown) => {
     if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);
     return error ? { error } : activeTheme({ ...settings(), ui: { ...settings().ui, theme: name } });
   });
-  on('setTour', async (value: unknown) => {
-    if (value !== 'done' && value !== 'later') return { error: 'tour must be done or later' };
-    const error = await writeSetting('ui.tour', value);
-    return error ? { error } : { ok: true };
-  }
+  on(
+    'setTour',
+    async (value: unknown) => {
+      if (value !== 'done' && value !== 'later') return { error: 'tour must be done or later' };
+      const error = await writeSetting('ui.tour', value);
+      return error ? { error } : { ok: true };
+    },
   );
   on('setApproval', async (value: unknown) => {
     if (value !== 'ask' && value !== 'contained') return { error: 'approval must be ask or contained' };
@@ -792,9 +794,9 @@ function handlers(): void {
   });
   on('openLink', (target: unknown, line: unknown, col: unknown) => {
     if (target === 'account') {
-      const auth = settings().auth;
-      if (!auth.issuer.trim() || !auth.client_id.trim() || !/^https?:\/\//.test(auth.issuer)) return false;
-      target = auth.issuer.replace(/\/$/, '') + '/user';
+      const accountUrl = settings().auth.account_url;
+      if (!accountUrl.startsWith('https://')) return false;
+      target = accountUrl;
     }
     if (typeof target !== 'string') return false;
     if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }

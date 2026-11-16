@@ -11,6 +11,7 @@ export const DEFAULTS = {
   auth: {
     issuer: '',
     client_id: '',
+    account_url: '',
     ports: [] as number[],
   },
   projects: {

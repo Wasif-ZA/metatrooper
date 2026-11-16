@@ -22,7 +22,10 @@ function RailTrigger({ trigger }) {
     const handlers = { click: trigger.onClick, pointerdown, contextmenu: trigger.onContextMenu, keydown: trigger.onKeyDown, focus: trigger.onFocus };
     for (const [name, fn] of Object.entries(handlers)) if (fn) el.addEventListener(name, fn);
     el.addEventListener('click', trigger.onClickCapture, true);
-    for (const key of ['aria-haspopup', 'aria-expanded', 'aria-controls']) el.setAttribute(key, String(trigger[key]));
+    for (const key of ['aria-haspopup', 'aria-expanded', 'aria-controls']) {
+      if (trigger[key] === undefined) el.removeAttribute(key);
+      else el.setAttribute(key, String(trigger[key]));
+    }
     return () => {
       for (const [name, fn] of Object.entries(handlers)) if (fn) el.removeEventListener(name, fn);
       el.removeEventListener('click', trigger.onClickCapture, true);
@@ -48,6 +51,7 @@ export function AccountTour() {
   const [offer, setOffer] = useState(false), [dialog, setDialog] = useState(false), [waiting, setWaiting] = useState(false);
   const [error, setError] = useState(''), [tour, setTour] = useState(null), [step, setStep] = useState(0), [box, setBox] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const setting = useRef(undefined), ready = useRef(false), eventSeen = useRef(false), pending = useRef(false), attempt = useRef(0), tourRef = useRef(null), bubble = useRef(null), previousFocus = useRef(null);
   const startupSessions = useRef(ui.snap?.has_sessions);
   const refresh = async () => {
@@ -73,12 +77,12 @@ export function AccountTour() {
     return () => { mounted = false; offSnapshot(); window.removeEventListener('cc:first-run-done', firstRun); tourRef.current?.skip(); };
   }, []);
   useEffect(() => {
-    const button = document.querySelector('[data-view="addons"]');
+    const button = document.querySelector('.ffoot [data-view="addons"]');
     button?.toggleAttribute('data-tour-pro', pro);
   }, [pro]);
   useEffect(() => {
-    document.getElementById('account-tour').toggleAttribute('data-overlay', Boolean(menuOpen || offer || dialog || tour));
-  }, [menuOpen, offer, dialog, tour]);
+    document.getElementById('account-tour').toggleAttribute('data-overlay', Boolean(menuOpen || offer || dialog || tour || scanning));
+  }, [menuOpen, offer, dialog, tour, scanning]);
 
   const icon = document.querySelector('#account .fi');
   const [badPicture, setBadPicture] = useState(null);
@@ -89,23 +93,34 @@ export function AccountTour() {
     else icon.innerHTML = globalThis.ourosIcon?.('person', 16) || '';
   }, [icon, picture]);
 
+  async function recordOffer() {
+    if (!offer || !offerOnEvent(setting.current)) return;
+    await answerOffer('yes', (value) => api.setTour(value));
+    setting.current = 'done'; setOffer(false);
+  }
+
   async function start() {
     if (pending.current || tourRef.current?.active) return;
-    pending.current = true; setOffer(false); setDialog(false); setError('');
+    pending.current = true; setDialog(false); setError('');
     const startView = ui.view, focus = document.activeElement, available = new Map();
+    const settingsWasOpen = settingsView.isOpen();
+    let openedSettings = false;
     try {
+      await recordOffer();
+      setOffer(false); setScanning(true);
+      await frame(); await frame();
       const candidates = STOPS.filter((s) => s.id !== 'account' || look?.authConfigured);
-      for (const view of new Set(candidates.map((s) => s.view || startView))) {
+      for (const view of new Set(candidates.map((s) => s.view ?? startView))) {
         if (ui.view !== view) homeView.set(view);
         await frame();
-        for (const stop of candidates.filter((s) => (s.view || startView) === view)) {
-          if (stop.id === 'notify') { await settingsView.open('notify'); await frame(); }
+        for (const stop of candidates.filter((s) => (s.view ?? startView) === view)) {
+          if (stop.id === 'notify') { openedSettings = !settingsWasOpen; await settingsView.open('notify'); await frame(); }
           const el = document.querySelector(stop.selector);
           if (visible(el)) {
             const rect = el.getBoundingClientRect();
             available.set(stop.selector, { isConnected: true, hidden: false, parentElement: null, getBoundingClientRect: () => rect });
           }
-          if (stop.id === 'notify') settingsView.close();
+          if (stop.id === 'notify' && !settingsWasOpen) settingsView.close();
         }
       }
       homeView.set(startView);
@@ -118,17 +133,20 @@ export function AccountTour() {
       tourRef.current = run; run.start();
       if (run.active) { setTour(run); setStep(0); }
     } catch (e) { homeView.set(startView); toast(e.message, true); }
-    finally { pending.current = false; }
+    finally { if (openedSettings) settingsView.close(); setScanning(false); pending.current = false; }
   }
 
   function next() { tourRef.current?.next(); setStep((n) => n + 1); }
   useEffect(() => {
     if (!tour?.active) return;
-    let request;
+    let request, disposed = false;
+    const notification = tour.current()?.id === 'notify';
+    const settingsWasOpen = settingsView.isOpen();
+    let ready = !notification;
     const measure = () => {
       cancelAnimationFrame(request);
       request = requestAnimationFrame(() => {
-        if (!tour.active) return;
+        if (disposed || !tour.active || !ready) return;
         const target = document.querySelector(tour.current().selector);
         if (!visible(target)) { next(); return; }
         const r = target.getBoundingClientRect();
@@ -137,6 +155,7 @@ export function AccountTour() {
       });
     };
     const keys = (e) => {
+      if (e.key === 'Enter' && document.activeElement?.tagName === 'BUTTON') return;
       if (e.key === 'Escape' || e.key === 'Enter' || e.key === 'ArrowRight') {
         e.preventDefault(); e.stopImmediatePropagation();
         if (e.key === 'Escape') tour.skip(); else next();
@@ -148,15 +167,20 @@ export function AccountTour() {
         else if (!e.shiftKey && document.activeElement === buttons[buttons.length - 1]) { e.preventDefault(); buttons[0].focus(); }
       }
     };
-    let disposed = false;
-    const notification = tour.current()?.id === 'notify';
-    if (notification) void settingsView.open('notify').then(() => { if (!disposed) measure(); }).catch(() => { if (!disposed) next(); });
+    const focusNext = () => {
+      const buttons = bubble.current?.querySelectorAll('button');
+      buttons?.[buttons.length - 1]?.focus();
+    };
+    if (notification) void settingsView.open('notify').then(() => {
+      if (disposed) { if (!settingsWasOpen) settingsView.close(); return; }
+      ready = true; measure(); focusNext();
+    }).catch(() => { if (!disposed) next(); });
     else measure();
-    bubble.current?.querySelector('button')?.focus();
+    focusNext();
     const observer = new MutationObserver(measure);
     observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
     window.addEventListener('resize', measure); document.addEventListener('scroll', measure, true); window.addEventListener('keydown', keys, true);
-    return () => { disposed = true; cancelAnimationFrame(request); observer.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('scroll', measure, true); window.removeEventListener('keydown', keys, true); if (notification) settingsView.close(); };
+    return () => { disposed = true; cancelAnimationFrame(request); observer.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('scroll', measure, true); window.removeEventListener('keydown', keys, true); if (notification && !settingsWasOpen) settingsView.close(); };
   }, [tour, step]);
 
   async function answer(choice) {
@@ -189,12 +213,18 @@ export function AccountTour() {
     finally { if (id === attempt.current) setWaiting(false); }
   }
   const actions = {
-    signin: () => { setOffer(false); setError(''); setDialog(true); }, tour: start,
+    signin: async () => {
+      if (pending.current) return;
+      pending.current = true;
+      try { await recordOffer(); setOffer(false); setError(''); setDialog(true); }
+      catch (e) { setError(e.message); }
+      finally { pending.current = false; }
+    }, tour: start,
     manage: () => api.openLink('account'),
     signout: async () => { const r = await rpc('auth.signOut', {}, true); if (r.error) toast(r.error.message, true); await refresh(); },
   };
   const labels = { signin: 'Sign in', manage: 'Manage account', plan: planLabel(pro), tour: 'Take the tour', signout: 'Sign out' };
-  const items = menuItems({ status, configured: look?.authConfigured, pro }).filter((id) => id !== 'who').flatMap((id) => [
+  const items = menuItems({ status, configured: look?.authConfigured, pro, manage: look?.manageConfigured }).filter((id) => id !== 'who').flatMap((id) => [
     ...(id === 'signout' ? [{ type: 'divider' }] : []),
     { id, label: labels[id], isDisabled: id === 'plan', onClick: actions[id] },
   ]);
@@ -211,11 +241,11 @@ export function AccountTour() {
       </div>
     </Dialog>
     {offer && !dialog && !tour ? <Card className="cc-tour-offer" padding={4} role="dialog" aria-label="Want the 1-minute tour?"><Byte /><div className="cc-tour-content"><Text>Want the 1-minute tour?</Text>{error ? <Text role="alert">{error}</Text> : null}<div className="cc-tour-actions"><Button variant="ghost" label="Not now" onClick={() => answer('later')} /><Button label="Yes" onClick={() => answer('yes')} /></div></div></Card> : null}
-    {tour?.active ? <div className="cc-tour-running">
+    {scanning || tour?.active ? <div className="cc-tour-running">
       <svg className="cc-tour-dimmer" width="100%" height="100%" aria-hidden="true"><path fillRule="evenodd" d={`M0 0H${innerWidth}V${innerHeight}H0Z ${box ? `M${box.left} ${box.top}V${box.bottom}H${box.right}V${box.top}Z` : ''}`} /></svg>
-      <div ref={bubble} className="cc-tour-position" style={{ left, top }} role="dialog" aria-modal="true" aria-label="Tour" aria-describedby="cc-tour-line">
+      {tour?.active ? <div ref={bubble} className="cc-tour-position" style={{ left, top }} role="dialog" aria-modal="true" aria-label="Tour" aria-describedby="cc-tour-line">
         <Byte label={tour.current()?.morph} /><Card padding={4}><div className="cc-tour-content"><Text id="cc-tour-line" aria-live="polite">{tour.current()?.line}</Text><div className="cc-tour-actions"><Button variant="ghost" label="Skip" onClick={() => tour.skip()} /><Text color="secondary">{tour.label()}</Text><Button label={tour.nextLabel()} onClick={next} /></div></div></Card>
-      </div>
+      </div> : null}
     </div> : null}
   </>;
 }
