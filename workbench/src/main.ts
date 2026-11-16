@@ -3,6 +3,7 @@ import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
+import { worktreesRoot } from '../../core/src/project.ts';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -622,7 +623,7 @@ function handlers(): void {
     void attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), toWindow);
     return { windows_build: windowsBuild() };
   });
-  on('uiSettings', () => ({ approval: settings().sessions.approval, worktreesRoot: path.join(homeDir(), 'worktrees'), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
+  on('uiSettings', () => ({ approval: settings().sessions.approval, worktreesRoot: worktreesRoot(), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
   on('setTheme', async (name: unknown) => {
     if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);

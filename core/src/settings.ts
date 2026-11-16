@@ -145,8 +145,7 @@ export function settings(): Settings {
     } catch {}
   }
   const value = merge(DEFAULTS, raw) as Settings;
-  // A settings file from before M5-D6 keeps the old contained default.
-  if (parsed && typeof (raw.sessions as { approval?: unknown } | undefined)?.approval !== 'string') value.sessions.approval = 'contained';
+  if (mtime >= 0 && !parsed) value.sessions.approval = 'ask';
   cache = { mtime, value };
   return value;
 }

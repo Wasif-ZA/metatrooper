@@ -187,8 +187,8 @@ function StartBox({ ready, strip }) {
       { key: 'gap', gap: true },
       { key: 'access', accent: true, node: <Selector label="Approval" isLabelHidden size="sm" variant="ghost" placement="above" value={approval} onChange={setApproval}
         renderValue={() => ACCESS[approval === 'default' ? resolvedDefault : approval] || 'Ask first'} options={[
-        { value: 'default', label: `${resolvedDefault === 'contained' ? 'Auto: cannot control your desktop' : resolvedDefault === 'ask' ? 'Ask first: can control your desktop' : ACCESS[resolvedDefault]} (default)` },
-        ...[{ value: 'ask', label: 'Ask first: can control your desktop' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto: cannot control your desktop' }].filter((o) => can.includes(o.value) && o.value !== resolvedDefault),
+        { value: 'default', label: `${resolvedDefault === 'contained' ? 'Auto: cannot control your desktop or outside services' : resolvedDefault === 'ask' ? 'Ask first: can control your desktop and outside services' : ACCESS[resolvedDefault]} (default)` },
+        ...[{ value: 'ask', label: 'Ask first: can control your desktop and outside services' }, { value: 'edits', label: 'Edits allowed' }, { value: 'contained', label: 'Auto: cannot control your desktop or outside services' }].filter((o) => can.includes(o.value) && o.value !== resolvedDefault),
       ]} /> },
     ],
   })}
