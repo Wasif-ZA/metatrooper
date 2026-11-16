@@ -167,14 +167,15 @@ test('cd33aaec Needs you puts the step and action bar first in the detail pane a
   }
 });
 
-test('2f5f7cb9 Home start page Import projects carries its folder icon and the open-folder action', async (t) => {
+test('2f5f7cb9 Home start page starters replace Import projects and open-folder delegates', async (t) => {
   // Render the real start action and send its action through the real delegated click handler.
-  const ui = uiGlobals(t); ui.view = 'home'; (ui as any).homeSel = '';
+  const ui = uiGlobals(t); ui.view = 'home'; (ui as any).homeSel = ''; (ui as any).drafts = {};
+  ui.snap.engines = [{ id: 'ready', light: 'green' }];
   const start = descendants(screen(Home)).find((n: any) => n?.type?.name === 'StartState');
   assert.ok(start);
-  const html = renderToStaticMarkup(start);
-  const rendered = html.match(/<button\b[^>]*data-action="open-folder"[^>]*>[^]*?<\/button>/);
-  assert.ok(rendered); assert.match(rendered[0], /<svg\b/); assert.match(rendered[0], /Import projects/);
+  const html = renderToStaticMarkup({ ...start, props: { ...start.props, composer: null } });
+  assert.doesNotMatch(html, /Import projects|ou-hm-startlist/);
+  assert.match(html, /ou-hm-hello/);
   const calls: string[] = [];
   const onClick = new Function('hideMenu', 'openFolder', fn('onClick') + '\nreturn onClick;')(() => calls.push('hideMenu'), async () => { calls.push('openFolder'); });
   const el = { tagName: 'BUTTON', dataset: { action: 'open-folder' }, closest: () => null };

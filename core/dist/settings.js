@@ -13,7 +13,7 @@ export const DEFAULTS = {
     default: '',
   },
   sessions: {
-    approval: 'ask',
+    approval: 'contained',
     ask_paths: []            ,
     metarouter: true,
   },
@@ -176,10 +176,10 @@ function badTokenAt(text        )         {
   return Math.max(0, lo - 1);
 }
 
-/** Sets `section.key` in settings.json by writing settings.json.tmp-<pid>, flushing it and renaming it over the file; refuses a file that does not parse. A new file starts with approval ask (M5-D6). */
+/** Sets `section.key` in settings.json by writing settings.json.tmp-<pid>, flushing it and renaming it over the file; refuses a file that does not parse. A new file starts with approval contained. */
 export function setSetting(section        , key        , value         )       {
   const file = settingsFile();
-  let raw                      = { sessions: { approval: 'ask' } };
+  let raw                      = { sessions: { approval: 'contained' } };
   if (fs.existsSync(file)) {
     const error = settingsError();
     if (error) throw new Error(error);

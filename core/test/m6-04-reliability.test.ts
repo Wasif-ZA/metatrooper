@@ -214,7 +214,7 @@ for (const [name, text, line] of [
       assert.equal(settingsError(), 'settings.json does not parse, line ' + line);
       const defaults = settings();
       assert.equal(defaults.ui.theme, 'dither');
-      assert.equal(defaults.sessions.approval, 'ask');
+      assert.equal(defaults.sessions.approval, 'contained');
       assert.deepEqual(defaults.sessions.ask_paths, []);
       assert.equal(defaults.projects.default, '');
       assert.equal(defaults.worktree.npm_ci, true);
@@ -229,11 +229,11 @@ for (const [name, text, line] of [
 test('M6-04b settings.set changes only ui.theme and preserves other file keys', { timeout: 15000 }, async t => {
   const isolated = fixture(t);
   const file = join(isolated.home, 'settings.json');
-  writeFileSync(file, '{"ui":{"theme":"dither","rail_width":333,"custom":"kept"},"sessions":{"approval":"ask","ask_paths":["/fixture"]},"extra":{"value":7}}');
+  writeFileSync(file, '{"ui":{"theme":"dither","rail_width":333,"custom":"kept"},"sessions":{"approval":"contained","ask_paths":["/fixture"]},"extra":{"value":7}}');
   const { pipe } = await running(t, isolated);
   await uiHello(pipe, isolated.home);
   assert.deepEqual((await pipe.request('settings.set', { key: 'ui.theme', value: 'charcoal' })).result, {});
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { ui: { theme: 'charcoal', rail_width: 333, custom: 'kept' }, sessions: { approval: 'ask', ask_paths: ['/fixture'] }, extra: { value: 7 } });
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { ui: { theme: 'charcoal', rail_width: 333, custom: 'kept' }, sessions: { approval: 'contained', ask_paths: ['/fixture'] }, extra: { value: 7 } });
   withEnv({ METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix }, () => {
     assert.equal(settingsError(), null);
     assert.equal(settings().ui.theme, 'charcoal');
@@ -243,7 +243,7 @@ test('M6-04b settings.set changes only ui.theme and preserves other file keys', 
   assert.deepEqual(readdirSync(isolated.home).filter(name => name.startsWith('settings.json.tmp-')), []);
 });
 
-test('settings.set creates a missing file with sessions.approval ask', { timeout: 15000 }, async t => {
+test('settings.set creates a missing file with sessions.approval contained', { timeout: 15000 }, async t => {
   const isolated = fixture(t);
   const file = join(isolated.home, 'settings.json');
   withEnv({ METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix }, () => assert.equal(settingsError(), null));
@@ -251,7 +251,7 @@ test('settings.set creates a missing file with sessions.approval ask', { timeout
   assert.equal(existsSync(file), false);
   await uiHello(pipe, isolated.home);
   assert.deepEqual((await pipe.request('settings.set', { key: 'ui.theme', value: 'charcoal' })).result, {});
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { sessions: { approval: 'ask' }, ui: { theme: 'charcoal' } });
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { sessions: { approval: 'contained' }, ui: { theme: 'charcoal' } });
 });
 
 test('settings.set requires ui.hello and rejects unknown keys and wrong scalar types', { timeout: 15000 }, async t => {
@@ -278,7 +278,7 @@ for (const params of [{ key: 'sessions.ask_paths', value: {} }, { key: 'ui.theme
 test('M6-04b startup removes abandoned settings temp files and preserves the valid file', { timeout: 15000 }, async t => {
   const isolated = fixture(t);
   const file = join(isolated.home, 'settings.json');
-  writeFileSync(file, "{\n  \"sessions\": {\"approval\": \"ask\"},\n  \"ui\": {\"theme\": \"charcoal\"}\n}\n");
+  writeFileSync(file, "{\n  \"sessions\": {\"approval\": \"contained\"},\n  \"ui\": {\"theme\": \"charcoal\"}\n}\n");
   const before = readFileSync(file);
   writeFileSync(file + '.tmp-12345', '{"ui":{"theme":"paper"');
   writeFileSync(file + '.tmp-67890', '{"ui":{"theme":"slate"}}');
@@ -290,7 +290,7 @@ test('M6-04b startup removes abandoned settings temp files and preserves the val
   assert.equal(readFileSync(unrelated, 'utf8'), 'keep');
   await uiHello(pipe, isolated.home);
   assert.deepEqual((await pipe.request('settings.set', { key: 'ui.rail_width', value: 310 })).result, {});
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { sessions: { approval: 'ask' }, ui: { theme: 'charcoal', rail_width: 310 } });
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { sessions: { approval: 'contained' }, ui: { theme: 'charcoal', rail_width: 310 } });
 });
 
 test('core.ping reports the D63 fields and stable started_at without queueing', { timeout: 15000 }, async t => {

@@ -53,7 +53,7 @@ async function bundle(contents: string, output: string) {
 await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export { Chat, useChat } from './src/chat.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
 const screens = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
-const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore, lineageTitle, Chat, useChat } = screens;
+const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore, NEW_USER_HEADING, lineageTitle, Chat, useChat } = screens;
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
@@ -457,14 +457,13 @@ test('Home task view: prompt bubble, worked line, a collapsed subagents trigger 
   assert.match(view(), /Plan.*Build/);
 });
 
-test('Home start state: a heading, four start actions, then the composer with project and approval chips; no details card', () => {
-  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = ''; g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+test('Home start state: a heading, three starter buttons, then the composer with project and approval chips; no details card', () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = ''; g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.has_sessions = false;
   const h = harness(Home); const html = h.html();
-  assert.match(html, /<h1 class="ou-hm-hello">Pick up where your agents left off<\/h1>/);
-  assert.ok(html.indexOf('ou-hm-hello') < html.indexOf('ou-hm-startlist') && html.indexOf('ou-hm-startlist') < html.indexOf('ou-hm-task'));
+  assert.match(html, new RegExp(`<h1 class="ou-hm-hello">${NEW_USER_HEADING.replace('?', '\\?')}</h1>`));
   assert.ok(h.all(label('Project')).length === 1 && h.all(label('Approval')).length === 1);
-  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['Import projects', 'Automations', 'Open the Wall', 'Learn cc']);
-  assert.match(html, /data-action="open-folder"/);
+  assert.ok(html.includes('Explain this project') && html.includes('Fix a bug') && html.includes('Build a page'));
+  assert.doesNotMatch(html, /ou-hm-startlist|Import projects/);
   assert.doesNotMatch(html, /ou-hm-card|ou-hm-rail/);
   delete g.ui.homeSel; h.draw(); assert.equal(g.ui.homeSel, '', 'the start page clears the selection so the sidebar highlights nothing');
 });
@@ -987,7 +986,7 @@ test('chat box access label names the level from Settings', () => {
   const h = harness(Home); h.draw();
   const access = h.one(label('Approval'));
   assert.equal(access.props.renderValue(), 'Auto');
-  assert.equal(access.props.options[0].label, 'Auto (from Settings)');
+  assert.equal(access.props.options[0].label, 'Auto: cannot control your desktop (default)');
   access.props.onChange('edits'); h.draw();
   assert.equal(h.one(label('Approval')).props.renderValue(), 'Edits allowed');
   g.ui.settingsLook = { themes: [] };
