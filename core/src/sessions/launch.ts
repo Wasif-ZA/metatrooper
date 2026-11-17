@@ -21,6 +21,9 @@ export interface LaunchPlan {
   promptDelivered: boolean;
 }
 
+/** Approval each launched session started with, held in memory; a session missing here counts as ask. */
+export const sessionApproval = new Map<string, string>();
+
 export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', extra: string[] = [], host = 'pty'): LaunchPlan {
   if (approval === 'isolated' && host !== 'sandbox') throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host');
   const argv = [engine.command, ...(engine.args ?? []), ...(engine.approval_profiles?.[approval] ?? []), ...extra];
@@ -115,6 +118,7 @@ export function launchSession(
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }
   if (!plan.promptDelivered && opts.prompt) pendingPrompts.set(id, { prompt: opts.prompt, at: Date.now() });
+  sessionApproval.set(id, approval);
   return { session_id: id, prompt_delivered: plan.promptDelivered, approval, ...(setup && setup.length ? { setup } : {}) };
 }
 

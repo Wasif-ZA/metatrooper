@@ -10,7 +10,7 @@ import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
-import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
+import { heldPrompts, launchSession, sessionApproval, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
@@ -40,6 +40,8 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 }
 
 export const PROTOCOL = 1;
+
+const approvalRank = (a: string) => (a === 'ask' || a === 'isolated' ? 0 : 1);
 
 export const MOVED_METHODS = [
   'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
@@ -199,7 +201,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('session.launch', {
-    handler: (p) => {
+    handler: (p, ctx) => {
       const project = db.prepare('SELECT id, path, name FROM project WHERE id = ?').get(str(p, 'project_id')) as
         | { id: string; path: string; name: string }
         | undefined;
@@ -223,6 +225,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       }
       const parent = str(p, 'parent_id', false) || undefined;
       if (parent && !db.prepare('SELECT 1 FROM session WHERE id = ?').get(parent)) throw new RpcError(E.NOT_FOUND, 'parent session not found');
+      if (parent && !ctx.ui && approvalRank(approval) > approvalRank(sessionApproval.get(parent) ?? 'ask')) {
+        throw new RpcError(E.VALIDATION, `a session launched by another session cannot use a looser approval than its parent (${sessionApproval.get(parent) ?? 'ask'})`);
+      }
       if (host === 'sandbox') {
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
