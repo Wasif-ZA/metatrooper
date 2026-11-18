@@ -1,20 +1,15 @@
 /* Modified from herdr (https://github.com/herdrdev/herdr), Apache-2.0; changed for cc. See THIRD_PARTY_NOTICES.md. */
 /* Wall in the herdr layout: thin top bar, workspace + agents sidebar, bordered panes, no strip. */
 :root[data-view="wall"]:not(.side-rail) { --side: 205px; }
-:root[data-view="wall"] { --top: 35px; }
 
 .hside { display: none; }
 :root[data-view="wall"] #frame { background: var(--canvas-deep); border-right: 0; }
-:root[data-view="wall"] #frame > :not(.hside):not(.fnav):not(.ffoot) { display: none; }
+:root[data-view="wall"] #frame > :not(.hside):not(.fhead):not(.fnav):not(.ffoot) { display: none; }
 :root[data-view="wall"] #frame .ffoot { position: absolute; left: 6px; right: 0; bottom: 8px; flex-direction: row; gap: 2px; padding: 0; border: 0; }
 :root[data-view="wall"] #frame .ffoot button { width: 28px; height: 28px; margin: 0; padding: 0; justify-content: center; color: var(--mute); }
 :root[data-view="wall"] #frame .ffoot button:hover { color: var(--ink); }
 :root[data-view="wall"] #frame .ffoot .fl { display: none; }
-:root[data-view="wall"] #frame .fnav.ficons { position: absolute; top: 4px; left: 6px; height: 28px; flex-direction: row; flex-wrap: nowrap; gap: 0; padding: 0 4px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--canvas); align-items: center; }
-:root[data-view="wall"] #frame .fnav.ficons button { width: 26px; height: 24px; margin: 0; padding: 0; justify-content: center; border-radius: 999px; }
-:root[data-view="wall"] #frame .fnav.ficons .fl { display: none; }
-:root[data-view="wall"] #frame .fnav.ficons .fpill { position: absolute; top: -3px; right: -2px; height: 13px; min-width: 13px; padding: 0 3px; font-size: 9px; line-height: 13px; }
-:root[data-view="wall"] .hside { position: absolute; inset: calc(var(--top) + 4px) 0 44px 6px; display: flex; flex-direction: column; font: 15px/20px 'Geist', 'Segoe UI', sans-serif; color: var(--body); }
+:root[data-view="wall"] .hside { position: absolute; inset: calc(var(--top) + 44px) 0 44px 6px; display: flex; flex-direction: column; font: 15px/20px 'Geist', 'Segoe UI', sans-serif; color: var(--body); }
 
 :where(.hside button) { all: unset; box-sizing: border-box; cursor: pointer; }
 .hws-list { flex: none; height: calc(50% - 6px); overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
