@@ -118,7 +118,7 @@ globalThis.frameView = (() => {
     if (Number.isNaN(s)) return '';
     return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   };
-  const shelf = { working: true, settled: false };
+  const shelf = { working: true, needs: true, settled: false };
   const openKids = new Set();
   const rowName = (x) => taskOf(x);
 
@@ -138,7 +138,10 @@ globalThis.frameView = (() => {
     out.sort((a, b) => at(b) - at(a));
     const done = out.filter((t) => !t.active);
     const recent = done.filter((t) => Date.now() - at(t) < 86_400_000).slice(0, 5);
-    return { working: out.filter((t) => t.active), recent, settled: done.filter((t) => !recent.includes(t)) };
+    const working = out.filter((t) => t.x.state === 'starting' || t.x.state === 'working');
+    const unknown = out.filter((t) => t.x.state === 'unknown');
+    const needs = out.filter((t) => t.x.state === 'waiting_for_you');
+    return { working: [...working, ...unknown], needs, recent, settled: done.filter((t) => !recent.includes(t)) };
   }
 
   function kidHtml(k) {
@@ -162,7 +165,7 @@ globalThis.frameView = (() => {
     const n = t.kids.length;
     const toggle = n ? `<button class="fthx" data-kids="${esc(x.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${n} sub-agent${n === 1 ? '' : 's'} of ${esc(name)}" title="${n} sub-agent${n === 1 ? '' : 's'}">${I('chevronRight', 14)}</button>` : '';
     const kids = open ? `<div class="fthkids">${t.kids.map((k) => kidHtml(k)).join('')}</div>` : '';
-    return `<div class="fthw${n ? ' haskids' : ''}${open ? ' open' : ''}" data-key="s:${esc(x.id)}"><button class="fth${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
+    return `<div class="fthw${n ? ' haskids' : ''}${open ? ' open' : ''}" data-key="s:${esc(x.id)}"><button class="fth${x.state === 'unknown' ? ' fthunk' : ''}${sel ? ' sel' : ''}${x.state === 'exited' ? ' fgone' : ''}" data-action="home-select" data-id="${esc(x.id)}"${sel ? ' aria-current="true"' : ''} title="${esc(`${name}\n${t.project} · ${x.model || x.engine_id} · ${words}`)}" aria-label="${esc(name)}, ${esc(t.project)}, ${esc(words)}">`
       + `<span class="fth1"><span class="ft">${esc(name)}</span><span class="fthtime">${when}</span></span>`
       + `<span class="fth2">${statusHtml(x)}<span class="fthsep">·</span><span class="fthpn" data-proj="${esc(t.project_id)}">${esc(t.project)}</span>${t.branch ? `<span class="fthsep">·</span><span class="fthbr">${esc(t.branch)}</span>` : ''}</span>`
       + `<span class="fth3"><span class="fthmks">${engines}</span></span></button>${toggle}${kids}</div>`;
@@ -176,11 +179,11 @@ globalThis.frameView = (() => {
   }
 
   function threadsHtml(tree, rows, git, hide) {
-    const { working, recent, settled } = threadRows(tree, rows, git, hide);
-    if (!working.length && !recent.length && !settled.length) return '<p class="fempty">No agents running</p>';
+    const { working, needs, recent, settled } = threadRows(tree, rows, git, hide);
+    if (!working.length && !needs.length && !recent.length && !settled.length) return '<p class="fempty">No agents running</p>';
     const top = view.done ? recent.map((t) => threadHtml(t, rows)).join('') : '';
     const counts = cw()?.workingCounts(ui.snap) || { working: 0, helpers: 0 };
-    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows, counts.working, counts.helpers) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
+    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows, counts.working, counts.helpers) : ''}${needs.length ? shelfHtml('needs', 'Needs you', needs, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
   }
 
   const gh = { project: null, at: 0, issues: null };

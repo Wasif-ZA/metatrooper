@@ -17,14 +17,15 @@ export function statusOf(x) {
   const s = x?.state;
   const outcome = String(x?.outcome || '');
   if (s === 'waiting_for_you') return 'waiting';
-  if (s === 'working' || s === 'starting' || s === 'unknown') return 'running';
+  if (s === 'unknown') return 'unknown';
+  if (s === 'working' || s === 'starting') return 'running';
   if (s === 'failed' || /fail/.test(outcome)) return 'failed';
   if (s === 'exited' && /cancel/.test(outcome)) return 'stopped';
   if (s === 'done' || s === 'exited' || s === 'idle') return 'done';
   return 'running';
 }
 
-export const STATUS_WORD = { running: 'Running', waiting: 'Needs you', done: 'Done', failed: 'Failed', stopped: 'Stopped' };
+export const STATUS_WORD = { running: 'Working', unknown: 'Unknown', waiting: 'Needs you', done: 'Done', failed: 'Failed', stopped: 'Stopped' };
 export const statusWord = (x) => STATUS_WORD[statusOf(x)];
 
 /** An agent cc started and that still runs can be stopped from the UI; outside sessions and shells cannot. */

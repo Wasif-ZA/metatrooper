@@ -289,7 +289,7 @@ function SlimRow({ k, lead, openList, toggle }) {
 
 function Trigger({ x, kids, open, toggle }) {
   const statuses = kids.map(statusOf);
-  const working = statuses.filter((s) => s === 'running' || s === 'waiting').length;
+  const working = statuses.filter((s) => s === 'running' || s === 'waiting' || s === 'unknown').length;
   const label = `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}`;
   const summary = summarizeSubagentStatuses(statuses);
   return (
