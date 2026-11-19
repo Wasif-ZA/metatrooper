@@ -59,7 +59,10 @@ try {
     Remove-Item -LiteralPath (Join-Path $output 'resources/default_app.asar') -Force
     Copy-Items $repo $appDir @('contracts', 'engines', 'plugins', 'router', 'sandbox', 'skills', 'LICENSE', 'THIRD_PARTY_NOTICES.md')
     Copy-Items (Join-Path $repo 'workbench') (Join-Path $appDir 'workbench') @('src', 'renderer', 'build', 'package.json')
-    $coreFiles = @('src', 'dist', 'cli.ts', 'package.json', 'prices.json', 'LICENSE')
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'launcher/build.ps1')
+    if ($LASTEXITCODE -ne 0) { throw "launcher/build.ps1 failed (exit $LASTEXITCODE); a release needs the Rust toolchain" }
+    if (-not (Test-Path -LiteralPath (Join-Path $repo 'core/bin/metatrooper-launch.exe'))) { throw 'core/bin/metatrooper-launch.exe missing after the launcher build' }
+    $coreFiles = @('src', 'dist', 'bin', 'cli.ts', 'package.json', 'prices.json', 'LICENSE')
     $coreFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'core') -Filter '*.js' -File | Select-Object -ExpandProperty Name)
     Copy-Items (Join-Path $repo 'core') (Join-Path $appDir 'core') $coreFiles
     $utf8 = New-Object System.Text.UTF8Encoding($false)
