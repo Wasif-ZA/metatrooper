@@ -456,6 +456,7 @@ async function withCustomContinueCore(
   writeFileSync(claudeScript, quickExit);
   writeFileSync(targetScript, quickExit);
 
+  const engineIds = enginesBuilder(isolated, claudeScript, targetScript).map((e: any) => e.id);
   writeFileSync(registry, JSON.stringify(enginesBuilder(isolated, claudeScript, targetScript)));
 
   const env = { ...isolated.env, METATROOPER_ENGINES: registry };
@@ -468,6 +469,12 @@ async function withCustomContinueCore(
       await uiHello(pipe, isolated.home);
       const opened = await pipe.request('project.open', { path: projectDir });
       const db = () => new DatabaseSync(join(isolated.home, 'troop.db'));
+      // the core checks engines in the background at start; wait until every fixture engine is recorded installed
+      for (let i = 0; i < 300; i++) {
+        const d = db();
+        try { if ((d.prepare('SELECT count(DISTINCT engine_id) AS n FROM engine_check WHERE installed = 1').get() as { n: number }).n >= engineIds.length) break; } finally { d.close(); }
+        await new Promise((r) => setTimeout(r, 100));
+      }
       await run({ pipe, isolated, projectId: opened.result.project_id, projectDir, db });
     } finally {
       pipe.close();
