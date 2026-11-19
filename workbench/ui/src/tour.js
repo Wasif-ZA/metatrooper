@@ -1,6 +1,6 @@
 export const STOPS = [
   ['chat', '#home .ou-composer', 'home', 'hi', 'Type what you want done. An agent picks it up.'],
-  ['access', '#home .ou-cmp-accent button[role="combobox"]', 'home', 'ok?', 'This decides what agents may do without asking you.'],
+  ['access', '#home .ou-cmp-accent', 'home', 'ok?', 'This decides what agents may do without asking you.'],
   ['needs', '.fnav [data-view="inbox"]', null, '!', 'When an agent needs a yes or an answer, it waits here.'],
   ['wall', '.fnav [data-view="wall"]', null, '[]', 'Every agent you run, side by side, live.'],
   ['palette', '[data-action="palette"]', null, 'K', 'Ctrl+K finds any agent or command.'],
@@ -8,7 +8,7 @@ export const STOPS = [
   ['ide', '.fnav [data-view="ide"]', 'ide', '</>', 'Editor, search, git and diff comments, next to your agents.'],
   ['browser', '[data-tab="browser"]', 'wall', 'www', 'Agents can use a browser here. You approve each site.'],
   ['computer', '[data-action="grant-give"]', 'wall', 'win', 'On Windows, an agent can use an app window you lend it.'],
-  ['drawn', '.ou-drawn-bar, .ou-drawn-chips', 'ide', '#', 'Agents can draw screens for you, in tabs.'],
+  ['drawn', '.ou-drawn-bar:not(:empty), .ou-drawn-chips:not(:empty)', 'ide', '#', 'Agents can draw screens for you, in tabs.'],
   ['sessions', '#frame-agents', null, 'zz', 'Close cc any time. Your agents keep running and come back.'],
   ['account', '#account', null, 'me', 'Your account lives here. Signing in is optional; cc works the same without it.'],
   ['pro', '.ffoot [data-view="addons"][data-tour-pro]', null, '+', 'cc Pro adds Tasks, Review and Proof.'],
@@ -22,7 +22,7 @@ export function visible(el) {
 }
 
 export function stopsFor(doc, stops = STOPS) {
-  return stops.filter((s) => Array.from(doc.querySelectorAll?.(s.selector) ?? [doc.querySelector(s.selector)]).find(visible));
+  return stops.filter((s) => Array.from(doc.querySelectorAll?.(s.selector) ?? [doc.querySelector(s.selector)]).find((el) => visible(el) && (s.id !== 'drawn' || el?.childElementCount > 0 || (el?.textContent?.trim() || '') !== '')));
 }
 
 export const offerOnEvent = (tour) => tour == null || tour === '';
@@ -49,6 +49,15 @@ export function createTour({ doc, stops = STOPS, getView, setView, onEnd, defer 
     const view = list[index]?.view ?? startView;
     if (view !== getView()) setView(view);
   };
+  const drop = (target = index) => {
+    if (!active) return;
+    const i = typeof target === 'number' ? target : list.findIndex((s) => s.id === target || s === target);
+    if (i < 0 || i >= list.length) return;
+    list.splice(i, 1);
+    if (i < index) index--;
+    if (!list.length || index >= list.length) end();
+    else enter();
+  };
   return {
     get active() { return active; },
     get index() { return index; },
@@ -57,7 +66,8 @@ export function createTour({ doc, stops = STOPS, getView, setView, onEnd, defer 
     label: () => `${index + 1} of ${list.length}`,
     nextLabel: () => index === list.length - 1 ? 'Done' : 'Next',
     start() { if (ended) return; if (!list.length) return end(); active = true; index = 0; enter(); },
-    next() { if (!active) return; if (++index >= list.length) end(); else enter(); },
+    next(opts) { if (!active) return; if (opts?.drop) drop(); else if (++index >= list.length) end(); else enter(); },
+    drop,
     skip: end,
   };
 }

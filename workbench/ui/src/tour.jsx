@@ -141,6 +141,7 @@ export function AccountTour() {
   }
 
   function next() { setBox(null); tourRef.current?.next(); setStep((n) => n + 1); }
+  function drop() { setBox(null); if (tourRef.current?.drop) tourRef.current.drop(); else tourRef.current?.next(); setStep((n) => n + 1); }
   useLayoutEffect(() => {
     if (!tour?.active) return;
     let request, disposed = false;
@@ -153,8 +154,8 @@ export function AccountTour() {
       request = requestAnimationFrame(() => {
         request = null;
         if (disposed || !tour.active || tour.current() !== stop || !ready) return;
-        const target = Array.from(document.querySelectorAll(stop.selector)).find(visible);
-        if (!visible(target)) { next(); return; }
+        const target = Array.from(document.querySelectorAll(stop.selector)).find((el) => visible(el) && (stop.id !== 'drawn' || el?.childElementCount > 0 || (el?.textContent?.trim() || '') !== ''));
+        if (!visible(target)) { drop(); return; }
         const r = target.getBoundingClientRect();
         const style = getComputedStyle(target);
         const radius = Math.max(...['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius'].map((key) => parseFloat(style[key]) || 0)) + 5;
@@ -182,7 +183,7 @@ export function AccountTour() {
     if (notification) void settingsView.open('notify').then(() => {
       if (disposed) { if (!settingsWasOpen) settingsView.close(); return; }
       ready = true; measure(); focusNext();
-    }).catch(() => { if (!disposed) next(); });
+    }).catch(() => { if (!disposed) drop(); });
     else measure();
     focusNext();
     const observer = new MutationObserver(measure);
