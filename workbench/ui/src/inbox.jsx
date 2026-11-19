@@ -9,7 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop, defaultEngine, workingCounts } from './words.js';
+import { NOT_SENT, canStop, defaultEngine, workingCounts, workingRows } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
@@ -460,7 +460,7 @@ export function Inbox() {
   };
   const approvals = allApprovals.filter((a) => passes({ ref: a.session_id }, false));
   const waitingSessions = waitingAll().slice().sort(byPriority(true));
-  const workingSessions = live.filter((x) => x.state === 'working' || x.state === 'starting').sort(byPriority(true));
+  const workingSessions = workingRows(ui.snap).sort(byPriority(true));
   const needsNotices = needsYou.filter((n) => kindOf(n) === 'needs').sort(byPriority(false));
   const inReviewNotices = needsYou.filter((n) => n.kind === 'uncommitted' || n.kind === 'handoff').sort(byPriority(false));
   const failedNotices = needsYou.filter((n) => n.kind === 'failed').sort(byPriority(false));

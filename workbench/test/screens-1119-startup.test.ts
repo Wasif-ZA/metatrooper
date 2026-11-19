@@ -50,3 +50,9 @@ test('one screen throwing in drawSections does not stop the others drawing, and 
   assert.equal(errors.length, 1);
   assert.match(String((errors[0] as unknown[]).join(' ')), /home broke/);
 });
+
+test('with no project the Home line has no dangling "in"', () => {
+  const { ctx, home } = homeCtx([]);
+  ctx.homeView.draw();
+  assert.doesNotMatch(home.innerHTML, /\bin\s*<\/p>/);
+});

@@ -162,3 +162,23 @@ test('a Working section holding only helpers stays open with its rows, and Needs
   assert.equal(fold.props.open, true, 'the section is not folded away while it has a row');
   assert.deepEqual(h.all(hasClass('ou-irow')).map((n: any) => n.props['data-id']).sort(), ['H', 'P']);
 });
+
+test('a starting session (in sessions or tree_rows, never in live) is counted and listed in Needs you Working, matching the header', () => {
+  const row = (id: string, state: string, extra: any = {}) => ({ id, state, project_id: 'p1', engine_id: 'synthetic', title: 'Task ' + id, ...extra });
+  const live = [row('A', 'working'), row('W', 'waiting_for_you')];
+  Object.assign(g, {
+    ui: { view: 'inbox', projectId: 'p1', snap: { live, sessions: [row('T', 'starting')], tree_rows: { S: row('S', 'starting'), A: row('A', 'working') }, approvals: [], needs_you: [], engines: [], projects: [{ id: 'p1', name: 'Alpha' }] } },
+    waitingAll: () => live.filter((x) => x.state === 'waiting_for_you'),
+    taskOf: (x: any) => x.title,
+    ago: () => '1m ago',
+  });
+  inboxStore.set({ filter: 'all', engine: '', project: '', collapsed: [], selectedId: null });
+  const h = harness(Inbox);
+  h.draw();
+  const count = textContent(h.one((n: any) => hasClass('ou-ny-gcount')(n) && n.props['data-group'] === 'working'));
+  assert.equal(count, '3', 'A working, S and T starting');
+  assert.match(textContent(h.one(hasClass('ou-ny-counts'))), new RegExp(`${count} working`), 'section and header agree');
+  const fold = h.one((n: any) => n.type?.name === 'Fold' && n.props.head?.props['data-group'] === 'working');
+  const ids = React.Children.toArray(fold.props.children).filter((n: any) => hasClass('ou-irow')(n)).map((n: any) => n.props['data-id']).sort();
+  assert.deepEqual(ids, ['A', 'S', 'T']);
+});

@@ -218,7 +218,6 @@ const STARTERS = [
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
 const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', isolated: 'Full access' };
-const ACTIVE_STATES = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
 const settled = (k) => ['done', 'failed', 'stopped'].includes(statusOf(k));
