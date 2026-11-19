@@ -69,3 +69,17 @@ test('a closing drop stays collapsed after its animation ends, so the row never 
   assert.equal(done, 1);
   assert.equal(cancelled, 0, 'the collapsed state is kept; the next reveal cancels it');
 });
+
+test('opening and closing a drop also moves its padding, so the content below does not jump by the padding at either end', async () => {
+  const { reveal: open, conceal: close } = await import('../ui/src/motion.js');
+  (globalThis as any).getComputedStyle = () => ({ paddingTop: '0px', paddingBottom: '8px', boxSizing: 'border-box' });
+  const frames: any[] = [];
+  const el: any = { scrollHeight: 40, offsetHeight: 40, getAnimations: () => [], querySelectorAll: () => [], animate: (k: any) => { frames.push(k); return { onfinish: null, cancel() {} }; } };
+  open(el, ':scope li', 250);
+  assert.equal(frames[0][0].paddingBottom, '0px', 'opening starts with no padding');
+  assert.equal(frames[0][1].paddingBottom, '8px', 'and ends at the real padding');
+  assert.equal(frames[0][1].height, '40px');
+  close(el, () => {});
+  assert.equal(frames[1][0].paddingBottom, '8px');
+  assert.equal(frames[1][1].paddingBottom, '0px', 'closing takes the padding to zero with the height');
+});
