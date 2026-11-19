@@ -172,8 +172,8 @@ const termView = (() => {
 
   /** Attaches once the wall has given the tile its real size, so the PTY is not resized right after attach. */
   function resize(t) {
-    clearTimeout(t.fitTimer);
     if (!t.el.isConnected || !t.el.offsetWidth || t.el.classList.contains('fold')) return;
+    clearTimeout(t.fitTimer);
     if (typeof gsap !== 'undefined' && gsap.isTweening?.(t.el)) { t.fitTimer = setTimeout(() => resize(t), 80); return; }
     const cell = t.term.element && t.term.element.querySelector('.xterm-rows > div');
     if (t.el.querySelector('.tile-body').clientHeight < (cell ? cell.offsetHeight * 2 : 30)) return;
