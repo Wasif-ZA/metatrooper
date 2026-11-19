@@ -1309,7 +1309,7 @@ test('M6-23 launch supplies plugin environment and opencode config with no exter
     assert.deepEqual(Object.keys(env), ['OPENCODE_CONFIG_CONTENT']);
     const steps = { type: 'local', command: [process.execPath.replaceAll('\\', '/'), join(ROOT, 'core/mcp-shim.js').replaceAll('\\', '/'), 'steps'], enabled: true };
     assert.deepEqual(JSON.parse(env.OPENCODE_CONFIG_CONTENT), {
-      mcp: { 'ouros-steps': steps, 'ouros-ui': { ...steps, command: [...steps.command.slice(0, 2), 'ui'] } },
+      mcp: { 'ouros-steps': steps, 'ouros-ui': { ...steps, command: [...steps.command.slice(0, 2), 'ui'] }, 'metatrooper-browser': { type: 'local', command: [process.execPath.replaceAll('\\', '/'), join(ROOT, 'core/metatrooper-browser.js').replaceAll('\\', '/')], enabled: true } },
       plugin: [pathToFileURL(join(ROOT, 'engines/plugins/opencode-state.js')).href],
     });
     assert.deepEqual(Object.keys(JSON.parse(mcpAttachEnv(h.db, {

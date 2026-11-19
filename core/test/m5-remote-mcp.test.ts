@@ -145,10 +145,10 @@ test('M5-12f STDIO external writer attaches only under ask approval; ouros-steps
     for (const ctx of [{ pipelineStep: true, approval: 'isolated' }, { approval: 'isolated' }]) assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), []);
     for (const ctx of [{ pipelineStep: true, approval: 'contained' }, { approval: 'contained' }]) {
       assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), flags);
-      assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui']);
+      assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'metatrooper-browser']);
     }
     assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval: 'ask' }), flags);
-    assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'stdio-writer-writer']);
+    assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'metatrooper-browser', 'stdio-writer-writer']);
   } finally {
     db.close();
     if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;

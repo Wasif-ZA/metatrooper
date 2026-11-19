@@ -136,6 +136,11 @@ function wantsDesktop(db: DatabaseSync, ctx: AttachContext): boolean {
   }
 }
 
+/** Browser tools join sessions unless they are pipeline steps or isolated. */
+function wantsBrowser(ctx: AttachContext): boolean {
+  return !ctx.pipeline && ctx.approval !== 'isolated';
+}
+
 export interface AttachContext {
   pipeline?: boolean;
   approval?: string;
@@ -173,7 +178,7 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
   const ouros = ['steps', 'ui'].map((server) => ({ name: `ouros-${server}`, ...(native ? { command: exe, args: ['mcp', server] } : { args: [shim, server] }) }));
   const servers: AttachServer[] = [
     ...(ctx.approval === 'isolated' ? [] : ouros),
-    ...(browser ? [{ name: 'metatrooper-browser', ...(native ? { command: exe, args: ['mcp', 'browser'] } : { args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }) }] : []),
+    ...(browser || wantsBrowser(ctx) ? [{ name: 'metatrooper-browser', ...(native ? { command: exe, args: ['mcp', 'browser'] } : { args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }) }] : []),
     ...(wantsDesktop(db, ctx) ? [{ name: 'metatrooper-desktop', ...(native ? { command: exe, args: ['mcp', 'desktop'] } : { args: [desktopServerPath().split(String.fromCharCode(92)).join('/')] }) }] : []),
     ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId, shimToken(e.pluginId)], http: e.http })),
   ];
@@ -203,7 +208,7 @@ export function mcpAttachEnv(db: DatabaseSync, engine: EngineSpec, sessionId: st
   return { [attach.env]: dir };
 }
 
-/** Engine arguments that point each plugin MCP server at the shim, plus `metatrooper-browser` when the session needs the browser; no real command or secret appears. */
+/** Engine arguments that point each plugin MCP server at the shim, plus `metatrooper-browser` for eligible sessions or explicit browser launches; no real command or secret appears. */
 export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string, browser = false, ctx: AttachContext = {}): string[] {
   const { node, servers } = attachServers(db, engine, browser, ctx);
   switch (engine.mcp_attach?.kind) {
