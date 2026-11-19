@@ -397,7 +397,7 @@ test('M7-01c a batch step on a risky button waits for approval; a rejection skip
 test('M7-01e a 10-button page tags exactly 4 covered and 3 offscreen, and window.scrollY is unchanged', options, async () => {
   const h: Harness = await boot();
   try {
-    const s = await h.session(tagPage, undefined);
+    const s = await h.session(tagPage, 'debug');
     await h.openWorkbench();
     const job = await s.job([
       ['ready', 'browser.wait_for', { pane_id: s.pane, text: 'v3', timeout_ms: 20000 }],
@@ -425,7 +425,7 @@ test('M7-01e a 10-button page tags exactly 4 covered and 3 offscreen, and window
 test('M7-01e measures a 400-ref snapshot with tags (reported, not asserted)', options, async (t) => {
   const h: Harness = await boot();
   try {
-    const s = await h.session(manyPage, undefined);
+    const s = await h.session(manyPage, 'debug');
     await h.openWorkbench();
     const job = await s.job([
       ['ready', 'browser.wait_for', { pane_id: s.pane, text: 'b399', timeout_ms: 20000 }],
@@ -450,7 +450,7 @@ test('M7-01f after a forced detach a click works within 1 s, a blocked request s
   const h: Harness = await boot();
   const blocked = await hitCounter();
   try {
-    const s = await h.session(clickPage, undefined);
+    const s = await h.session(clickPage, 'debug');
     await h.openWorkbench();
     const snap = await s.job([
       ['ready', 'browser.wait_for', { pane_id: s.pane, text: 'Go', timeout_ms: 20000 }],
@@ -497,7 +497,7 @@ test('M7-01f after a forced detach a click works within 1 s, a blocked request s
 test('M7-01f two forced detaches within 5 s leave tools failing -32034 "the page\'s debugger keeps detaching"', options, async () => {
   const h: Harness = await boot();
   try {
-    const s = await h.session(clickPage, undefined);
+    const s = await h.session(clickPage, 'debug');
     await h.openWorkbench();
     await s.job([['ready', 'browser.wait_for', { pane_id: s.pane, text: 'Go', timeout_ms: 20000 }]]);
     await h.wb.paneAct(s.pane);

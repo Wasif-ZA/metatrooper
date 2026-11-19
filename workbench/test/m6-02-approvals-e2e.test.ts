@@ -104,6 +104,7 @@ async function paneApprovalsE2e() {
     const enginePrompt = join(workbench, 'test', 'fixtures', 'm6-02-engine.cjs');
     const launched = await initPipe.request('session.launch', {
       project_id: projectId,
+      browser_grant: 'debug',
       engine_id: 'fake',
       prompt: enginePrompt,
     });

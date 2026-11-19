@@ -41,7 +41,7 @@ test('M6-03a a dev server in a session terminal gets an ancestry row, the tile s
       : ['xvfb-run', ['-a', '-s', '-screen 0 1400x900x24', electron, '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', workbench]];
     wb = spawn(wbArgs[0], wbArgs[1], { env, stdio: ['ignore', 'ignore', openSync(join(iso.home, 'workbench.err'), 'w')], detached: process.platform !== 'win32' });
 
-    const sessionId = (await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: join(workbench, 'test', 'fixtures', 'dev-engine.cjs') }, { timeout: 15_000 })).result.session_id as string;
+    const sessionId = (await pipe.request('session.launch', { project_id: projectId, browser_grant: 'debug', engine_id: 'fake', prompt: join(workbench, 'test', 'fixtures', 'dev-engine.cjs') }, { timeout: 15_000 })).result.session_id as string;
     const row = await until(() => {
       const d = db();
       try { return d.prepare("SELECT port, url, matched_by, status FROM session_dev_server WHERE session_id = ?").get(sessionId) as { port: number; url: string; matched_by: string; status: string } | undefined; } finally { d.close(); }
