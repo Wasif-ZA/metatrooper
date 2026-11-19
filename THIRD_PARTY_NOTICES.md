@@ -17,6 +17,10 @@ or MIT terms of this repository.
 | Silkscreen | `workbench/renderer/vendor/fonts/silkscreen-400.ttf`, `silkscreen-700.ttf` | | SIL Open Font License 1.1 |
 | superpowers skills (brainstorming, dispatching-parallel-agents, executing-plans, receiving-code-review, requesting-code-review, systematic-debugging, test-driven-development, using-git-worktrees, verification-before-completion, writing-plans) | `skills/<name>/`, each with its `LICENSE` | obra/superpowers at bb92a77 | MIT, Copyright (c) 2025 Jesse Vincent |
 | monaco-editor | `workbench/renderer/monaco/` (bundled) | 0.57.0 | MIT |
+| astryx (`@astryxdesign/core`, `@astryxdesign/theme-neutral`) | `workbench/renderer/ui.bundle.js` (bundled) | 0.7.11 | MIT, Copyright (c) 2026 Meta Platforms, Inc. |
+| recharts | `workbench/renderer/ui.bundle.js` (bundled) | 3.10.1 | MIT |
+| React, React DOM, StyleX (`@stylexjs/stylex`) | `workbench/renderer/ui.bundle.js` (bundled) | 19.3.1, 19.3.1, 0.19.1 | MIT |
+| marked | `workbench/renderer/ui.bundle.js` (bundled) | 18.1.2 | MIT, plus the Markdown licence (BSD-3-Clause style) |
 | t3code (adapted code: Home, sidebar, engine logos for Claude, OpenAI/Codex and Antigravity) | `workbench/ui/src/`, `workbench/renderer/frame.js`, `workbench/ui/src/icons/engine-marks.js` | | MIT, Copyright (c) 2026 T3 Tools Inc. |
 | bb (adapted code: the shared chat box) | `workbench/ui/src/composer.jsx` | | MIT, Copyright (c) 2026 Michael Yong |
 | Simple Icons (Gemini and Copilot logos) | `workbench/ui/src/icons/engine-marks.js` | 15.0.0 | CC0 1.0 |
@@ -296,6 +300,63 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## UI libraries in the window bundle
+
+These are bundled into `workbench/renderer/ui.bundle.js`. Each is under the MIT licence below, with its own
+copyright line:
+
+- astryx (`@astryxdesign/core`, `@astryxdesign/theme-neutral`) 0.7.11, https://github.com/meta/astryx:
+  Copyright (c) 2026 Meta Platforms, Inc.
+- recharts 3.10.1, https://github.com/recharts/recharts: Copyright (c) 2015-present recharts
+- React and React DOM 19.3.1, https://github.com/facebook/react: Copyright (c) Meta Platforms, Inc. and affiliates.
+- StyleX (`@stylexjs/stylex`) 0.19.1, https://github.com/facebook/stylex: Copyright (c) Meta Platforms, Inc. and
+  affiliates.
+- marked 18.1.2, https://github.com/markedjs/marked: Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/);
+  Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+
+The MIT License (MIT)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+marked also carries the licence of the original Markdown:
+
+Copyright © 2004, John Gruber
+http://daringfireball.net/
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+  disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
+  disclaimer in the documentation and/or other materials provided with the distribution.
+* Neither the name "Markdown" nor the names of its contributors may be used to endorse or promote products derived
+  from this software without specific prior written permission.
+
+This software is provided by the copyright holders and contributors "as is" and any express or implied warranties,
+including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are
+disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental,
+special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or
+services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability,
+whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use
+of this software, even if advised of the possibility of such damage.
 
 ## t3code
 
