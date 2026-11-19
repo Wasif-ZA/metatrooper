@@ -133,7 +133,8 @@ What to expect:
 - The window opens on Home with one box: "What do you want done?" If no project is open when you send, it asks
   where the agent should work: choose a folder, or let cc make one in `Documents\cc` named after your task.
 - New installs start agents in **Auto**: the agent works without asking, in the folder you chose, and cannot
-  control your desktop or add-ons that write outside the project. Type a branch under the box to give it its own
+  control your desktop or add-ons that write outside the project. It can open pages in a browser pane, read them
+  and click, and risky clicks still stop for you; it cannot run its own scripts in the page. Type a branch under the box to give it its own
   worktree. Pick **Ask first** under the box to approve each step. Agents with no auto mode, such as Gemini CLI,
   start in Ask first. The setting is `sessions.approval` in `~/.metatrooper/settings.json`.
 - From source, `troop` in any message or below means `node core/cli.ts`. From the zip, open a terminal in the
@@ -187,7 +188,12 @@ What to expect:
 
 Claude Code, Codex and opencode agents drive browser panes in the window through the `metatrooper-browser` MCP
 server. Other agents cannot take the tool yet. There is no remote debugging
-port and no browser extension. Full rules: [`contracts/browser-tools.md`](contracts/browser-tools.md).
+port and no browser extension.
+
+- **Which tools.** Each of those agents, unless it is isolated or a pipeline step, gets the `act` set: open, read, scroll, click, type, select,
+  keys and waits. An agent started from a browser pane gets everything, adding `evaluate` (run a script in the
+  page), `console` and `network`. A project's `.troop/config.json` `browser.grant` can narrow a session to `look`
+  but cannot widen it, since an agent can write that file. Full rules: [`contracts/browser-tools.md`](contracts/browser-tools.md).
 
 - **Approvals.** Some actions stop and wait for you: typing into a password field, typing text that looks like a
   credential, and clicking a control named like Send, Submit, Pay, Delete or Publish. An approval card shows a
