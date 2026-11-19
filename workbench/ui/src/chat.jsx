@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, splitLabel, PERMISSION_TERMINAL_NOTE, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
@@ -121,7 +121,10 @@ export function Chat({ x, chat, openInEditor }) {
   const engine = chat?.engine_id || x.engine_id;
   const totals = fileTotals(chat?.items || []);
   return <div ref={ref} className="ou-hm-chat">
-    {!chat ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat.error ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chatModeOf(engine, chat.source) === 'terminal' ? <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p> : groupItems(chat.items).map((item, i) => {
+    {!chat ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat.error ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chatModeOf(engine, chat.source) === 'terminal' ? <>
+      {x.state === 'waiting_for_you' && x.reason === 'permission' ? <p className="ou-hm-chatnote" role="status">{PERMISSION_TERMINAL_NOTE}</p> : null}
+      <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p>
+    </> : groupItems(chat.items).map((item, i) => {
       if (item.kind === 'user') return <div key={i} className="ou-hm-user"><p>{item.text}</p></div>;
       if (item.kind === 'text') return <p key={i} className="ou-hm-chattext">{item.text}</p>;
       if (item.kind === 'steps') return <ToolSteps key={item.id} item={item} />;
