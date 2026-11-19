@@ -14,16 +14,16 @@
 .cc-tour-position > .cc-byte { position: absolute; width: var(--byte-size); height: var(--byte-size); }
 .cc-tour-caret { position: absolute; z-index: 1; width: 10px; height: 10px; background: var(--canvas); border: 1px solid var(--hairline); transform: translate(-50%, -50%) rotate(45deg); }
 .cc-tour-position[data-side="below"] > .cc-byte, .cc-tour-position[data-side="above"] > .cc-byte { left: clamp(0px, calc(var(--caret) + 12px), calc(100% - var(--byte-size))); }
-.cc-tour-position[data-side="below"] > .cc-byte { bottom: calc(100% + 4px); }
-.cc-tour-position[data-side="above"] > .cc-byte { top: calc(100% + 4px); }
+.cc-tour-position[data-side="below"] > .cc-byte { top: calc(100% + 4px); }
+.cc-tour-position[data-side="above"] > .cc-byte { bottom: calc(100% + 4px); }
 .cc-tour-position[data-side="below"] > .cc-tour-caret { left: var(--caret); top: 0; }
 .cc-tour-position[data-side="above"] > .cc-tour-caret { left: var(--caret); top: 100%; }
 .cc-tour-position[data-side="right"] > .cc-byte, .cc-tour-position[data-side="left"] > .cc-byte { top: clamp(0px, calc(var(--caret) + 12px), calc(100% - var(--byte-size))); }
-.cc-tour-position[data-side="right"] > .cc-byte { right: calc(100% + 4px); }
-.cc-tour-position[data-side="left"] > .cc-byte { left: calc(100% + 4px); }
+.cc-tour-position[data-side="right"] > .cc-byte { left: calc(100% + 4px); }
+.cc-tour-position[data-side="left"] > .cc-byte { right: calc(100% + 4px); }
 .cc-tour-position[data-side="right"] > .cc-tour-caret { left: 0; top: var(--caret); }
 .cc-tour-position[data-side="left"] > .cc-tour-caret { left: 100%; top: var(--caret); }
 .astryx-popover:has(.cc-account-menu) { border: 1px solid var(--hairline); border-radius: var(--radius-container); background: var(--canvas); color: var(--ink); box-shadow: var(--shadow-med); }
 .cc-account-menu { padding: var(--sp-1); }
-.cc-account-menu[role="menu"]:focus { outline: none; }
+.cc-account-menu[role="menu"]:focus, .cc-account-menu [role="menuitem"]:focus { outline: none; }
 .cc-account-menu [role="menuitem"]:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
