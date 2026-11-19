@@ -18,7 +18,7 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-user p { max-width: 80%; margin: 0; padding: 11px 16px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--ink) 9%, var(--canvas-deep)); font-size: 14px; font-weight: 400; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ou-hm-thread { gap: var(--sp-3); }
 .ou-hm-worked { gap: var(--sp-2); margin-left: 0; padding: 0; font-size: 13px; }
-.ou-hm-worked .ou-st-running { background: linear-gradient(90deg, currentColor 35%, color-mix(in srgb, currentColor 35%, var(--ink)) 45%, color-mix(in srgb, currentColor 35%, var(--ink)) 55%, currentColor 65%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: ou-chat-shimmer 4000ms linear 400ms infinite; }
+.ou-hm-worked .ou-st-running { background: linear-gradient(90deg, currentColor 35%, color-mix(in srgb, currentColor 15%, var(--ink)) 45%, color-mix(in srgb, currentColor 15%, var(--ink)) 55%, currentColor 65%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: ou-chat-shimmer 4000ms linear 400ms infinite; }
 .ou-hm-worked .ou-st-running::before { -webkit-text-fill-color: initial; }
 @keyframes ou-chat-shimmer { from { background-position: 100% 0; } 25%, to { background-position: 0% 0; } }
 @media (prefers-reduced-motion: reduce) { .ou-hm-worked .ou-st-running { animation: none; } }
