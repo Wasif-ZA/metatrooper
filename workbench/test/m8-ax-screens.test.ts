@@ -707,9 +707,9 @@ test('Automation editor access level saves as the run approval', async () => {
   await h.one(label('Create automation')).props.onClick(); await flush();
   assert.equal(seen.find((c) => c[0] === 'automation.set')[1].approval, 'edits');
 });
-test('Home composer status word counts any running state the sidebar counts, unknown and waiting included', () => {
+test('Home composer status says Working only for started sessions that are starting or working; waiting is Needs you', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
-  for (const [state, want] of [['unknown', 'active'], ['waiting_for_you', 'active'], ['working', 'active'], ['done', 'idle']]) {
+  for (const [state, want] of [['unknown', 'idle'], ['waiting_for_you', 'idle'], ['starting', 'active'], ['working', 'active'], ['done', 'idle']]) {
     g.ui.snap.live = []; g.ui.snap.sessions = [{ id: 's1', project_id: 'p1', engine_id: 'codex', state, started_at: '2026-01-01T00:00:00Z', prompt: 'x' }];
     const h = harness(Home); h.draw();
     assert.equal(h.one((n: any) => n.type === 'span' && n.props.className === 'ou-cmp-status').props['data-state'], want, state);

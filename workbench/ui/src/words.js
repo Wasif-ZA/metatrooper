@@ -30,6 +30,22 @@ export const statusWord = (x) => STATUS_WORD[statusOf(x)];
 /** An agent cc started and that still runs can be stopped from the UI; outside sessions and shells cannot. */
 export const canStop = (x) => Boolean(x) && x.host !== 'external' && x.state !== 'exited' && !String(x.id).startsWith('sh_');
 
-globalThis.ccWords = { engineName, statusOf, statusWord, STATUS_WORD, canStop };
+export function workingCounts(snap) {
+  const rows = new Map();
+  for (const x of [...(snap?.sessions || []), ...(snap?.live || []), ...Object.values(snap?.tree_rows || {})]) rows.set(x.id, { ...rows.get(x.id), ...x });
+  let working = 0, helpers = 0;
+  for (const x of rows.values()) {
+    if (x.state !== 'starting' && x.state !== 'working') continue;
+    if (x.parent_id && x.parent_id !== x.id) helpers++;
+    else working++;
+  }
+  return { working, helpers };
+}
+
+export function workingLabel({ working, helpers }) {
+  return working ? `Working ${working}${helpers ? ` (+${helpers} helper${helpers === 1 ? '' : 's'})` : ''}` : 'Nothing working';
+}
+
+globalThis.ccWords = { engineName, statusOf, statusWord, STATUS_WORD, canStop, workingCounts };
 
 export const NOT_SENT = 'Not sent: this agent has no live terminal. Open it on the Wall to check it.';

@@ -168,9 +168,9 @@ globalThis.frameView = (() => {
       + `<span class="fth3"><span class="fthmks">${engines}</span></span></button>${toggle}${kids}</div>`;
   }
 
-  function shelfHtml(key, label, list, rows) {
+  function shelfHtml(key, label, list, rows, count = list.length, helpers = 0) {
     const open = shelf[key];
-    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount">${list.length}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
+    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount">${count}${helpers ? ` <small>+${helpers}</small>` : ''}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
       + (open ? list.map((t) => threadHtml(t, rows)).join('') : '') + '</div>';
   }
 
@@ -178,7 +178,8 @@ globalThis.frameView = (() => {
     const { working, recent, settled } = threadRows(tree, rows, git, hide);
     if (!working.length && !recent.length && !settled.length) return '<p class="fempty">No agents running</p>';
     const top = view.done ? recent.map((t) => threadHtml(t, rows)).join('') : '';
-    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
+    const counts = cw()?.workingCounts(ui.snap) || { working: 0, helpers: 0 };
+    return `<div class="fthreads">${top}</div><div class="fshelves">${working.length ? shelfHtml('working', 'Working', working, rows, counts.working, counts.helpers) : ''}${view.done && settled.length ? shelfHtml('settled', 'Settled', settled, rows) : ''}</div>`;
   }
 
   const gh = { project: null, at: 0, issues: null };

@@ -15,7 +15,7 @@ import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop, defaultEngine } from './words.js';
+import { NOT_SENT, canStop, defaultEngine, workingCounts, workingLabel } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
@@ -155,7 +155,7 @@ function StartBox({ ready, strip }) {
   };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
-  const active = new Map([...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].map((x) => [x.id, x])).values().filter((x) => x.project_id === ui.projectId && ACTIVE_STATES.has(x.state)).toArray().length;
+  const { working } = workingCounts(ui.snap);
   return <>{composer({
     className: 'ou-hm-composerwrap ou-hm-task',
     strip,
@@ -184,7 +184,7 @@ function StartBox({ ready, strip }) {
       edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
     },
-    status: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
+    status: { state: starting || working ? 'active' : 'idle', label: starting ? 'Starting' : workingLabel(workingCounts(ui.snap)) },
     context: [
       { key: 'project', plain: true, icon: folderSmall, node: !ui.projectId ? <span>No folder</span> : <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
