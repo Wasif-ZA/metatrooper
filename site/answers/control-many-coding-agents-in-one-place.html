@@ -30,7 +30,7 @@
 <table>
 <thead><tr><th>Screen</th><th>Looks like</th><th>What the agents do there</th></tr></thead>
 <tbody>
-<tr><td>Home</td><td>A task list with a box to type a new one</td><td>Type a task and pick the agent. Each task shows its agents, subagents and steps. No sessions to manage.</td></tr>
+<tr><td>Home</td><td>A chat app: one box in the middle of the page</td><td>Type a task and pick the agent. A Claude Code task reads as a chat; other agents show their terminal. Each task shows its subagents and steps. No sessions to manage.</td></tr>
 <tr><td>IDE</td><td>A VS Code style editor</td><td>Files an agent changed are marked. A comment on a diff line goes to that agent as your next message.</td></tr>
 <tr><td>Wall</td><td>A grid of terminals</td><td>Every agent is a live tile. The one waiting for you moves to the big slot. Its diff, git and browser open beside it.</td></tr>
 <tr><td>Needs you</td><td>An inbox laid out like an issue tracker</td><td>Every question and approval waiting on you, with filters and labels. You answer from here.</td></tr>
@@ -42,10 +42,10 @@
 <li>A background service owns every terminal, so closing the window does not stop the agents. After a restart, live sessions resume, at most 3 at a time.</li>
 <li>Agents can drive browser panes in the app. Password fields, new sites and Send or Delete buttons stop for your approval, and only the window can approve.</li>
 <li>Ctrl+K searches sessions, commands and the text in every live terminal.</li>
-<li>It runs 7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads their login tokens.</li>
+<li>It can start 7 agent CLIs, including Claude Code, Codex and Gemini CLI. Claude Code and Codex report the most; the others show a simpler status. You install and sign in to each yourself; cc never reads their login tokens.</li>
 </ul>
 
-<p class="mut">cc is free, open source (AGPL-3.0 core) and pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. No account, no telemetry. Steps: <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">Quickstart</a>.</p>
+<p class="mut">cc is free, open source (AGPL-3.0 core) and pre-release. It runs on Windows 10 and 11, from a zip or from source. No account, no telemetry. Steps: <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">Quickstart</a>.</p>
 
 </main>
 <footer>cc runs the official CLIs you install and sign in to yourself. Not affiliated with or endorsed by Anthropic, OpenAI, Google or Microsoft. <a href="../">Home</a></footer>

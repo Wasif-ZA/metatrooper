@@ -1,11 +1,11 @@
 <p align="center">
-  <strong>Carbon Copy (cc) rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
+  <strong>Carbon Copy (cc) rebuilds the apps you already code with, a chat box, an editor, terminals, an inbox and a browser, as one Windows
   app where every agent is just a task, so there are no sessions to manage.</strong><br>
   New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
 
-<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
+<p align="center"><strong>Windows 10 and 11. Zip or source. Runs on your machine: no account, no telemetry.</strong></p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
@@ -30,7 +30,7 @@
 
 | 7 | 0 | 0 | 1,504 | 2,000+ |
 |:--:|:--:|:--:|:--:|:--:|
-| CLI agents supported | accounts to create | telemetry | core tests | commits |
+| agent CLIs it can start | accounts to create | telemetry | core tests | commits |
 
 </div>
 
@@ -48,7 +48,7 @@ The window has these screens:
 
 | Screen | Looks like | What the agents do there |
 |---|---|---|
-| **Home** | A task list with a box to type a new one | You type a task and pick the agent. Each task shows its agents, subagents and current steps. |
+| **Home** | A chat app: one box in the middle of the page | You type a task and pick the agent. A Claude Code task reads as a chat: its replies, the files it edited, and Allow or Deny on each tool it asks to use. Other agents show their terminal. Each task shows its subagents and current steps. |
 | **IDE** | A VS Code style editor: file tree, tabs, search, source control, Problems and a terminal | Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message. |
 | **Wall** | A grid of terminals | Every agent is a live terminal tile. The one waiting for you comes to the big slot. Its diff, git and browser open beside it. |
 | **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
@@ -97,14 +97,22 @@ what runs today.
 
 ## Quickstart
 
-There is no installer yet. You run cc from a clone of this repo.
+There is no installer yet. Pick one of two ways in. Both need Windows 10 or 11 (tested on Windows 11), Git, and at
+least one coding agent you can sign in to: Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) or
+Antigravity (`agy`). If none is ready, cc offers to install Claude Code or Codex for you; you still sign in yourself.
 
-You need:
+### New to this: the zip
 
-- Windows 10 or 11. These steps were tested on Windows 11.
-- Node 24.16 or newer (tested on 24.18).
-- At least one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
-- A network connection for the first run.
+1. Download `cc-<version>-win-x64.zip` from [Releases](https://github.com/Wasif-ZA/metatrooper/releases).
+2. Unzip it anywhere, open the folder and double-click `cc.exe`. Everything cc needs to run is inside the folder.
+
+Windows does not know cc's publisher yet, so it shows "Windows protected your PC": pick **More info**, then **Run
+anyway**. On some new PCs a Windows feature called Smart App Control blocks it outright; then use the source
+install below. A signed build comes after launch.
+
+### Developers: from source
+
+You also need Node 24.16 or newer (tested on 24.18) and a network connection for the first run.
 
 ```bash
 git clone https://github.com/Wasif-ZA/metatrooper
@@ -122,9 +130,16 @@ What to expect:
 - `npm ci` in `workbench/` downloads Electron and builds the editor files, so it takes a minute and needs network.
 - `npm ci` in `core/` may warn about scripts for `node-pty`. It is only a warning.
 - `npm ci` in `workbench/` may report vulnerabilities from `npm audit`. They do not stop the install.
-- On first run the window asks how agents should start: ask before each tool call (the default) or auto mode in
-  worktrees. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
-- From source, `troop` in any message or below means `node core/cli.ts`.
+- The window opens on Home with one box: "What do you want done?" If no project is open when you send, it asks
+  where the agent should work: choose a folder, or let cc make one in `Documents\cc` named after your task.
+- New installs start agents in **Auto**: the agent works without asking, in the folder you chose, and cannot
+  control your desktop or add-ons that write outside the project. It can open pages in a browser pane, read them
+  and click, and risky clicks still stop for you; it cannot run its own scripts in the page. Type a branch under the box to give it its own
+  worktree. Pick **Ask first** under the box to approve each step. Agents with no auto mode, such as Gemini CLI,
+  start in Ask first. The setting is `sessions.approval` in `~/.metatrooper/settings.json`.
+- From source, `troop` in any message or below means `node core/cli.ts`. From the zip, open a terminal in the
+  unzipped folder (in File Explorer, right-click the folder, then **Open in Terminal**), and `troop` means
+  `resources\node\node.exe resources\app\core\cli.ts`.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the window installs cc's hooks into
@@ -173,12 +188,17 @@ What to expect:
 
 Claude Code, Codex and opencode agents drive browser panes in the window through the `metatrooper-browser` MCP
 server. Other agents cannot take the tool yet. There is no remote debugging
-port and no browser extension. Full rules: [`contracts/browser-tools.md`](contracts/browser-tools.md).
+port and no browser extension.
+
+- **Which tools.** Each of those agents, unless it is isolated or a pipeline step, gets the `act` set: open, read, scroll, click, type, select,
+  keys and waits. An agent started from a browser pane gets everything, adding `evaluate` (run a script in the
+  page), `console` and `network`. A project's `.troop/config.json` `browser.grant` can narrow a session to `look`
+  but cannot widen it, since an agent can write that file. Full rules: [`contracts/browser-tools.md`](contracts/browser-tools.md).
 
 - **Approvals.** Some actions stop and wait for you: typing into a password field, typing text that looks like a
   credential, and clicking a control named like Send, Submit, Pay, Delete or Publish. An approval card shows a
   redacted crop of the target. You pick Approve once, Approve for this session, or Reject. Only the window can
-  approve, never an agent. Unanswered cards expire after 120 s. Rules: [`contracts/approvals.md`](contracts/approvals.md).
+  approve, never an agent. A card waits until you answer it; there is no timer. A core restart clears waiting cards. Rules: [`contracts/approvals.md`](contracts/approvals.md).
 - **Origins.** The first input on a new site (scheme, host and port, after redirects) asks first. Sites listed in
   the `browser.allow_origins` setting never ask for being new.
 - **Secrets.** Save a secret for one site:
@@ -276,7 +296,7 @@ From source, `troop` means `node core/cli.ts`. Add `--json` to any command for o
 | Stop the core | `troop stop` |
 
 `launch` takes `--approval ask|edits|contained`. `ask` asks before each tool call. `contained` runs the engine's auto
-mode in a cc worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in
+mode in the session's folder. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in
 `ask`.
 
 `troop skills install` copies the skills in `skills/` into `~/.claude/skills/`. The `troop` skill teaches an agent to
@@ -284,9 +304,9 @@ start and follow other sessions through this CLI.
 
 ### Approval profiles
 
-`--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
-OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a cc worktree. A settings
-file from an older version keeps its value.
+`--approval ask|edits|contained` on `launch`. A new install starts agents in `contained` (Auto in the window): the
+engine's auto mode in the session's folder (`--worktree <branch>` gives it a worktree). An engine with no auto mode starts in `ask` (each tool call needs your OK). A
+settings file from an older version keeps its value, and one that does not parse falls back to `ask`.
 
 Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
 requested, as does a folder holding one of them one or two levels down. Engines that send your code to another
@@ -327,7 +347,7 @@ bundled copy, and Claude sessions are told to send shell commands through it. Tu
 
 ## Uninstall
 
-Run `node core/cli.ts hooks uninstall --codex`, stop the core with `node core/cli.ts stop`, and delete the clone.
+Run `troop hooks uninstall --codex`, stop the core with `troop stop`, and delete the clone or the unzipped folder.
 Delete `~/.metatrooper/` too if you want your history gone.
 
 ## Known limits
@@ -347,7 +367,7 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 - **The browser pane trusts the pid a caller reports.** A process running as you can claim another session's
   browser. It could read your files anyway.
 - **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions.
-  `ask` and approvals are the guard rails.
+  Ask first and approvals are the guard rails; Auto relies on the agent's own auto mode.
 - **IDE fallbacks.** Saving and search in files show "Not built yet" only when the window cannot reach their back end; in this release both work.
 
 ## FAQ
@@ -359,10 +379,9 @@ plugin for another editor; it is its own window.
 
 **I've never used Claude Code. Can I use cc?**
 Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
-setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
-signs in for you. cc itself has no installer yet: you run it from a clone with Node 24.16 or newer (see
-[Quickstart](#quickstart)). The agent still runs in a terminal tile, so you will see its output and answer its
-questions there or in Needs you.
+setup step stays yours: sign in to Claude Code (or Codex or Gemini CLI) once, since cc never signs in for you. If
+none is installed, cc offers to install Claude Code or Codex. cc has no installer yet: download the zip and run `cc.exe` (see [Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
+you. Other agents show their terminal.
 
 **How is this different from running `claude` in terminals?**
 With terminals you manage each session: open a terminal, start it, watch it, find it again when it asks something,
@@ -395,20 +414,22 @@ No. A background service owns each agent's terminal. After a restart it resumes 
 3 at a time.
 
 **Which agents does it run?**
-7 CLI agents: Claude Code, Codex, opencode, Antigravity, Gemini CLI, GitHub Copilot CLI and pi. Claude Code and Codex
+cc can start 7 agent CLIs: Claude Code, Codex, opencode, Antigravity, Gemini CLI, GitHub Copilot CLI and pi. Claude Code and Codex
 get the most; [What each agent gets](#what-each-agent-gets) has the table. You install and sign in to each yourself;
 cc never reads their login tokens.
 
 **Does it work on macOS or Linux?**
-Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
+Windows 10 and 11 only. macOS and Linux are not supported.
 
 **Is it free?**
 Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part will be Carbon Copy Pro (cc Pro), a
-separate private add-on at A$19 a month. It is not in this repo and not on sale yet. It works with Claude Code and Codex
-tasks and gives them tools about your other tasks: what is running, another task's output and changed files, which task
-already touched a file (file attribution for Claude Code tasks), and a shared note board.
+separate private add-on at A$19 a month. It is not in this repo and not on sale yet. Its task tools give Claude Code,
+Codex and opencode tasks a view of your other tasks: what is running, another task's output and changed files, which
+task already changed a file, and a shared note board. opencode is tested with a stand-in only so far.
 The pipe methods it uses are public, so you can build your own. It includes Proof, which checks whether an agent's tests
-catch bugs, and Review, which has a second agent review a change and shows its evidence.
+catch bugs, and Review, which has Codex review a change against the task's goal and saves the evidence. Proof and
+Review work in Ask first tasks, not Auto. Review is the one part that sends code off your machine: the diff and goal
+go to the Codex CLI you installed, under your own login, and Codex can also read other files in that repo.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
@@ -416,7 +437,7 @@ This is mutation testing. The [answer page](site/answers/check-agent-tests-catch
 with Proof.
 
 **Is cc a sandbox?**
-No. Agents and the commands they run use your machine with your permissions. Approvals and `ask` mode are guard rails.
+No. Agents and the commands they run use your machine with your permissions. Approvals and Ask first are guard rails; Auto relies on the agent's own auto mode.
 See [Known limits](#known-limits).
 
 ## Licence

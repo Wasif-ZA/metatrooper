@@ -1,6 +1,6 @@
 # Contributing
 
-Windows first, Linux beta, from source. Local only: no account, no telemetry.
+Windows 10 and 11, from a zip or source. Runs on your machine: no account, no telemetry.
 
 ## Before you write code
 
@@ -10,7 +10,7 @@ file in the same pull request.
 
 ## Setup
 
-Node 24.16 or newer, Windows (Linux is beta).
+Node 24.16 or newer, Windows 10 or 11.
 
 ```bash
 cd core && npm ci
