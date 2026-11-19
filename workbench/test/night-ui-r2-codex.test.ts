@@ -93,9 +93,9 @@ beforeEach(() => {
   addonsStore.set({ rows: [] });
 });
 function projects(n = 3) { g.ui.snap.projects = Array.from({ length: n }, (_, i) => ({ id: 'p' + (i + 1), name: 'Project ' + (i + 1), path: 'C:/project-' + i })); }
-test('Home Projects has exactly one open-folder button', () => {
+test('Home with projects has no open-folder button of its own (the rail holds it; first run uses the folder sheet)', () => {
   projects(); const html = harness(Home).html();
-  assert.equal((html.match(/<button\b[^>]*data-action="open-folder"/g) || []).length, 1);
+  assert.equal((html.match(/<button\b[^>]*data-action="open-folder"/g) || []).length, 0);
 });
 test('Add-ons header Check agents again uses ghost and check-engines', () => {
   g.ui.view = 'addons'; const h = harness(Addons); h.draw();

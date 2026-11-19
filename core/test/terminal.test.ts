@@ -439,7 +439,7 @@ test('9 a hard-killed core ends its PTY tree and restart marks every live sessio
   }
 });
 
-test('12 settings returns defaults for no file, preserves defaults for wrong types, and ignores broken JSON', async () => {
+test('12 settings returns defaults for no file, preserves defaults for wrong types, and ignores broken JSON except approval falls back to ask', async () => {
   const evaluate = async (home: string) => {
     const script = "import('./core/src/settings.ts').then(({settings,DEFAULTS})=>console.log(JSON.stringify({value:settings(),defaults:DEFAULTS})))";
     const result = await runNode(['-e', script], { ...process.env, METATROOPER_HOME: home, HOME: home, USERPROFILE: home });
@@ -461,7 +461,7 @@ test('12 settings returns defaults for no file, preserves defaults for wrong typ
 
     writeFileSync(join(broken.home, 'settings.json'), '{not json');
     const invalid = await evaluate(broken.home);
-    assert.deepEqual(invalid.value, invalid.defaults);
+    assert.deepEqual(invalid.value, { ...invalid.defaults, sessions: { ...invalid.defaults.sessions, approval: 'ask' } });
   } finally {
     for (const isolated of [noFile, wrongType, broken]) rmSync(isolated.home, { recursive: true, force: true });
   }

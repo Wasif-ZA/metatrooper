@@ -135,7 +135,7 @@ test('an engine whose auth regex does not compile does not stop the engines afte
   }
 });
 
-test('M5-03 new settings file defaults to ask and existing approval values are retained', async () => {
+test('M5-03 new settings file defaults to contained (Auto, first run) and existing approval values are retained', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'metatrooper-settings-'));
   const oldHome = process.env.METATROOPER_HOME;
   process.env.METATROOPER_HOME = dir;
@@ -143,7 +143,7 @@ test('M5-03 new settings file defaults to ask and existing approval values are r
     const settingsUrl = new URL('../src/settings.ts', import.meta.url);
     settingsUrl.searchParams.set('case', 'missing');
     const missingSettings = await import(settingsUrl.href);
-    assert.equal(missingSettings.settings().sessions.approval, 'ask');
+    assert.equal(missingSettings.settings().sessions.approval, 'contained');
 
     writeFileSync(join(dir, 'settings.json'), JSON.stringify({ sessions: {} }));
     settingsUrl.searchParams.set('case', 'legacy');
