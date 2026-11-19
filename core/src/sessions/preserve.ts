@@ -44,8 +44,12 @@ export async function preserveFiles(source: string, destination: string, pattern
     const from = path.resolve(source, file), to = path.resolve(destination, file);
     await refuseLinks(source, from);
     await refuseLinks(destination, to);
+  }
+  for (const file of files) {
+    const from = path.resolve(source, file), to = path.resolve(destination, file);
     await fs.promises.mkdir(path.dirname(to), { recursive: true });
     await refuseLinks(destination, to);
-    await fs.promises.copyFile(from, to);
+    try { await fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
   }
 }

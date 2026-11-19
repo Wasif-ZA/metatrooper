@@ -219,3 +219,73 @@ test('M7-06f core heartbeat ticks at least every 2 s during a slow fixture check
     }
   });
 });
+
+// protects=worktree creation cleans up worktree on preserve refusal so retries do not falsely succeed
+// fails_when=preserve refusal leaves worktree on disk or a retry succeeds with existing:true
+// no_claim=atomic filesystem rollback of partly copied non-symlink files
+test('defect 6: symlink refusal leaves no worktree and a retry still errors', async () => {
+  const settings = {
+    worktree: {
+      preserve: ['.env*'],
+    },
+  };
+
+  await withWorktreeCore(settings, async ({ pipe, isolated, projectDir, projectId }) => {
+    const outsideTarget = join(isolated.home, 'outside-secret.env');
+    writeFileSync(outsideTarget, 'OUTSIDE_SECRET=confidential\n');
+
+    const linkPath = join(projectDir, '.env.external');
+    try {
+      symlinkSync(outsideTarget, linkPath);
+    } catch {
+      return;
+    }
+
+    const branch = 'troop/feat-symlink-cleanup';
+    const reply1 = await pipe.request('worktree.create', { project_id: projectId, branch });
+    assert.ok(reply1.error, 'worktree.create must fail when preserve matches a symlink outside repo');
+
+    const worktreeDir = join(isolated.home, 'worktrees', projectId, branch.replace(/[\\/]/g, '-'));
+    assert.equal(existsSync(worktreeDir), false, 'worktree directory must be removed on preserve refusal');
+
+    const reply2 = await pipe.request('worktree.create', { project_id: projectId, branch });
+    assert.ok(reply2.error, 'retry after preserve refusal must still error, not succeed with existing: true');
+    assert.equal(reply2.result?.existing, undefined, 'retry must not return existing: true');
+  });
+});
+
+// protects=worktree file preservation does not overwrite files already tracked by the target branch
+// fails_when=preserve copyFile overwrites an existing tracked file in the checked-out worktree
+// no_claim=merging preserved file contents with branch file contents
+test('defect 7: preserve pattern matching a file the branch already tracks does not overwrite it', async () => {
+  const settings = {
+    worktree: {
+      preserve: ['tracked-config.json'],
+    },
+  };
+
+  await withWorktreeCore(settings, async ({ pipe, projectDir, projectId }) => {
+    // 1. Create a branch where tracked-config.json is already tracked with branch content
+    gitRun(projectDir, ['checkout', '-b', 'feat-branch-with-file']);
+    writeFileSync(join(projectDir, 'tracked-config.json'), '{"version": "branch"}\n');
+    gitRun(projectDir, ['add', 'tracked-config.json']);
+    gitRun(projectDir, ['commit', '-m', 'track config in branch']);
+
+    // 2. Switch back to master
+    gitRun(projectDir, ['checkout', 'master']);
+
+    // 3. In master working directory, create tracked-config.json with source content
+    writeFileSync(join(projectDir, 'tracked-config.json'), '{"version": "source"}\n');
+
+    // 4. Create worktree checking out feat-branch-with-file
+    const reply = await pipe.request('worktree.create', { project_id: projectId, branch: 'feat-branch-with-file' });
+    assert.ok(!reply.error, `worktree.create failed: ${JSON.stringify(reply.error)}`);
+    assert.ok(reply.result?.path, 'worktree.create must return path');
+
+    const worktreeFile = join(reply.result.path, 'tracked-config.json');
+    assert.ok(existsSync(worktreeFile), 'file must exist in worktree');
+    const content = readFileSync(worktreeFile, 'utf8').replace(/\r\n/g, '\n');
+    assert.equal(content, '{"version": "branch"}\n', 'preserved file must not overwrite file tracked by the branch');
+  });
+});
+

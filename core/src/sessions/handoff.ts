@@ -35,7 +35,8 @@ export async function gatherHandoff(db: DatabaseSync, sessionId: string, titles:
   return { ...row, summary: liveText()[sessionId]?.line ?? null, transcript, files: [...claimed].sort().map((path) => ({ path, committed: !dirty.has(path) })) };
 }
 
-function records(file: string | null): TranscriptRecord[] | null {
+function records(file: string | null | TranscriptRecord[]): TranscriptRecord[] | null {
+  if (Array.isArray(file)) return file;
   if (!file) return null;
   try {
     return fs.readFileSync(file, 'utf8').split(/\r?\n/).flatMap((line) => {
@@ -49,7 +50,7 @@ function text(content: unknown): string {
   return Array.isArray(content) ? content.filter((b) => ['text', 'input_text', 'output_text'].includes(b?.type)).map((b) => b.text ?? '').join('\n') : '';
 }
 
-export function readFailingCommand(file: string | null, secrets: Iterable<string> = []): { command: string; output: string } | null {
+export function readFailingCommand(file: string | null | TranscriptRecord[], secrets: Iterable<string> = []): { command: string; output: string } | null {
   const values = [...secrets];
   const clean = (value: string) => redactCredentials(redactSecretValues(value, values));
   const commands = new Map<string, string>();
@@ -67,7 +68,7 @@ export function readFailingCommand(file: string | null, secrets: Iterable<string
   return last ? { command: clean(last[1]).slice(0, 300), output: clean(failures.get(last[0])!).split(/\r?\n/).slice(0, 20).join('\n').slice(0, 1000) } : null;
 }
 
-export function readTurns(file: string | null, engine: string): Array<{ user: string; reply: string }> | null {
+export function readTurns(file: string | null | TranscriptRecord[], engine: string): Array<{ user: string; reply: string }> | null {
   if (engine !== 'claude' && engine !== 'codex') return null;
   const rows = records(file);
   if (!rows?.length) return null;
@@ -94,15 +95,16 @@ export function handoffTranscript(db: DatabaseSync, sessionId: string, engine: s
 export function buildHandoff(row: Handoff, engine: string, title: string | undefined, secrets: Iterable<string>): string {
   const values = [...secrets];
   const clean = (value: string) => redactCredentials(redactSecretValues(value, values));
-  const turns = readTurns(row.transcript, engine);
-  const failure = readFailingCommand(row.transcript, values);
+  const rows = records(row.transcript);
+  const turns = readTurns(rows, engine);
+  const failure = readFailingCommand(rows, values);
   let task = clean(title || turns?.[0]?.user || 'Task unavailable').slice(0, 200);
   let folder = clean(row.cwd ?? '');
   const files = row.files.map((f) => `- ${clean(f.path)} (${f.committed ? 'committed' : 'uncommitted'})`);
   let count = Math.min(40, files.length);
   const command = failure ? clean(failure.command).slice(0, 300) : '';
   let output = failure ? clean(failure.output).slice(0, 1000) : '';
-  const fixed = () => `# Continue this task\n${clean(engine)} stopped at its usage limit.\n\n## Task\n${task}\n\n## Working folder\n${folder}\n\n## Changed files\n${files.slice(0, count).join('\n') || 'none changed'}${files.length > count ? `\nand ${files.length - count} more` : ''}\n${failure ? `\n## Last failing command\n${command}\n${output}\n` : ''}\n## Last turns\n${turns === null ? clean(`no transcript was readable for ${engine}`) + '\n' : ''}`;
+  const fixed = () => `# Continue this task\n${clean(engine)} stopped at its usage limit.\n\n## Task\n${task}\n\n## Working folder\n${folder}\n\n## Changed files\n${files.length === 0 ? 'none changed' : files.slice(0, count).join('\n')}${files.length > count ? `\nand ${files.length - count} more` : ''}\n${failure ? `\n## Last failing command\n${command}\n${output}\n` : ''}\n## Last turns\n${turns === null ? clean(`no transcript was readable for ${engine}`) + '\n' : ''}`;
   const bytes = (value: string) => Buffer.byteLength(value, 'utf8');
   while (bytes(fixed()) > 6144 && count) count--;
   while (bytes(fixed()) > 6144 && output) output = output.slice(0, -1);

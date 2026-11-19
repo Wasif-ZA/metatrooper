@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GIT_SAFE_ENV } from './gitpane.ts';
 
-export type Git = (args: string[]) => string | Promise<string>;
+export type Git = ((args: string[], input?: string) => string | Promise<string>) & { blob?: (spec: string) => Promise<Buffer> };
 
 const exec = promisify(execFile);
 
@@ -17,19 +17,23 @@ export interface Handback {
   command: string;
 }
 
-const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse', 'show']);
+const READ_ONLY = new Set(['diff', 'ls-files', 'ls-tree', 'hash-object', 'merge-base', 'rev-parse', 'show']);
 
 export function gitIn(cwd: string): Git {
-  return (args) => {
-    if (!READ_ONLY.has(args[0])) throw new Error(`git ${args[0]} is not allowed in the hand-back tray`);
-    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } }).then((r) => r.stdout);
-  };
+  const options = { cwd, maxBuffer: 32 * 1024 * 1024, windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } };
+  return Object.assign((args: string[], input?: string) => {
+    if (!READ_ONLY.has(args[0]) || (args[0] === 'hash-object' && (args.length !== 2 || args[1] !== '--stdin-paths'))) throw new Error(`git ${args[0]} is not allowed in the hand-back tray`);
+    const result = exec('git', args, { ...options, encoding: 'utf8' });
+    result.child.stdin!.end(input);
+    return result.then((r) => r.stdout);
+  }, { blob: (spec: string) => exec('git', ['show', spec], { ...options, encoding: 'buffer' }).then((r) => r.stdout) });
 }
 
 async function untrackedDiff(git: Git, base: string, file: string, numstat = false): Promise<string> {
-  let before: string;
-  try { before = await git(['show', `${base}:${file}`]); }
-  catch {
+  let before: Buffer;
+  try { before = git.blob ? await git.blob(`${base}:${file}`) : Buffer.from(await git(['show', `${base}:${file}`])); }
+  catch (e) {
+    if (!/fatal: path .* (?:does not exist in|exists on disk, but not in) /.test(String((e as { stderr?: string | Buffer }).stderr ?? ''))) throw e;
     try { return await git(['diff', '--no-ext-diff', '--no-textconv', ...(numstat ? ['--numstat'] : []), '--no-index', '--', '/dev/null', file]); }
     catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
   }
@@ -62,9 +66,23 @@ export async function sessionChanges(git: Git, base: string): Promise<{ files: A
     return { path: name.join('\t'), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
   });
   const saved = new Set(files.map((f) => f.path));
-  for (const file of untracked) {
+  const blobs = new Map<string, string>();
+  let hashes: string[] = [];
+  if (untracked.length) {
+    const [tree, hashed] = await Promise.all([
+      git(['ls-tree', '-r', '-z', base]),
+      git(['hash-object', '--stdin-paths'], untracked.map((file) => JSON.stringify(file)).join('\n') + '\n'),
+    ]);
+    for (const entry of tree.split('\0').filter(Boolean)) {
+      const tab = entry.indexOf('\t');
+      blobs.set(entry.slice(tab + 1), entry.slice(0, tab).split(' ')[2]);
+    }
+    hashes = hashed.trim().split(/\r?\n/);
+  }
+  for (const [index, file] of untracked.entries()) {
     const i = files.findIndex((f) => f.path === file);
     if (i < 0) continue;
+    if (blobs.get(file) === hashes[index]) { files.splice(i, 1); continue; }
     const counts = (await untrackedDiff(git, base, file, true)).trim().split('\t');
     if (counts.length < 3) files.splice(i, 1);
     else files[i] = { path: file, added: counts[0] === '-' ? null : Number(counts[0]), deleted: counts[1] === '-' ? null : Number(counts[1]) };

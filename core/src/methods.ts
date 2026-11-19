@@ -57,6 +57,10 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 
 export const PROTOCOL = 1;
 
+function refuseGateway(engine: EngineSpec): void {
+  if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
+}
+
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
 
 export const MOVED_METHODS = [
@@ -294,7 +298,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if ((requested === 'isolated') !== (host === 'sandbox')) throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host, and the sandbox host only runs isolated');
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
-      if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
+      refuseGateway(engine);
       const check = db
         .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1')
         .get(engine.id) as { installed: number } | undefined;
@@ -587,10 +591,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (target === old.engine_id) throw new RpcError(E.INVALID_PARAMS, 'choose another engine');
       const engine = getEngine(db, target);
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
+      refuseGateway(engine);
+      const approval = old.approval && engine.approval_profiles?.[old.approval] ? old.approval : 'ask';
       const check = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(target) as { installed: number; auth: string } | undefined;
       if (!check?.installed || check.auth === 'missing' || check.auth === 'expired') throw new RpcError(E.ENGINE_UNAVAILABLE, 'engine is not ready');
       continuing.add(id);
       let launched = false;
+      let file = '';
       db.prepare('UPDATE session SET limit_resume = 0 WHERE id = ?').run(id);
       try {
         const titles = Object.fromEntries(Object.entries(liveText()).map(([key, value]) => [key, value.title]));
@@ -600,13 +607,14 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         const prompt = buildHandoff(row, old.engine_id, titles[id], knownSecretValues());
         await fs.promises.mkdir(handoffDir(), { recursive: true });
         let n = Number((db.prepare('SELECT count(*) AS n FROM handoff WHERE session_id = ?').get(id) as { n: number }).n) + 1;
-        let file = '';
         for (;;) {
-          file = path.join(handoffDir(), `${id}-${n++}.md`);
-          try { await fs.promises.writeFile(file, prompt, { flag: 'wx' }); break; }
+          const candidate = path.join(handoffDir(), `${id}-${n++}.md`);
+          try { await fs.promises.writeFile(candidate, prompt, { flag: 'wx' }); file = candidate; break; }
           catch (e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
         }
-        const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, approval: old.approval ?? 'ask', host: old.approval === 'isolated' ? 'sandbox' : 'pty', prompt });
+        const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, approval, host: approval === 'isolated' ? 'sandbox' : 'pty', prompt });
+        processEvents(db);
+        if (db.prepare("SELECT 1 FROM session WHERE id = ? AND state = 'exited'").get(r.session_id)) throw new RpcError(E.ENGINE_UNAVAILABLE, 'continued session exited during launch');
         launched = true;
         tx(db, () => {
           db.prepare('INSERT INTO handoff (id, session_id, parent_id, to_session, at, cwd, summary, files, transcript) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
@@ -619,6 +627,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       } finally {
         if (!launched) db.prepare('UPDATE session SET limit_resume = ? WHERE id = ?').run(old.limit_resume, id);
         continuing.delete(id);
+        if (!launched && file) await fs.promises.rm(file, { force: true });
       }
     },
   });
@@ -898,7 +907,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       } catch (e) {
         throw new RpcError(E.VALIDATION, `git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
       }
-      await preserveFiles(project.path, dir, patterns);
+      try { await preserveFiles(project.path, dir, patterns); }
+      catch (e) {
+        await gitAsync(project.path, ['worktree', 'remove', '--force', dir], 60_000, {}, false);
+        throw e;
+      }
       const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
       const result = { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted };
       return existingBranch ? { ...result, existing_branch: true } : result;

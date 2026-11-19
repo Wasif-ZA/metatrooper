@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as hb from '../src/handback.ts';
-import { handback, gitIn } from '../src/handback.ts';
+import { handback, gitIn, fileDiff } from '../src/handback.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -149,3 +149,23 @@ test('the Diff tab keeps line counts for non-ASCII paths and lists non-ASCII unt
   assert.deepEqual(r.files, [{ path: 'cafÃ©.txt', added: 1, deleted: 0 }]);
   assert.deepEqual(r.untracked, ['Ã¼.txt']);
 });
+
+// protects=untracked files over 1 MB and binary files checkpointed then unchanged do not report diff
+// fails_when=fileDiff throws maxBuffer on large untracked file or mangles binary untracked file causing non-empty diff
+// no_claim=diffing large binary files that were actually modified
+test('defect 1: untracked file over 1 MB and binary file checkpointed then unchanged do not report diff', async () => {
+  const { d, g } = repo();
+  const largeContent = 'a'.repeat(1_100_000);
+  const binaryContent = Buffer.from([0, 150, 200, 255, 0, 128, 64, 0, 1, 2, 3]);
+  writeFileSync(join(d, 'large.txt'), largeContent);
+  writeFileSync(join(d, 'bin.bin'), binaryContent);
+  g('add', 'large.txt', 'bin.bin');
+  g('commit', '-qm', 'checkpoint base');
+  const base = g('rev-parse', 'HEAD').trim();
+  g('rm', '--cached', 'large.txt', 'bin.bin');
+  const untracked = g('ls-files', '--others', '--exclude-standard').trim().split('\n');
+  assert.ok(untracked.includes('large.txt') && untracked.includes('bin.bin'));
+  assert.equal(await fileDiff(gitIn(d), base, 'large.txt'), '', 'large untracked file unchanged must produce empty diff');
+  assert.equal(await fileDiff(gitIn(d), base, 'bin.bin'), '', 'binary untracked file unchanged must produce empty diff');
+});
+

@@ -3,7 +3,7 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -171,3 +171,102 @@ test('M7-06m repo with no commits gets a turn ref with no parent and Diff shows 
     f.close();
   }
 });
+
+// protects=turn checkpoint falls back to HEAD and cleans lockfiles when git add fails
+// fails_when=turn_base is not set to HEAD on git add failure or troop-index lockfile is leaked
+// no_claim=automatic retry of failed checkpoint snapshot
+test('defect 4: git add failure falls back turn_base to HEAD and leaves no troop-index lockfile', async () => {
+  const f = setupRepoFixture();
+  try {
+    const { repoDir, db } = f;
+    // Initial commit so HEAD exists
+    writeFileSync(join(repoDir, 'tracked.txt'), 'tracked\n');
+    gitRun(repoDir, ['add', 'tracked.txt']);
+    gitRun(repoDir, ['commit', '-m', 'initial']);
+    const headSha = gitRun(repoDir, ['rev-parse', 'HEAD']);
+
+    const sessionId = 's_ckpt_fail';
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, cwd, hidden) VALUES (?, 'p1', 'claude', 'pty', 'working', ?, ?, ?, 0)")
+      .run(sessionId, now, now, repoDir);
+
+    // Make git add fail via a failing clean filter (unwritable case)
+    gitRun(repoDir, ['config', 'filter.fail.clean', `${JSON.stringify(process.execPath)} -e "process.exit(1)"`]);
+    gitRun(repoDir, ['config', 'filter.fail.required', 'true']);
+    writeFileSync(join(repoDir, '.gitattributes'), 'fail.txt filter=fail\n');
+    writeFileSync(join(repoDir, 'fail.txt'), 'trigger filter\n');
+
+    await markTurnBase(db, sessionId);
+
+    // turn_base must fall back to HEAD commit SHA
+    const sessionRow = db.prepare('SELECT turn_base FROM session WHERE id = ?').get(sessionId) as any;
+    assert.equal(sessionRow.turn_base, headSha, 'turn_base must fall back to HEAD on git add failure');
+
+    // No troop-index-*.lock in temp dir
+    const { tmpdir } = await import('node:os');
+    const locks = readdirSync(tmpdir()).filter((name) => name.startsWith('troop-index-') && name.endsWith('.lock'));
+    assert.equal(locks.length, 0, 'no troop-index-*.lock file must be left in temp dir');
+  } finally {
+    f.close();
+  }
+});
+
+// protects=turn checkpoint writes ref even when repo and environment lack git user identity
+// fails_when=commit-tree fails and omits turn ref when user.email is not configured
+// no_claim=using user identity over fallback identity when configured
+test('defect 8: checkpoint writes ref when repo has no user.email and global/system configs are empty', async () => {
+  const f = setupRepoFixture();
+  const emptyGlobal = join(f.dir, 'empty_global_config');
+  const emptySystem = join(f.dir, 'empty_system_config');
+  writeFileSync(emptyGlobal, '');
+  writeFileSync(emptySystem, '');
+
+  const oldGlobal = process.env.GIT_CONFIG_GLOBAL;
+  const oldSystem = process.env.GIT_CONFIG_SYSTEM;
+  const oldNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
+  const oldAuthorEmail = process.env.GIT_AUTHOR_EMAIL;
+  const oldAuthorName = process.env.GIT_AUTHOR_NAME;
+  const oldCommitterEmail = process.env.GIT_COMMITTER_EMAIL;
+  const oldCommitterName = process.env.GIT_COMMITTER_NAME;
+
+  try {
+    const { repoDir, db } = f;
+    // Remove user.email and user.name from local repo config
+    gitRun(repoDir, ['config', '--unset', 'user.email']);
+    gitRun(repoDir, ['config', '--unset', 'user.name']);
+
+    process.env.GIT_CONFIG_GLOBAL = emptyGlobal;
+    process.env.GIT_CONFIG_SYSTEM = emptySystem;
+    process.env.GIT_CONFIG_NOSYSTEM = '1';
+    delete process.env.GIT_AUTHOR_EMAIL;
+    delete process.env.GIT_AUTHOR_NAME;
+    delete process.env.GIT_COMMITTER_EMAIL;
+    delete process.env.GIT_COMMITTER_NAME;
+
+    const sessionId = 's_ckpt_no_ident';
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, cwd, hidden) VALUES (?, 'p1', 'claude', 'pty', 'working', ?, ?, ?, 0)")
+      .run(sessionId, now, now, repoDir);
+
+    writeFileSync(join(repoDir, 'work.txt'), 'some work\n');
+
+    await markTurnBase(db, sessionId);
+
+    const refName = `refs/troop/turn/${sessionId}/1`;
+    const refSha = gitRun(repoDir, ['rev-parse', '--verify', refName]);
+    assert.ok(refSha && refSha.length === 40, `Turn ref ${refName} must resolve to a valid commit SHA even with no user.email`);
+
+    const sessionRow = db.prepare('SELECT turn_base FROM session WHERE id = ?').get(sessionId) as any;
+    assert.equal(sessionRow.turn_base, refSha, 'session.turn_base must match turn ref commit SHA');
+  } finally {
+    if (oldGlobal !== undefined) process.env.GIT_CONFIG_GLOBAL = oldGlobal; else delete process.env.GIT_CONFIG_GLOBAL;
+    if (oldSystem !== undefined) process.env.GIT_CONFIG_SYSTEM = oldSystem; else delete process.env.GIT_CONFIG_SYSTEM;
+    if (oldNoSystem !== undefined) process.env.GIT_CONFIG_NOSYSTEM = oldNoSystem; else delete process.env.GIT_CONFIG_NOSYSTEM;
+    if (oldAuthorEmail !== undefined) process.env.GIT_AUTHOR_EMAIL = oldAuthorEmail; else delete process.env.GIT_AUTHOR_EMAIL;
+    if (oldAuthorName !== undefined) process.env.GIT_AUTHOR_NAME = oldAuthorName; else delete process.env.GIT_AUTHOR_NAME;
+    if (oldCommitterEmail !== undefined) process.env.GIT_COMMITTER_EMAIL = oldCommitterEmail; else delete process.env.GIT_COMMITTER_EMAIL;
+    if (oldCommitterName !== undefined) process.env.GIT_COMMITTER_NAME = oldCommitterName; else delete process.env.GIT_COMMITTER_NAME;
+    f.close();
+  }
+});
+

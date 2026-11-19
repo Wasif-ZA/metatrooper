@@ -2,7 +2,7 @@ import './clean-env.mjs';
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildGenerated, client, isolation, startCore, teardownCore, uiHello } from './helpers.ts';
 
@@ -48,6 +48,12 @@ async function withContinueCore(run: (ctx: {
       await uiHello(pipe, isolated.home);
       const opened = await pipe.request('project.open', { path: projectDir });
       const db = () => new DatabaseSync(join(isolated.home, 'troop.db'));
+      // the core checks engines in the background at start; wait until codex is recorded installed
+      for (let i = 0; i < 300; i++) {
+        const d = db();
+        try { if (d.prepare("SELECT 1 FROM engine_check WHERE engine_id = 'codex' AND installed = 1").get()) break; } finally { d.close(); }
+        await new Promise((r) => setTimeout(r, 100));
+      }
       await run({ pipe, isolated, projectId: opened.result.project_id, projectDir, db });
     } finally {
       pipe.close();
@@ -432,4 +438,165 @@ test('M7-04c session.continue refuses a session that is not stopped at a usage l
     }
   });
 });
+
+async function withCustomContinueCore(
+  enginesBuilder: (isolated: any, claudeScript: string, targetScript: string) => any[],
+  run: (ctx: {
+    pipe: any;
+    isolated: any;
+    projectId: string;
+    projectDir: string;
+    db: () => DatabaseSync;
+  }) => Promise<void>,
+) {
+  const isolated = isolation();
+  const registry = join(isolated.home, 'engines.json');
+  const claudeScript = join(isolated.home, 'fake-claude.mjs');
+  const targetScript = join(isolated.home, 'fake-target.mjs');
+  writeFileSync(claudeScript, quickExit);
+  writeFileSync(targetScript, quickExit);
+
+  writeFileSync(registry, JSON.stringify(enginesBuilder(isolated, claudeScript, targetScript)));
+
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry };
+  const core = await startCore({ ...isolated, env });
+  try {
+    const projectDir = join(isolated.home, 'test-project');
+    mkdirSync(projectDir, { recursive: true });
+    const pipe = await client(isolated.prefix);
+    try {
+      await uiHello(pipe, isolated.home);
+      const opened = await pipe.request('project.open', { path: projectDir });
+      const db = () => new DatabaseSync(join(isolated.home, 'troop.db'));
+      await run({ pipe, isolated, projectId: opened.result.project_id, projectDir, db });
+    } finally {
+      pipe.close();
+    }
+  } finally {
+    await teardownCore(core, isolated);
+  }
+}
+
+// protects=session.continue falls back to ask approval when target engine lacks source approval profile
+// fails_when=continued session inherits contained approval when target engine lacks contained profile
+// no_claim=gateway engine continuation refusal
+test('defect 3: contained Claude session continued in engine lacking contained profile records approval ask', async () => {
+  await withCustomContinueCore(
+    (isolated, claudeScript, targetScript) => [
+      {
+        id: 'claude', command: process.execPath, args: [claudeScript], prompt_arg: 'positional', state_source: 'process',
+        roles: ['worker'], cost_rank: 2, usage_source: 'claude-transcript', provider: 'local-cli', version_cmd: [process.execPath, '--version'],
+        approval_profiles: { contained: ['--contained'], ask: [] },
+      },
+      {
+        id: 'gemini', command: process.execPath, args: [targetScript], prompt_arg: 'positional', state_source: 'process',
+        roles: ['worker'], cost_rank: 2, usage_source: 'codex-session', provider: 'local-cli', version_cmd: [process.execPath, '--version'],
+        approval_profiles: { edits: ['--edits'], ask: [] },
+      },
+    ],
+    async ({ pipe, projectId, db }) => {
+      const launchReply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'claude', approval: 'contained' });
+      assert.ok(launchReply.result?.session_id, `Launch failed: ${JSON.stringify(launchReply)}`);
+      const claudeSessionId = launchReply.result.session_id;
+
+      const d = db();
+      try {
+        d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.limit-hit', ?, 1)")
+          .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ window: 'five_hour', resets_at: new Date(Date.now() + 3600000).toISOString() }));
+      } finally {
+        d.close();
+      }
+
+      const contReply = await pipe.request('session.continue', { session_id: claudeSessionId, engine_id: 'gemini' });
+      assert.ok(!contReply.error, `session.continue error: ${JSON.stringify(contReply.error)}`);
+      const newSessionId = contReply.result.session_id;
+
+      const d2 = db();
+      try {
+        const newSession = d2.prepare('SELECT approval FROM session WHERE id = ?').get(newSessionId) as any;
+        assert.ok(newSession, 'New session must exist in DB');
+        assert.equal(newSession.approval, 'ask', 'continued session must fall back to ask when target engine lacks contained profile');
+      } finally {
+        d2.close();
+      }
+    },
+  );
+});
+
+// protects=failed continue launch restores limit_resume and unlinks orphaned handoff file
+// fails_when=failed launch leaves limit_resume as 0 or leaves orphaned handoff markdown file
+// no_claim=restarting failed engine process
+test('defect 5: continue launch failure restores limit_resume and removes handoff file', async () => {
+  await withCustomContinueCore(
+    (isolated, claudeScript) => [
+      {
+        id: 'claude', command: process.execPath, args: [claudeScript], prompt_arg: 'positional', state_source: 'process',
+        roles: ['worker'], cost_rank: 2, usage_source: 'claude-transcript', provider: 'local-cli', version_cmd: [process.execPath, '--version'],
+      },
+      {
+        id: 'badengine', command: join(isolated.home, 'nonexistent-executable.exe'), args: [], prompt_arg: 'positional', state_source: 'process',
+        roles: ['worker'], cost_rank: 2, usage_source: 'codex-session', provider: 'local-cli', version_cmd: [join(isolated.home, 'nonexistent-executable.exe'), '--version'],
+      },
+    ],
+    async ({ pipe, isolated, projectId, db }) => {
+      const launchReply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'claude' });
+      assert.ok(launchReply.result?.session_id, `Launch failed: ${JSON.stringify(launchReply)}`);
+      const claudeSessionId = launchReply.result.session_id;
+
+      const d = db();
+      try {
+        d.prepare('UPDATE session SET limit_resume = 1 WHERE id = ?').run(claudeSessionId);
+        d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.limit-hit', ?, 1)")
+          .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ window: 'five_hour', resets_at: new Date(Date.now() + 3600000).toISOString() }));
+      } finally {
+        d.close();
+      }
+
+      await pipe.request('session.continue', { session_id: claudeSessionId, engine_id: 'badengine' });
+
+      await new Promise((r) => setTimeout(r, 300));
+
+      const d2 = db();
+      try {
+        const oldSession = d2.prepare('SELECT limit_resume FROM session WHERE id = ?').get(claudeSessionId) as any;
+        assert.equal(oldSession.limit_resume, 1, 'limit_resume must be restored to 1 on launch failure');
+
+        const handoffDir = join(isolated.home, 'handoff');
+        const files = existsSync(handoffDir) ? readdirSync(handoffDir) : [];
+        assert.equal(files.length, 0, 'no handoff file must be left in handoff dir on launch failure');
+      } finally {
+        d2.close();
+      }
+    },
+  );
+});
+
+// protects=handoff markdown prints none changed only when no files were changed
+// fails_when=handoff markdown prints none changed above and N more when files list is cut to fit 6 KB
+// no_claim=truncating file paths individually
+test('defect 9: handoff markdown cutting files to fit 6 KB prints none changed only when files count is zero', async () => {
+  const { buildHandoff } = await import('../src/sessions/handoff.ts');
+  const isolated = isolation();
+  const transcriptPath = join(isolated.home, 'transcript-fail-d9.jsonl');
+  writeClaudeTranscript(transcriptPath, [
+    { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test --lib' } }] } },
+    { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'e'.repeat(1200), is_error: true }] } },
+  ]);
+  const row = {
+    transcript: transcriptPath,
+    cwd: '/project/' + 'subdir/'.repeat(20),
+    summary: 'summary',
+    files: Array.from({ length: 40 }, (_, i) => ({
+      path: `src/deep/nested/directory/path/module_${i}_component_with_long_file_name_` + 'x'.repeat(140) + '.ts',
+      committed: false,
+    })),
+  };
+  const markdown = buildHandoff(row, 'claude', 'Task Title ' + 'x'.repeat(100), []);
+  assert.ok(
+    !markdown.includes('none changed'),
+    'must not print "none changed" when files were changed but cut to fit',
+  );
+  assert.match(markdown, /and \d+ more/, 'must report "and N more" when files are cut to fit');
+});
+
 

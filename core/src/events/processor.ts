@@ -343,17 +343,18 @@ async function turnSnapshot(db: DatabaseSync, sessionId: string): Promise<string
     let numbers = turnNumbers.get(db);
     if (!numbers) turnNumbers.set(db, (numbers = new Map()));
     const n = Math.max(numbers.get(sessionId) ?? 0, ...refs.split('\n').map((ref) => Number(ref.split('/').at(-1)) || 0)) + 1;
-    numbers.set(sessionId, n);
     await git(['add', '-A'], env);
     const tree = await git(['write-tree'], env);
     let head = '';
     try { head = await git(['rev-parse', '--verify', 'HEAD'], env); } catch {}
-    const commit = await git(['commit-tree', tree, ...(head ? ['-p', head] : []), '-m', `troop turn ${n}`], env);
+    const commit = await git(['commit-tree', tree, ...(head ? ['-p', head] : []), '-m', `troop turn ${n}`], { ...env, GIT_AUTHOR_NAME: 'cc', GIT_AUTHOR_EMAIL: 'cc@localhost', GIT_COMMITTER_NAME: 'cc', GIT_COMMITTER_EMAIL: 'cc@localhost' });
     await git(['update-ref', `refs/troop/turn/${sessionId}/${n}`, commit, '0'.repeat(commit.length)], env);
+    numbers.set(sessionId, n);
     return commit;
   } catch {
-    return null;
+    try { return await git(['rev-parse', 'HEAD']); } catch { return null; }
   } finally {
     await fs.promises.rm(index, { force: true }).catch(() => {});
+    await fs.promises.rm(`${index}.lock`, { force: true }).catch(() => {});
   }
 }
