@@ -28,7 +28,7 @@
 
 <div align="center">
 
-| 7 | 0 | 0 | 1,504 | 2,000+ |
+| 7 | 0 | 0 | 1,695 | 2,000+ |
 |:--:|:--:|:--:|:--:|:--:|
 | agent CLIs it can start | accounts to create | telemetry | core tests | commits |
 
