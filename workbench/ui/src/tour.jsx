@@ -44,8 +44,6 @@ function Byte({ label }) {
   return <canvas ref={canvas} width={128} height={128} className="cc-byte" aria-hidden="true" />;
 }
 
-const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-
 function placeBubble(box, size) {
   const inset = 12, gap = 88, width = Math.min(336, box.viewportWidth - inset * 2);
   const height = size.height, cx = (box.left + box.right) / 2, cy = (box.top + box.bottom) / 2;
@@ -113,67 +111,54 @@ export function AccountTour() {
     else icon.innerHTML = globalThis.ourosIcon?.('person', 16) || '';
   }, [icon, picture]);
 
-  async function recordOffer() {
+  function recordOffer() {
     if (!offer || !offerOnEvent(setting.current)) return;
-    await answerOffer('yes', (value) => api.setTour(value));
+    void answerOffer('yes', (value) => api.setTour(value)).catch((e) => toast(e.message, true));
     setting.current = 'done'; setOffer(false);
   }
 
   async function start() {
     if (pending.current || tourRef.current?.active) return;
     pending.current = true; setDialog(false); setError('');
-    const startView = ui.view, focus = document.activeElement, available = new Map();
+    const startView = ui.view, focus = document.activeElement;
     const settingsWasOpen = settingsView.isOpen();
     if (settingsWasOpen) settingsView.close();
-    let openedSettings = false;
     try {
-      await recordOffer();
-      setOffer(false); setScanning(true);
-      await frame(); await frame();
+      recordOffer();
+      setOffer(false); setScanning(true); setBox(null);
       const candidates = STOPS.filter((s) => s.id !== 'account' || look?.authConfigured);
-      for (const view of new Set(candidates.map((s) => s.view ?? startView))) {
-        if (ui.view !== view) homeView.set(view);
-        await frame();
-        for (const stop of candidates.filter((s) => (s.view ?? startView) === view)) {
-          if (stop.id === 'notify') { openedSettings = true; await settingsView.open('notify'); await frame(); }
-          const el = Array.from(document.querySelectorAll(stop.selector)).find(visible);
-          if (visible(el)) {
-            const rect = el.getBoundingClientRect();
-            available.set(stop.selector, { isConnected: true, hidden: false, parentElement: null, getBoundingClientRect: () => rect });
-          }
-          if (stop.id === 'notify') { settingsView.close(); openedSettings = false; }
-        }
-      }
-      homeView.set(startView);
       previousFocus.current = focus;
       const run = createTour({
-        doc: { querySelectorAll: (selector) => available.has(selector) ? [available.get(selector)] : [] }, stops: candidates,
+        doc: document, stops: candidates,
+        defer: (stop) => stop.id === 'notify' || (stop.view != null && stop.view !== startView),
         getView: () => ui.view, setView: (view) => homeView.set(view),
         onEnd: () => { setTour(null); setBox(null); tourRef.current = null; previousFocus.current?.focus?.(); if (settingsWasOpen) void settingsView.open(); },
       });
       tourRef.current = run; run.start();
       if (run.active) { setTour(run); setStep(0); }
     } catch (e) { homeView.set(startView); if (settingsWasOpen) void settingsView.open(); toast(e.message, true); }
-    finally { if (openedSettings) settingsView.close(); setScanning(false); pending.current = false; }
+    finally { setScanning(false); pending.current = false; }
   }
 
-  function next() { tourRef.current?.next(); setStep((n) => n + 1); }
-  useEffect(() => {
+  function next() { setBox(null); tourRef.current?.next(); setStep((n) => n + 1); }
+  useLayoutEffect(() => {
     if (!tour?.active) return;
     let request, disposed = false;
-    const notification = tour.current()?.id === 'notify';
+    const stop = tour.current(), notification = stop.id === 'notify';
+    setBox(null);
     const settingsWasOpen = settingsView.isOpen();
     let ready = !notification;
     const measure = () => {
-      cancelAnimationFrame(request);
+      if (request != null) return;
       request = requestAnimationFrame(() => {
-        if (disposed || !tour.active || !ready) return;
-        const target = Array.from(document.querySelectorAll(tour.current().selector)).find(visible);
+        request = null;
+        if (disposed || !tour.active || tour.current() !== stop || !ready) return;
+        const target = Array.from(document.querySelectorAll(stop.selector)).find(visible);
         if (!visible(target)) { next(); return; }
         const r = target.getBoundingClientRect();
         const style = getComputedStyle(target);
         const radius = Math.max(...['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius'].map((key) => parseFloat(style[key]) || 0)) + 5;
-        const value = { radius, left: Math.max(0, r.left - 5), top: Math.max(0, r.top - 5), right: Math.min(innerWidth, r.right + 5), bottom: Math.min(innerHeight, r.bottom + 5), viewportWidth: innerWidth, viewportHeight: innerHeight };
+        const value = { stopId: stop.id, radius, left: Math.max(0, r.left - 5), top: Math.max(0, r.top - 5), right: Math.min(innerWidth, r.right + 5), bottom: Math.min(innerHeight, r.bottom + 5), viewportWidth: innerWidth, viewportHeight: innerHeight };
         setBox((old) => JSON.stringify(old) === JSON.stringify(value) ? old : value);
       });
     };
@@ -227,10 +212,9 @@ export function AccountTour() {
     if (pending.current) return;
     pending.current = true;
     try {
-      const yes = await answerOffer(choice, (value) => api.setTour(value));
-      setting.current = choice === 'yes' ? 'done' : 'later'; setOffer(false);
-      pending.current = false;
-      if (yes) await start();
+      if (choice === 'yes') { pending.current = false; await start(); return; }
+      await answerOffer(choice, (value) => api.setTour(value));
+      setting.current = 'later'; setOffer(false);
     } catch (e) { setError(e.message); } finally { pending.current = false; }
   }
   function cancelSignIn() {
@@ -268,7 +252,8 @@ export function AccountTour() {
     ...(id === 'signout' ? [{ type: 'divider' }] : []),
     { id, label: labels[id], isDisabled: id === 'plan', onClick: actions[id] },
   ]);
-  const placement = box ? placeBubble(box, bubbleSize) : null;
+  const currentBox = box?.stopId === tour?.current()?.id ? box : null;
+  const placement = currentBox ? placeBubble(currentBox, bubbleSize) : null;
   return <>
     {picture && icon ? createPortal(<img src={picture} alt="" width={20} height={20} data-personal referrerPolicy="no-referrer" onError={() => setBadPicture(picture)} />, icon) : null}
     <DropdownMenu className="cc-account-menu" placement="above" menuWidth={240} items={items} onOpenChange={(open) => { setMenuOpen(open); if (open) { void refresh(); void api.addons().then((plugins) => setPro(Array.isArray(plugins) && plugins.some((p) => p.id === 'cc-pro' && p.enabled))).catch(() => {}); } }} header={!document.body.classList.contains('demo') && look?.authConfigured && status.signed_in ? <div className="cc-account-who" data-personal><Text>{status.name}</Text><Text color="secondary">{status.email}</Text></div> : undefined} renderTrigger={(trigger) => <RailTrigger trigger={trigger} />} />
@@ -282,7 +267,7 @@ export function AccountTour() {
     {offer && !dialog && !tour ? <Card className="cc-tour-offer" padding={4} role="dialog" aria-label="Want the 1-minute tour?"><Byte /><div className="cc-tour-content"><Text>Want the 1-minute tour?</Text>{error ? <Text role="alert">{error}</Text> : null}<div className="cc-tour-actions"><Button variant="ghost" label="Not now" onClick={() => answer('later')} /><Button variant="primary" label="Yes" onClick={() => answer('yes')} /></div></div></Card> : null}
     {scanning || tour?.active ? <div className="cc-tour-running">
       <svg className="cc-tour-dimmer" width="100%" height="100%" aria-hidden="true">
-        <defs><mask id="cc-tour-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width={innerWidth} height={innerHeight}><rect width="100%" height="100%" fill="white" />{box ? <rect x={box.left} y={box.top} width={box.right - box.left} height={box.bottom - box.top} rx={box.radius} fill="black" /> : null}</mask></defs>
+        <defs><mask id="cc-tour-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width={innerWidth} height={innerHeight}><rect width="100%" height="100%" fill="white" />{currentBox ? <rect x={currentBox.left} y={currentBox.top} width={currentBox.right - currentBox.left} height={currentBox.bottom - currentBox.top} rx={currentBox.radius} fill="black" /> : null}</mask></defs>
         <rect width="100%" height="100%" fill="rgba(0,0,0,.55)" mask="url(#cc-tour-cutout)" />
       </svg>
       {tour?.active && placement ? <div ref={bubble} className="cc-tour-position" data-side={placement.side} style={placement.style} role="dialog" aria-modal="true" aria-label="Tour" aria-describedby="cc-tour-line">

@@ -35,8 +35,8 @@ export async function answerOffer(choice, setTour) {
   return choice === 'yes';
 }
 
-export function createTour({ doc, stops = STOPS, getView, setView, onEnd }) {
-  const list = stopsFor(doc, stops), startView = getView();
+export function createTour({ doc, stops = STOPS, getView, setView, onEnd, defer = () => false }) {
+  const list = stops.filter((stop) => defer(stop) || stopsFor(doc, [stop]).length), startView = getView();
   let active = false, index = 0, ended = false;
   const end = () => {
     if (ended) return;
