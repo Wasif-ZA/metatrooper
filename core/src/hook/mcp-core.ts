@@ -1,5 +1,5 @@
-import { desktopTools, TOOLS as DESKTOP_TOOLS, UNAVAILABLE as DESKTOP_UNAVAILABLE } from './desktop-mcp.ts';
-import { browserTools, browserToolList, UNAVAILABLE as BROWSER_UNAVAILABLE } from './browser-mcp.ts';
+import { desktopTools, TOOLS as DESKTOP_TOOLS, UNAVAILABLE as DESKTOP_UNAVAILABLE } from './desktop-tools.ts';
+import { browserTools, browserToolList, UNAVAILABLE as BROWSER_UNAVAILABLE } from './browser-tools.ts';
 import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
 import { screenResult } from './screen-data.ts';
 import type { CommandRunner } from '../pipe/commands.ts';

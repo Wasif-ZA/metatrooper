@@ -215,7 +215,7 @@ test('M6-15 attach: metatrooper-desktop joins Windows sessions while the desktop
   const engine = { id: 'codex', mcp_attach: { kind: 'codex-config' } } as any;
   const names = (approval: string) => mcpAttachArgs(db, engine, 's1', false, { approval }).filter((a) => a.includes('metatrooper-desktop.command'));
   assert.equal(names('ask').length, 1);
-  assert.match(mcpAttachArgs(db, engine, 's1', false, { approval: 'ask' }).join(' '), /metatrooper-desktop\.args=.*metatrooper-desktop\.js/);
+  assert.match(mcpAttachArgs(db, engine, 's1', false, { approval: 'ask' }).join(' '), /metatrooper-desktop\.args=.*(metatrooper-desktop\.js|"mcp","desktop")/);
   assert.equal(names('contained').length, 0);
   assert.equal(names('isolated').length, 0);
   assert.equal(mcpAttachArgs(db, engine, 's1', false, { approval: 'ask', pipeline: true }).filter((a) => a.includes('metatrooper-desktop')).length, 0);
