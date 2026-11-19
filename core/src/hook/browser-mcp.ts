@@ -1,13 +1,10 @@
-import { screenResult } from './screen-data.ts';
-import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, GATE_WAIT_MS, type Control } from '../approvals.ts';
-import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
+import { type WorkbenchPipe, type ToolOptions, type Reply } from './workbench-pipe.ts';
 import { PRESETS } from '../browser/grants.ts';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.ts';
-import { serveMcp } from './mcp-stdio.ts';
 import { fence } from '../browser/snapshot.ts';
 
-const UNAVAILABLE = 'browser not available: the cc workbench is closed';
+export const UNAVAILABLE = 'browser not available: the cc workbench is closed';
 
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
 const budget = {
@@ -15,7 +12,7 @@ const budget = {
   continue: { type: 'string', description: 'The cursor named at the end of a cut answer; returns the next part.' },
 };
 const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for', 'export_test']);
-const TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, boolean> }> = [
+export const TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, boolean> }> = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
   { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none. Returns the page state. signed_in: true asks for a pane that uses the sign-in the user lent for that site; if they have not lent it they are asked and this call fails.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' }, signed_in: { type: 'boolean' } }, required: ['url'] } },
   { name: 'back', description: 'Go back one page. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane } } },
@@ -38,84 +35,84 @@ const TOOLS: Array<{ name: string; description: string; inputSchema: Record<stri
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
-const browser = new WorkbenchPipe(UNAVAILABLE);
-
-const CHECKED = new Set(['click', 'type', 'select', 'key']);
-const CONTROL_CHANGED = -32035;
-
-/** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
-async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply> {
-  const stopped = async (error: { code: number; message: string; instruction?: string }): Promise<Reply> => {
-    await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
-    return { error };
-  };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const d = await browser.call('browser.describe', { ...args, tool: name });
-    if (d.error) return stopped(d.error);
-    const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
-    const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
-    const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: GATE_WAIT_MS });
-    if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the cc core is offline, so this action cannot be checked' });
-    if (out.reply.error) return stopped(out.reply.error);
-    const v = out.reply.result as { decision: string; reason?: string; instruction?: string };
-    if (v.decision === 'deny') return stopped({ code: -32030, message: `not sent: ${v.reason}` });
-    if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action', instruction: v.instruction });
-    if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
-    if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
-    const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
-    // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
-    if (r.error?.code !== CONTROL_CHANGED) return r;
-  }
-  return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
-}
-
-async function singleCall(name: string, args: Record<string, unknown>): Promise<any> {
-  if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
-  const { expect: _drop, ...clean } = args ?? {};
-  const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
-  if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true, userNote: r.error.instruction };
-  const result = r.result as { data_base64?: string; mime?: string; text?: string; truncated?: boolean; legend?: string[] } | undefined;
-  if (name === 'screenshot' && result?.data_base64) {
-    const content: object[] = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
-    if (result.truncated) content.push({ type: 'text', text: 'truncated: the page is taller than 16,384 px' });
-    if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
-    return { content };
-  }
-  if (name === 'export_test' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
-  if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
-  if (typeof (result as { changes?: unknown } | undefined)?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result as { changes: string }).changes) }) }] };
-  return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
-}
-
-const FOOTER = ['url', 'title', 'dialog', 'errors', 'error', 'changes', 'continue'];
-
-async function batchCall(args: Record<string, unknown>): Promise<object> {
-  const bad = checkBatch(args.steps, await browser.sessionGrant());
-  if (bad) return { content: [{ type: 'text', text: `${bad.code} ${bad.message}` }], isError: true };
-  const steps = args.steps as Array<{ tool: string; args?: Record<string, unknown> }>;
-  const out: object[] = [];
-  let page: Record<string, unknown> | undefined;
-  let failed = false;
-  let userNote: string | undefined;
-  for (const [i, s] of steps.entries()) {
-    const entry = { step: i + 1, tool: s.tool };
-    if (failed) { out.push({ ...entry, status: 'skipped' }); continue; }
-    const r = await singleCall(s.tool, { ...(args.pane_id === undefined ? {} : { pane_id: args.pane_id }), ...s.args });
-    const text: string = r.content[0].text;
-    page = undefined;
-    if (r.isError) { out.push({ ...entry, status: 'error', text }); userNote = r.userNote ?? userNote; failed = args.stop_on_error !== false; continue; }
-    // the footer is the page-state fields of the answer; only the last step that ran keeps it
-    let rest: any = text;
-    try { const o = JSON.parse(text); const r2 = { ...o }; page = Object.fromEntries(FOOTER.filter((k) => k in o).map((k) => [k, o[k]])); for (const k of FOOTER) delete r2[k]; rest = JSON.stringify(r2); } catch {}
-    out.push({ ...entry, status: 'ok', text: rest });
-  }
-  return { content: [{ type: 'text', text: JSON.stringify({ steps: out, ...(page && Object.keys(page).length ? { page } : {}) }) }], userNote };
-}
-
-const toolCall = (name: string, args: Record<string, unknown>): Promise<object> => (name === 'batch' ? batchCall(args ?? {}) : singleCall(name, args));
-
-// tools/list shows only the grant's tools; the workbench enforces it on calls
-serveMcp('metatrooper-browser', async () => {
+export async function browserToolList(browser: WorkbenchPipe) {
   const grant = await browser.sessionGrant();
   return grant && PRESETS[grant] ? TOOLS.filter((t) => PRESETS[grant].includes(t.name)) : TOOLS;
-}, async (name, args) => screenResult(await toolCall(name, args)));
+}
+
+export function browserTools({ core, workbench: browser }: ToolOptions): (name: string, args: Record<string, unknown>) => Promise<object> {
+  const CHECKED = new Set(['click', 'type', 'select', 'key']);
+  const CONTROL_CHANGED = -32035;
+
+  /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
+  async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply> {
+    const stopped = async (error: { code: number; message: string; instruction?: string }): Promise<Reply> => {
+      await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
+      return { error };
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const d = await browser.call('browser.describe', { ...args, tool: name });
+      if (d.error) return stopped(d.error);
+      const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
+      const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
+      const out = await core('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, GATE_WAIT_MS);
+      if (out.error) return stopped(out.error);
+      const v = out.result as { decision: string; reason?: string; instruction?: string };
+      if (v.decision === 'deny') return stopped({ code: -32030, message: `not sent: ${v.reason}` });
+      if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action', instruction: v.instruction });
+      if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
+      if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
+      const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
+      // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
+      if (r.error?.code !== CONTROL_CHANGED) return r;
+    }
+    return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
+  }
+
+  async function singleCall(name: string, args: Record<string, unknown>): Promise<any> {
+    if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
+    const { expect: _drop, ...clean } = args ?? {};
+    const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
+    if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true, userNote: r.error.instruction };
+    const result = r.result as { data_base64?: string; mime?: string; text?: string; truncated?: boolean; legend?: string[] } | undefined;
+    if (name === 'screenshot' && result?.data_base64) {
+      const content: object[] = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
+      if (result.truncated) content.push({ type: 'text', text: 'truncated: the page is taller than 16,384 px' });
+      if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
+      return { content };
+    }
+    if (name === 'export_test' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+    if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
+    if (typeof (result as { changes?: unknown } | undefined)?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result as { changes: string }).changes) }) }] };
+    return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
+  }
+
+  const FOOTER = ['url', 'title', 'dialog', 'errors', 'error', 'changes', 'continue'];
+
+  async function batchCall(args: Record<string, unknown>): Promise<object> {
+    const bad = checkBatch(args.steps, await browser.sessionGrant());
+    if (bad) return { content: [{ type: 'text', text: `${bad.code} ${bad.message}` }], isError: true };
+    const steps = args.steps as Array<{ tool: string; args?: Record<string, unknown> }>;
+    const out: object[] = [];
+    let page: Record<string, unknown> | undefined;
+    let failed = false;
+    let userNote: string | undefined;
+    for (const [i, s] of steps.entries()) {
+      const entry = { step: i + 1, tool: s.tool };
+      if (failed) { out.push({ ...entry, status: 'skipped' }); continue; }
+      const r = await singleCall(s.tool, { ...(args.pane_id === undefined ? {} : { pane_id: args.pane_id }), ...s.args });
+      const text: string = r.content[0].text;
+      page = undefined;
+      if (r.isError) { out.push({ ...entry, status: 'error', text }); userNote = r.userNote ?? userNote; failed = args.stop_on_error !== false; continue; }
+      // the footer is the page-state fields of the answer; only the last step that ran keeps it
+      let rest: any = text;
+      try { const o = JSON.parse(text); const r2 = { ...o }; page = Object.fromEntries(FOOTER.filter((k) => k in o).map((k) => [k, o[k]])); for (const k of FOOTER) delete r2[k]; rest = JSON.stringify(r2); } catch {}
+      out.push({ ...entry, status: 'ok', text: rest });
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ steps: out, ...(page && Object.keys(page).length ? { page } : {}) }) }], userNote };
+  }
+
+  const toolCall = (name: string, args: Record<string, unknown>): Promise<object> => (name === 'batch' ? batchCall(args ?? {}) : singleCall(name, args));
+
+  return toolCall;
+}

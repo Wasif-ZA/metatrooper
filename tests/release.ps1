@@ -6,6 +6,10 @@ param([string[]]$AllowSkip = @())
 $AllowSkip = @($AllowSkip | ForEach-Object { $_ -split ',' })
 
 $root = Split-Path -Parent $PSScriptRoot
+if (Get-Command cargo -ErrorAction SilentlyContinue) {
+  & (Join-Path $root 'launcher/build.ps1')
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+} else { Write-Output 'Rust toolchain unavailable; node fallback is used' }
 $version = (Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $logs = Join-Path $root "tests/release-logs/$version"
 New-Item -ItemType Directory -Force $logs | Out-Null

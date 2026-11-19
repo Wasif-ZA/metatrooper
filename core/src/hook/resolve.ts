@@ -3,9 +3,14 @@ import path from 'node:path';
 
 const BS = String.fromCharCode(92);
 
-function onPath(name: string): string | null {
-  const exts = path.extname(name) ? [''] : (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';').map((e) => e.toLowerCase());
-  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+function envValue(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const key = Object.keys(env).find((key) => key.toUpperCase() === name);
+  return key === undefined ? undefined : env[key];
+}
+
+export function onPath(name: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const exts = path.extname(name) ? [''] : (envValue(env, 'PATHEXT') || '.EXE;.CMD;.BAT').split(';').map((e) => e.toLowerCase());
+  for (const dir of (envValue(env, 'PATH') || '').split(path.delimiter)) {
     if (!dir) continue;
     for (const ext of exts) {
       const p = path.join(dir, name + ext);
@@ -16,15 +21,15 @@ function onPath(name: string): string | null {
 }
 
 /** Turns a command name into argv that can be spawned without a shell: npm .cmd shims are unwrapped to their target. Null for a shim that also needs environment variables; resolveLaunch returns those. */
-export function resolveCommand(name: string): string[] | null {
-  const r = resolveLaunch(name);
+export function resolveCommand(name: string, env: NodeJS.ProcessEnv = process.env): string[] | null {
+  const r = resolveLaunch(name, env);
   return r && Object.keys(r.env).length === 0 ? r.argv : null;
 }
 
 /** resolveCommand plus the environment the shim sets: VS Code's code.cmd runs `..\Code.exe ..\<hash>\resources\app\out\cli.js` with ELECTRON_RUN_AS_NODE=1. */
-export function resolveLaunch(name: string): { argv: string[]; env: Record<string, string> } | null {
+export function resolveLaunch(name: string, env: NodeJS.ProcessEnv = process.env): { argv: string[]; env: Record<string, string> } | null {
   const explicit = path.isAbsolute(name) || name.includes('/') || name.includes(BS);
-  const found = explicit ? (fs.existsSync(name) && fs.statSync(name).isFile() ? name : null) : onPath(name);
+  const found = explicit ? (fs.existsSync(name) && fs.statSync(name).isFile() ? name : null) : onPath(name, env);
   if (!found) return null;
   if (!/\.(cmd|bat)$/i.test(found)) return { argv: [found], env: {} };
   const text = fs.readFileSync(found, 'utf8');

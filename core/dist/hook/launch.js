@@ -16,16 +16,6 @@ function parseArgs(argv          )                         {
   return out;
 }
 
-async function recordLaunch(sessionId        , engine        )                {
-  try {
-    const { buildPayload } = await import('../redact.js');
-    const { appendEvent } = await import('../events/append.js');
-    const { nowIso } = await import('../time.js');
-    const payload = buildPayload('launch', { session_id: sessionId, pid: process.pid, cwd: process.cwd(), engine, started_at: nowIso() });
-    appendEvent('launch', sessionId, payload)?.close();
-  } catch {}
-}
-
 async function main()                {
   const a = parseArgs(process.argv.slice(2));
   const sessionId = a.session || '';
@@ -39,7 +29,6 @@ async function main()                {
   }
   const args = argv.map(String);
   process.env.TROOP_SESSION_ID = sessionId;
-  await Promise.race([recordLaunch(sessionId, a.engine || ''), new Promise((r) => setTimeout(r, 250))]);
   const resolved = resolveCommand(args[0]);
   if (!resolved) {
     console.error(`troop launch: could not find ${args[0]} on PATH`);

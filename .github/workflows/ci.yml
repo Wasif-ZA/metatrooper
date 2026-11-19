@@ -23,6 +23,10 @@ jobs:
         working-directory: core
       - run: npm ci
         working-directory: workbench
+      - run: cargo build --release --manifest-path launcher/Cargo.toml
+        if: runner.os == 'Windows'
+      - run: pwsh launcher/build.ps1
+        if: runner.os == 'Windows'
       - run: npm test
         working-directory: core
         env:

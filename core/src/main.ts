@@ -1,3 +1,4 @@
+import { coreMcpStdio } from './hook/mcp-core.ts';
 import './demo-guard.ts';
 import './log-core.ts';
 import { logOnce } from './log.ts';
@@ -118,7 +119,7 @@ async function main(): Promise<void> {
   resolveSpentNotices(db);
 
   wireTermEvents(db);
-  ready({ runner: commands, uiKey });
+  ready({ runner: commands, uiKey, mcpStdio: coreMcpStdio(db, commands) });
   termServer = await startTermServer(termPipe(), uiKey);
 
   const failed = (name: string) => (e: unknown) => logOnce(`core timer ${name} failed: ${e instanceof Error ? e.message : String(e)}`);

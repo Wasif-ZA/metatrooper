@@ -7,6 +7,8 @@ import { ancestors, parentTable } from '../browser/ancestry.js';
 
 const CALL_TIMEOUT_MS = 30_000;
 
+                                                                                                                                                                                     
+
                                                                                                           
 
 /** The Ouros session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
@@ -37,11 +39,23 @@ export class WorkbenchPipe {
   /** The browser grant from the last hello; null when none. */
   grant                = null;
 
-  constructor(unavailable        ) {
+          identity                                     ;
+
+  constructor(unavailable        , identity                                     ) {
+    this.identity = identity;
     this.unavailable = unavailable;
+    this.sessionId = identity?.sessionId;
+  }
+
+          closed = false;
+
+  close()       {
+    this.closed = true;
+    this.socket?.destroy();
   }
 
           connect()                      {
+    if (this.closed) return Promise.reject(new Error(this.unavailable));
     if (this.connecting) return this.connecting;
     if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
     this.connecting = this.open().finally(() => { this.connecting = null; });
@@ -51,6 +65,7 @@ export class WorkbenchPipe {
           open()                      {
     return new Promise((resolve, reject) => {
       const s = net.connect(browserPipe());
+      this.socket = s;
       const decode = createDecoder((raw) => {
         const r = raw                           ;
         const w = typeof r.id === 'string' ? this.pending.get(r.id) : undefined;
@@ -66,12 +81,12 @@ export class WorkbenchPipe {
         this.pending.clear();
       };
       s.once('error', () => { drop(); reject(new Error(this.unavailable)); });
-      s.once('close', drop);
+      s.once('close', () => { drop(); reject(new Error(this.unavailable)); });
       s.once('connect', async () => {
         this.socket = s;
-        this.sessionId ??= findSession();
+        this.sessionId ??= this.identity ? this.identity.sessionId : findSession();
         if (this.sessionId) {
-          const r = await this.raw('browser.hello', { session_id: this.sessionId, pid: process.pid });
+          const r = await this.raw('browser.hello', { session_id: this.sessionId, pid: this.identity?.pid ?? process.pid });
           if (r.error) this.sessionId = null;
           else this.grant = (r.result                                         )?.grant ?? null;
         }

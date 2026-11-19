@@ -1,3 +1,6 @@
+import { resolveCommand } from '../hook/resolve.ts';
+import { buildPayload } from '../redact.ts';
+import { appendLog } from '../log.ts';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { coreDir, repoDir } from '../paths.ts';
@@ -17,6 +20,12 @@ import fs from 'node:fs';
 import { beingRemoved } from '../worktree.ts';
 import { finishedOk } from './finished.ts';
 import { dropSecret, issueSecret } from './secret.ts';
+
+export function launcherArgv(id: string, engineId: string, b64: string, exe = path.join(coreDir, 'bin', 'metatrooper-launch.exe')): string[] {
+  const native = process.platform === 'win32' && fs.existsSync(exe);
+  appendLog('core', `${nowIso()} launcher: ${native ? 'native' : 'node fallback'}\n`);
+  return [...(native ? [exe] : [process.execPath, '--no-warnings', path.join(coreDir, 'launch.js')]), '--session', id, '--engine', engineId, '--args-b64', b64];
+}
 
 export interface LaunchPlan {
   argv: string[];
@@ -109,9 +118,12 @@ export function launchSession(
     promptDelivered = plan.promptDelivered;
     env = { ...router.env, ...sessionHookEnv(opts.engine, id, db), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };
   }
+  if (host === 'pty') {
+    const resolved = resolveCommand(argv[0], { ...process.env, ...env });
+    if (resolved) argv = [...resolved, ...argv.slice(1)];
+  }
   const plan = { argv, promptDelivered: promptDelivered && !(blockers.length && opts.prompt) };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
-  const launcher = path.join(coreDir, 'launch.js');
   const startedAt = nowIso();
   db.prepare(
     `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser_grant, prompt, state, state_at, started_at, approval)
@@ -123,7 +135,8 @@ export function launchSession(
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
-    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env, TROOP_SESSION_SECRET: issueSecret(id, approval) });
+    const pid = term.open(id, launcherArgv(id, opts.engine.id, b64), cwd, { ...process.env, ...env, TROOP_SESSION_SECRET: issueSecret(id, approval) });
+    appendEvent('launch', id, buildPayload('launch', { session_id: id, pid, cwd, engine: opts.engine.id, started_at: nowIso() }), db);
   } catch {
     dropSecret(id);
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}

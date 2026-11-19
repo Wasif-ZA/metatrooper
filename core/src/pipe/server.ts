@@ -1,3 +1,4 @@
+import type { McpHello, McpHandler } from '../hook/mcp-core.ts';
 import fs from 'node:fs';
 import net from 'node:net';
 import { encode, createDecoder, LineTooLong } from './framing.ts';
@@ -24,6 +25,7 @@ function clearDeadSocket(pipePath: string): Promise<void> {
 export interface PipeReady {
   runner: CommandRunner;
   uiKey: string;
+  mcpStdio?: McpHandler;
 }
 
 /** Binds the pipe at once; requests wait for `ready`, so the bind can serve as the single-instance lock before the database opens. */
@@ -47,8 +49,27 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
       }
       socket.write(line);
     };
+    let first = true;
+    let hello: McpHello | null = null;
     const decode = createDecoder(async (raw) => {
       const msg = raw as { jsonrpc?: string; id?: unknown; method?: unknown; params?: unknown; meta?: { origin?: string } };
+      const initial = first;
+      first = false;
+      if (initial && msg?.method === 'mcp.stdio' && !Object.hasOwn(msg, 'id')) {
+        hello = msg.params && typeof msg.params === 'object' ? msg.params as McpHello : {};
+        return;
+      }
+      if (hello) {
+        const current = hello;
+        // Each MCP reply is sent when ready, including while another call waits for approval.
+        void ready.then(async ({ mcpStdio }) => {
+          const reply = mcpStdio ? await mcpStdio(current, msg as Parameters<McpHandler>[1]) : null;
+          if (reply) send(reply);
+        }).catch((e) => {
+          send({ jsonrpc: '2.0', id: msg?.id ?? null, error: { code: -32603, message: e instanceof Error ? e.message : String(e) } });
+        });
+        return;
+      }
       const id = typeof msg?.id === 'string' && msg.id ? msg.id : null;
       if (!msg || msg.jsonrpc !== '2.0' || !id || typeof msg.method !== 'string') {
         send({ jsonrpc: '2.0', id, error: new RpcError(E.INVALID_REQUEST, id ? 'invalid request' : 'id must be a non-empty string').toJSON() });
@@ -71,7 +92,10 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
       } catch (e) {
         send({ jsonrpc: '2.0', id, error: toRpcError(e).toJSON() });
       }
-    }, (e) => send({ jsonrpc: '2.0', id: null, error: { code: E.PARSE, message: e.message } }));
+    }, (e) => {
+      first = false;
+      send({ jsonrpc: '2.0', id: null, error: { code: E.PARSE, message: hello ? 'parse error' : e.message } });
+    });
     let dead = false;
     socket.on('data', (chunk) => {
       if (dead) return;
@@ -84,6 +108,12 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
           dead = true;
           socket.destroySoon();
         }
+      }
+    });
+    socket.on('close', () => {
+      if (hello) {
+        const current = hello;
+        void ready.then(({ mcpStdio }) => mcpStdio?.close?.(current)).catch(() => {});
       }
     });
     socket.on('error', () => {});

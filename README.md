@@ -332,6 +332,8 @@ Delete `~/.metatrooper/` too if you want your history gone.
 
 ## Known limits
 
+- On Windows, closing a session ends every process it started, including windows it opened (for example an editor window first opened from that session).
+
 These are known and accepted for now. Please do not file them as new bugs. The full lists are in
 [`spec.md` Known limits](spec.md#known-limits), [`contracts/desktop-tools.md` Known limits](contracts/desktop-tools.md#known-limits)
 and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits).

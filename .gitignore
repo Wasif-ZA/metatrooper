@@ -2,3 +2,5 @@ node_modules/
 *.log
 workbench/renderer/monaco/
 /dist/
+core/bin/
+launcher/target/
