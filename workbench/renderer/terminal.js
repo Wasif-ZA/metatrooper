@@ -29,6 +29,7 @@ const termView = (() => {
   let onPick = () => {};
   let onExit = () => {};
   let onOutput = () => {};
+  let pending = null;
 
   function shiftEnter(engineId) {
     const engines = typeof ui !== 'undefined' && ui.snap ? ui.snap.engines : [];
@@ -341,6 +342,8 @@ const termView = (() => {
 
   /** Shows every given session as a tile on the wall and detaches the rest; the wall places them. */
   function show(next) {
+    if (document.hidden) { pending = next; return; }
+    pending = null;
     mode = next.mode;
     selected = next.selected;
     onPick = next.onPick || onPick;
@@ -357,6 +360,15 @@ const termView = (() => {
     }
     if (next.focus) terms.get(selected)?.term.focus();
   }
+
+  document.addEventListener?.('visibilitychange', () => {
+    if (!document.hidden && pending) {
+      const next = pending;
+      pending = null;
+      if (typeof render === 'function') render();
+      else show(next);
+    }
+  });
 
   function lend(id, host) {
     if (lent && (lent !== id || !host)) {
