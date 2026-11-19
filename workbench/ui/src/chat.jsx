@@ -1,30 +1,94 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, mergeEcho, revealSteps, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { canMove } from './motion.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
 import { ExternalLinkIcon } from './icons/screens.jsx';
 
+const sessions = new Map();
+const sessionOf = (id) => {
+  if (!sessions.has(id)) sessions.set(id, { items: [], echoes: [], listeners: new Set(), polls: new Set() });
+  return sessions.get(id);
+};
+
+export function echoSend(id, text) {
+  const session = sessionOf(id);
+  const base = session.items.filter((item) => item.kind === 'user' && item.text.trim() === text.trim()).length;
+  session.echoes.push({ text, base, at: Date.now() });
+  session.listeners.forEach((notify) => notify());
+  session.polls.forEach((poll) => void poll());
+}
+
 export function useChat(id) {
   const [chat, setChat] = useState(null);
+  const [, refresh] = useState(0);
   useEffect(() => {
+    const session = sessionOf(id);
+    const notify = () => refresh((n) => n + 1);
     let stopped = false;
     let timer;
+    let request = 0;
     const poll = async () => {
+      clearTimeout(timer);
+      const current = ++request;
       try {
         const r = await rpc('session.chat', { session_id: id }, true);
-        if (!stopped && r?.result) setChat(r.result);
-        else if (!stopped) setChat((prev) => prev?.session_id === id ? prev : { session_id: id, error: true });
+        if (stopped || current !== request) return;
+        if (r?.result) {
+          session.items = r.result.items || [];
+          setChat(r.result);
+        } else setChat((prev) => prev?.session_id === id ? prev : { session_id: id, error: true });
       } catch {
-        if (!stopped) setChat((prev) => prev?.session_id === id ? prev : { session_id: id, error: true });
+        if (!stopped && current === request) setChat((prev) => prev?.session_id === id ? prev : { session_id: id, error: true });
       }
-      if (!stopped) timer = setTimeout(poll, 1500);
+      if (!stopped && current === request) timer = setTimeout(poll, 1500);
     };
+    session.listeners.add(notify);
+    session.polls.add(poll);
     void poll();
-    return () => { stopped = true; clearTimeout(timer); };
+    return () => { stopped = true; clearTimeout(timer); session.listeners.delete(notify); session.polls.delete(poll); };
   }, [id]);
   return chat?.session_id === id ? chat : null;
+}
+
+function Reveal({ text, initial, animate, onStep }) {
+  const ref = useRef(null);
+  const previous = useRef(text);
+  const shown = useRef(initial);
+  const sequence = useRef(0);
+  const [view, setView] = useState({ shown: initial, chunks: [] });
+  useLayoutEffect(() => {
+    const replaced = !text.startsWith(previous.current);
+    previous.current = text;
+    if (!animate || replaced || !canMove(ref.current)) {
+      shown.current = text.length;
+      setView({ shown: text.length, chunks: [] });
+      return;
+    }
+    const steps = revealSteps(shown.current, text, 1200);
+    if (!steps.length) return;
+    let frame;
+    let start;
+    let index = 0;
+    const tick = (now) => {
+      start ??= now;
+      const chunks = [];
+      while (index < steps.length && steps[index].at <= now - start) {
+        const len = steps[index++].len;
+        chunks.push({ from: shown.current, len, key: sequence.current++ });
+        shown.current = len;
+      }
+      if (chunks.length) setView((prev) => ({ shown: shown.current, chunks: [...prev.chunks, ...chunks].slice(-3) }));
+      if (index < steps.length) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [text, animate]);
+  useLayoutEffect(() => { onStep(); }, [view, onStep]);
+  const settled = view.chunks[0]?.from ?? view.shown;
+  return <p ref={ref} className="ou-hm-chattext">{text.slice(0, settled)}{view.chunks.map((chunk) => <span className="ou-hm-fresh" key={chunk.key}>{text.slice(chunk.from, chunk.len)}</span>)}</p>;
 }
 
 function ToolRow({ item }) {
@@ -97,7 +161,21 @@ function Approval({ item, x, engine }) {
 export function Chat({ x, chat, openInEditor }) {
   const ref = useRef(null);
   const pinned = useRef(true);
-  const signature = JSON.stringify(chat?.items);
+  const baseline = useRef({ id: x.id, lengths: null });
+  if (baseline.current.id !== x.id) baseline.current = { id: x.id, lengths: null };
+  if (baseline.current.lengths === null && chat?.items) baseline.current.lengths = chat.items.filter((item) => item.kind === 'text').map((item) => item.text.length);
+  const session = sessionOf(x.id);
+  const merged = mergeEcho(chat?.items || [], session.echoes, Date.now());
+  session.echoes = merged.pending;
+  const items = groupItems(merged.items);
+  const lastText = items.findLastIndex((item) => item.kind === 'text');
+  let userIndex = 0;
+  let textIndex = 0;
+  const signature = JSON.stringify(merged.items);
+  const pin = useCallback(() => {
+    const host = ref.current?.closest('.ou-hm-center');
+    if (host && pinned.current) host.scrollTop = host.scrollHeight;
+  }, []);
   useLayoutEffect(() => {
     const host = ref.current?.closest('.ou-hm-center');
     if (!host) return;
@@ -107,9 +185,8 @@ export function Chat({ x, chat, openInEditor }) {
     return () => host.removeEventListener('scroll', scroll);
   }, [x.id]);
   useLayoutEffect(() => {
-    const host = ref.current?.closest('.ou-hm-center');
-    if (host && pinned.current) host.scrollTop = host.scrollHeight;
-  }, [x.id, signature]);
+    pin();
+  }, [x.id, signature, pin]);
   const openFile = async (file) => {
     const project = (ui.snap?.projects || []).find((p) => p.id === x.project_id);
     const root = String(ui.snap?.git?.[x.id]?.root || project?.path || '').replace(/\\/g, '/').replace(/\/$/, '');
@@ -121,9 +198,12 @@ export function Chat({ x, chat, openInEditor }) {
   const engine = chat?.engine_id || x.engine_id;
   const totals = fileTotals(chat?.items || []);
   return <div ref={ref} className="ou-hm-chat">
-    {!chat ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat.error ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chatModeOf(engine, chat.source) === 'terminal' ? <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p> : groupItems(chat.items).map((item, i) => {
-      if (item.kind === 'user') return <div key={i} className="ou-hm-user"><p>{item.text}</p></div>;
-      if (item.kind === 'text') return <p key={i} className="ou-hm-chattext">{item.text}</p>;
+    {!chat && !merged.pending.length ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat?.error && !merged.pending.length ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chat && !chat.error && chatModeOf(engine, chat.source) === 'terminal' ? <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p> : items.map((item, i) => {
+      if (item.kind === 'user') return <div key={`${x.id}:user:${userIndex++}`} className="ou-hm-user" data-echo={item.echo ? 'true' : undefined}><p>{item.text}</p></div>;
+      if (item.kind === 'text') {
+        const index = textIndex++;
+        return <Reveal key={`${x.id}:text:${index}`} text={item.text} initial={baseline.current.lengths?.[index] ?? 0} animate={i === lastText} onStep={pin} />;
+      }
       if (item.kind === 'steps') return <ToolSteps key={item.id} item={item} />;
       if (item.status === 'waiting') return <Approval key={item.id} item={item} x={x} engine={engine} />;
       if (item.file) return <EditCard key={item.id} item={item} total={totals[item.file]} openFile={openFile} />;

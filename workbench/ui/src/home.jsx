@@ -10,7 +10,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { Chat, useChat } from './chat.jsx';
+import { Chat, echoSend, useChat } from './chat.jsx';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
@@ -312,7 +312,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   const send = async () => {
     const t = answer.trim();
     if (!t || !here || !ask) return;
-    try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
+    try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); echoSend(ask.id, t); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const open = openList.includes(x.id);
   const st = stepsOf(x);

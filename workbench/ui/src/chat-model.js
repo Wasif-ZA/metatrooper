@@ -2,6 +2,26 @@ export const chatModeOf = (engineId, source) => source === 'transcript' ? 'chat'
 
 export const TERMINAL_ONLY_NOTE = 'This agent shares no chat record, so cc shows its terminal only.';
 
+export function mergeEcho(items, echoes, now) {
+  const pending = echoes.filter(({ text, base, at }) => now - at <= 30000 &&
+    items.filter((item) => item.kind === 'user' && item.text.trim() === text.trim()).length <= base);
+  return { items: pending.length ? [...items, ...pending.map(({ text }) => ({ kind: 'user', text, echo: true }))] : items, pending };
+}
+
+export function revealSteps(fromLen, text, windowMs) {
+  if (fromLen > text.length) return [{ at: 0, len: text.length }];
+  if (fromLen === text.length) return [];
+  const ends = [];
+  for (let len = fromLen + 1; len <= text.length; len++) {
+    if (len === text.length || text[len] === ' ' || text[len] === '\n') ends.push(len);
+  }
+  const count = Math.min(60, ends.length);
+  return Array.from({ length: count }, (_, i) => ({
+    at: count === 1 ? 0 : i * windowMs / (count - 1),
+    len: ends[Math.ceil((i + 1) * ends.length / count) - 1],
+  }));
+}
+
 export const approvalInput = (engineId, allow) => engineId === 'claude' ? allow ? '1' : '\x1b' : null;
 
 export function approvalText(item) {

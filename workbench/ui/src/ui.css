@@ -480,7 +480,7 @@ html { font-size: 16px; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 
-:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --motion-fast: 150ms; --motion-slow: 250ms; --motion-ease: cubic-bezier(.22, 1, .36, 1); --ease-fast: var(--motion-fast) var(--motion-ease); --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
+:root { --font-app: 'Geist', 'Segoe UI', sans-serif; --motion-fast: 150ms; --chat-fade: 240ms; --motion-slow: 250ms; --motion-ease: cubic-bezier(.22, 1, .36, 1); --ease-fast: var(--motion-fast) var(--motion-ease); --st-ok: #3fb950; --st-bad: #f0524f; --st-wait: var(--wait); --st-run: #4c9aff; --st-review: #a78bfa; --st-other: #6b7280; --ny-pri-hot: #f2994a; }
 :root[data-theme='light'] { --st-ok: #1a7f37; --st-bad: #cf222e; --st-run: #0969da; --st-review: #8250df; --ny-pri-hot: #bc4c00; }
 
 /* Home: task box, session rows with sub-agents and steps, floating right panel, automations. */

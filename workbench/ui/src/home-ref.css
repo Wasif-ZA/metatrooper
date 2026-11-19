@@ -77,6 +77,9 @@ header.title .ou-hm-head .ou-hm-headtitle { margin: 0; overflow: hidden; text-ov
 .ou-hm-chat { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .ou-hm-chat > :is(.ou-hm-toolrow, .ou-hm-chatsteps, .ou-hm-edit) + :is(.ou-hm-toolrow, .ou-hm-chatsteps, .ou-hm-edit) { margin-top: calc(var(--sp-2) - var(--sp-3)); }
 .ou-hm-chattext { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ou-hm-fresh { animation: ou-chat-fresh var(--chat-fade, 240ms) var(--motion-ease) backwards; }
+@keyframes ou-chat-fresh { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ou-hm-fresh { animation: none; } }
 .ou-hm-chat .ou-hm-user { margin-bottom: 0; }
 .ou-hm-chatnote, .ou-hm-tool { margin: 0; color: var(--hm-quiet); font-size: 13px; }
 .ou-hm-tool { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; line-height: 1.5; }
