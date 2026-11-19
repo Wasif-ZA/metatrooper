@@ -140,6 +140,28 @@ test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and
   } finally { await s2.done(); }
 });
 
+test('M7-10 metatrooper-desktop and metatrooper-browser answer through the relay with their tools and a clear error with no workbench', { skip: !win, timeout: 90_000 }, async () => {
+  const s = await setup();
+  try {
+    const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
+    for (const server of ['desktop', 'browser']) {
+      const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id }, server);
+      try {
+        r.send({ id: 1, ...INIT });
+        assert.equal((await r.reply(1)).result.serverInfo.name, `metatrooper-${server}`);
+        r.send({ id: 2, method: 'tools/list' });
+        const names = (await r.reply(2, 15_000)).result.tools.map((t: any) => t.name);
+        assert.ok(names.length > 0, `${server} lists tools`);
+        if (server === 'desktop') assert.ok(names.includes('windows') && names.includes('request_takeover'));
+        r.send({ id: 3, method: 'tools/call', params: { name: names[0], arguments: {} } });
+        const call = await r.reply(3, 40_000);
+        assert.equal(call.result?.isError, true, `${server} without a workbench is an error result`);
+        assert.match(JSON.stringify(call.result.content), /workbench|not available|closed/i);
+      } finally { r.c.kill(); }
+    }
+  } finally { await s.done(); }
+});
+
 test('M7-10 the relay answers a tool call with an MCP error while the core is down and works again after it restarts', { skip: !win, timeout: 120_000 }, async () => {
   const s = await setup();
   try {
