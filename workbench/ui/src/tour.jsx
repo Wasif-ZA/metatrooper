@@ -81,12 +81,12 @@ export function AccountTour() {
     button?.toggleAttribute('data-tour-pro', pro);
   }, [pro]);
   useEffect(() => {
-    document.getElementById('account-tour').toggleAttribute('data-overlay', Boolean(menuOpen || offer || dialog || tour || scanning));
-  }, [menuOpen, offer, dialog, tour, scanning]);
+    document.getElementById('account-tour').toggleAttribute('data-overlay', Boolean(menuOpen || dialog || tour || scanning));
+  }, [menuOpen, dialog, tour, scanning]);
 
   const icon = document.querySelector('#account .fi');
   const [badPicture, setBadPicture] = useState(null);
-  const picture = status.signed_in && status.picture && status.picture !== badPicture && /^https:\/\//.test(status.picture) ? status.picture : null;
+  const picture = !document.body.classList.contains('demo') && status.signed_in && status.picture && status.picture !== badPicture && /^https:\/\//.test(status.picture) ? status.picture : null;
   useLayoutEffect(() => {
     if (!icon) return;
     if (picture) icon.querySelectorAll('svg').forEach((el) => el.remove());
@@ -104,6 +104,7 @@ export function AccountTour() {
     pending.current = true; setDialog(false); setError('');
     const startView = ui.view, focus = document.activeElement, available = new Map();
     const settingsWasOpen = settingsView.isOpen();
+    if (settingsWasOpen) settingsView.close();
     let openedSettings = false;
     try {
       await recordOffer();
@@ -114,25 +115,25 @@ export function AccountTour() {
         if (ui.view !== view) homeView.set(view);
         await frame();
         for (const stop of candidates.filter((s) => (s.view ?? startView) === view)) {
-          if (stop.id === 'notify') { openedSettings = !settingsWasOpen; await settingsView.open('notify'); await frame(); }
-          const el = document.querySelector(stop.selector);
+          if (stop.id === 'notify') { openedSettings = true; await settingsView.open('notify'); await frame(); }
+          const el = Array.from(document.querySelectorAll(stop.selector)).find(visible);
           if (visible(el)) {
             const rect = el.getBoundingClientRect();
             available.set(stop.selector, { isConnected: true, hidden: false, parentElement: null, getBoundingClientRect: () => rect });
           }
-          if (stop.id === 'notify' && !settingsWasOpen) settingsView.close();
+          if (stop.id === 'notify') { settingsView.close(); openedSettings = false; }
         }
       }
       homeView.set(startView);
       previousFocus.current = focus;
       const run = createTour({
-        doc: { querySelector: (selector) => available.get(selector) }, stops: candidates,
+        doc: { querySelectorAll: (selector) => available.has(selector) ? [available.get(selector)] : [] }, stops: candidates,
         getView: () => ui.view, setView: (view) => homeView.set(view),
-        onEnd: () => { setTour(null); setBox(null); tourRef.current = null; previousFocus.current?.focus?.(); },
+        onEnd: () => { setTour(null); setBox(null); tourRef.current = null; previousFocus.current?.focus?.(); if (settingsWasOpen) void settingsView.open(); },
       });
       tourRef.current = run; run.start();
       if (run.active) { setTour(run); setStep(0); }
-    } catch (e) { homeView.set(startView); toast(e.message, true); }
+    } catch (e) { homeView.set(startView); if (settingsWasOpen) void settingsView.open(); toast(e.message, true); }
     finally { if (openedSettings) settingsView.close(); setScanning(false); pending.current = false; }
   }
 
@@ -147,7 +148,7 @@ export function AccountTour() {
       cancelAnimationFrame(request);
       request = requestAnimationFrame(() => {
         if (disposed || !tour.active || !ready) return;
-        const target = document.querySelector(tour.current().selector);
+        const target = Array.from(document.querySelectorAll(tour.current().selector)).find(visible);
         if (!visible(target)) { next(); return; }
         const r = target.getBoundingClientRect();
         const value = { left: Math.max(0, r.left - 5), top: Math.max(0, r.top - 5), right: Math.min(innerWidth, r.right + 5), bottom: Math.min(innerHeight, r.bottom + 5), viewportWidth: innerWidth, viewportHeight: innerHeight };
@@ -216,7 +217,7 @@ export function AccountTour() {
     signin: async () => {
       if (pending.current) return;
       pending.current = true;
-      try { await recordOffer(); setOffer(false); setError(''); setDialog(true); }
+      try { setOffer(false); setError(''); setDialog(true); }
       catch (e) { setError(e.message); }
       finally { pending.current = false; }
     }, tour: start,
@@ -232,7 +233,7 @@ export function AccountTour() {
   const top = box ? Math.max(12, Math.min(innerHeight - 300, box.top)) : 16;
   return <>
     {picture && icon ? createPortal(<img src={picture} alt="" width={20} height={20} data-personal referrerPolicy="no-referrer" onError={() => setBadPicture(picture)} />, icon) : null}
-    <DropdownMenu placement="above" menuWidth={240} items={items} onOpenChange={(open) => { setMenuOpen(open); if (open) void api.addons().then((plugins) => setPro(Array.isArray(plugins) && plugins.some((p) => p.id === 'cc-pro' && p.enabled))).catch(() => {}); }} header={look?.authConfigured && status.signed_in ? <div className="cc-account-who" data-personal><Text>{status.name}</Text><Text color="secondary">{status.email}</Text></div> : undefined} renderTrigger={(trigger) => <RailTrigger trigger={trigger} />} />
+    <DropdownMenu placement="above" menuWidth={240} items={items} onOpenChange={(open) => { setMenuOpen(open); if (open) { void refresh(); void api.addons().then((plugins) => setPro(Array.isArray(plugins) && plugins.some((p) => p.id === 'cc-pro' && p.enabled))).catch(() => {}); } }} header={!document.body.classList.contains('demo') && look?.authConfigured && status.signed_in ? <div className="cc-account-who" data-personal><Text>{status.name}</Text><Text color="secondary">{status.email}</Text></div> : undefined} renderTrigger={(trigger) => <RailTrigger trigger={trigger} />} />
     <Dialog isOpen={dialog} onOpenChange={(open) => { if (!open) cancelSignIn(); }} purpose="form" width={420} aria-label="Sign in to cc">
       <div className="cc-tour-content"><Heading level={2}>Sign in to cc</Heading><Text>An account is optional. Everything works without one.</Text>
         {waiting ? <Text role="status">Waiting for your browser...</Text> : null}

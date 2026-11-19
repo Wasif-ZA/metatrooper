@@ -7,7 +7,7 @@ export const STOPS = [
   ['notify', '#settings .ou-scol', null, '@', 'Get pinged on your phone or desktop when an agent needs you.'],
   ['ide', '.fnav [data-view="ide"]', 'ide', '</>', 'Editor, search, git and diff comments, next to your agents.'],
   ['browser', '[data-tab="browser"]', 'wall', 'www', 'Agents can use a browser here. You approve each site.'],
-  ['computer', '[data-action="grant-give"]', null, 'win', 'On Windows, an agent can use an app window you lend it.'],
+  ['computer', '[data-action="grant-give"]', 'wall', 'win', 'On Windows, an agent can use an app window you lend it.'],
   ['drawn', '.ou-drawn-bar, .ou-drawn-chips', 'ide', '#', 'Agents can draw screens for you, in tabs.'],
   ['sessions', '#frame-agents', null, 'zz', 'Close cc any time. Your agents keep running and come back.'],
   ['account', '#account', null, 'me', 'Your account lives here. Signing in is optional; cc works the same without it.'],
@@ -22,7 +22,7 @@ export function visible(el) {
 }
 
 export function stopsFor(doc, stops = STOPS) {
-  return stops.filter((s) => visible(doc.querySelector(s.selector)));
+  return stops.filter((s) => Array.from(doc.querySelectorAll?.(s.selector) ?? [doc.querySelector(s.selector)]).find(visible));
 }
 
 export const offerOnEvent = (tour) => tour == null || tour === '';
