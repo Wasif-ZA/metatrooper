@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, startCore, teardownCore, uiHello } from './helpers.ts';
+import { buildGenerated, client, isolation, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -170,50 +170,94 @@ test('M7-06f core heartbeat ticks at least every 2 s during a slow fixture check
   };
 
   await withWorktreeCore(settings, async ({ pipe, projectDir, projectId, db }) => {
-    // Add a post-checkout git hook in the source repository that sleeps for 2.5 seconds
-    // to simulate a slow checkout
+    // Add a post-checkout git hook in the source repository that sleeps for 4 seconds
+    // to simulate a slow checkout. On Windows git runs hooks through sh, so write
+    // #!/bin/sh with node running setTimeout.
     const hooksDir = join(projectDir, '.git', 'hooks');
     mkdirSync(hooksDir, { recursive: true });
     const hookScript = join(hooksDir, 'post-checkout');
 
-    if (process.platform === 'win32') {
-      // Node script that delays 2500ms
-      writeFileSync(hookScript, `#!/usr/bin/env node\nconst end = Date.now() + 2500;\nwhile (Date.now() < end) {}\n`);
-    } else {
-      writeFileSync(hookScript, `#!/bin/sh\nsleep 2.5\n`, { mode: 0o755 });
-    }
+    const nodePath = process.execPath.replaceAll('\\', '/');
+    writeFileSync(
+      hookScript,
+      `#!/bin/sh\n"${nodePath}" -e "setTimeout(()=>{},4000)"\n`,
+      { mode: 0o755 },
+    );
 
-    // Monitor the event loop and heartbeat during worktree.create
+    // Align to a fresh heartbeat tick before starting worktree.create so the measurement window starts cleanly
+    const checkHeartbeat = () => {
+      const d = db();
+      try {
+        const row = d.prepare("SELECT value FROM meta WHERE key = 'core_heartbeat'").get() as { value: string } | undefined;
+        return row?.value ? Date.parse(row.value) : 0;
+      } finally {
+        d.close();
+      }
+    };
+
+    const initialHeartbeat = checkHeartbeat();
+    await until(() => checkHeartbeat() > initialHeartbeat, 3000);
+
+    // Monitor event loop and core heartbeat gap during worktree.create
     let maxLoopLag = 0;
     let lastTick = Date.now();
+    let maxHeartbeatGap = 0;
+
+    const monitorDb = db();
     const monitor = setInterval(() => {
       const now = Date.now();
       const lag = now - lastTick;
       if (lag > maxLoopLag) maxLoopLag = lag;
       lastTick = now;
-    }, 200);
 
+      try {
+        const row = monitorDb.prepare("SELECT value FROM meta WHERE key = 'core_heartbeat'").get() as { value: string } | undefined;
+        if (row?.value) {
+          const age = now - Date.parse(row.value);
+          if (age > maxHeartbeatGap) maxHeartbeatGap = age;
+        }
+      } catch {}
+    }, 100);
+
+    const start = Date.now();
     try {
-      const reply = await pipe.request('worktree.create', { project_id: projectId, branch: 'troop/slow-checkout' });
+      const reply = await pipe.request(
+        'worktree.create',
+        { project_id: projectId, branch: 'troop/slow-checkout' },
+        { timeout: 15_000 },
+      );
       assert.ok(!reply.error, `worktree.create failed: ${JSON.stringify(reply.error)}`);
     } finally {
       clearInterval(monitor);
+      monitorDb.close();
     }
+    const duration = Date.now() - start;
 
-    // In sync execFileSync, the event loop would freeze for >= 2500 ms
-    // In async execFile, the event loop continues ticking and maxLoopLag remains small (< 2000 ms)
+    // Assert worktree.create checkout was slow (took at least 3 s)
+    assert.ok(
+      duration >= 3000,
+      `worktree.create took ${duration} ms, expected at least 3000 ms to prove checkout was slow`,
+    );
+
+    // In sync execFileSync, core freezes for >= 3000 ms and heartbeat gap exceeds 3000 ms
+    // In async execFile, core heartbeat keeps ticking and gap stays under 2 s (with modest scheduling tolerance)
+    assert.ok(
+      maxHeartbeatGap < 2500,
+      `Heartbeat gap reached ${maxHeartbeatGap} ms during checkout; must stay under 2 s`,
+    );
+
     assert.ok(
       maxLoopLag < 2000,
       `Event loop blocked for ${maxLoopLag} ms; worktree.create must be async so heartbeat ticks every 2 s`,
     );
 
-    // Verify core_heartbeat in meta table is recent
+    // Verify core_heartbeat in meta table is fresh (under 2 s) after worktree.create finishes
     const d = db();
     try {
       const heartbeatRow = d.prepare("SELECT value FROM meta WHERE key = 'core_heartbeat'").get() as { value: string } | undefined;
       assert.ok(heartbeatRow?.value, 'core_heartbeat must be recorded in meta');
       const ageMs = Date.now() - Date.parse(heartbeatRow.value);
-      assert.ok(ageMs < 4000, `Heartbeat age ${ageMs} ms must be fresh`);
+      assert.ok(ageMs < 2000, `Heartbeat age ${ageMs} ms must be fresh (under 2 s)`);
     } finally {
       d.close();
     }
