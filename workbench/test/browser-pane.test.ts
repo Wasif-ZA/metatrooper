@@ -85,7 +85,7 @@ async function paneScriptsAndCapture() {
     mkdirSync(project);
     const opened = await pipe.request('project.open', { path: project });
     const projectId = opened.result.project_id as string;
-    const launched = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
+    const launched = await pipe.request('session.launch', { project_id: projectId, browser_grant: 'debug', engine_id: 'fake', prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
     const sessionId = launched.result.session_id as string;
     const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, agent: true, url: `http://127.0.0.1:${owned.port}/scripts` });
     const paneId = pane.result.pane_id as string;

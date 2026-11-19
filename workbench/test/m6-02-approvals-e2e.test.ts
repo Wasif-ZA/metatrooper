@@ -22,7 +22,7 @@ function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: 
   });
 }
 
-test('M6-02a / M6-02b / M6-02c / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password, 120 s expiry, focus in shadow roots and frames, rename during the glide, navigation during the wait', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
+test('M6-02a / M6-02b / M6-02c / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password, no timer, focus in shadow roots and frames, rename during the glide, navigation during the wait', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
 
 async function paneApprovalsE2e() {
   await buildGenerated();
@@ -104,6 +104,7 @@ async function paneApprovalsE2e() {
     const enginePrompt = join(workbench, 'test', 'fixtures', 'm6-02-engine.cjs');
     const launched = await initPipe.request('session.launch', {
       project_id: projectId,
+      browser_grant: 'debug',
       engine_id: 'fake',
       prompt: enginePrompt,
     });
@@ -304,15 +305,15 @@ async function paneApprovalsE2e() {
     const glideHits = await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("glide").dataset.hits || "0"' });
     assert.equal(JSON.parse(glideHits.result?.content?.[0]?.text).value, '0');
 
-    // M6-02c: a click left waiting for the real 120 s returns "not approved in time" and the row reads expired
-    const expireStart = Date.now();
-    const expireStep = sendStep('click', { pane_id: paneId, ref: submitRef });
-    const expireApproval = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
-    const expireResult = await expireStep.waitResult(150_000);
-    assert.ok(Date.now() - expireStart >= 119_000);
-    assert.equal(expireResult.result?.isError, true);
-    assert.match(expireResult.result?.content?.[0]?.text, /not approved in time/);
-    assert.equal((db!.prepare('SELECT status FROM approval WHERE id = ?').get(expireApproval.id) as any).status, 'expired');
+    // M6-02c, as changed by M8-21: a gate has no timer, so a click left waiting stays waiting until a person answers
+    const waitStep = sendStep('click', { pane_id: paneId, ref: submitRef });
+    const waitApproval = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
+    await sleep(10_000);
+    assert.equal(existsSync(join(iso.home, `m602-out-${waitStep.step}.json`)), false, 'the click returned without an answer');
+    assert.equal((db!.prepare('SELECT status FROM approval WHERE id = ?').get(waitApproval.id) as any).status, 'waiting');
+    await uiPipe.request('approval.resolve', { approval_id: waitApproval.id, decision: 'reject' });
+    assert.equal((await waitStep.waitResult()).result?.isError, true);
+    assert.equal((db!.prepare('SELECT status FROM approval WHERE id = ?').get(waitApproval.id) as any).status, 'rejected');
 
     // A key approved on one origin is not sent after the page navigates to another origin while it waits; the new origin asks
     await callTool('evaluate', { pane_id: paneId, expression: `document.getElementById("sendBtn").focus(); setTimeout(() => { location.href = "${otherOrigin}/"; }, 500); "armed"` });

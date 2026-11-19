@@ -55,7 +55,7 @@ async function hardeningContract() {
     await uiHello(pipe, iso.home);
     const project = join(iso.home, 'project'); mkdirSync(project);
     const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
-    const session = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: engineFile });
+    const session = await pipe.request('session.launch', { project_id: projectId, browser_grant: 'debug', engine_id: 'fake', prompt: engineFile });
     const sid = session.result.session_id as string;
     const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sid, agent: true, url: `http://127.0.0.1:${server.port}/cookie` });
     const userPaneId = pane.result.pane_id as string;
@@ -67,7 +67,7 @@ async function hardeningContract() {
     const args: [string,string[]] = process.platform === 'win32' ? [electron,[workbench]] : ['xvfb-run',['-a','-s','-screen 0 1400x900x24',electron,'--no-sandbox','--disable-gpu','--disable-dev-shm-usage',workbench]];
     wb = spawn(args[0],args[1],{env,stdio:['ignore','ignore',openSync(join(iso.home,'workbench.err'),'w')],detached:process.platform!=='win32'});
 
-    const session2 = await (await client(iso.prefix)).request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: engineFile });
+    const session2 = await (await client(iso.prefix)).request('session.launch', { project_id: projectId, browser_grant: 'debug', engine_id: 'fake', prompt: engineFile });
     const sid2 = session2.result.session_id as string;
     writeFileSync(join(iso.home, `browser-job-${sid2}.json`), JSON.stringify({steps:[['panes','browser.panes',{}],['nav','browser.navigate',{url:`http://127.0.0.1:${server.port}/agent`}],['snapshot','browser.snapshot',{}],['cookies','browser.evaluate',{expression:'document.cookie'}],['blank','browser.click',{ref:'@blank'}],['afterBlank','browser.panes',{}],['backToAgent','browser.navigate',{url:`http://127.0.0.1:${server.port}/agent`}],['snapshot2','browser.snapshot',{}],['download','browser.click',{ref:'@download'}]]}));
     const steps: Array<[string,string,object]> = [

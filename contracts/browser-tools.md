@@ -1,6 +1,6 @@
 # metatrooper-browser MCP tools
 
-Version 3. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 3. A stdio MCP server started through the engine's `mcp_attach` for every session except isolated ones and pipeline steps; a launch with `browser: true` always gets it. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 
@@ -50,7 +50,7 @@ A session may hold a browser grant, a preset that limits its tools. Each preset 
 - `act`: look plus back, click, type, key, select, wait_for, dialog, batch.
 - `debug`: act plus console, network, evaluate.
 
-The grant is `browser_grant` on the session row. `session.launch` takes it as `browser_grant`; else the project's `.troop/config.json` `browser.grant`; else none, which allows every tool. An unknown name fails the launch with -32602 "unknown browser grant <name>; one of look, act, debug".
+The grant is `browser_grant` on the session row. `session.launch` takes it as `browser_grant`. Without one, a `browser: true` launch takes the project's `.troop/config.json` `browser.grant`, else none, which allows every tool; any other launch gets `act`, or `look` when the project config says `look` (an agent can write that file, so it may narrow a plain launch, never widen it). An unknown name fails the launch with -32602 "unknown browser grant <name>; one of look, act, debug".
 
 Model (M8-43): a `browser: true` launch on the claude engine without `model` uses the project's `.troop/config.json` `models.browser`, else `claude-sonnet-5-5`. A `model` param always wins. Other engines and non-browser sessions get no default. `session.launch` returns the model it passed as `model`.
 

@@ -142,13 +142,15 @@ test('M5-12f STDIO external writer attaches only under ask approval; ouros-steps
     const claude = engine('claude', 'claude-mcp-config-flag') as never;
     const flags = ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/'), '--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui'];
     const attached = () => Object.keys(JSON.parse(readFileSync(join(dir, 'mcp', 'test-session.json'), 'utf8')).mcpServers);
-    for (const ctx of [{ pipelineStep: true, approval: 'isolated' }, { approval: 'isolated' }]) assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), []);
-    for (const ctx of [{ pipelineStep: true, approval: 'contained' }, { approval: 'contained' }]) {
+    for (const ctx of [{ pipeline: true, approval: 'isolated' }, { approval: 'isolated' }]) assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), []);
+    for (const ctx of [{ pipeline: true, approval: 'contained' }, { pipeline: true, approval: 'ask' }]) {
       assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), flags);
-      assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui']);
+      assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui'], JSON.stringify(ctx));
     }
-    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval: 'ask' }), flags);
-    assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'stdio-writer-writer']);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { approval: 'contained' }), flags);
+    assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'metatrooper-browser']);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { approval: 'ask' }), flags);
+    assert.deepEqual(attached(), ['ouros-steps', 'ouros-ui', 'metatrooper-browser', 'stdio-writer-writer']);
   } finally {
     db.close();
     if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;

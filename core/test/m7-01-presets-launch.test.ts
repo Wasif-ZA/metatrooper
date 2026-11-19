@@ -75,14 +75,43 @@ test('M7-01a launch with browser_grant look stores look on the session row', asy
   });
 });
 
-// protects=no grant anywhere leaves the session with no preset, which means every tool
-// fails_when=a launch with no grant stores a preset (for example look) or a value other than null
-// no_claim=the every-tool behaviour of tools/list (MCP side, not covered here)
-test('M7-01a launch with no browser grant stores null on the session row', async () => {
+// protects=a plain launch (Home, Wall, troop launch) gets the act preset, not every tool
+// fails_when=a launch with no grant and no browser flag stores null (every tool, evaluate included)
+test('M7-01a launch with no browser grant stores act on the session row', async () => {
   await withLaunchCore(null, async ({ pipe, projectId, sessionRow }) => {
     const reply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'm7-fake' });
     assert.ok(reply.result?.session_id, JSON.stringify(reply));
+    assert.equal(sessionRow(reply.result.session_id).browser_grant, 'act');
+  });
+});
+
+// protects=a launch from the browser pane (browser: true) keeps every tool
+// fails_when=browser: true with no grant stores a preset
+test('M7-01a browser: true with no grant stores null (every tool)', async () => {
+  await withLaunchCore(null, async ({ pipe, projectId, sessionRow }) => {
+    const reply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'm7-fake', browser: true });
+    assert.ok(reply.result?.session_id, JSON.stringify(reply));
     assert.equal(sessionRow(reply.result.session_id).browser_grant, null);
+  });
+});
+
+// protects=an agent-writable project config cannot widen a plain launch past act
+// fails_when=browser.grant debug in .troop/config.json gives a plain launch debug
+test('M7-01a a project config of debug does not widen a plain launch past act', async () => {
+  await withLaunchCore({ browser: { grant: 'debug' } }, async ({ pipe, projectId, sessionRow }) => {
+    const reply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'm7-fake' });
+    assert.ok(reply.result?.session_id, JSON.stringify(reply));
+    assert.equal(sessionRow(reply.result.session_id).browser_grant, 'act');
+  });
+});
+
+// protects=a project config can still narrow a plain launch to look
+// fails_when=the act default overrides a narrower project grant
+test('M7-01a a project config of look narrows a plain launch to look', async () => {
+  await withLaunchCore({ browser: { grant: 'look' } }, async ({ pipe, projectId, sessionRow }) => {
+    const reply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'm7-fake' });
+    assert.ok(reply.result?.session_id, JSON.stringify(reply));
+    assert.equal(sessionRow(reply.result.session_id).browser_grant, 'look');
   });
 });
 

@@ -33,7 +33,7 @@ async function openSession(iso: Iso, paneUrls: string[], devPort?: number) {
   const project = join(iso.home, 'project');
   mkdirSync(project);
   const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
-  const session = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: engineFile });
+  const session = await pipe.request('session.launch', { project_id: projectId, browser_grant: 'debug', engine_id: 'fake', prompt: engineFile });
   const sid = session.result.session_id as string;
   if (devPort) {
     const db = new DatabaseSync(join(iso.home, 'troop.db'));
