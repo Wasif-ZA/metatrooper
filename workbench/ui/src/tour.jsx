@@ -46,12 +46,32 @@ function Byte({ label }) {
 
 const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
+function placeBubble(box, size) {
+  const inset = 12, gap = 88, width = Math.min(336, box.viewportWidth - inset * 2);
+  const height = size.height, cx = (box.left + box.right) / 2, cy = (box.top + box.bottom) / 2;
+  const room = { below: box.viewportHeight - box.bottom - inset, above: box.top - inset, right: box.viewportWidth - box.right - inset, left: box.left - inset };
+  const order = box.top < 100 ? ['below', 'right', 'left', 'above'] : ['right', 'left', 'above', 'below'];
+  const horizontal = (side) => side === 'left' || side === 'right';
+  const side = order.find((s) => room[s] >= (horizontal(s) ? width : height) + gap)
+    ?? order.reduce((a, b) => room[a] / (horizontal(a) ? width : height) >= room[b] / (horizontal(b) ? width : height) ? a : b);
+  const available = Math.max(0, room[side]);
+  const offset = Math.min(gap, Math.max(12, available / 3));
+  const w = horizontal(side) ? Math.min(width, Math.max(1, available - offset)) : width;
+  const h = horizontal(side) ? Math.min(height, box.viewportHeight - inset * 2) : Math.min(height, Math.max(1, available - offset));
+  const clamp = (n, max) => Math.max(inset, Math.min(max, n));
+  const left = side === 'right' ? box.right + offset : side === 'left' ? box.left - offset - w : clamp(box.left, box.viewportWidth - inset - w);
+  const top = side === 'below' ? box.bottom + offset : side === 'above' ? box.top - offset - h : clamp(box.top, box.viewportHeight - inset - h);
+  const caret = Math.max(16, Math.min((horizontal(side) ? h : w) - 16, horizontal(side) ? cy - top : cx - left));
+  return { side, style: { left, top, width: w, maxHeight: h, '--caret': `${caret}px`, '--byte-size': `${Math.min(80, offset - 8)}px` } };
+}
+
 export function AccountTour() {
   const [look, setLook] = useState(null), [status, setStatus] = useState({}), [pro, setPro] = useState(false);
   const [offer, setOffer] = useState(false), [dialog, setDialog] = useState(false), [waiting, setWaiting] = useState(false);
   const [error, setError] = useState(''), [tour, setTour] = useState(null), [step, setStep] = useState(0), [box, setBox] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [bubbleSize, setBubbleSize] = useState({ height: 160 });
   const setting = useRef(undefined), ready = useRef(false), eventSeen = useRef(false), pending = useRef(false), attempt = useRef(0), tourRef = useRef(null), bubble = useRef(null), previousFocus = useRef(null);
   const startupSessions = useRef(ui.snap?.has_sessions);
   const refresh = async () => {
@@ -151,7 +171,9 @@ export function AccountTour() {
         const target = Array.from(document.querySelectorAll(tour.current().selector)).find(visible);
         if (!visible(target)) { next(); return; }
         const r = target.getBoundingClientRect();
-        const value = { left: Math.max(0, r.left - 5), top: Math.max(0, r.top - 5), right: Math.min(innerWidth, r.right + 5), bottom: Math.min(innerHeight, r.bottom + 5), viewportWidth: innerWidth, viewportHeight: innerHeight };
+        const style = getComputedStyle(target);
+        const radius = Math.max(...['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius'].map((key) => parseFloat(style[key]) || 0)) + 5;
+        const value = { radius, left: Math.max(0, r.left - 5), top: Math.max(0, r.top - 5), right: Math.min(innerWidth, r.right + 5), bottom: Math.min(innerHeight, r.bottom + 5), viewportWidth: innerWidth, viewportHeight: innerHeight };
         setBox((old) => JSON.stringify(old) === JSON.stringify(value) ? old : value);
       });
     };
@@ -183,6 +205,23 @@ export function AccountTour() {
     window.addEventListener('resize', measure); document.addEventListener('scroll', measure, true); window.addEventListener('keydown', keys, true);
     return () => { disposed = true; cancelAnimationFrame(request); observer.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('scroll', measure, true); window.removeEventListener('keydown', keys, true); if (notification && !settingsWasOpen) settingsView.close(); };
   }, [tour, step]);
+
+  useLayoutEffect(() => {
+    const card = bubble.current?.querySelector('.cc-tour-card');
+    if (!card) return;
+    const measure = () => {
+      const height = card.getBoundingClientRect().height;
+      setBubbleSize((old) => old.height === height ? old : { height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [tour, step, box]);
+
+  useLayoutEffect(() => {
+    if (tour?.active && box) bubble.current?.querySelector('button:last-child')?.focus();
+  }, [tour, step, Boolean(box)]);
 
   async function answer(choice) {
     if (pending.current) return;
@@ -229,11 +268,10 @@ export function AccountTour() {
     ...(id === 'signout' ? [{ type: 'divider' }] : []),
     { id, label: labels[id], isDisabled: id === 'plan', onClick: actions[id] },
   ]);
-  const left = box ? Math.max(12, Math.min(innerWidth - 352, box.right + 16 + 336 <= innerWidth ? box.right + 16 : box.left - 352)) : 16;
-  const top = box ? Math.max(12, Math.min(innerHeight - 300, box.top)) : 16;
+  const placement = box ? placeBubble(box, bubbleSize) : null;
   return <>
     {picture && icon ? createPortal(<img src={picture} alt="" width={20} height={20} data-personal referrerPolicy="no-referrer" onError={() => setBadPicture(picture)} />, icon) : null}
-    <DropdownMenu placement="above" menuWidth={240} items={items} onOpenChange={(open) => { setMenuOpen(open); if (open) { void refresh(); void api.addons().then((plugins) => setPro(Array.isArray(plugins) && plugins.some((p) => p.id === 'cc-pro' && p.enabled))).catch(() => {}); } }} header={!document.body.classList.contains('demo') && look?.authConfigured && status.signed_in ? <div className="cc-account-who" data-personal><Text>{status.name}</Text><Text color="secondary">{status.email}</Text></div> : undefined} renderTrigger={(trigger) => <RailTrigger trigger={trigger} />} />
+    <DropdownMenu className="cc-account-menu" placement="above" menuWidth={240} items={items} onOpenChange={(open) => { setMenuOpen(open); if (open) { void refresh(); void api.addons().then((plugins) => setPro(Array.isArray(plugins) && plugins.some((p) => p.id === 'cc-pro' && p.enabled))).catch(() => {}); } }} header={!document.body.classList.contains('demo') && look?.authConfigured && status.signed_in ? <div className="cc-account-who" data-personal><Text>{status.name}</Text><Text color="secondary">{status.email}</Text></div> : undefined} renderTrigger={(trigger) => <RailTrigger trigger={trigger} />} />
     <Dialog isOpen={dialog} onOpenChange={(open) => { if (!open) cancelSignIn(); }} purpose="form" width={420} aria-label="Sign in to cc">
       <div className="cc-tour-content"><Heading level={2}>Sign in to cc</Heading><Text>An account is optional. Everything works without one.</Text>
         {waiting ? <Text role="status">Waiting for your browser...</Text> : null}
@@ -241,11 +279,14 @@ export function AccountTour() {
         <div className="cc-tour-actions"><Button variant="ghost" label="Cancel" onClick={cancelSignIn} /><Button variant="primary" label="Continue in browser" isDisabled={waiting} onClick={signIn} /></div>
       </div>
     </Dialog>
-    {offer && !dialog && !tour ? <Card className="cc-tour-offer" padding={4} role="dialog" aria-label="Want the 1-minute tour?"><Byte /><div className="cc-tour-content"><Text>Want the 1-minute tour?</Text>{error ? <Text role="alert">{error}</Text> : null}<div className="cc-tour-actions"><Button variant="ghost" label="Not now" onClick={() => answer('later')} /><Button label="Yes" onClick={() => answer('yes')} /></div></div></Card> : null}
+    {offer && !dialog && !tour ? <Card className="cc-tour-offer" padding={4} role="dialog" aria-label="Want the 1-minute tour?"><Byte /><div className="cc-tour-content"><Text>Want the 1-minute tour?</Text>{error ? <Text role="alert">{error}</Text> : null}<div className="cc-tour-actions"><Button variant="ghost" label="Not now" onClick={() => answer('later')} /><Button variant="primary" label="Yes" onClick={() => answer('yes')} /></div></div></Card> : null}
     {scanning || tour?.active ? <div className="cc-tour-running">
-      <svg className="cc-tour-dimmer" width="100%" height="100%" aria-hidden="true"><path fillRule="evenodd" d={`M0 0H${innerWidth}V${innerHeight}H0Z ${box ? `M${box.left} ${box.top}V${box.bottom}H${box.right}V${box.top}Z` : ''}`} /></svg>
-      {tour?.active ? <div ref={bubble} className="cc-tour-position" style={{ left, top }} role="dialog" aria-modal="true" aria-label="Tour" aria-describedby="cc-tour-line">
-        <Byte label={tour.current()?.morph} /><Card padding={4}><div className="cc-tour-content"><Text id="cc-tour-line" aria-live="polite">{tour.current()?.line}</Text><div className="cc-tour-actions"><Button variant="ghost" label="Skip" onClick={() => tour.skip()} /><Text color="secondary">{tour.label()}</Text><Button label={tour.nextLabel()} onClick={next} /></div></div></Card>
+      <svg className="cc-tour-dimmer" width="100%" height="100%" aria-hidden="true">
+        <defs><mask id="cc-tour-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width={innerWidth} height={innerHeight}><rect width="100%" height="100%" fill="white" />{box ? <rect x={box.left} y={box.top} width={box.right - box.left} height={box.bottom - box.top} rx={box.radius} fill="black" /> : null}</mask></defs>
+        <rect width="100%" height="100%" fill="rgba(0,0,0,.55)" mask="url(#cc-tour-cutout)" />
+      </svg>
+      {tour?.active && placement ? <div ref={bubble} className="cc-tour-position" data-side={placement.side} style={placement.style} role="dialog" aria-modal="true" aria-label="Tour" aria-describedby="cc-tour-line">
+        <Byte label={tour.current()?.morph} /><span className="cc-tour-caret" aria-hidden="true" /><div className="cc-tour-scroll"><Card className="cc-tour-card" padding={4}><div className="cc-tour-content"><Text id="cc-tour-line" aria-live="polite">{tour.current()?.line}</Text><div className="cc-tour-actions"><Button variant="ghost" label="Skip" onClick={() => tour.skip()} /><Text color="secondary">{tour.label()}</Text><Button label={tour.nextLabel()} onClick={next} /></div></div></Card></div>
       </div> : null}
     </div> : null}
   </>;

@@ -1,6 +1,6 @@
 export const STOPS = [
   ['chat', '#home .ou-composer', 'home', 'hi', 'Type what you want done. An agent picks it up.'],
-  ['access', '#home [aria-label="Approval"]', 'home', 'ok?', 'This decides what agents may do without asking you.'],
+  ['access', '#home .ou-cmp-accent button[role="combobox"]', 'home', 'ok?', 'This decides what agents may do without asking you.'],
   ['needs', '.fnav [data-view="inbox"]', null, '!', 'When an agent needs a yes or an answer, it waits here.'],
   ['wall', '.fnav [data-view="wall"]', null, '[]', 'Every agent you run, side by side, live.'],
   ['palette', '[data-action="palette"]', null, 'K', 'Ctrl+K finds any agent or command.'],
