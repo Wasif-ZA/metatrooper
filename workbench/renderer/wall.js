@@ -197,22 +197,23 @@ const wall = (() => {
     moreBar(M);
     document.body.classList.toggle('paired', BIG.length > 1 && mode !== 'grid');
     for (const id of Object.keys(S)) {
-      const el = pane(id), r = R[id];
+      const el = pane(id);
       if (!el || el.dataset.lent) continue;
-      el.hidden = !r || !!r.hide;
+      const { bar, hide, ...r } = R[id] || {};
+      el.hidden = !R[id] || !!hide;
       const mx = el.querySelector('.mx');
       if (mx) {
         mx.setAttribute('aria-pressed', String(id === MAX));
         mx.title = id === MAX ? 'Restore this pane (Esc)' : MX_TITLE;
         mx.setAttribute('aria-label', id === MAX ? 'Restore this pane' : 'Maximize this pane');
       }
-      if (!r) continue;
+      if (!R[id]) continue;
       const big = mode !== 'grid' && BIG.includes(id);
       el.classList.toggle('big', big);
       el.classList.toggle('big2', mode !== 'grid' && BIG[1] === id);
-      el.classList.toggle('fold', mode !== 'grid' && !big && (folded(S[id]) || !!r.bar));
+      el.classList.toggle('fold', mode !== 'grid' && !big && (folded(S[id]) || !!bar));
       el.classList.toggle('done-open', mode !== 'grid' && !big && !active(S[id]) && S[id].open);
-      const key = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+      const key = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)},${!!bar}`;
       if (el._r === key) continue;
       el._r = key;
       if (!animate || RM) {

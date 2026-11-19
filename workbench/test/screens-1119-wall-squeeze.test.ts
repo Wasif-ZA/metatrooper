@@ -16,7 +16,8 @@ function wallAt(width: number, height: number) {
       querySelector: () => node(), setAttribute() {}, addEventListener() {},
     };
   };
-  const set = (el: any, r: any) => { if (el && typeof r === 'object' && 'height' in r) el.rect = { ...r }; return { kill() {} }; };
+  const gsapProps: any[] = [];
+  const set = (el: any, r: any) => { if (r && typeof r === 'object') gsapProps.push(r); if (el && typeof r === 'object' && 'height' in r) el.rect = { ...r }; return { kill() {} }; };
   const gsap = { set, to: set, fromTo: (el: any, _a: any, b: any) => set(el, b), delayedCall: () => ({ kill() {} }), killTweensOf() {} };
   const body = { ...node(), classList: { add() {}, remove() {}, toggle() {}, contains: (c: string) => c === 'no-split' } };
   const ctx = vm.createContext({
@@ -27,7 +28,7 @@ function wallAt(width: number, height: number) {
     innerWidth: width, innerHeight: height, reportPaneBounds() {},
   });
   vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
-  return { wall: ctx.wall, tiles };
+  return { wall: ctx.wall, tiles, gsapProps, gsapCalls: gsapProps };
 }
 
 function run(n: number) {
@@ -52,4 +53,17 @@ test('twenty live sessions: every tile stays on the Wall, and none is drawn shor
 test('three live sessions keep normal tiles, not bars', () => {
   const { tiles } = run(3);
   for (const [id, t] of tiles) assert.equal(t.classList.contains('fold'), false, id);
+});
+
+test('gsap only ever gets layout properties: the bar and hide flags stay out of its tweens', () => {
+  const seen = new Set<string>();
+  const w = wallAt(1064, 900);
+  const list = Array.from({ length: 30 }, (_, i) => ({ id: `s${i}`, state: 'working' }));
+  w.wall.decide(list, 's0');
+  w.wall.apply('single');
+  w.wall.decide(list, 's0');
+  w.wall.apply('single');
+  for (const props of w.gsapProps) for (const k of Object.keys(props)) seen.add(k);
+  assert.ok(seen.has('height'), 'layout props were set');
+  assert.ok(!seen.has('bar') && !seen.has('hide'), `gsap got: ${[...seen].join(',')}`);
 });
