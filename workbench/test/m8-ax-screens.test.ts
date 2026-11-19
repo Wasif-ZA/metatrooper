@@ -530,7 +530,7 @@ test('main mounts screens and preserves global visibility and Home navigation co
     await bundle("import './src/main.jsx'; export { settingsStore } from './src/settings.jsx'; export { inboxStore } from './src/inbox.jsx'; export { homeStore } from './src/home.jsx';", 'main.mjs');
     const live = await import(pathToFileURL(join(temp, 'main.mjs')).href);
     assert.equal(mounted.length, 0); assert.equal(ready.length, 1); ready[0]();
-    assert.deepEqual(mounted, [['settings', 'Settings'], ['needsview', 'Inbox'], ['addons', 'Addons'], ['ide', 'Ide'], ['home', 'Home'], ['cmdk', 'Palette']]);
+    assert.deepEqual(mounted, [['settings', 'Settings'], ['needsview', 'Inbox'], ['addons', 'Addons'], ['ide', 'Ide'], ['home', 'Home'], ['cmdk', 'Palette'], ['account-tour', 'AccountTour']]);
     assert.ok(calls.some(c => c[0] === 'clear' && c[1] === 'home'));
     assert.deepEqual(Object.keys(g.settingsView).sort(), ['close', 'isOpen', 'open']);
     assert.deepEqual(Object.keys(g.inboxView).sort(), ['draw', 'shown']); assert.deepEqual(Object.keys(g.addonsView).sort(), ['draw', 'shown']);

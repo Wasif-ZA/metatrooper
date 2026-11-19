@@ -47,7 +47,7 @@ const start = () => {
   const accountTour = document.createElement('div');
   accountTour.id = 'account-tour';
   document.body.appendChild(accountTour);
-  new MutationObserver(() => reportPaneBounds()).observe(accountTour, { attributes: true, attributeFilter: ['data-overlay'] });
+  if (typeof MutationObserver === 'function') new MutationObserver(() => reportPaneBounds()).observe(accountTour, { attributes: true, attributeFilter: ['data-overlay'] });
   mount('account-tour', AccountTour);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
