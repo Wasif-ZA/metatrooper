@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, mergeEcho, pollDelay, revealSteps, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, baselineOf, chatModeOf, fileTotals, groupItems, liveChunks, mergeEcho, paceFor, pollDelay, revealSteps, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { canMove } from './motion.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
@@ -15,8 +15,8 @@ const sessionOf = (id) => {
 
 export function echoSend(id, text) {
   const session = sessionOf(id);
-  const base = session.items.filter((item) => item.kind === 'user' && item.text.trim() === text.trim()).length;
-  session.echoes.push({ text, base, at: Date.now() });
+  const seen = session.items.filter((item) => item.kind === 'user' && item.text.trim() === text.trim()).map((item) => item.id ?? null);
+  session.echoes.push({ text, seen, at: Date.now() });
   session.listeners.forEach((notify) => notify());
   session.polls.forEach((poll) => void poll());
 }
@@ -74,30 +74,32 @@ function Reveal({ text, initial, animate, onStep }) {
   const previous = useRef(text);
   const shown = useRef(initial);
   const sequence = useRef(0);
+  const chunks = useRef([]);
   const [view, setView] = useState({ shown: initial, chunks: [] });
   useLayoutEffect(() => {
     const replaced = !text.startsWith(previous.current);
     previous.current = text;
     if (!animate || replaced || !canMove(ref.current)) {
       shown.current = text.length;
+      chunks.current = [];
       setView({ shown: text.length, chunks: [] });
       return;
     }
-    const steps = revealSteps(shown.current, text, 1200);
-    if (!steps.length) return;
+    const steps = revealSteps(shown.current, text, paceFor(text.slice(shown.current)));
+    if (!steps.length && !chunks.current.length) return;
     let frame;
     let start;
     let index = 0;
     const tick = (now) => {
       start ??= now;
-      const chunks = [];
+      chunks.current = liveChunks(chunks.current, now, 120);
       while (index < steps.length && steps[index].at <= now - start) {
         const len = steps[index++].len;
-        chunks.push({ from: shown.current, len, key: sequence.current++ });
+        chunks.current.push({ from: shown.current, len, born: now, key: sequence.current++ });
         shown.current = len;
       }
-      if (chunks.length) setView((prev) => ({ shown: shown.current, chunks: [...prev.chunks, ...chunks].slice(-3) }));
-      if (index < steps.length) frame = requestAnimationFrame(tick);
+      setView({ shown: shown.current, chunks: [...chunks.current] });
+      if (index < steps.length || chunks.current.length) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
@@ -117,7 +119,7 @@ function ToolRow({ item }) {
       {item.status === 'error' ? <span className="ou-hm-bad">failed</span> : item.status === 'running' ? <span>working</span> : null}
       <span className="ou-hm-chevbox" data-open={String(open)}><ChevronRightIcon size={14} /></span>
     </div>
-    <Drop open={open} className="ou-hm-drop ou-hm-tooloutput">{item.output?.length ? item.output.map((line, i) => <div key={i} className={item.status === 'error' && i === 0 ? 'ou-hm-bad' : undefined}>{line}</div>) : <div>{item.name} · {item.status === 'ok' ? 'finished' : item.status === 'error' ? 'failed' : item.status === 'running' ? 'working' : item.status}</div>}</Drop>
+    <Drop open={open} ms={250} rows=":scope > *" className="ou-hm-drop ou-hm-tooloutput">{item.output?.length ? item.output.map((line, i) => <div key={i} className={item.status === 'error' && i === 0 ? 'ou-hm-bad' : undefined}>{line}</div>) : <div>{item.name} · {item.status === 'ok' ? 'finished' : item.status === 'error' ? 'failed' : item.status === 'running' ? 'working' : item.status}</div>}</Drop>
   </div>;
 }
 
@@ -144,7 +146,7 @@ function ToolSteps({ item }) {
     <div className="ou-hm-tool" aria-expanded={open} {...press(() => setOpen(!open))}>
       <span>{item.label}</span><span className="ou-hm-chevbox" data-open={String(open)}><ChevronRightIcon size={14} /></span>
     </div>
-    <Drop open={open} className="ou-hm-drop ou-hm-chatsteplist">{item.items.map((step) => <ToolRow key={step.id} item={step} />)}</Drop>
+    <Drop open={open} ms={250} rows=":scope > *" className="ou-hm-drop ou-hm-chatsteplist">{item.items.map((step) => <ToolRow key={step.id} item={step} />)}</Drop>
   </div>;
 }
 
@@ -179,13 +181,15 @@ export function Chat({ x, chat, openInEditor }) {
   const pinned = useRef(true);
   const baseline = useRef({ id: x.id, lengths: null });
   if (baseline.current.id !== x.id) baseline.current = { id: x.id, lengths: null };
-  if (baseline.current.lengths === null && chat?.items) baseline.current.lengths = chat.items.filter((item) => item.kind === 'text').map((item) => item.text.length);
+  if (chat?.items) baseline.current.lengths = baselineOf(baseline.current.lengths, chat.items);
+  const lastEcho = useRef(null);
   const session = sessionOf(x.id);
   const merged = mergeEcho(chat?.items || [], session.echoes, Date.now());
   session.echoes = merged.pending;
   const items = groupItems(merged.items);
   const lastText = items.findLastIndex((item) => item.kind === 'text');
   let userIndex = 0;
+  let echoIndex = 0;
   let textIndex = 0;
   const signature = JSON.stringify(merged.items);
   const pin = useCallback(() => {
@@ -201,7 +205,13 @@ export function Chat({ x, chat, openInEditor }) {
     return () => host.removeEventListener('scroll', scroll);
   }, [x.id]);
   useLayoutEffect(() => {
-    pin();
+    const echo = session.echoes.at(-1);
+    const host = ref.current?.closest('.ou-hm-center');
+    if (echo && echo !== lastEcho.current && host) {
+      pinned.current = true;
+      host.scrollTo({ top: host.scrollHeight, behavior: canMove(host) ? 'smooth' : 'auto' });
+    } else pin();
+    lastEcho.current = echo;
   }, [x.id, signature, pin]);
   const openFile = async (file) => {
     const project = (ui.snap?.projects || []).find((p) => p.id === x.project_id);
@@ -215,10 +225,11 @@ export function Chat({ x, chat, openInEditor }) {
   const totals = fileTotals(chat?.items || []);
   return <div ref={ref} className="ou-hm-chat">
     {!chat && !merged.pending.length ? <p className="ou-hm-chatnote" role="status">Loading chat…</p> : chat?.error && !merged.pending.length ? <p className="ou-hm-chatnote" role="status">Could not load chat. Retrying…</p> : chat && !chat.error && chatModeOf(engine, chat.source) === 'terminal' ? <p className="ou-hm-chatnote">{TERMINAL_ONLY_NOTE}</p> : items.map((item, i) => {
-      if (item.kind === 'user') return <div key={`${x.id}:user:${userIndex++}`} className="ou-hm-user" data-echo={item.echo ? 'true' : undefined}><p>{item.text}</p></div>;
+      if (item.kind === 'user') return <div key={`${x.id}:${item.echo ? `echo:${echoIndex++}` : item.id ?? `user:${userIndex++}`}`} className="ou-hm-user" data-echo={item.echo ? 'true' : undefined}><p>{item.text}</p></div>;
       if (item.kind === 'text') {
         const index = textIndex++;
-        return <Reveal key={`${x.id}:text:${index}`} text={item.text} initial={baseline.current.lengths?.[index] ?? 0} animate={i === lastText} onStep={pin} />;
+        const key = item.id ?? `text:${index}`;
+        return <Reveal key={`${x.id}:${key}`} text={item.text} initial={baseline.current.lengths?.get(key) ?? 0} animate={i === lastText} onStep={pin} />;
       }
       if (item.kind === 'steps') return <ToolSteps key={item.id} item={item} />;
       if (item.status === 'waiting') return <Approval key={item.id} item={item} x={x} engine={engine} />;

@@ -39,7 +39,7 @@ export const openNewTask = () => {
   setTimeout(focus, 50);
 };
 
-export function Drop({ open, className, children }) {
+export function Drop({ open, className, children, ms, rows }) {
   const ref = useRef(null);
   const kept = useRef(children);
   const first = useRef(true);
@@ -49,7 +49,7 @@ export function Drop({ open, className, children }) {
     if (first.current) { first.current = false; return; }
     const el = ref.current;
     if (!el) return;
-    if (open) { setClosing(false); reveal(el); } else { setClosing(true); conceal(el, () => setClosing(false)); }
+    if (open) { setClosing(false); reveal(el, rows, ms); } else { setClosing(true); conceal(el, () => setClosing(false)); }
   }, [open]);
   const shown = open ? children : closing ? kept.current : null;
   return <div ref={ref} className={className} hidden={!shown}>{shown}</div>;

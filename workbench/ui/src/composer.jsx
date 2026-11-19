@@ -1,9 +1,10 @@
 // From bb (MIT), plugins/composer/src/PromptBoxInternal.tsx and apps/app/src/components/promptbox/ThreadEnvironmentSummary.tsx
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Selector } from '@astryxdesign/core/Selector';
 import { EngineMark, PlusIcon, ExpandIcon, ReturnIcon, engineName } from './icons/index.js';
+import { settle } from './motion.js';
 
 const plusIcon = <PlusIcon size={16} />;
 const expandIcon = <ExpandIcon size={20} />;
@@ -120,13 +121,25 @@ function Mentions({ actions }) {
   );
 }
 
+function ComposerBox({ filled, children, ...props }) {
+  const ref = useRef(null);
+  const previous = useRef(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    const height = box.offsetHeight;
+    if (previous.current?.filled && !filled) settle(box, previous.current.height);
+    previous.current = { filled, height };
+  });
+  return <div {...props} ref={ref} data-filled={filled ? 'true' : 'false'}>{children}</div>;
+}
+
 // A render function, not a component: callers keep their own labelled fields and the test harnesses see every control.
 export function composer({ field, opts, plus, attach, engine, send, context, status, filled, strip = false, className = '', onKeyDown }) {
   const key = className.split(' ')[0] || 'cmp';
   const items = attach ? [{ label: 'Attach files', onClick: () => document.querySelector(`input[data-attach="${key}"]`)?.click() }, ...(plus || [])] : plus;
   return (
     <div className={`ou-cmp-wrap${strip ? ' ou-cmp-strip' : ''} ${className}`}>
-      <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}
+      <ComposerBox className="ou-composer ou-cmp" filled={filled} onKeyDown={onKeyDown}
         onDragOver={attach ? (e) => e.preventDefault() : undefined} onDrop={attach ? (e) => { e.preventDefault(); attach(api.filePaths([...e.dataTransfer.files])); } : undefined}>
         {field}
         <Mentions actions={() => [
@@ -150,7 +163,7 @@ export function composer({ field, opts, plus, attach, engine, send, context, sta
           <span className="ou-hm-cgap" />
           {send ? <IconButton size="sm" variant="secondary" icon={returnIcon} className="ou-cmp-send" {...send} /> : null}
         </div>
-      </div>
+      </ComposerBox>
       {context ? (
         <div className="ou-cmp-ctx">
           {context.filter(Boolean).map((c) => (c.gap ? <span key={c.key} className="ou-hm-cgap" /> : (

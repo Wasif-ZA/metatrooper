@@ -13,11 +13,16 @@ export function stagger(nodes, travel = 6) {
   ));
 }
 
-export function reveal(el, rows = ':scope li') {
+export function reveal(el, rows = ':scope li', ms = 180) {
   if (typeof el?.getAnimations === 'function') el.getAnimations().forEach((a) => a.cancel());
   if (!canMove(el)) return;
-  el.animate([{ height: '0px', opacity: 0 }, { height: `${el.scrollHeight}px`, opacity: 1 }], { ...motionTiming, duration: 180 });
+  el.animate([{ height: '0px', opacity: 0 }, { height: `${el.scrollHeight}px`, opacity: 1 }], { ...motionTiming, duration: ms });
   stagger(el.querySelectorAll(rows));
+}
+
+export function settle(el, fromPx, ms = 83) {
+  if (!canMove(el) || el.offsetHeight >= fromPx) return;
+  el.animate([{ height: `${fromPx}px` }, { height: `${el.offsetHeight}px` }], { duration: ms, easing: 'cubic-bezier(.22, 1, .36, 1)' });
 }
 
 export function conceal(el, done) {
