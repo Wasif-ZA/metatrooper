@@ -15,8 +15,13 @@ export function createByte(canvas, options = {}) {
   canvas.width = canvas.height = size * dpr;
   ctx?.setTransform?.(dpr, 0, 0, dpr, 0, 0);
   const token = (name, fallback) => typeof win.getComputedStyle === 'function' ? win.getComputedStyle(canvas).getPropertyValue(name).trim() || fallback : fallback;
+  const colorToken = (name, fallback) => {
+    if (!canvas.style) return token(name, fallback);
+    canvas.style.color = `var(${name})`;
+    return typeof win.getComputedStyle === 'function' ? win.getComputedStyle(canvas).color || fallback : fallback;
+  };
   const { reducedMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false,
-    color = () => token('--color-text-primary', '#fff'),
+    color = () => colorToken('--color-text-primary', '#fff'),
     raf = (fn) => win.requestAnimationFrame(fn), caf = (id) => win.cancelAnimationFrame(id),
     now = () => win.performance.now() } = options;
   const cache = new Map();
@@ -69,7 +74,7 @@ export function createByte(canvas, options = {}) {
       if (dt < -110) blinkAt = time + 2200 + Math.random() * 3300;
       for (const side of [-1, 1]) {
         const ex = x + side * r * 0.33, ey = y - r * 0.16, er = r * 0.2;
-        ctx.fillStyle = token('--color-background-body', '#111'); eye(ex, ey, er, er * 1.15 * open);
+        ctx.fillStyle = colorToken('--color-background-body', '#111'); eye(ex, ey, er, er * 1.15 * open);
         if (open > 0.35) { ctx.fillStyle = ink; eye(ex, ey, er * 0.46, er * 0.56 * open); }
       }
     }
