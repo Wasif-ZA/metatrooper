@@ -181,7 +181,11 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            ${est}, ${labels}, ${priority('s')}, ${blocks('s')}, ${monitor('s.id')}, ${reviews('s')},
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from,
-           (s.engine_id = 'claude' AND s.state != 'exited' AND EXISTS (SELECT 1 FROM event h WHERE h.session_id = s.id AND h.kind = 'core.limit-hit' AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = s.id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq))) AS limit_stopped,
+           (s.engine_id = 'claude' AND s.state != 'exited' AND EXISTS (SELECT 1 FROM event h WHERE h.session_id = s.id AND h.kind = 'core.limit-hit'
+             AND h.seq = (SELECT MAX(e.seq) FROM event e WHERE e.session_id = h.session_id AND e.kind = 'core.limit-hit')
+             AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = h.session_id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq AND json_extract(r.payload, '$.limit_hit') = h.seq)
+             AND NOT EXISTS (SELECT 1 FROM event l WHERE l.session_id = h.session_id AND l.seq > COALESCE(json_extract(h.payload, '$.after'), h.seq)
+               AND ((l.kind LIKE 'claude.%' AND l.kind != 'claude.Notification') OR l.kind = 'core.prompt-written')))) AS limit_stopped,
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.continued-from' ORDER BY e.seq DESC LIMIT 1) AS continued_from,
            (SELECT old.engine_id FROM event e JOIN session old ON old.id = json_extract(e.payload, '$.from') WHERE e.session_id = s.id AND e.kind = 'core.continued-from' ORDER BY e.seq DESC LIMIT 1) AS continued_engine
          FROM session s WHERE s.project_id = ? AND s.hidden = 0

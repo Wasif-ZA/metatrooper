@@ -599,4 +599,77 @@ test('defect 9: handoff markdown cutting files to fit 6 KB prints none changed o
   assert.match(markdown, /and \d+ more/, 'must report "and N more" when files are cut to fit');
 });
 
+// protects=session.continue is refused and writes no handoff file when Claude session is resumed by a user prompt after limit-hit
+// fails_when=session.continue succeeds or writes a handoff file after claude.UserPromptSubmit follows limit-hit
+// no_claim=handling of prompts submitted to non-Claude engines
+test('session.continue is refused and writes no handoff when claude session has later UserPromptSubmit', async () => {
+  await withContinueCore(async ({ pipe, isolated, projectId, db }) => {
+    const launchReply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'claude' });
+    assert.ok(launchReply.result?.session_id, `Launch failed: ${JSON.stringify(launchReply)}`);
+    const claudeSessionId = launchReply.result.session_id;
+
+    const d = db();
+    try {
+      d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.limit-hit', ?, 1)")
+        .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ window: 'five_hour', resets_at: new Date(Date.now() + 3600000).toISOString() }));
+      d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', ?, 'claude.UserPromptSubmit', ?, 1)")
+        .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ prompt: 'continue working' }));
+    } finally {
+      d.close();
+    }
+
+    const contReply = await pipe.request('session.continue', { session_id: claudeSessionId, engine_id: 'codex' });
+    assert.ok(contReply.error, `session.continue should have returned an error: ${JSON.stringify(contReply.result)}`);
+    assert.match(contReply.error.message, /session is not stopped at a usage limit/i);
+
+    const handoffDir = join(isolated.home, 'handoff');
+    const files = existsSync(handoffDir) ? readdirSync(handoffDir) : [];
+    assert.equal(files.length, 0, 'No handoff file should exist under <home>/handoff/');
+
+    const dCheck = db();
+    try {
+      const handoffs = dCheck.prepare('SELECT COUNT(*) AS count FROM handoff WHERE session_id = ?').get(claudeSessionId) as { count: number };
+      assert.equal(handoffs.count, 0, 'No handoff row must be inserted in DB');
+    } finally {
+      dCheck.close();
+    }
+  });
+});
+
+// protects=session.continue succeeds when limit-hit is followed only by a claude.Notification event
+// fails_when=session.continue is refused or fails to create handoff after claude.Notification follows limit-hit
+// no_claim=notification delivery or display mechanisms
+test('session.continue succeeds when limit-hit is followed only by claude.Notification', async () => {
+  await withContinueCore(async ({ pipe, isolated, projectId, projectDir, db }) => {
+    const launchReply = await pipe.request('session.launch', { project_id: projectId, engine_id: 'claude' });
+    assert.ok(launchReply.result?.session_id, `Launch failed: ${JSON.stringify(launchReply)}`);
+    const claudeSessionId = launchReply.result.session_id;
+
+    const transcriptPath = join(isolated.home, 'transcript-notif.jsonl');
+    writeClaudeTranscript(transcriptPath, [
+      { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'Task prompt' }] } },
+      { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Working on task' }] } },
+    ]);
+
+    const d = db();
+    try {
+      d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', ?, 'claude.Stop', ?, 1)")
+        .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ transcript_path: transcriptPath, cwd: projectDir }));
+      d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.limit-hit', ?, 1)")
+        .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ window: 'five_hour', resets_at: new Date(Date.now() + 3600000).toISOString() }));
+      d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', ?, 'claude.Notification', ?, 1)")
+        .run(new Date().toISOString(), claudeSessionId, JSON.stringify({ message: 'background notification' }));
+    } finally {
+      d.close();
+    }
+
+    const contReply = await pipe.request('session.continue', { session_id: claudeSessionId, engine_id: 'codex' });
+    assert.ok(!contReply.error, `session.continue error: ${JSON.stringify(contReply.error)}`);
+    assert.ok(contReply.result?.session_id, 'session.continue must return new session_id');
+    assert.ok(contReply.result?.file, 'session.continue must return handoff file path');
+    assert.ok(existsSync(contReply.result.file), `Handoff file must exist at ${contReply.result.file}`);
+  });
+});
+
+
 

@@ -606,7 +606,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const old = db.prepare('SELECT s.engine_id, s.cwd, s.state, s.approval, s.limit_resume, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(id) as
         { engine_id: string; cwd: string | null; state: string; approval: string | null; limit_resume: number; project_id: string; path: string; name: string } | undefined;
       if (!old) throw new RpcError(E.NOT_FOUND, 'session not found');
-      const hit = db.prepare("SELECT 1 FROM event h WHERE h.session_id = ? AND h.kind = 'core.limit-hit' AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = h.session_id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq)").get(id);
+      const hit = db.prepare(`SELECT 1 FROM event h WHERE h.session_id = ? AND h.kind = 'core.limit-hit'
+        AND h.seq = (SELECT MAX(e.seq) FROM event e WHERE e.session_id = h.session_id AND e.kind = 'core.limit-hit')
+        AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = h.session_id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq AND json_extract(r.payload, '$.limit_hit') = h.seq)
+        AND NOT EXISTS (SELECT 1 FROM event l WHERE l.session_id = h.session_id AND l.seq > COALESCE(json_extract(h.payload, '$.after'), h.seq)
+          AND ((l.kind LIKE 'claude.%' AND l.kind != 'claude.Notification') OR l.kind = 'core.prompt-written'))`).get(id);
       if (old.state === 'exited' || !hit) throw new RpcError(E.INVALID_PARAMS, 'session is not stopped at a usage limit');
       if (target === old.engine_id) throw new RpcError(E.INVALID_PARAMS, 'choose another engine');
       const engine = getEngine(db, target);
