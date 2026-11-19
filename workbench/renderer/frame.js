@@ -170,7 +170,8 @@ globalThis.frameView = (() => {
 
   function shelfHtml(key, label, list, rows, count = list.length, helpers = 0) {
     const open = shelf[key];
-    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount">${count}${helpers ? ` <small>+${helpers}</small>` : ''}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
+    const countLabel = `${count} working, ${helpers} helper${helpers === 1 ? '' : 's'}`;
+    return `<div class="fshelf" data-key="h:${key}"><button class="fshelfh" data-shelf="${key}" aria-expanded="${open}"><span class="fl">${label}</span><span class="fcount"${helpers > 0 ? ` title="${countLabel}" aria-label="${countLabel}"` : ''}>${count}${helpers > 0 ? ` <small class="fhelp">(+${helpers})</small>` : ''}</span><span class="fchev">${I('chevronRight', 14)}</span></button>`
       + (open ? list.map((t) => threadHtml(t, rows)).join('') : '') + '</div>';
   }
 

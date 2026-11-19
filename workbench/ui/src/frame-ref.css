@@ -30,6 +30,7 @@
 .fshelfh:hover { background: var(--canvas); color: var(--ink); }
 .fshelfh .fl { flex: 1; }
 .fcount { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--mute); }
+.fcount .fhelp { font-size: 11px; color: var(--faint); }
 .fchev { display: grid; place-items: center; color: var(--mute); transition: transform var(--ease-fast); }
 .fshelfh[aria-expanded="true"] .fchev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .fchev { transition: none; } }

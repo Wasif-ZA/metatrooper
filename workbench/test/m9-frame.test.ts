@@ -424,7 +424,7 @@ test('thread list: recent finished tasks on top, Working and older Settled shelv
   assert.match(html, /data-id="lead"[^]*?<span class="fth1"><span class="ft">Lead task<\/span><span class="fthtime">18s<\/span><\/span><span class="fth2"><span class="ou-st ou-st-waiting">Needs you<\/span><span class="fthsep">·<\/span><span class="fthpn" data-proj="p1">shop<\/span><span class="fthsep">·<\/span><span class="fthbr">feat\/share<\/span><\/span><span class="fth3"><span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Claude"[^]*?<\/svg><\/span><span class="fthmk"><svg[^>]*aria-label="Codex"[^]*?<\/svg><\/span><\/span><\/span>/);
   assert.match(html, /data-id="fresh"[^]*?<span class="ou-st ou-st-done">Done<\/span>[^]*?<span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Gemini"><title>Gemini<\/title>/);
   assert.doesNotMatch(html, /fring|ouros-ring/, 'status is a word, not a ring');
-  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">1 <small>\+1<\/small><\/span>/, 'one started session working plus one helper');
+  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount" title="1 working, 1 helper" aria-label="1 working, 1 helper">1 <small class="fhelp">\(\+1\)<\/small><\/span>/, 'one started session working plus one helper, helpers in brackets');
   assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">1<\/span>/);
   assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);
   assert.doesNotMatch(html, /data-id="kid"/);
