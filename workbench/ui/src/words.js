@@ -33,7 +33,7 @@ export const canStop = (x) => Boolean(x) && x.host !== 'external' && x.state !==
 
 export function workingRows(snap) {
   const rows = new Map();
-  for (const x of [...(snap?.sessions || []), ...(snap?.live || []), ...Object.values(snap?.tree_rows || {})]) rows.set(x.id, { ...rows.get(x.id), ...x });
+  for (const x of [...(snap?.live || []), ...(snap?.sessions || []), ...Object.values(snap?.tree_rows || {})]) if (!rows.has(x.id)) rows.set(x.id, x);
   return [...rows.values()].filter((x) => x.state === 'starting' || x.state === 'working');
 }
 
