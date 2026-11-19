@@ -1260,6 +1260,15 @@ function ctxChip(x) {
   return pct >= 85 ? { text: `${pct}% context · compacts soon`, warn: true } : { text: `${pct}% context`, warn: false };
 }
 
+function drawSections() {
+  try { globalThis.homeView?.draw(); } catch (e) { console.error(e); }
+  try { globalThis.frameView?.draw(); } catch (e) { console.error(e); }
+  try { if (typeof wallSide !== 'undefined') wallSide.draw(); } catch (e) { console.error(e); }
+  try { globalThis.inboxView?.draw(); } catch (e) { console.error(e); }
+  try { void globalThis.ideView?.draw(); } catch (e) { console.error(e); }
+  try { void globalThis.addonsView?.draw(); } catch (e) { console.error(e); }
+}
+
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
@@ -1287,12 +1296,7 @@ function render(focus = false) {
   else html = renderDiffTab(sel);
   setHtml('view', html);
   if (ui.tab === 'browser') browserChrome.after(document.getElementById('view'));
-  globalThis.homeView?.draw();
-  globalThis.frameView?.draw();
-  if (typeof wallSide !== 'undefined') wallSide.draw();
-  globalThis.inboxView?.draw();
-  void globalThis.ideView?.draw();
-  void globalThis.addonsView?.draw();
+  drawSections();
   reportPaneBounds();
   renderStrip(sel);
   renderInbox();

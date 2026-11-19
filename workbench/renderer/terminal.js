@@ -162,7 +162,8 @@ const termView = (() => {
     });
     t.sizes = new ResizeObserver(() => {
       compactHead(el);
-      clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150);
+      clearTimeout(t.fitTimer);
+      if (!t.attached || (typeof gsap !== 'undefined' && gsap.isTweening?.(t.el))) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150);
     });
     t.sizes.observe(body);
     terms.set(sessionId, t);
@@ -171,16 +172,20 @@ const termView = (() => {
 
   /** Attaches once the wall has given the tile its real size, so the PTY is not resized right after attach. */
   function resize(t) {
+    clearTimeout(t.fitTimer);
     if (!t.el.isConnected || !t.el.offsetWidth || t.el.classList.contains('fold')) return;
+    if (typeof gsap !== 'undefined' && gsap.isTweening?.(t.el)) { t.fitTimer = setTimeout(() => resize(t), 80); return; }
     const cell = t.term.element && t.term.element.querySelector('.xterm-rows > div');
     if (t.el.querySelector('.tile-body').clientHeight < (cell ? cell.offsetHeight * 2 : 30)) return;
     if (t.outside) { try { t.fit.fit(); } catch {} return; }
     if (!t.attached) { t.attached = true; attach(t); t.cols = t.term.cols; t.rows = t.term.rows; return; }
-    try { t.fit.fit(); } catch { return; }
-    if (t.term.cols === t.cols && t.term.rows === t.rows) return;
-    t.cols = t.term.cols;
-    t.rows = t.term.rows;
-    troop.termResize(t.id, t.cols, t.rows);
+    let dims;
+    try { dims = t.fit.proposeDimensions(); } catch { return; }
+    if (!dims || (dims.cols === t.cols && dims.rows === t.rows)) return;
+    troop.termResize(t.id, dims.cols, dims.rows);
+    t.term.resize(dims.cols, dims.rows);
+    t.cols = dims.cols;
+    t.rows = dims.rows;
   }
 
   function attach(t) {
@@ -216,6 +221,11 @@ const termView = (() => {
     if (!t) return;
     if (m.op === 'snapshot') {
       t.retried = false;
+      if (typeof m.cols === 'number' && typeof m.rows === 'number' && (m.cols !== t.term.cols || m.rows !== t.term.rows)) {
+        t.term.resize(m.cols, m.rows);
+        t.cols = m.cols;
+        t.rows = m.rows;
+      }
       t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); });
       if (t.held) troop.termInput(sessionId, t.held);
       t.held = undefined;
@@ -230,7 +240,7 @@ const termView = (() => {
       if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');
       // a re-attach that closes again while the core is online means the session's terminal is gone, not the core
-      const ended = ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
+      const ended = t.gone || ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
       t.term.write(ended ? '\r\n[session ended]\r\n' : '\r\n[disconnected from the core]\r\n');
       if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
       t.held = undefined;

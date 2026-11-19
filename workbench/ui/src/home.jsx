@@ -15,7 +15,7 @@ import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop, defaultEngine } from './words.js';
+import { NOT_SENT, canStop, defaultEngine, workingCounts, workingLabel } from './words.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 import { ExternalLinkIcon, TerminalIcon } from './icons/screens.jsx';
 import './home-ref.css';
@@ -155,7 +155,7 @@ function StartBox({ ready, strip }) {
   };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   const gitBranch = ui.git && ui.git.project === ui.projectId ? ui.git.branch : null;
-  const active = new Map([...(ui.snap?.sessions || []), ...(ui.snap?.live || [])].map((x) => [x.id, x])).values().filter((x) => x.project_id === ui.projectId && ACTIVE_STATES.has(x.state)).toArray().length;
+  const { working } = workingCounts(ui.snap);
   return <>{composer({
     className: 'ou-hm-composerwrap ou-hm-task',
     strip,
@@ -184,7 +184,7 @@ function StartBox({ ready, strip }) {
       edit(atRefs(task, paths, proj?.path));
       document.querySelector?.('#home .ou-hm-composerwrap textarea')?.focus();
     },
-    status: { state: starting || active ? 'active' : 'idle', label: starting ? 'Starting' : active ? `${active} agent${active === 1 ? '' : 's'} running` : 'No agent running' },
+    status: { state: starting || working ? 'active' : 'idle', label: starting ? 'Starting' : workingLabel(workingCounts(ui.snap)) },
     context: [
       { key: 'project', plain: true, icon: folderSmall, node: !ui.projectId ? <span>No folder</span> : <Selector label="Project" isLabelHidden size="sm" variant="ghost" placement="above" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /> },
@@ -218,7 +218,6 @@ const STARTERS = [
 
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
 const ACCESS = { ask: 'Ask first', edits: 'Edits allowed', contained: 'Auto', isolated: 'Full access' };
-const ACTIVE_STATES = new Set(['waiting_for_you', 'working', 'starting', 'unknown']);
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
 const settled = (k) => ['done', 'failed', 'stopped'].includes(statusOf(k));
@@ -289,7 +288,7 @@ function SlimRow({ k, lead, openList, toggle }) {
 
 function Trigger({ x, kids, open, toggle }) {
   const statuses = kids.map(statusOf);
-  const working = statuses.filter((s) => s === 'running' || s === 'waiting').length;
+  const working = statuses.filter((s) => s === 'running' || s === 'waiting' || s === 'unknown').length;
   const label = `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}`;
   const summary = summarizeSubagentStatuses(statuses);
   return (

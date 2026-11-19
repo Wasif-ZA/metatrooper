@@ -530,3 +530,30 @@ test('a terminal whose process exits on its own leaves nothing that keeps the co
   assert.match(r.stdout, /exit 3/);
   assert.equal(r.status, 0);
 });
+
+test('5 an attach snapshot says the size it was drawn at, after the attach resize', async () => {
+  writeTerminalSettings({ scrollback: 200, chunk_bytes: 8, slow_viewer_bytes: 4 * 1024 * 1024, bell_silent_ms: 80 });
+  const prefix = `term-${randomUUID().replaceAll('-', '')}`;
+  const path = pipePath(`${prefix}-term`);
+  const key = 'size-ui-key';
+  const id = `size-${randomUUID()}`;
+  term.open(id, [process.execPath, '-e', 'setInterval(()=>{},1000)'], moduleHome.home, process.env, 100, 10);
+  const server = await termPipe.startTermServer(path, key);
+  const connections: Array<Awaited<ReturnType<typeof termClient>>> = [];
+  try {
+    const first = await termClient(path); connections.push(first);
+    first.send({ op: 'attach', session: id, cols: 100, rows: 10, ui_key: key });
+    const a = await first.waitFor((m) => m.op === 'snapshot') as TermMessage & { cols?: number; rows?: number };
+    assert.deepEqual([a.cols, a.rows], [100, 10]);
+    const second = await termClient(path); connections.push(second);
+    second.send({ op: 'attach', session: id, cols: 90, rows: 12, ui_key: key });
+    const b = await second.waitFor((m) => m.op === 'snapshot') as TermMessage & { cols?: number; rows?: number };
+    assert.deepEqual([b.cols, b.rows], [90, 12]);
+  } finally {
+    for (const c of connections) c.close();
+    term.kill(id);
+    await until(() => !term.has(id), 5000);
+    await closeServer(server);
+    if (process.platform !== 'win32') rmSync(path, { force: true });
+  }
+});

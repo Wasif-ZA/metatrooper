@@ -436,8 +436,8 @@ test('Home task view: prompt bubble, worked line, a collapsed subagents trigger 
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
   assert.equal(h.one((n: any) => n.type?.name === 'HeadTitle').props.x.id, 'lead', 'the bar carries the task title');
   assert.doesNotMatch(html, /<h1|ou-hm-crumb/);
-  const order = ['aria-label="Alpha: Task lead"', '<div class="ou-hm-user"><p>Split the checkout</p></div>', '<span class="ou-st ou-st-running">Running</span><span class="ou-hm-worktime">for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
-    '<span class="ou-st-running">1 running</span>', '<span class="ou-st-done">1 done</span>', '<span class="ou-st-failed">1 failed</span>',
+  const order = ['aria-label="Alpha: Task lead"', '<div class="ou-hm-user"><p>Split the checkout</p></div>', '<span class="ou-st ou-st-running">Working</span><span class="ou-hm-worktime">for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
+    '<span class="ou-st-running">1 working</span>', '<span class="ou-st-done">1 done</span>', '<span class="ou-st-failed">1 failed</span>',
     'Loading chat', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
   assert.doesNotMatch(html.slice(0, html.indexOf('ou-hm-subs')), /1\/2 steps/);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
@@ -447,7 +447,7 @@ test('Home task view: prompt bubble, worked line, a collapsed subagents trigger 
   assert.ok(open.includes('<span class="ou-hm-slimsteps">1/2</span>'), 'orchestrator row keeps its step count');
   assert.equal((open.match(/ou-hm-slimsteps"/g) || []).length, 1, 'only the orchestrator row shows a step count');
   assert.deepEqual([...open.matchAll(/<li class="ou-hm-slim( ou-hm-lead)?" data-id="([^"]+)" data-status="([^"]+)"/g)].map(m => [m[2], m[3]]), [['lead', 'running'], ['a', 'done'], ['b', 'running'], ['c', 'failed']]);
-  assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-st ou-st-running">Running<\/span><span class="ou-hm-eng"><svg[^>]*aria-label="synthetic"[^]*?<\/svg>synthetic<\/span><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
+  assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-st ou-st-running">Working<\/span><span class="ou-hm-eng"><svg[^>]*aria-label="synthetic"[^]*?<\/svg>synthetic<\/span><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
   assert.match(open, /<span class="ou-hm-eng"><svg[^>]*role="img" aria-label="Claude"[^>]*><title>Claude<\/title><path fill="#d97757"[^]*?<\/svg>Claude<\/span>/, 'the orchestrator row shows the Claude logo and its name');
   assert.match(html, /<span class="ou-hm-engs"><svg[^>]*aria-label="synthetic"/, 'the collapsed sub-agent stack shows logos');
   assert.doesNotMatch(open + html, /ouros-ring/, 'no progress ring');
@@ -484,7 +484,7 @@ test('Home details card for the task: workspace, version control with PR and Mer
   h.one(label('Task panel')).props.onChange('details'); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid', '<span class="ou-st ou-st-running">Running</span>'].map(at);
+  const order = ['aria-label="Open Alpha folder"', 'Open in editor', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 working', 'Task kid', '<span class="ou-st ou-st-running">Working</span>'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
@@ -707,9 +707,9 @@ test('Automation editor access level saves as the run approval', async () => {
   await h.one(label('Create automation')).props.onClick(); await flush();
   assert.equal(seen.find((c) => c[0] === 'automation.set')[1].approval, 'edits');
 });
-test('Home composer status word counts any running state the sidebar counts, unknown and waiting included', () => {
+test('Home composer status says Working only for started sessions that are starting or working; waiting is Needs you', () => {
   g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
-  for (const [state, want] of [['unknown', 'active'], ['waiting_for_you', 'active'], ['working', 'active'], ['done', 'idle']]) {
+  for (const [state, want] of [['unknown', 'idle'], ['waiting_for_you', 'idle'], ['starting', 'active'], ['working', 'active'], ['done', 'idle']]) {
     g.ui.snap.live = []; g.ui.snap.sessions = [{ id: 's1', project_id: 'p1', engine_id: 'codex', state, started_at: '2026-01-01T00:00:00Z', prompt: 'x' }];
     const h = harness(Home); h.draw();
     assert.equal(h.one((n: any) => n.type === 'span' && n.props.className === 'ou-cmp-status').props['data-state'], want, state);
@@ -1010,7 +1010,7 @@ test('Home details card: Open in editor shows the task project in the IDE, the f
   await h.one(label('Changes')).props.onClick({ stopPropagation() {} });
   assert.deepEqual(calls, [['view', 'wall'], ['pick', 'lead'], ['openTab', 'diff']], 'Changes opens the task on the Wall with its Diff tab');
   delete g.pick; delete g.openTab; g.ui.projectId = 'p1'; g.ui.view = 'home';
-  assert.equal(lineageTitle([session('a', 'working'), session('w', 'waiting_for_you'), session('b', 'done')]), 'Lineage · 1 running · 1 needs you · 1 done', 'same words as the subagents block');
+  assert.equal(lineageTitle([session('a', 'working'), session('w', 'waiting_for_you'), session('b', 'done')]), 'Lineage · 1 working · 1 needs you · 1 done', 'same words as the subagents block');
   assert.equal(lineageTitle([session('a', 'done'), session('b', 'done')]), 'Lineage · 2 done');
   delete g.api.openFolder; g.ui.snap.git = undefined;
 });

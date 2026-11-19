@@ -141,7 +141,7 @@ test('engine logos: each named engine has its own mark, titled and labelled with
 
 test('status words come from the real state and outcome', () => {
   const cases: Array<[Record<string, string>, string]> = [
-    [{ state: 'working' }, 'Running'], [{ state: 'starting' }, 'Running'], [{ state: 'unknown' }, 'Running'],
+    [{ state: 'working' }, 'Working'], [{ state: 'starting' }, 'Working'], [{ state: 'unknown' }, 'Unknown'],
     [{ state: 'waiting_for_you' }, 'Needs you'], [{ state: 'done' }, 'Done'], [{ state: 'idle' }, 'Done'], [{ state: 'exited' }, 'Done'],
     [{ state: 'exited', outcome: 'failed' }, 'Failed'], [{ state: 'failed' }, 'Failed'], [{ state: 'exited', outcome: 'cancelled' }, 'Stopped'],
   ];

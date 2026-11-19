@@ -25,6 +25,7 @@ import { sessionColour } from './colour.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
 import { captureProcessLog } from '../../core/src/log.ts';
+import { rendererLogger } from './renderer-log.ts';
 import { ulid } from '../../core/src/time.ts';
 import { PaneManager, ToolError, type PaneRow } from './browser/panes.ts';
 import { startBrowserServer } from './browser/server.ts';
@@ -889,6 +890,11 @@ function createWindow(): void {
     if (closing) { e.preventDefault(); return; }
     if (!win || win.isDestroyed()) return;
     if (dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: unsavedMessage() }) === 0) e.preventDefault();
+  });
+  const logRenderer = rendererLogger();
+  win.webContents.on('console-message', (details, level, message, line, sourceId) => {
+    const entry = 'level' in details ? details : { level, message, lineNumber: line, sourceId };
+    for (const text of logRenderer(entry)) console.error(text);
   });
   let reloadedAt = -Infinity;
   win.webContents.on('render-process-gone', (_e, d) => {

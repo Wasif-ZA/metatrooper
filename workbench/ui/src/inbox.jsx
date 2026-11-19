@@ -9,7 +9,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 import { composer, atRefs } from './composer.jsx';
-import { NOT_SENT, canStop, defaultEngine } from './words.js';
+import { NOT_SENT, canStop, defaultEngine, workingCounts, workingRows } from './words.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
@@ -460,7 +460,7 @@ export function Inbox() {
   };
   const approvals = allApprovals.filter((a) => passes({ ref: a.session_id }, false));
   const waitingSessions = waitingAll().slice().sort(byPriority(true));
-  const workingSessions = live.filter((x) => x.state === 'working').sort(byPriority(true));
+  const workingSessions = workingRows(ui.snap).sort(byPriority(true));
   const needsNotices = needsYou.filter((n) => kindOf(n) === 'needs').sort(byPriority(false));
   const inReviewNotices = needsYou.filter((n) => n.kind === 'uncommitted' || n.kind === 'handoff').sort(byPriority(false));
   const failedNotices = needsYou.filter((n) => n.kind === 'failed').sort(byPriority(false));
@@ -468,16 +468,17 @@ export function Inbox() {
 
   const groups = [
     { key: 'needs', title: 'Needs your answer', status: 'needs', count: waitingSessions.length + approvals.length + needsNotices.length, items: [...waitingSessions.map((x) => [x, true]), ...needsNotices.map((n) => [n, false])] },
-    { key: 'working', title: 'Working', status: 'working', count: workingSessions.length, items: workingSessions.map((x) => [x, true]) },
+    { key: 'working', title: 'Working', status: 'working', count: 0, items: workingSessions.map((x) => [x, true]) },
     { key: 'in_review', title: 'In review', status: 'review', count: inReviewNotices.length, items: inReviewNotices.map((n) => [n, false]) },
     { key: 'failed', title: 'Failed', status: 'failed', count: failedNotices.length, items: failedNotices.map((n) => [n, false]) },
     { key: 'done', title: 'Done', status: 'done', count: doneNotices.length, items: doneNotices.map((n) => [n, false]) },
   ];
   for (const g of groups) {
     g.items = filter !== 'all' && filter !== g.key ? [] : g.items.filter(([item, isSession]) => passes(item, isSession));
-    g.count = g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
+    g.count = g.key === 'working' ? workingCounts({ live: g.items.map(([x]) => x) }).working : g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
   }
-  const totalItems = groups.reduce((acc, g) => acc + g.count, 0);
+  const rowCount = (g) => g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
+  const totalItems = groups.reduce((acc, g) => acc + rowCount(g), 0);
   const allRows = groups.flatMap((g) => g.items.map(([item, isSession]) => ({ id: item.id, item, isSession, group: g })));
   const visibleRows = allRows.filter((r) => !collapsed.includes(r.group.key));
   const activeRow = selectedId ? allRows.find((r) => r.id === selectedId) || null : null;
@@ -676,7 +677,7 @@ export function Inbox() {
 
   const groupHead = (group, isFolded) => (
     <div
-      className={`ou-ihead ou-ny-ghead ${group.count === 0 ? 'ou-ny-gdim' : ''}`}
+      className={`ou-ihead ou-ny-ghead ${rowCount(group) === 0 ? 'ou-ny-gdim' : ''}`}
       role="button"
       tabIndex={0}
       aria-expanded={!isFolded}
@@ -888,7 +889,7 @@ export function Inbox() {
       <div className="ou-inbox-list">
         <header className="ou-inbox-head">
           <h1 className="ou-ny-title">Needs you</h1>
-          <span className="ou-ny-counts">{waitingAll().length} waiting {'·'} {workingSessions.length} working {'·'} {plural(needsYou.length, 'notice')}</span>
+          <span className="ou-ny-counts">{waitingAll().length} waiting {'·'} {workingCounts(ui.snap).working} working {'·'} {plural(needsYou.length, 'notice')}</span>
         </header>
         <div className="ou-ny-filters" role="group" aria-label="Filter">
           <Selector size="sm" variant="ghost" label="Show" isLabelHidden value={filter} onChange={(v) => inboxStore.set({ filter: v })}
@@ -904,7 +905,7 @@ export function Inbox() {
         ) : (
           <ListMotion order={order} counts={counts}>
             {groups.map((group) => {
-              const isFolded = collapsed.includes(group.key) || group.count === 0;
+              const isFolded = collapsed.includes(group.key) || rowCount(group) === 0;
               return (
                 <Fold key={group.key} open={!isFolded} head={groupHead(group, isFolded)}>
                   {isFolded ? null : [

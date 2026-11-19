@@ -38,7 +38,7 @@ globalThis.homeView = (() => {
       <footer><span>${esc(x.last_line || '')}</span>${changedFiles(x.id).length ? `<i>${changedFiles(x.id).length} files</i>` : ''}</footer></div>`).join('');
 
     setHtml('home', `<div class="hcol">
-      <header class="hhead"><div><h1>${greeting()}</h1><p>${mine.length ? `${mine.length} ${mine.length === 1 ? 'agent' : 'agents'} in ${esc(project().name)}` : `No agents running in ${esc(project().name)}`}</p></div></header>
+      <header class="hhead"><div><h1>${greeting()}</h1><p>${mine.length ? `${mine.length} ${mine.length === 1 ? 'agent' : 'agents'}${project() ? ` in ${esc(project().name)}` : ''}` : `No agents running${project() ? ` in ${esc(project().name)}` : ''}`}</p></div></header>
       ${ready.length ? `<div class="hcomp"><textarea rows="2" data-key="home-task" placeholder="What should an agent do? Leave it empty to just open one." aria-label="Task for a new agent"></textarea>
         <div class="hcf"><select data-key="home-engine" aria-label="Agent">${ready.map((e) => `<option value="${esc(e.id)}"${e.id === (load('engine') || ready[0].id) ? ' selected' : ''}>${esc(e.id)}</option>`).join('')}</select><button class="btn acc" data-home-start>Start</button></div></div>` : ''}
       <div class="htiles">${tile('Needs you', needs, needs ? 'waiting on an answer' : 'nothing waiting', needs > 0)}${tile('Working', working.length, working.length ? 'running now' : 'none running', false)}${tile('Finished', done.length, done.length ? 'ready to review' : 'nothing to review', false)}${tile('Changed files', files, files ? 'not handed back yet' : 'no changes', false)}</div>

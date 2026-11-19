@@ -5,7 +5,7 @@ const wall = (() => {
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, r = document) => r.querySelector(s);
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
-  const TOP = 8, BOT = 8, G = 8, BAR = 36, SPN = 15;
+  const TOP = 8, BOT = 8, G = 8, BAR = 36, MIN = 112, SPN = 15;
   const S = {};
   const HOLD = 3000;
   const MX_TITLE = 'Maximize this pane (double-click the header; Esc restores)';
@@ -155,10 +155,24 @@ const wall = (() => {
       const w = (RW - G * (cols - 1)) / cols, rh = (hh - G * (rows - 1)) / rows;
       list.forEach((id, i) => R[id] = { left: RX + (i % cols) * (w + G), top: y + Math.floor(i / cols) * (rh + G), width: w, height: rh });
     };
-    row(work, TOP, wh);
+    let workMore = null;
+    const cols = Math.min(work.length, Math.max(1, Math.floor((RW + G) / (200 + G))));
+    const rows = Math.ceil(work.length / cols);
+    if (work.length && (wh - G * (rows - 1)) / rows < MIN) {
+      // Reserve a single-row bar for each squeezed tile before filling full rows.
+      let full = work.length;
+      while (full && Math.ceil(full / cols) * (MIN + G) + (work.length - full) * (BAR + G) > wh + G) full--;
+      const used = Math.ceil(full / cols) * (MIN + G);
+      row(work.slice(0, full), TOP, used - G);
+      const squeezed = work.slice(full), slots = Math.max(0, Math.floor((wh - used + G) / (BAR + G)));
+      const shown = squeezed.length > slots ? Math.max(0, slots - 1) : squeezed.length;
+      squeezed.forEach((id, i) => R[id] = { left: RX, top: TOP + used + Math.min(i, shown) * (BAR + G), width: RW, height: BAR, bar: true, hide: i >= shown });
+      if (squeezed.length > shown) workMore = { n: squeezed.length - shown, left: RX, top: TOP + used, width: RW, height: BAR };
+      if (workMore) workMore.top += shown * (BAR + G);
+    } else row(work, TOP, wh);
     row(open, work.length ? TOP + wh + G : TOP, work.length ? A - wh - G : A);
     bars.forEach((id, i) => R[id] = { left: RX, top: TOP + A + G + i * (BAR + G), width: RW, height: BAR });
-    const M = more ? { n: more, left: RX, top: TOP + A + G + bars.length * (BAR + G), width: RW, height: BAR } : null;
+    const M = workMore ? { ...workMore, n: workMore.n + more } : more ? { n: more, left: RX, top: TOP + A + G + bars.length * (BAR + G), width: RW, height: BAR } : null;
     return { R, C, RX, H, M };
   }
 
@@ -174,7 +188,7 @@ const wall = (() => {
     el.hidden = !M;
     if (!M) return;
     el.textContent = `+${M.n} more`;
-    el.title = `${M.n} more finished ${M.n === 1 ? 'session' : 'sessions'}; open the session list`;
+    el.title = `${M.n} more ${M.n === 1 ? 'session' : 'sessions'}; open the session list`;
     gsap.set(el, { left: M.left, top: M.top, width: M.width, height: M.height });
   }
 
@@ -185,7 +199,7 @@ const wall = (() => {
     for (const id of Object.keys(S)) {
       const el = pane(id), r = R[id];
       if (!el || el.dataset.lent) continue;
-      el.hidden = !r;
+      el.hidden = !r || !!r.hide;
       const mx = el.querySelector('.mx');
       if (mx) {
         mx.setAttribute('aria-pressed', String(id === MAX));
@@ -196,7 +210,7 @@ const wall = (() => {
       const big = mode !== 'grid' && BIG.includes(id);
       el.classList.toggle('big', big);
       el.classList.toggle('big2', mode !== 'grid' && BIG[1] === id);
-      el.classList.toggle('fold', mode !== 'grid' && !big && folded(S[id]));
+      el.classList.toggle('fold', mode !== 'grid' && !big && (folded(S[id]) || !!r.bar));
       el.classList.toggle('done-open', mode !== 'grid' && !big && !active(S[id]) && S[id].open);
       const key = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
       if (el._r === key) continue;

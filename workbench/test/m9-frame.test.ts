@@ -424,7 +424,7 @@ test('thread list: recent finished tasks on top, Working and older Settled shelv
   assert.match(html, /data-id="lead"[^]*?<span class="fth1"><span class="ft">Lead task<\/span><span class="fthtime">18s<\/span><\/span><span class="fth2"><span class="ou-st ou-st-waiting">Needs you<\/span><span class="fthsep">·<\/span><span class="fthpn" data-proj="p1">shop<\/span><span class="fthsep">·<\/span><span class="fthbr">feat\/share<\/span><\/span><span class="fth3"><span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Claude"[^]*?<\/svg><\/span><span class="fthmk"><svg[^>]*aria-label="Codex"[^]*?<\/svg><\/span><\/span><\/span>/);
   assert.match(html, /data-id="fresh"[^]*?<span class="ou-st ou-st-done">Done<\/span>[^]*?<span class="fthmks"><span class="fthmk"><svg[^>]*aria-label="Gemini"><title>Gemini<\/title>/);
   assert.doesNotMatch(html, /fring|ouros-ring/, 'status is a word, not a ring');
-  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount">2<\/span>/);
+  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount" title="1 working, 1 helper" aria-label="1 working, 1 helper">1 <small class="fhelp">\(\+1\)<\/small><\/span>/, 'one started session working plus one helper, helpers in brackets');
   assert.match(html, /data-shelf="settled" aria-expanded="false"><span class="fl">Settled<\/span><span class="fcount">1<\/span>/);
   assert.match(html, /<button class="fthx" data-kids="lead" aria-expanded="false" aria-label="Show 1 sub-agent of Lead task"/);
   assert.doesNotMatch(html, /data-id="kid"/);
@@ -462,4 +462,33 @@ test('usage meters: one meter per engine showing its most used window, with ever
   assert.match(usage.innerHTML, /<b>59%<\/b>/, 'claude shows its most used window');
   assert.doesNotMatch(usage.innerHTML, /<b>42%<\/b>/);
   assert.match(meters[0][1], /5h: 42% used[^]*weekly: 59% used/, 'tooltip keeps every window');
+});
+
+test('sidebar splits Working (starting and working only) from a Needs you shelf right below it; unknown rows stay listed, muted and uncounted', () => {
+  const h = createFrameHarness();
+  h.triggerDomContentLoaded();
+  h.ctx.setTimeout = () => 0;
+  const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  h.ctx.ui.snap.tree = [{ project_id: 'p1', name: 'shop', sessions: ['busy', 'boot', 'lead', 'kid', 'unk'] }];
+  h.ctx.ui.snap.tree_rows = {
+    busy: { id: 'busy', state: 'working', engine_id: 'codex', title: 'Busy task', state_at: iso(1_000), started_at: iso(60_000) },
+    boot: { id: 'boot', state: 'starting', engine_id: 'codex', title: 'Boot task', state_at: iso(2_000), started_at: iso(60_000) },
+    lead: { id: 'lead', state: 'waiting_for_you', engine_id: 'claude', title: 'Lead task', state_at: iso(3_000), started_at: iso(60_000) },
+    kid: { id: 'kid', parent_id: 'lead', state: 'working', engine_id: 'codex', title: 'Kid task', state_at: iso(4_000), started_at: iso(30_000) },
+    unk: { id: 'unk', state: 'unknown', engine_id: 'claude', title: 'Odd task', state_at: iso(5_000), started_at: iso(60_000) },
+  };
+  h.frameView.draw();
+  const html = h.frameAgents.innerHTML;
+  const shelfIds = (key: string) => {
+    const part = html.split(`data-shelf="${key}"`)[1]?.split('class="fshelf"')[0] || '';
+    return [...part.matchAll(/class="fth[^"]*" data-action="home-select" data-id="([^"]+)"/g)].map((m) => m[1]);
+  };
+  assert.match(html, /data-shelf="working" aria-expanded="true"><span class="fl">Working<\/span><span class="fcount"[^>]*>2 <small class="fhelp">\(\+1\)<\/small>/, 'busy and boot count; the waiting lead and the unknown row do not; kid is a helper');
+  assert.deepEqual(shelfIds('working'), ['busy', 'boot', 'unk'], 'working rows, then the unknown row last');
+  assert.match(html, /class="fth fthunk" data-action="home-select" data-id="unk"/, 'unknown row is muted');
+  assert.match(html, /data-id="unk"[^]*?<span class="ou-st ou-st-unknown">Unknown<\/span>/);
+  assert.match(html, /data-id="busy"[^]*?<span class="ou-st ou-st-running">Working<\/span>/, 'one word: Working');
+  assert.match(html, /data-shelf="needs" aria-expanded="true"><span class="fl">Needs you<\/span><span class="fcount">1<\/span>/);
+  assert.deepEqual(shelfIds('needs'), ['lead']);
+  assert.ok(html.indexOf('data-shelf="working"') < html.indexOf('data-shelf="needs"'), 'Needs you sits right below Working');
 });
