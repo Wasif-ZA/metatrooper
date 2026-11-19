@@ -8,6 +8,7 @@ import { client, isolation, root, startCore, stopCore, teardownCore, uiHello, un
 
 const exe = join(root, 'core', 'bin', 'metatrooper-launch.exe');
 const win = process.platform === 'win32';
+const native = win && existsSync(exe);
 
 function alive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -65,7 +66,7 @@ function relay(env: NodeJS.ProcessEnv, server = 'steps') {
 
 const INIT = { method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } };
 
-test('M7-10 sessions start through the native launcher, the core writes one launch event with the pty pid, and ouros MCP servers point at the exe', { skip: !win, timeout: 90_000 }, async () => {
+test('M7-10 sessions start through the native launcher, the core writes one launch event with the pty pid, and ouros MCP servers point at the exe', { skip: !native, timeout: 90_000 }, async () => {
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
@@ -85,7 +86,7 @@ test('M7-10 sessions start through the native launcher, the core writes one laun
   } finally { await s.done(); }
 });
 
-test('M7-10a closing 10 sessions leaves 0 of 10 detached grandchildren within 2 s', { skip: !win, timeout: 120_000 }, async () => {
+test('M7-10a closing 10 sessions leaves 0 of 10 detached grandchildren within 2 s', { skip: !native, timeout: 120_000 }, async () => {
   const s = await setup();
   const brokers: number[] = [];
   try {
@@ -104,7 +105,7 @@ test('M7-10a closing 10 sessions leaves 0 of 10 detached grandchildren within 2 
   }
 });
 
-test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and finds its session by process ancestry', { skip: !win, timeout: 90_000 }, async () => {
+test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and finds its session by process ancestry', { skip: !native, timeout: 90_000 }, async () => {
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
@@ -140,7 +141,7 @@ test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and
   } finally { await s2.done(); }
 });
 
-test('M7-10 metatrooper-desktop and metatrooper-browser answer through the relay with their tools and a clear error with no workbench', { skip: !win, timeout: 90_000 }, async () => {
+test('M7-10 metatrooper-desktop and metatrooper-browser answer through the relay with their tools and a clear error with no workbench', { skip: !native, timeout: 90_000 }, async () => {
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
@@ -162,7 +163,7 @@ test('M7-10 metatrooper-desktop and metatrooper-browser answer through the relay
   } finally { await s.done(); }
 });
 
-test('M7-10 the relay answers a tool call with an MCP error while the core is down and works again after it restarts', { skip: !win, timeout: 120_000 }, async () => {
+test('M7-10 the relay answers a tool call with an MCP error while the core is down and works again after it restarts', { skip: !native, timeout: 120_000 }, async () => {
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
@@ -185,7 +186,7 @@ test('M7-10 the relay answers a tool call with an MCP error while the core is do
   } finally { await s.done(); }
 });
 
-test('M7-10 with no core running, the relay answers initialize with an MCP error', { skip: !win, timeout: 30_000 }, async () => {
+test('M7-10 with no core running, the relay answers initialize with an MCP error', { skip: !native, timeout: 30_000 }, async () => {
   const iso: any = isolation();
   const r = relay({ ...iso.env, TROOP_SESSION_ID: 'none' });
   try {

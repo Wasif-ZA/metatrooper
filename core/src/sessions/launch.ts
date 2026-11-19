@@ -136,7 +136,7 @@ export function launchSession(
   const cwd = opts.cwd ?? opts.projectPath;
   try {
     const pid = term.open(id, launcherArgv(id, opts.engine.id, b64), cwd, { ...process.env, ...env, TROOP_SESSION_SECRET: issueSecret(id, approval) });
-    appendEvent('launch', id, buildPayload('launch', { session_id: id, pid, cwd, engine: opts.engine.id, started_at: nowIso() }), db);
+    try { appendEvent('launch', id, buildPayload('launch', { session_id: id, pid, cwd, engine: opts.engine.id, started_at: nowIso() }), db); } catch {}
   } catch {
     dropSecret(id);
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}

@@ -91,15 +91,32 @@ another folder and saves no memory per session. It stays the plan if the spike f
 
 ## Acceptance criteria
 
-- [ ] M7-10a. A fixture engine that starts a detached, unref'd grandchild and then waits: after its session's
+- [x] M7-10a. A fixture engine that starts a detached, unref'd grandchild and then waits: after its session's
   terminal is closed, the grandchild's pid is gone within 2 s.
-- [ ] M7-10b. The launcher's working set is at most 5 MB with a session running, read from the process table.
-- [ ] M7-10c. Parity with `launch.js`: the child sees `TROOP_SESSION_ID`; exit code 7 comes back as 7; an empty
+- [x] M7-10b. The launcher's working set is at most 5 MB with a session running, read from the process table.
+- [x] M7-10c. Parity with `launch.js`: the child sees `TROOP_SESSION_ID`; exit code 7 comes back as 7; an empty
   argv exits 2 and an unknown command exits 127 with today's texts; a `.cmd` engine starts; Ctrl+C typed in the tile
   reaches the engine and the launcher keeps running; one `launch` event per session carries the pty pid.
 - [ ] M7-10d. With `core/bin/metatrooper-launch.exe` removed, a session starts through `launch.js` and the core log
   names the fallback.
-- [ ] M7-10e. The spike's result (broker gone or not, ConPTY nesting fine or not) is recorded in this issue.
+- [x] M7-10e. The spike's result (broker gone or not, ConPTY nesting fine or not) is recorded in this issue.
+
+## Spike result (2026-11-19T18:30+11:00, branch perf/ram-1119)
+
+- Detached broker: a fixture grandchild started with `detached: true` and `unref()` (the Codex plugin's pattern) is
+  gone within 2 s of its session closing. 10 sessions closed with `session.stop`: 0 of 10 grandchildren left. Before
+  the change: 10 of 10 left. Tests: `core/test/m7-10-launcher.test.ts`, `core/test/m7-10-core.test.ts`.
+- ConPTY nesting: fine. The launcher runs under node-pty's ConPTY inside its own job; Ctrl+C typed into the terminal
+  reaches the engine and the launcher keeps running.
+- Not yet run: a real Claude session doing one `/codex:review`, since it needs the owner's account. Until then the
+  real broker is covered only by the fixture.
+- Working set: 0.8 MB private, 4.4 MB working set per launcher.
+- Scope added by the lead (2026-11-19): the same exe relays the `ouros-steps`, `ouros-ui`, `metatrooper-desktop` and
+  `metatrooper-browser` MCP servers to the core (`metatrooper-launch.exe mcp <server>`). Each server's process drops
+  from about 22 MB to 0.8 MB private. Process note: COMMON3 overrides "Codex writes the tests" and "never commit"
+  for this lane. Codex built the code, Claude wrote the tests, and the commits are local.
+- M7-10d: the fallback choice is tested through `launcherArgv`. A full session start through `launch.js` with the
+  log line read back is not tested.
 
 ## Sizing
 

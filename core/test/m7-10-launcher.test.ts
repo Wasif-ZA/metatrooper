@@ -9,6 +9,7 @@ import { root, sleep, until } from './helpers.ts';
 
 const exe = join(root, 'core', 'bin', 'metatrooper-launch.exe');
 const win = process.platform === 'win32';
+const native = win && existsSync(exe);
 const b64 = (argv: unknown) => Buffer.from(JSON.stringify(argv)).toString('base64');
 
 function alive(pid: number): boolean {
@@ -24,20 +25,20 @@ test('M7-10 the launcher exe is built into core/bin', { skip: !win }, () => {
   assert.ok(existsSync(exe), `missing ${exe}; run pwsh launcher/build.ps1`);
 });
 
-test('M7-10c the child sees TROOP_SESSION_ID and its exit code 7 comes back as 7', { skip: !win }, () => {
+test('M7-10c the child sees TROOP_SESSION_ID and its exit code 7 comes back as 7', { skip: !native }, () => {
   const r = run([process.execPath, '-e', 'process.stdout.write(String(process.env.TROOP_SESSION_ID)); process.exit(7)']);
   assert.equal(r.stdout, 'S123');
   assert.equal(r.status, 7);
 });
 
-test('M7-10c arguments with spaces, quotes and unicode reach the child unchanged', { skip: !win }, () => {
+test('M7-10c arguments with spaces, quotes and unicode reach the child unchanged', { skip: !native }, () => {
   const args = ['a b', 'say "hi"', 'tab\there', 'café ✳', 'back\\slash\\', ''];
   const r = run([process.execPath, '-e', 'process.stdout.write(JSON.stringify(process.argv.slice(1)))', ...args]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout), args);
 });
 
-test('M7-10c an empty or broken argv exits 2 with today\'s text', { skip: !win }, () => {
+test('M7-10c an empty or broken argv exits 2 with today\'s text', { skip: !native }, () => {
   for (const argv of [[], 'not-an-array']) {
     const r = run(argv);
     assert.equal(r.status, 2);
@@ -47,13 +48,13 @@ test('M7-10c an empty or broken argv exits 2 with today\'s text', { skip: !win }
   assert.equal(r.status, 2);
 });
 
-test('M7-10c an unknown command exits 127 naming it', { skip: !win }, () => {
+test('M7-10c an unknown command exits 127 naming it', { skip: !native }, () => {
   const r = run(['definitely-not-a-command-7f3a', '--x']);
   assert.equal(r.status, 127);
   assert.match(r.stderr, /troop launch: could not find definitely-not-a-command-7f3a on PATH/);
 });
 
-test('M7-10c a .cmd engine starts', { skip: !win }, () => {
+test('M7-10c a .cmd engine starts', { skip: !native }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'm7-10-cmd-'));
   try {
     const cmd = join(dir, 'engine.cmd');
@@ -68,7 +69,7 @@ const BROKER = `const { spawn } = require('node:child_process'); const fs = requ
 const b = spawn(process.execPath, ['-e', 'setInterval(()=>{},1e6)'], { detached: true, stdio: 'ignore', windowsHide: true });
 fs.writeFileSync(process.argv[1], String(b.pid)); b.unref(); setInterval(() => {}, 1e6);`;
 
-test('M7-10a a detached, unref\'d grandchild is gone within 2 s of the launcher ending', { skip: !win }, async () => {
+test('M7-10a a detached, unref\'d grandchild is gone within 2 s of the launcher ending', { skip: !native }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'm7-10-orphan-'));
   const pidFile = join(dir, 'broker.pid');
   const launcher = spawn(exe, ['--session', 'S', '--engine', 'fake', '--args-b64', b64([process.execPath, '-e', BROKER, pidFile])], { stdio: 'ignore', windowsHide: true });
@@ -87,7 +88,7 @@ test('M7-10a a detached, unref\'d grandchild is gone within 2 s of the launcher 
   }
 });
 
-test('M7-10b the launcher\'s working set is at most 5 MB with a session running', { skip: !win }, async () => {
+test('M7-10b the launcher\'s working set is at most 5 MB with a session running', { skip: !native }, async () => {
   const launcher = spawn(exe, ['--session', 'S', '--engine', 'fake', '--args-b64', b64([process.execPath, '-e', 'setInterval(()=>{},1e6)'])], { stdio: 'ignore', windowsHide: true });
   try {
     await sleep(1500);
@@ -99,7 +100,7 @@ test('M7-10b the launcher\'s working set is at most 5 MB with a session running'
   }
 });
 
-test('M7-10c Ctrl+C typed in the terminal reaches the engine and the launcher keeps running', { skip: !win }, async () => {
+test('M7-10c Ctrl+C typed in the terminal reaches the engine and the launcher keeps running', { skip: !native }, async () => {
   const require = createRequire(import.meta.url);
   const pty = require('node-pty') as typeof import('node-pty');
   const child = 'process.on("SIGINT", () => process.stdout.write("got-int\\n")); process.stdout.write("ready\\n"); setInterval(() => {}, 1e6);';

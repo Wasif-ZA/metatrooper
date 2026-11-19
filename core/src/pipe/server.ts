@@ -42,7 +42,7 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
         const why = e instanceof LineTooLong ? 'reply exceeds 1 MiB' : 'reply does not serialize';
         const error = { code: E.INTERNAL, message: why };
         try {
-          line = encode({ jsonrpc: '2.0', id: typeof msg.id === 'string' ? msg.id : null, error });
+          line = encode({ jsonrpc: '2.0', id: (msg as { id?: unknown }).id ?? null, error });
         } catch {
           line = encode({ jsonrpc: '2.0', id: null, error });
         }

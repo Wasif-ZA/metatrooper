@@ -31,7 +31,7 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
         const byPid = new Map(rows.map((row) => [row.pid, row.id]));
         session = ancestors(hello.pid, await parentTableAsync()).map((pid) => byPid.get(pid)).find(Boolean) ?? null;
       }
-      sessions.set(hello, session);
+      if (session) sessions.set(hello, session);
     }
     if (server === 'desktop' || server === 'browser') {
       let bridge = bridges.get(hello);

@@ -368,7 +368,7 @@ mod win {
         Some((writer, state))
     }
     fn relay(server: &str) -> ! {
-        let name: Vec<u16> = format!("\\\\.\\pipe\\{}", env::var("METATROOPER_PIPE_PREFIX").unwrap_or_else(|_| "metatrooper".into()))
+        let name: Vec<u16> = format!("\\\\.\\pipe\\{}", env::var("METATROOPER_PIPE_PREFIX").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "metatrooper".into()))
             .encode_utf16().chain(Some(0)).collect();
         let hello = format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"mcp.stdio\",\"params\":{{\"server\":{},\"session_id\":{},\"pid\":{}}}}}\n",
