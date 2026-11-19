@@ -37,9 +37,9 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
       if (socket.destroyed || socket.writableEnded) return;
       socket.write(JSON.stringify(msg) + '\n');
     };
-    const sendData = (op: 'snapshot' | 'output', data: string) => {
+    const sendData = (op: 'snapshot' | 'output', data: string, cols?: number, rows?: number) => {
       unacked += data.length;
-      send({ op, seq: seq++, data });
+      send({ op, seq: seq++, data, cols, rows });
     };
     const drop = () => {
       if (session && viewer) term.detach(session, viewer);
@@ -47,7 +47,7 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
     };
     const makeViewer = (): term.Viewer => {
       const v: term.Viewer = {
-        snapshot: (data) => sendData('snapshot', data),
+        snapshot: (data, cols, rows) => sendData('snapshot', data, cols, rows),
         output: (data) => {
           if (viewer !== v) return;
           for (const part of splitChunks(data)) {

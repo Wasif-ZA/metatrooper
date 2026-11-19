@@ -18,7 +18,7 @@ export const PAUSE_BYTES = 1024 * 1024;
 export const RESUME_BYTES = 256 * 1024;
 
 export interface Viewer {
-  snapshot(data: string): void;
+  snapshot(data: string, cols?: number, rows?: number): void;
   output(data: string): void;
   exit(code: number): void;
 }
@@ -284,7 +284,7 @@ export function attach(id: string, viewer: Viewer): boolean {
   t.head.write('', () => {
     t.viewers.delete(buffering);
     if (!t.attaching.delete(viewer)) return;
-    viewer.snapshot(t.ser.serialize());
+    viewer.snapshot(t.ser.serialize(), t.head.cols, t.head.rows);
     for (const [n, data] of pending) if (n > t.parsed) viewer.output(data);
     if (exited !== null) viewer.exit(exited);
     else if (t.exitCode === null) t.viewers.add(viewer);

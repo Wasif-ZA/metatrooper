@@ -221,6 +221,11 @@ const termView = (() => {
     if (!t) return;
     if (m.op === 'snapshot') {
       t.retried = false;
+      if (typeof m.cols === 'number' && typeof m.rows === 'number' && (m.cols !== t.term.cols || m.rows !== t.term.rows)) {
+        t.term.resize(m.cols, m.rows);
+        t.cols = m.cols;
+        t.rows = m.rows;
+      }
       t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); });
       if (t.held) troop.termInput(sessionId, t.held);
       t.held = undefined;

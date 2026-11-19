@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import { termPipe, uiKeyFile } from '../../core/src/paths.ts';
 
-export type TermMessage = { op: string; seq?: number; data?: string; code?: number | string };
+export type TermMessage = { op: string; seq?: number; data?: string; code?: number | string; cols?: number; rows?: number };
 
 const conns = new Map<string, net.Socket>();
 

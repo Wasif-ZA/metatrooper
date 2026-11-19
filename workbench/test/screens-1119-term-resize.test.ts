@@ -158,3 +158,13 @@ test('the pty is told the new size before xterm redraws at it, and a same-size r
   assert.deepEqual(h.log.filter((l) => /^(pty|term) /.test(l)), [], 'same size: no resize either side');
 });
 
+test('a snapshot drawn at another size resizes xterm to that size before it is written', () => {
+  const h = harness();
+  h.ro(); h.drain();
+  h.log.length = 0;
+  h.term({ op: 'snapshot', seq: 0, data: 'X', cols: 132, rows: 40 });
+  assert.deepEqual(h.log.slice(0, 2), ['term 132x40', 'write']);
+  h.log.length = 0;
+  h.term({ op: 'snapshot', seq: 1, data: 'Y' });
+  assert.deepEqual(h.log.filter((l) => l.startsWith('term')), [], 'no size: no resize');
+});
