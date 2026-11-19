@@ -190,3 +190,39 @@ test('M7-04c continue menu lists only installed engines leaving out the source e
     f.close();
   }
 });
+
+// protects=session row limit_stopped flag clears after subsequent claude prompt but persists through claude notifications
+// fails_when=limit_stopped is true after claude.UserPromptSubmit or false when only followed by claude.Notification
+// no_claim=evaluating non-claude engine session limit-stopped states
+test('M7-04c session row limit_stopped is false after later claude.UserPromptSubmit and true with only claude.Notification', () => {
+  const f = fixture();
+  try {
+    const d = f.db;
+    const now = iso(Date.now());
+    d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', '/p1', 'p1', now, now);
+    d.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('claude', '{\"roles\":[\"worker\"]}', 3)").run();
+    d.prepare("INSERT INTO engine_check (engine_id, checked_at, installed, version, auth) VALUES ('claude', ?, 1, '2.1.284', 'ok')").run(now);
+
+    // Session 1: Limit hit followed by claude.UserPromptSubmit
+    d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES ('s_prompt', 'p1', 'claude', 'pty', 'waiting_for_you', ?, ?, 0)").run(now, now);
+    d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', 's_prompt', 'core.limit-hit', '{}', 1)").run(now);
+    d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', 's_prompt', 'claude.UserPromptSubmit', '{\"prompt\":\"go on\"}', 1)").run(now);
+
+    // Session 2: Limit hit followed only by claude.Notification
+    d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES ('s_notif', 'p1', 'claude', 'pty', 'waiting_for_you', ?, ?, 0)").run(now, now);
+    d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', 's_notif', 'core.limit-hit', '{}', 1)").run(now);
+    d.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', 's_notif', 'claude.Notification', '{\"text\":\"info\"}', 1)").run(now);
+
+    const s = snapshot(d, 'p1') as any;
+    const findSession = (id: string) => s.sessions.find((x: any) => x.id === id);
+
+    // First half: limit_stopped must be false after later claude.UserPromptSubmit
+    assert.equal(Boolean(findSession('s_prompt')?.limit_stopped), false, 's_prompt with later claude.UserPromptSubmit must not be limit_stopped');
+
+    // Second half: limit_stopped must be true with only later claude.Notification
+    assert.equal(Boolean(findSession('s_notif')?.limit_stopped), true, 's_notif with only later claude.Notification must be limit_stopped');
+  } finally {
+    f.close();
+  }
+});
+
