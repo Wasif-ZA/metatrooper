@@ -1094,8 +1094,8 @@ Files: `core/src/hook/browser-mcp.ts` (`const TOOLS`, `case 'tools/list'`, `tool
 
 - **Tool presets** (browser-control 4). `grants.ts` holds three presets: `look` (panes, navigate, snapshot,
   screenshot, scroll, read, handoff), `act` (look plus click, type, key, select, wait_for, back, dialog, batch) and `debug` (act plus
-  console, network, evaluate). `.troop/config.json` `browser.grant` and the launch call pick one; with none set, the
-  session keeps every tool, as today. `browser.hello` returns the grant, `tools/list` lists only its tools, and a
+  console, network, evaluate). `.troop/config.json` `browser.grant` and the launch call pick one; with none set, a launch from the
+  browser pane keeps every tool and any other launch gets `act` (2026-11-19). `browser.hello` returns the grant, `tools/list` lists only its tools, and a
   call outside it fails -32034 "needs grant debug". An unknown preset name fails the launch. D61 approvals stay the
   only confirm step; presets add no second one.
 - **Numbered screenshots** (browser-control 10). `screenshot {annotate: true}` reads each ref's box
