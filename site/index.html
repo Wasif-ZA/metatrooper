@@ -178,10 +178,10 @@ footer p{margin:0;max-width:60ch}
 <div class="hero">
  <h1>The apps you code in.<br><span>One window. No sessions, just tasks.</span></h1>
  <p>Carbon Copy (cc) rebuilds the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.</p>
- <p class="note">One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet: download the zip and run cc.exe, or run it from a clone.</p>
+ <p class="note">One setup step: sign in to Claude Code (or Codex or Gemini CLI) yourself; cc can install Claude Code or Codex for you. No installer yet: download the zip and run cc.exe, or run it from a clone.</p>
  <ul class="facts"><li>Windows 10 and 11</li><li>Local, on your machine</li><li>No account, no telemetry</li></ul>
  <div class="install"><span id="cmd">git clone https://github.com/Wasif-ZA/metatrooper</span><button class="t" id="copy" type="button">Copy</button></div>
- <a class="btn" href="#start">Get started</a><a class="btn ghost" href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a>
+ <a class="btn" href="https://github.com/Wasif-ZA/metatrooper/releases">Download for Windows</a><a class="btn ghost" href="#start">Get started</a>
 </div>
 
 <section id="screens">
@@ -272,8 +272,8 @@ footer p{margin:0;max-width:60ch}
 
 <section id="start">
  <h2>Get started</h2>
- <p class="sub">There is no installer yet. You need Windows 10 or 11 and at least one agent CLI signed in.</p>
- <p><b>New to this:</b> download <code>cc-&lt;version&gt;-win-x64.zip</code> from <a href="https://github.com/Wasif-ZA/metatrooper/releases">Releases</a>, unzip it and run <code>cc.exe</code>. It carries its own Node. The zip is not code-signed yet, so Windows says "Windows protected your PC": pick More info, then Run anyway. If Smart App Control blocks it, use the source install.</p>
+ <p class="sub">There is no installer yet. You need Windows 10 or 11, Git, and a coding agent you can sign in to (Claude Code, Codex, Gemini CLI or Antigravity).</p>
+ <p><b>New to this:</b> download <code>cc-&lt;version&gt;-win-x64.zip</code> from <a href="https://github.com/Wasif-ZA/metatrooper/releases">Releases</a>, unzip it and run <code>cc.exe</code>. Everything cc needs to run is inside the folder. Windows does not know cc's publisher yet, so it says "Windows protected your PC": pick More info, then Run anyway. If a Windows feature called Smart App Control blocks it, use the source install.</p>
  <p><b>Developers:</b> from source, with Node 24.16 or newer.</p>
 <pre><code>git clone https://github.com/Wasif-ZA/metatrooper
 cd metatrooper/core &amp;&amp; npm ci

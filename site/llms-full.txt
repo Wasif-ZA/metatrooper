@@ -27,13 +27,13 @@ Source: {{SITE}}/
 Carbon Copy (cc) rebuilds the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
  
 
-One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet: download the zip and run cc.exe, or run it from a clone.
+One setup step: sign in to Claude Code (or Codex or Gemini CLI) yourself; cc can install Claude Code or Codex for you. No installer yet: download the zip and run cc.exe, or run it from a clone.
  
 - Windows 10 and 11
 - Local, on your machine
 - No account, no telemetry
  git clone https://github.com/Wasif-ZA/metatrooper
- Get startedSource on GitHub
+ Download for WindowsGet started
 
  
 
@@ -177,10 +177,10 @@ Any interactive CLI agent an engine file describes. Built in, among others.
 ## Get started
  
 
-There is no installer yet. You need Windows 10 or 11 and at least one agent CLI signed in.
+There is no installer yet. You need Windows 10 or 11, Git, and a coding agent you can sign in to (Claude Code, Codex, Gemini CLI or Antigravity).
  
 
-New to this: download cc-<version>-win-x64.zip from Releases, unzip it and run cc.exe. It carries its own Node. The zip is not code-signed yet, so Windows says "Windows protected your PC": pick More info, then Run anyway. If Smart App Control blocks it, use the source install.
+New to this: download cc-<version>-win-x64.zip from Releases, unzip it and run cc.exe. Everything cc needs to run is inside the folder. Windows does not know cc's publisher yet, so it says "Windows protected your PC": pick More info, then Run anyway. If a Windows feature called Smart App Control blocks it, use the source install.
  
 
 Developers: from source, with Node 24.16 or newer.

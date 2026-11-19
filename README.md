@@ -97,17 +97,18 @@ what runs today.
 
 ## Quickstart
 
-There is no installer yet. Pick one of two ways in. Both need Windows 10 or 11 (tested on Windows 11) and at least
-one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
+There is no installer yet. Pick one of two ways in. Both need Windows 10 or 11 (tested on Windows 11), Git, and at
+least one coding agent you can sign in to: Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) or
+Antigravity (`agy`). If none is ready, cc offers to install Claude Code or Codex for you; you still sign in yourself.
 
 ### New to this: the zip
 
 1. Download `cc-<version>-win-x64.zip` from [Releases](https://github.com/Wasif-ZA/metatrooper/releases).
-2. Unzip it anywhere, open the folder and run `cc.exe`. It carries its own Node, so nothing else to install.
+2. Unzip it anywhere, open the folder and double-click `cc.exe`. Everything cc needs to run is inside the folder.
 
-The zip is not code-signed yet. Windows shows "Windows protected your PC": pick **More info**, then **Run anyway**.
-If Smart App Control is on, Windows may block it outright; use the source install below instead. Signing comes after
-launch.
+Windows does not know cc's publisher yet, so it shows "Windows protected your PC": pick **More info**, then **Run
+anyway**. On some new PCs a Windows feature called Smart App Control blocks it outright; then use the source
+install below. A signed build comes after launch.
 
 ### Developers: from source
 
@@ -135,8 +136,9 @@ What to expect:
   control your desktop or add-ons that write outside the project. Type a branch under the box to give it its own
   worktree. Pick **Ask first** under the box to approve each step. Agents with no auto mode, such as Gemini CLI,
   start in Ask first. The setting is `sessions.approval` in `~/.metatrooper/settings.json`.
-- From source, `troop` in any message or below means `node core/cli.ts`. From the zip, it means
-  `resources\node\node.exe resources\app\core\cli.ts`, run inside the unzipped folder.
+- From source, `troop` in any message or below means `node core/cli.ts`. From the zip, open a terminal in the
+  unzipped folder (in File Explorer, right-click the folder, then **Open in Terminal**), and `troop` means
+  `resources\node\node.exe resources\app\core\cli.ts`.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the window installs cc's hooks into
@@ -371,8 +373,8 @@ plugin for another editor; it is its own window.
 
 **I've never used Claude Code. Can I use cc?**
 Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
-setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
-signs in for you. cc has no installer yet: download the zip and run `cc.exe` (see [Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
+setup step stays yours: sign in to Claude Code (or Codex or Gemini CLI) once, since cc never signs in for you. If
+none is installed, cc offers to install Claude Code or Codex. cc has no installer yet: download the zip and run `cc.exe` (see [Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
 you. Other agents show their terminal.
 
 **How is this different from running `claude` in terminals?**

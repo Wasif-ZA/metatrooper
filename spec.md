@@ -83,8 +83,8 @@ where they matter below: D5 (real interactive CLIs, never `claude -p`), D10 (Nod
 (core-owned terminals), D21 (own browser MCP, no WebSocket), D24 (no TCP port), D28 (free, no account), D30
 (licences), D41, D42, D46, D48 (approval profiles, worktree trust, private paths, now `sessions.ask_paths`), D49
 (launch and close), D50 (first user, signed installer before any release; amended by D88), M5-D4 (Linux source
-beta; withdrawn by D88), M5-D12 and M5-D21 (electron-builder), M5-D14 (one instruction file), M5-D19 and M5-D23 (Certum signing), M5-D26 (vendor terms
-for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) is replaced by D67.
+beta; withdrawn by D88), M5-D12 and M5-D21 (electron-builder), M5-D14 (one instruction file), M5-D19 and M5-D23
+(Certum signing; replaced by D88, SignPath after launch), M5-D26 (vendor terms for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) is replaced by D67.
 
 | # | Decision | Chosen |
 |---|---|---|

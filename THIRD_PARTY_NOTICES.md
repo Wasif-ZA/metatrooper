@@ -11,16 +11,14 @@ or MIT terms of this repository.
 | Chromium | inside Electron | the one Electron 44.4.5 bundles | BSD-3-Clause and others, listed in Electron's `LICENSES.chromium.html` |
 | xterm.js (`@xterm/xterm`, `@xterm/addon-fit`, `@xterm/headless`, `@xterm/addon-serialize`) | `workbench/`, `core/` (npm) | 6.0.0, 0.11.0, 6.0.0, 0.14.0 | MIT |
 | node-pty | `core/` (npm) | 1.1.0 | MIT |
-| GSAP | `workbench/renderer/vendor/gsap.min.js` | 3.15.0 | GSAP Standard License |
+| GSAP | `workbench/renderer/vendor/gsap.min.js`; GSAP and its Flip plugin are also bundled in `workbench/renderer/ui.bundle.js` | 3.15.0 (vendored), 3.15.1 (bundled) | GSAP Standard License |
 | Geist, Geist Mono | `workbench/renderer/vendor/fonts/geist.woff2`, `geist-mono.woff2` | | SIL Open Font License 1.1 |
 | Space Mono | `workbench/renderer/vendor/fonts/space-mono-400.woff2`, `space-mono-700.woff2` | | SIL Open Font License 1.1 |
 | Silkscreen | `workbench/renderer/vendor/fonts/silkscreen-400.ttf`, `silkscreen-700.ttf` | | SIL Open Font License 1.1 |
 | superpowers skills (brainstorming, dispatching-parallel-agents, executing-plans, receiving-code-review, requesting-code-review, systematic-debugging, test-driven-development, using-git-worktrees, verification-before-completion, writing-plans) | `skills/<name>/`, each with its `LICENSE` | obra/superpowers at bb92a77 | MIT, Copyright (c) 2025 Jesse Vincent |
 | monaco-editor | `workbench/renderer/monaco/` (bundled) | 0.57.0 | MIT |
-| astryx (`@astryxdesign/core`, `@astryxdesign/theme-neutral`) | `workbench/renderer/ui.bundle.js` (bundled) | 0.7.11 | MIT, Copyright (c) 2026 Meta Platforms, Inc. |
-| recharts | `workbench/renderer/ui.bundle.js` (bundled) | 3.10.1 | MIT |
-| React, React DOM, StyleX (`@stylexjs/stylex`) | `workbench/renderer/ui.bundle.js` (bundled) | 19.3.1, 19.3.1, 0.19.1 | MIT |
-| marked | `workbench/renderer/ui.bundle.js` (bundled) | 18.1.2 | MIT, plus the Markdown licence (BSD-3-Clause style) |
+| UI libraries (36 packages: astryx, React, recharts, d3, lucide and others, listed below) | `workbench/renderer/ui.bundle.js` (bundled) | see list | MIT, ISC, BSD-3-Clause |
+| Node.js and npm (zip only) | `resources/node/` in the zip | 24.18.0, npm 11.16.0 | Node.js: MIT and others, in `resources/node/LICENSE`; npm: Artistic-2.0 |
 | t3code (adapted code: Home, sidebar, engine logos for Claude, OpenAI/Codex and Antigravity) | `workbench/ui/src/`, `workbench/renderer/frame.js`, `workbench/ui/src/icons/engine-marks.js` | | MIT, Copyright (c) 2026 T3 Tools Inc. |
 | bb (adapted code: the shared chat box) | `workbench/ui/src/composer.jsx` | | MIT, Copyright (c) 2026 Michael Yong |
 | Simple Icons (Gemini and Copilot logos) | `workbench/ui/src/icons/engine-marks.js` | 15.0.0 | CC0 1.0 |
@@ -154,7 +152,9 @@ SOFTWARE.
 
 ## GSAP
 
-`workbench/renderer/vendor/gsap.min.js` is GSAP 3.15.0, unmodified, under GreenSock's own terms. Its header:
+`workbench/renderer/vendor/gsap.min.js` is GSAP 3.15.0, unmodified, under GreenSock's own terms. The window bundle
+(`workbench/renderer/ui.bundle.js`) also contains GSAP 3.15.1 and its Flip plugin from npm, under the same terms.
+The 3.15.0 header:
 
 ```
 /*!
@@ -303,17 +303,38 @@ SOFTWARE.
 
 ## UI libraries in the window bundle
 
-These are bundled into `workbench/renderer/ui.bundle.js`. Each is under the MIT licence below, with its own
-copyright line:
+`workbench/renderer/ui.bundle.js` is built with esbuild from `workbench/ui/` and contains the 36 packages below
+(found from the esbuild metafile of the build). Each keeps its own licence and copyright line.
 
-- astryx (`@astryxdesign/core`, `@astryxdesign/theme-neutral`) 0.7.11, https://github.com/meta/astryx:
-  Copyright (c) 2026 Meta Platforms, Inc.
-- recharts 3.10.1, https://github.com/recharts/recharts: Copyright (c) 2015-present recharts
-- React and React DOM 19.3.1, https://github.com/facebook/react: Copyright (c) Meta Platforms, Inc. and affiliates.
-- StyleX (`@stylexjs/stylex`) 0.19.1, https://github.com/facebook/stylex: Copyright (c) Meta Platforms, Inc. and
-  affiliates.
-- marked 18.1.2, https://github.com/markedjs/marked: Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/);
-  Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+### MIT
+
+- @astryxdesign/core 0.7.11: Copyright (c) 2026 Meta Platforms, Inc. (no licence file in the package; the theme package carries this line)
+- @astryxdesign/theme-neutral 0.7.11: Copyright (c) 2026 Meta Platforms, Inc.
+- @formatjs/fast-memoize 3.1.7: Copyright (c) 2023 FormatJS
+- @formatjs/icu-messageformat-parser 3.5.18: Copyright (c) 2023 FormatJS
+- @formatjs/icu-skeleton-parser 2.1.11: Copyright (c) 2023 FormatJS
+- @reduxjs/toolkit 2.14.0: Copyright (c) 2018 Mark Erikson
+- @stylexjs/stylex 0.19.1: Copyright (c) Meta Platforms, Inc. and affiliates. (no licence file in the package)
+- clsx 2.1.1: Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
+- decimal.js-light 2.5.1: Copyright (c) 2020 Michael Mclaughlin
+- es-toolkit 1.53.2: Copyright (c) 2024 Viva Republica, Inc.
+- eventemitter3 5.0.4: Copyright (c) 2014 Arnout Kazemier
+- immer 11.2.10: Copyright (c) 2017 Michel Weststrate
+- marked 18.1.2: Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/)
+- react 19.3.1: Copyright (c) Meta Platforms, Inc. and affiliates.
+- react-dom 19.3.1: Copyright (c) Meta Platforms, Inc. and affiliates.
+- react-is 19.3.1: Copyright (c) Meta Platforms, Inc. and affiliates.
+- react-redux 9.3.1: Copyright (c) 2015-present Dan Abramov
+- recharts 3.10.1: Copyright (c) 2015-present recharts
+- redux 5.0.1: Copyright (c) 2015-present Dan Abramov
+- redux-thunk 3.1.0: Copyright (c) 2015-present Dan Abramov
+- reselect 5.2.0: Copyright (c) 2015-2018 Reselect Contributors
+- scheduler 0.28.0: Copyright (c) Meta Platforms, Inc. and affiliates.
+- tiny-invariant 1.3.3: Copyright (c) 2019 Alexander Reardon
+- use-sync-external-store 1.7.0: Copyright (c) Meta Platforms, Inc. and affiliates.
+- victory-vendor 37.4.1: Copyright (c) 2015-2026 Nearform.
+
+victory-vendor is MIT; the d3 code it vendors is ISC, covered by the d3 entries below.
 
 The MIT License (MIT)
 
@@ -334,7 +355,73 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-marked also carries the licence of the original Markdown:
+
+### ISC
+
+- d3-array 3.2.5: Copyright 2010-2026 Mike Bostock
+- d3-color 3.1.1: Copyright 2010-2026 Mike Bostock
+- d3-format 3.1.3: Copyright 2010-2026 Mike Bostock
+- d3-interpolate 3.0.2: Copyright 2010-2026 Mike Bostock
+- d3-path 3.1.1: Copyright 2015-2026 Mike Bostock
+- d3-scale 4.0.3: Copyright 2010-2026 Mike Bostock
+- d3-shape 3.2.1: Copyright 2010-2026 Mike Bostock
+- d3-time 3.1.1: Copyright 2010-2026 Mike Bostock
+- d3-time-format 4.1.1: Copyright 2010-2026 Mike Bostock
+- lucide-react 1.70.0: Copyright (c) 2026 Lucide Icons and Contributors
+
+Some lucide icons derive from the Feather project: MIT, Copyright (c) 2013-present Cole Bemis (MIT text above).
+
+ISC License
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+### BSD-3-Clause
+
+- intl-messageformat 11.2.15: Copyright (c) 2023, Oath Inc.
+
+Redistribution and use of this software in source and binary forms,
+with or without modification, are permitted provided that the following
+conditions are met:
+
+- Redistributions of source code must retain the above
+  copyright notice, this list of conditions and the
+  following disclaimer.
+
+- Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the
+  following disclaimer in the documentation and/or other
+  materials provided with the distribution.
+
+- Neither the name of Oath Inc. nor the names of its
+  contributors may be used to endorse or promote products
+  derived from this software without specific prior
+  written permission of Oath Inc.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+### marked and Markdown
+
+marked (listed under MIT above) also carries the licence of the original Markdown:
 
 Copyright © 2004, John Gruber
 http://daringfireball.net/
