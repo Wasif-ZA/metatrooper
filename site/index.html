@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Carbon Copy (cc): your editor, terminals, inbox and browser as one app for coding agents</title>
-<meta name="description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta name="description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app that runs Claude Code, Codex, Gemini CLI and other agent CLIs.">
 <link rel="canonical" href="{{SITE}}/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Carbon Copy">
 <meta property="og:title" content="Carbon Copy (cc): your editor, terminals, inbox and browser as one app for coding agents">
-<meta property="og:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta property="og:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app that runs Claude Code, Codex, Gemini CLI and other agent CLIs.">
 <meta property="og:url" content="{{SITE}}/">
 <meta property="og:image" content="{{SITE}}/og.png">
 <meta property="og:image:width" content="1200">
@@ -17,7 +17,7 @@
 <meta property="og:image:alt" content="cc: an editor, terminal wall, inbox and browser in one window, with coding agents built in">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="cc: your editor, terminals, inbox and browser as one app for coding agents">
-<meta name="twitter:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app with Claude Code, Codex and Gemini built in.">
+<meta name="twitter:description" content="A carbon copy of the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one free Windows app that runs Claude Code, Codex, Gemini CLI and other agent CLIs.">
 <meta name="twitter:image" content="{{SITE}}/og.png">
 <script type="application/ld+json">
 {
@@ -34,7 +34,7 @@
       ],
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "description": "A carbon copy of the apps developers already use, a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It runs seven coding-agent CLIs, including Claude Code, Codex and Gemini CLI, side by side in terminals owned by a background core. A wall shows every agent and moves the one waiting for you to the big slot. Agents can drive browser panes and Windows app windows you give them, with approval for risky actions. Local only, no account, no telemetry. Pre-release, installs from source and requires Node 24.16 or newer.",
+      "description": "A carbon copy of the apps developers already use, a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, rebuilt as one free, open-source Windows desktop app with coding agents built in. It can start seven coding-agent CLIs, including Claude Code, Codex and Gemini CLI, side by side in terminals owned by a background core. A wall shows every agent and moves the one waiting for you to the big slot. Agents can drive browser panes and Windows app windows you give them, with approval for risky actions. Runs on your machine, no account, no telemetry. Pre-release, installs from source and requires Node 24.16 or newer.",
       "url": "{{SITE}}/",
       "sameAs": "https://github.com/Wasif-ZA/metatrooper",
       "license": "https://www.gnu.org/licenses/agpl-3.0.html",
@@ -191,7 +191,7 @@ footer p{margin:0;max-width:60ch}
   <div class="card"><b>IDE</b><h3>A VS Code style editor</h3><p>File tree, tabs, search, source control and a terminal. Comment on a diff line and it goes to that agent.</p></div>
   <div class="card"><b>Wall</b><h3>A grid of terminals</h3><p>Every agent is a live tile. The one waiting for you comes to the big slot. Its diff, git and browser pane open beside it.</p></div>
   <div class="card"><b>Needs you</b><h3>An inbox</h3><p>Every question and approval waiting on you, laid out like an issue tracker. Answer from there.</p></div>
-  <div class="card"><b>Home</b><h3>A task list</h3><p>Type a task and pick the agent, then follow it and its subagents in one list.</p></div>
+  <div class="card"><b>Home</b><h3>A chat app</h3><p>Type a task in one box and pick the agent. A Claude Code task reads as a chat, with Allow and Deny in line.</p></div>
  </div>
 </section>
 
@@ -277,7 +277,7 @@ footer p{margin:0;max-width:60ch}
 cd metatrooper/core &amp;&amp; npm ci
 cd ../workbench &amp;&amp; npm ci
 npm run dev</code></pre>
- <p class="note">The window starts the core service for you. Every command is in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
+ <p class="note">The window starts the core service for you. New installs start agents in Auto, which leaves computer use and plugins that write outside the project off. One chip switches a task to Ask first. Every command is in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
 </section>
 
 <section id="limits">

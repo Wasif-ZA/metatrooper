@@ -1,8 +1,8 @@
 # Carbon Copy (cc)
 
-> Carbon Copy (cc) rebuilds the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Local only: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
+> Carbon Copy (cc) rebuilds the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Runs on your machine: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
 
-Carbon Copy Pro (cc Pro) will be the one paid part: a separate private add-on at A$19 a month, not on sale yet. It works with Claude Code and Codex tasks and gives them tools about the other tasks in a project: what else is running, another task's last lines and changed files, which task already changed a file (file attribution for Claude Code tasks), and a shared note board. The pipe methods it uses are public, so anyone can build their own. It includes Proof, which checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests. Every safety feature in cc is free.
+Carbon Copy Pro (cc Pro) will be the one paid part: a separate private add-on at A$19 a month, not on sale yet. Its task tools give Claude Code, Codex and opencode tasks a view of the other tasks in a project: what else is running, another task's last lines and changed files, which task already changed a file, and a shared note board. The pipe methods it uses are public, so anyone can build their own. It includes Proof, which checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests, and Review, which sends a change's diff and goal to the Codex CLI under the buyer's own login for a second review. Every safety feature in cc is free.
 
 ## Answers
 
@@ -55,9 +55,9 @@ Every agent is a live tile. The one waiting for you comes to the big slot. Its d
 
 Every question and approval waiting on you, laid out like an issue tracker. Answer from there.
   Home
-### A task list
+### A chat app
 
-Type a task and pick the agent, then follow it and its subagents in one list.
+Type a task in one box and pick the agent. A Claude Code task reads as a chat, with Allow and Deny in line.
  
 
  
@@ -185,7 +185,7 @@ cd ../workbench && npm ci
 npm run dev
  
 
-The window starts the core service for you. Every command is in the README.
+The window starts the core service for you. New installs start agents in Auto, which leaves computer use and plugins that write outside the project off. One chip switches a task to Ask first. Every command is in the README.
 
  
 
@@ -260,7 +260,7 @@ Put everything an agent needs from you in one window: its terminal, its changes,
 
  | Screen | Looks like | What the agents do there
 
- | Home | A task list with a box to type a new one | Type a task and pick the agent. Each task shows its agents, subagents and steps. No sessions to manage.
+ | Home | A chat app: one box in the middle of the page | Type a task and pick the agent. A Claude Code task reads as a chat; other agents show their terminal. Each task shows its subagents and steps. No sessions to manage.
 
  | IDE | A VS Code style editor | Files an agent changed are marked. A comment on a diff line goes to that agent as your next message.
 
@@ -276,7 +276,7 @@ Put everything an agent needs from you in one window: its terminal, its changes,
 
 - Ctrl+K searches sessions, commands and the text in every live terminal.
 
-- It runs 7 CLI agents, including Claude Code, Codex and Gemini CLI. You install and sign in to each yourself; cc never reads their login tokens.
+- It can start 7 agent CLIs, including Claude Code, Codex and Gemini CLI. Claude Code and Codex report the most; the others show a simpler status. You install and sign in to each yourself; cc never reads their login tokens.
 
 cc is free, open source (AGPL-3.0 core) and pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. No account, no telemetry. Steps: Quickstart.
 
@@ -374,7 +374,7 @@ From a source install, troop means node core/cli.ts.
 
 - After a restart, cc resumes the sessions that were live, at most 3 at a time.
 
-- It runs Claude Code, Codex, Gemini CLI and other agent CLIs in the same way, 7 in all.
+- It also runs Codex, Gemini CLI and other agent CLIs, 7 in all. Claude Code and Codex report the most; the others show a simpler status.
 
 cc is pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. Steps: Quickstart.
 

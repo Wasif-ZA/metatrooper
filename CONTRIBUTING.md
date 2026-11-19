@@ -1,6 +1,6 @@
 # Contributing
 
-Windows first, Linux beta, from source. Local only: no account, no telemetry.
+Windows first, Linux beta, from source. Runs on your machine: no account, no telemetry.
 
 ## Before you write code
 

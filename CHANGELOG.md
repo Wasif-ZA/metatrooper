@@ -84,7 +84,8 @@ Milestone 6 makes MetaTrooper four parts: the wall, browser use, computer use an
   `pipelines-final` keeps every removed path. `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`,
   `template.list`, `variant.*` and `board.*` answer -32601 "moved to the pipeline products", and `troop run` exits 2.
   Pipeline tables and their rows stay in the database (D58).
-- The paid add-on and its licence check are cut (D64).
+- The old paid add-on and its licence check are cut (D64). cc Pro, the paid add-on planned now, lives in its own
+  private repo and adds no licence check here.
 
 ## [0.1.0]
 

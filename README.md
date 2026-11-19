@@ -5,7 +5,7 @@
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
 
-<p align="center"><strong>Windows first. Install from source. Local only: no account, no telemetry.</strong></p>
+<p align="center"><strong>Windows first. Install from source. Runs on your machine: no account, no telemetry.</strong></p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
@@ -30,7 +30,7 @@
 
 | 7 | 0 | 0 | 1,504 | 2,000+ |
 |:--:|:--:|:--:|:--:|:--:|
-| CLI agents supported | accounts to create | telemetry | core tests | commits |
+| agent CLIs it can start | accounts to create | telemetry | core tests | commits |
 
 </div>
 
@@ -48,7 +48,7 @@ The window has these screens:
 
 | Screen | Looks like | What the agents do there |
 |---|---|---|
-| **Home** | A task list with a box to type a new one | You type a task and pick the agent. Each task shows its agents, subagents and current steps. |
+| **Home** | A chat app: one box in the middle of the page | You type a task and pick the agent. A Claude Code task reads as a chat: its replies, the files it edited, and Allow or Deny on each tool it asks to use. Other agents show their terminal. Each task shows its subagents and current steps. |
 | **IDE** | A VS Code style editor: file tree, tabs, search, source control, Problems and a terminal | Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message. |
 | **Wall** | A grid of terminals | Every agent is a live terminal tile. The one waiting for you comes to the big slot. Its diff, git and browser open beside it. |
 | **Needs you** | An inbox laid out like an issue tracker, with filters and labels | Every question, approval and finished run that waits on you. You answer from here. |
@@ -122,8 +122,13 @@ What to expect:
 - `npm ci` in `workbench/` downloads Electron and builds the editor files, so it takes a minute and needs network.
 - `npm ci` in `core/` may warn about scripts for `node-pty`. It is only a warning.
 - `npm ci` in `workbench/` may report vulnerabilities from `npm audit`. They do not stop the install.
-- On first run the window asks how agents should start: ask before each tool call (the default) or auto mode in
-  worktrees. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
+- The window opens on Home with one box: "What do you want done?" If no project is open when you send, it asks
+  where the agent should work: choose a folder, or let cc make one in `Documents\cc` named after your task.
+- New installs start agents in **Auto**: the engine's own auto mode in a cc worktree. Auto leaves two things off:
+  computer use, and plugins that write outside the project. Browser use stays on and still stops for its
+  approvals. The chip under the box says this and switches a task to **Ask first**, which asks before each tool
+  call. Engines with no auto mode, such as Gemini CLI, start in Ask first. The setting is `sessions.approval` in
+  `~/.metatrooper/settings.json`.
 - From source, `troop` in any message or below means `node core/cli.ts`.
 
 > [!WARNING]
@@ -178,7 +183,7 @@ port and no browser extension. Full rules: [`contracts/browser-tools.md`](contra
 - **Approvals.** Some actions stop and wait for you: typing into a password field, typing text that looks like a
   credential, and clicking a control named like Send, Submit, Pay, Delete or Publish. An approval card shows a
   redacted crop of the target. You pick Approve once, Approve for this session, or Reject. Only the window can
-  approve, never an agent. Unanswered cards expire after 120 s. Rules: [`contracts/approvals.md`](contracts/approvals.md).
+  approve, never an agent. A card waits until you answer it; there is no timer. Rules: [`contracts/approvals.md`](contracts/approvals.md).
 - **Origins.** The first input on a new site (scheme, host and port, after redirects) asks first. Sites listed in
   the `browser.allow_origins` setting never ask for being new.
 - **Secrets.** Save a secret for one site:
@@ -284,9 +289,9 @@ start and follow other sessions through this CLI.
 
 ### Approval profiles
 
-`--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
-OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a cc worktree. A settings
-file from an older version keeps its value.
+`--approval ask|edits|contained` on `launch`. A new install starts agents in `contained` (Auto in the window): the
+engine's auto mode on a cc worktree. An engine with no auto mode starts in `ask` (each tool call needs your OK). A
+settings file from an older version keeps its value, and one that does not parse falls back to `ask`.
 
 Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
 requested, as does a folder holding one of them one or two levels down. Engines that send your code to another
@@ -404,11 +409,12 @@ Windows 10 and 11 come first. Linux runs from source as a beta, without computer
 
 **Is it free?**
 Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part will be Carbon Copy Pro (cc Pro), a
-separate private add-on at A$19 a month. It is not in this repo and not on sale yet. It works with Claude Code and Codex
-tasks and gives them tools about your other tasks: what is running, another task's output and changed files, which task
-already touched a file (file attribution for Claude Code tasks), and a shared note board.
+separate private add-on at A$19 a month. It is not in this repo and not on sale yet. Its task tools give Claude Code,
+Codex and opencode tasks a view of your other tasks: what is running, another task's output and changed files, which
+task already changed a file, and a shared note board. opencode is tested with a stand-in only so far.
 The pipe methods it uses are public, so you can build your own. It includes Proof, which checks whether an agent's tests
-catch bugs, and Review, which has a second agent review a change and shows its evidence.
+catch bugs, and Review, which has Codex review a change against the task's goal and saves the evidence. Review is the
+one part that sends code off your machine: the diff and goal go to the Codex CLI you installed, under your own login.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
