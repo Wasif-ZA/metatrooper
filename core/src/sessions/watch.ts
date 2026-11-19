@@ -114,7 +114,7 @@ function sameDir(a: string, b: string): boolean {
 
 const THREAD = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 
-function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
+export function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
   const startMs = Date.parse(s.started_at);
   if (s.native_id) {
     const hit = walkNewest(codexHome(), (p) => p.endsWith(`${s.native_id}.jsonl`), 0);

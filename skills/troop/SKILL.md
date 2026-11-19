@@ -45,6 +45,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   audit.list              {project_id, limit?, before?, before_id?}
   session.wait            {session_id, states: [state, ...], timeout_ms, settle_ms?}  (stable)
   session.resume          {session_id}  (stable)
+  session.continue        {session_id, engine_id}
   session.focus           {session_id}  (stable)
   session.live-text       {}  (stable)
   session.search          {query, session_ids?}

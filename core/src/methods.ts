@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import * as auth from './auth.ts';
 import { DEFAULTS, setSetting, settings } from './settings.ts';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { knownSecretValues, scrubSecretValues, scrubSecretValuesAsync, setBrowserSecret } from './secrets.ts';
@@ -19,6 +18,9 @@ import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { proveSecret } from './sessions/secret.ts';
 import { parseChat } from './sessions/chat.ts';
+import { buildHandoff, gatherHandoff, handoffTranscript } from './sessions/handoff.ts';
+import { preserveFiles, validatePreserve } from './sessions/preserve.ts';
+import { gitAsync } from './sessions/owners.ts';
 import { beingRemoved } from './worktree.ts';
 import { tx } from './store/db.ts';
 import * as term from './terminal/index.ts';
@@ -28,7 +30,7 @@ import { forgetLive, liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
-import { homeDir, repoDir } from './paths.ts';
+import { handoffDir, homeDir, repoDir } from './paths.ts';
 import { installPluginAsync, isLocalSource, previewPluginAsync, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { checkShimToken, resolveMcpServerAsync } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
@@ -55,6 +57,10 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 }
 
 export const PROTOCOL = 1;
+
+function refuseGateway(engine: EngineSpec): void {
+  if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
+}
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -97,6 +103,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'audit.list', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{project_id, limit?, before?, before_id?}', result: "{rows: [{id, at, session_id, agent, action, detail, source}]}: newest first; source is system (gate decisions, core events) or agent (the agent's own call or words); next page: pass the last row's at and id as before and before_id; read only, secrets scrubbed (M8-F21)" },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out, wait_reason, waiting_on_person}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
+  { name: 'session.continue', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.VALIDATION], params: '{session_id, engine_id}', result: '{session_id, file}; continues a limit-stopped session with a redacted handoff in another installed engine' },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
@@ -115,7 +122,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
   { name: 'session.chat', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, limit?}', result: "{session_id, engine_id, source: 'transcript'|'none', waiting, items}: the last `limit` (1 to 500, default 200) chat messages and tool rows, with known secrets redacted" },
-  { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
+  { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, to_session, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
   { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
   { name: 'session.priority-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, priority: "none"|"low"|"medium"|"high"|"urgent"}', result: '{ok: true}' },
   { name: 'session.block-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, blocker_ids: string[]}', result: '{ok: true}; replaces the session\'s blockers; a held prompt is delivered once every blocker exits with outcome succeeded; -32602 for itself, a cycle or more than 20' },
@@ -310,7 +317,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if ((requested === 'isolated') !== (host === 'sandbox')) throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host, and the sandbox host only runs isolated');
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
-      if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
+      refuseGateway(engine);
       const check = db
         .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1')
         .get(engine.id) as { installed: number } | undefined;
@@ -590,6 +597,60 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   }
 
   const resumedAs = new Map<string, string>();
+  const continuing = new Set<string>();
+  m.set('session.continue', {
+    handler: async (p) => {
+      const id = str(p, 'session_id');
+      const target = str(p, 'engine_id');
+      if (continuing.has(id)) throw new RpcError(E.INVALID_PARAMS, 'this session is already being continued');
+      const old = db.prepare('SELECT s.engine_id, s.cwd, s.state, s.approval, s.limit_resume, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(id) as
+        { engine_id: string; cwd: string | null; state: string; approval: string | null; limit_resume: number; project_id: string; path: string; name: string } | undefined;
+      if (!old) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const hit = db.prepare("SELECT 1 FROM event h WHERE h.session_id = ? AND h.kind = 'core.limit-hit' AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = h.session_id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq)").get(id);
+      if (old.state === 'exited' || !hit) throw new RpcError(E.INVALID_PARAMS, 'session is not stopped at a usage limit');
+      if (target === old.engine_id) throw new RpcError(E.INVALID_PARAMS, 'choose another engine');
+      const engine = getEngine(db, target);
+      if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
+      refuseGateway(engine);
+      const approval = old.approval && engine.approval_profiles?.[old.approval] ? old.approval : 'ask';
+      const check = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(target) as { installed: number; auth: string } | undefined;
+      if (!check?.installed || check.auth === 'missing' || check.auth === 'expired') throw new RpcError(E.ENGINE_UNAVAILABLE, 'engine is not ready');
+      continuing.add(id);
+      let launched = false;
+      let file = '';
+      db.prepare('UPDATE session SET limit_resume = 0 WHERE id = ?').run(id);
+      try {
+        const titles = Object.fromEntries(Object.entries(liveText()).map(([key, value]) => [key, value.title]));
+        const row = (await gatherHandoff(db, id, titles))!;
+        row.cwd = old.cwd ?? old.path;
+        row.transcript = handoffTranscript(db, id, old.engine_id, row.transcript);
+        const prompt = buildHandoff(row, old.engine_id, titles[id], knownSecretValues());
+        await fs.promises.mkdir(handoffDir(), { recursive: true });
+        let n = Number((db.prepare('SELECT count(*) AS n FROM handoff WHERE session_id = ?').get(id) as { n: number }).n) + 1;
+        for (;;) {
+          const candidate = path.join(handoffDir(), `${id}-${n++}.md`);
+          try { await fs.promises.writeFile(candidate, prompt, { flag: 'wx' }); file = candidate; break; }
+          catch (e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
+        }
+        const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, approval, host: approval === 'isolated' ? 'sandbox' : 'pty', prompt });
+        processEvents(db);
+        if (db.prepare("SELECT 1 FROM session WHERE id = ? AND state = 'exited'").get(r.session_id)) throw new RpcError(E.ENGINE_UNAVAILABLE, 'continued session exited during launch');
+        launched = true;
+        tx(db, () => {
+          db.prepare('INSERT INTO handoff (id, session_id, parent_id, to_session, at, cwd, summary, files, transcript) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
+            .run(ulid(), id, r.session_id, nowIso(), row.cwd, row.summary, JSON.stringify(row.files), row.transcript);
+          db.prepare('UPDATE session SET limit_resume = 0 WHERE id = ?').run(id);
+          appendEvent('core.continued', id, { to: r.session_id, file }, db);
+          appendEvent('core.continued-from', r.session_id, { from: id, file }, db);
+        });
+        return { session_id: r.session_id, file };
+      } finally {
+        if (!launched) db.prepare('UPDATE session SET limit_resume = ? WHERE id = ?').run(old.limit_resume, id);
+        continuing.delete(id);
+        if (!launched && file) await fs.promises.rm(file, { force: true });
+      }
+    },
+  });
   m.set('session.resume', {
     handler: (p) => {
       const oldId = str(p, 'session_id');
@@ -706,8 +767,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const id = str(p, 'session_id');
       if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
-      const row = db.prepare('SELECT id, session_id, parent_id, at, cwd, summary, files, transcript FROM handoff WHERE session_id = ? ORDER BY julianday(at) DESC LIMIT 1').get(id) as
-        | { id: string; session_id: string; parent_id: string | null; at: string; cwd: string | null; summary: string | null; files: string; transcript: string | null }
+      const row = db.prepare('SELECT id, session_id, parent_id, to_session, at, cwd, summary, files, transcript FROM handoff WHERE session_id = ? ORDER BY julianday(at) DESC LIMIT 1').get(id) as
+        | { id: string; session_id: string; parent_id: string | null; to_session: string | null; at: string; cwd: string | null; summary: string | null; files: string; transcript: string | null }
         | undefined;
       return { handoff: row ? { ...row, files: JSON.parse(row.files) } : null };
     },
@@ -835,7 +896,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('worktree.create', {
-    handler: (p) => {
+    handler: async (p) => {
+      const patterns = settings().worktree.preserve;
+      validatePreserve(patterns);
       const project = db.prepare('SELECT id, path FROM project WHERE id = ?').get(str(p, 'project_id')) as
         | { id: string; path: string }
         | undefined;
@@ -853,16 +916,21 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       }
       let existingBranch = true;
       try {
-        execFileSync('git', ['-C', project.path, 'rev-parse', '--verify', '-q', `refs/heads/${branch}`], { stdio: 'pipe', timeout: 60_000 });
+        await gitAsync(project.path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`], 60_000, {}, false);
       } catch {
         existingBranch = false;
       }
       if (existingBranch && baseParam) throw new RpcError(E.INVALID_PARAMS, 'base only applies to a new branch');
       const addArgs = existingBranch ? [dir, branch] : [dir, '-b', branch, base];
       try {
-        execFileSync('git', ['-C', project.path, 'worktree', 'add', ...addArgs], { stdio: 'pipe', timeout: 60_000 });
+        await gitAsync(project.path, ['worktree', 'add', ...addArgs], 60_000, {}, false);
       } catch (e) {
         throw new RpcError(E.VALIDATION, `git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
+      }
+      try { await preserveFiles(project.path, dir, patterns); }
+      catch (e) {
+        await gitAsync(project.path, ['worktree', 'remove', '--force', dir], 60_000, {}, false);
+        throw e;
       }
       const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
       const result = { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted };

@@ -71,8 +71,9 @@ export async function turnChanges(repo        , turnBase               , sinceMs
     turnBase ? gitAsync(repo, ['diff', '--name-only', '-z', turnBase]) : '',
     gitAsync(repo, ['ls-files', '--others', '--exclude-standard', '-z', '--full-name']),
   ]);
+  const untrackedPaths = new Set(untracked.split('\0').filter(Boolean));
   const out = new Set        ();
-  for (const f of diff.split('\0')) if (f) out.add(f);
+  for (const f of diff.split('\0')) if (f && !untrackedPaths.has(f)) out.add(f);
   for (const f of untracked.split('\0')) {
     if (!f) continue;
     try {

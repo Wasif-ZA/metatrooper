@@ -53,6 +53,7 @@ export const DEFAULTS = {
     checks: {}                          ,
   },
   worktree: {
+    preserve: []            ,
     npm_ci: true,
     stale_days: 7,
   },
