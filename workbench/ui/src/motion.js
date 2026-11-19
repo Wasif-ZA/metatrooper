@@ -28,7 +28,7 @@ export function settle(el, fromPx, ms = 83) {
 export function conceal(el, done) {
   if (!canMove(el)) return done();
   const a = el.animate([{ height: `${el.offsetHeight}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { ...motionTiming, fill: 'forwards' });
-  a.onfinish = () => { done(); requestAnimationFrame(() => a.cancel()); };
+  a.onfinish = () => { done(); };
 }
 
 export function crossfade(el, ghost) {

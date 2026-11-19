@@ -58,3 +58,14 @@ test('your own send brings the bubble into view even when scrolled up', () => {
   const chat = readFileSync(new URL('../ui/src/chat.jsx', import.meta.url), 'utf8');
   assert.match(chat, /scrollTo\(\{[^}]*behavior/, 'scrolls with scrollTo and a behavior option');
 });
+
+test('a closing drop stays collapsed after its animation ends, so the row never flashes back before it is hidden', async () => {
+  const { conceal } = await import('../ui/src/motion.js');
+  let cancelled = 0, done = 0, anim: any;
+  (globalThis as any).requestAnimationFrame = (f: () => void) => { f(); return 1; };
+  const el = { offsetHeight: 40, animate: () => (anim = { onfinish: null, cancel: () => { cancelled++; } }) };
+  conceal(el, () => { done++; });
+  anim.onfinish();
+  assert.equal(done, 1);
+  assert.equal(cancelled, 0, 'the collapsed state is kept; the next reveal cancels it');
+});
