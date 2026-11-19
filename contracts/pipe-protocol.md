@@ -158,7 +158,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `engines.check` | `{}` | {} (results land in `engine_check`) |  |  |  |
 | `hooks.install` | `{codex?: bool}` | {diff} |  |  | yes |
 | `hooks.uninstall` | `{codex?: bool}` | {diff} |  |  | yes |
-| `plugin.preview` | `{source}` | {valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |  |  |  |
+| `plugin.preview` | `{source}` | {valid, errors, manifest_hash, source, screen}; nothing is installed or run. A git URL source is cloned over https only and needs `ui.hello`. `screen` is what the install screen shows (`plugins.md`, Install) |  |  |  |
 | `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | {plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk | -32003 |  | yes |
 | `plugin.remove` | `{plugin_id}` | {} |  |  | yes |
 | `plugin.secret.set` | `{plugin_id, name, value}` | {}; `name` must be an approved `secrets:<NAME>` |  |  | yes |

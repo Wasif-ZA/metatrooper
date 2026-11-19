@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { homeDir, repoDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
@@ -56,23 +56,33 @@ interface Prepared {
   errors: string[];
 }
 
-function prepare(source: string): Prepared {
+export function isGitSource(source: string): boolean {
+  return !/^(claude-marketplace:|(claude|codex|agy|registry)-import:)/.test(source) && isGitUrl(source);
+}
+
+/** Clones a git source into a staging folder without blocking the core; the caller passes the folder to previewPlugin or installPlugin. */
+export async function stageGitSource(source: string): Promise<string> {
+  const dir = path.join(pluginsDir(), `.staging-${ulid().toLowerCase()}`);
+  fs.mkdirSync(pluginsDir(), { recursive: true });
+  const args = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', 'clone', '--depth', '1', '--', source, dir];
+  await new Promise<void>((resolve, reject) => {
+    execFile('git', args, { timeout: 120_000, windowsHide: true }, (err, _out, stderr) => {
+      if (!err) return resolve();
+      fs.rmSync(dir, { recursive: true, force: true });
+      reject(new RpcError(E.VALIDATION, `git clone failed: ${String(stderr || err).trim()}`, { errors: ['git clone failed'] }));
+    });
+  });
+  return dir;
+}
+
+function prepare(source: string, stagedDir?: string): Prepared {
+  if (stagedDir) return { ...readOrFail(stagedDir, true), source: 'native', staged: true, imported: null };
   const imported = importFromSource(source);
   if (imported) {
     const text = JSON.stringify(imported.manifest, null, 2) + '\n';
     return { dir: '', text, manifest: imported.manifest, source: imported.source, staged: false, imported, errors: imported.errors };
   }
-  if (isGitUrl(source)) {
-    const dir = path.join(pluginsDir(), `.staging-${ulid().toLowerCase()}`);
-    fs.mkdirSync(pluginsDir(), { recursive: true });
-    try {
-      execFileSync('git', ['clone', '--depth', '1', '--', source, dir], { stdio: 'pipe', timeout: 120_000, windowsHide: true });
-    } catch (e) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      throw new RpcError(E.VALIDATION, `git clone failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`, { errors: ['git clone failed'] });
-    }
-    return { ...readOrFail(dir, true), source: 'native', staged: true, imported: null };
-  }
+  if (isGitSource(source)) throw new RpcError(E.VALIDATION, 'a git source must be staged first', { errors: ['git source not staged'] });
   const dir = path.resolve(source);
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) throw new RpcError(E.NOT_FOUND, `plugin folder not found: ${source}`);
   return { ...readOrFail(dir, false), source: 'native', staged: false, imported: null };
@@ -113,8 +123,8 @@ export interface Preview {
   screen: (InstallScreen & { skills: string[]; hooks: string[]; skipped: string[]; secrets_migrated: string[] }) | null;
 }
 
-export function previewPlugin(db: DatabaseSync, source: string): Preview {
-  const p = prepare(source);
+export function previewPlugin(db: DatabaseSync, source: string, stagedDir?: string): Preview {
+  const p = prepare(source, stagedDir);
   try {
     const errors = checks(db, p);
     const hash = manifestHash(p.text);
@@ -153,8 +163,8 @@ export interface InstallRequest {
   secrets?: Record<string, string>;
 }
 
-export function installPlugin(db: DatabaseSync, req: InstallRequest): { plugin_id: string; missing_secrets: string[] } {
-  const p = prepare(req.source);
+export function installPlugin(db: DatabaseSync, req: InstallRequest, stagedDir?: string): { plugin_id: string; missing_secrets: string[] } {
+  const p = prepare(req.source, stagedDir);
   try {
     const errors = checks(db, p);
     if (errors.length) throw new RpcError(E.VALIDATION, 'plugin manifest is invalid', { errors });

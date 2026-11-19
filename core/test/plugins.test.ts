@@ -600,3 +600,41 @@ test('an action that exits while a detached grandchild holds its stdout resolves
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('FIX-C4 plugin.preview of a git URL does not block the core, clones https-only, and needs ui.hello', async () => {
+  const bin = fixtureDir();
+  const log = join(bin, 'git-args.txt');
+  const gitJs = join(bin, 'git.js');
+  writeFileSync(gitJs, `require('fs').writeFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ')); setTimeout(() => {}, 30000);\n`);
+  if (process.platform === 'win32') writeFileSync(join(bin, 'git.cmd'), `@"${node}" "%~dp0git.js" %*\r\n`);
+  else { writeFileSync(join(bin, 'git'), `#!/bin/sh\nexec "${node}" "${gitJs}" "$@"\n`); chmodSync(join(bin, 'git'), 0o755); }
+  const iso = isolation();
+  const env = { ...iso.env, METATROOPER_FAKE_DPAPI: '1', METATROOPER_ENGINES: join(iso.home, 'engines.json'), PATH: `${bin}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}` };
+  writeFileSync(env.METATROOPER_ENGINES, '[]');
+  const core = await startCore({ ...iso, env });
+  try {
+    const noUi = await client(iso.prefix);
+    const refused = await noUi.request('plugin.preview', { source: 'https://example.invalid/p.git' });
+    noUi.close();
+    assert.equal(refused.error.code, -32012);
+
+    const c = await ui(iso);
+    try {
+      const pending = c.request('plugin.preview', { source: 'https://example.invalid/p.git' });
+      await until(() => existsSync(log), 10_000);
+      const t0 = Date.now();
+      const pong = await c.request('core.ping', {});
+      assert.ok(pong.result, JSON.stringify(pong));
+      assert.ok(Date.now() - t0 < 500, `core.ping took ${Date.now() - t0} ms`);
+      const args = readFileSync(log, 'utf8');
+      assert.match(args, /protocol\.allow=never/);
+      assert.match(args, /protocol\.https\.allow=always/);
+      void pending.catch(() => {});
+    } finally {
+      c.close();
+    }
+  } finally {
+    await teardownCore(core, iso);
+    rmSync(bin, { recursive: true, force: true });
+  }
+});

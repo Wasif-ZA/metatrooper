@@ -19,7 +19,7 @@ import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { homeDir, repoDir } from './paths.ts';
-import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
+import { installPlugin, isGitSource, previewPlugin, stageGitSource, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { checkShimToken, resolveMcpServer } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
@@ -89,7 +89,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
   { name: 'hooks.uninstall', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
-  { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install)' },
+  { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. A git URL source is cloned over https only and needs `ui.hello`. `screen` is what the install screen shows (`plugins.md`, Install)' },
   { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
@@ -501,22 +501,31 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('plugin.preview', { handler: (p) => previewPlugin(db, str(p, 'source')) });
+  m.set('plugin.preview', {
+    handler: async (p, ctx) => {
+      const source = str(p, 'source');
+      if (!isGitSource(source)) return previewPlugin(db, source);
+      if (!ctx.ui) throw new RpcError(E.NEEDS_UI, 'plugin.preview of a git URL needs a trusted UI connection (ui.hello)');
+      return previewPlugin(db, source, await stageGitSource(source));
+    },
+  });
 
   m.set('plugin.install', {
-    handler: (p) => {
+    handler: async (p) => {
       const approved = p.approved_permissions;
       if (!Array.isArray(approved) || approved.some((x) => typeof x !== 'string')) throw new RpcError(E.INVALID_PARAMS, 'approved_permissions must be an array of strings');
       const secrets = p.secrets ?? {};
       if (typeof secrets !== 'object' || Array.isArray(secrets) || Object.values(secrets).some((v) => typeof v !== 'string')) {
         throw new RpcError(E.INVALID_PARAMS, 'secrets must map names to strings');
       }
+      const source = str(p, 'source');
+      const staged = isGitSource(source) ? await stageGitSource(source) : undefined;
       const r = installPlugin(db, {
-        source: str(p, 'source'),
+        source,
         approved_permissions: approved as string[],
         manifest_hash: str(p, 'manifest_hash', false) || undefined,
         secrets: secrets as Record<string, string>,
-      });
+      }, staged);
       void checkAll(db, ctl.engines()).catch(() => {});
       return r;
     },
