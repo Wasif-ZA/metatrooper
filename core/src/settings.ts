@@ -46,6 +46,7 @@ export const DEFAULTS = {
     checks: {} as Record<string, string>,
   },
   worktree: {
+    preserve: [] as string[],
     npm_ci: true,
     stale_days: 7,
   },

@@ -3,6 +3,7 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <span class="dot"></span><span class="cdot" hidden></span>
   <span class="ou-ah-tile" data-mono=""><i class="ou-ah-pip"></i></span>
   <span class="ou-ah-name tile-task task"></span>
+  <span class="tile-continued meta" hidden></span>
   <span class="ou-ah-proj tile-engine eng"></span>
   <span class="ou-ah-state tile-state badge"></span>
   <span class="ou-ah-acts"><span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
@@ -10,6 +11,7 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <button class="btn stp" data-action="stop-agent" title="Stop this agent (Ctrl+C, then end it)" hidden>Stop</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
+  <button class="btn continue-btn" data-action="continue-menu" aria-haspopup="menu" hidden>Continue in...</button>
   <button class="mx" data-action="maximize" aria-pressed="false" title="Maximize this pane (double-click the header; Esc restores)" aria-label="Maximize this pane"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
   <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button>
   <details class="tile-more"><summary class="tx" aria-label="More actions" title="More actions">...</summary><menu><span class="tile-previews"></span><span class="tile-desk"></span><button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button></menu></details></span></div>
@@ -275,6 +277,9 @@ const termView = (() => {
     if (monoEl) monoEl.dataset.mono = mono;
     t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
+    const continued = t.el.querySelector('.tile-continued');
+    continued.hidden = !x.continuedEngine;
+    continued.textContent = x.continuedEngine ? `continued from ${x.continuedEngine}` : '';
     t.el.querySelector('.tile-task').title = x.task || '';
     set('.tile-last', x.last || '');
     t.el.querySelector('.tile-last').title = x.last || '';
@@ -304,6 +309,7 @@ const termView = (() => {
     lr.hidden = x.shell || x.outside || t.engine !== 'claude';
     lr.ariaPressed = String(x.limitResume !== false);
     set('.lr', x.limitResume === false ? 'At reset: wait' : 'At reset: go on');
+    t.el.querySelector('.continue-btn').hidden = Boolean(x.shell || t.engine !== 'claude' || x.state === 'exited' || !x.limit_stopped);
     t.el.classList.toggle('shell', Boolean(x.shell));
     const tx = t.el.querySelector('button.tx');
     // M6-27: no hide on a live agent or one in an unknown state, matching wall.css; a shell keeps its close

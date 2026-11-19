@@ -34,7 +34,7 @@ export interface Snapshot {
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number; icon?: import('./projecticon.ts').ProjectIcon }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; approvals: string[]; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
   has_sessions?: boolean;
-  sessions: Array<{ id: string; project_id: string; steps: Steps; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
+  sessions: Array<{ id: string; project_id: string; steps: Steps; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; continued_from: string | null; continued_engine: string | null; limit_stopped: number; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
   /** Live desktop grants (M6-15). */
@@ -180,7 +180,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            ${est}, ${labels}, ${priority('s')}, ${blocks('s')}, ${monitor('s.id')}, ${reviews('s')},
-           (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
+           (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from,
+           (s.engine_id = 'claude' AND s.state != 'exited' AND EXISTS (SELECT 1 FROM event h WHERE h.session_id = s.id AND h.kind = 'core.limit-hit' AND NOT EXISTS (SELECT 1 FROM event r WHERE r.session_id = s.id AND r.kind = 'core.limit-resumed' AND r.seq > h.seq))) AS limit_stopped,
+           (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.continued-from' ORDER BY e.seq DESC LIMIT 1) AS continued_from,
+           (SELECT old.engine_id FROM event e JOIN session old ON old.id = json_extract(e.payload, '$.from') WHERE e.session_id = s.id AND e.kind = 'core.continued-from' ORDER BY e.seq DESC LIMIT 1) AS continued_engine
          FROM session s WHERE s.project_id = ? AND s.hidden = 0
            AND (s.state != 'exited' OR s.id IN (SELECT id FROM session WHERE project_id = ? AND hidden = 0 ORDER BY julianday(started_at) DESC LIMIT 50))
          ORDER BY julianday(s.started_at) DESC`,

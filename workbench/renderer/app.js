@@ -1266,7 +1266,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected || x.shell))
-    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.continued_from ? x.id : x.resumed_from || x.from || null, continuedEngine: x.continued_engine, limit_stopped: x.limit_stopped, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   for (const x of shown) x.watchOff = !x.shell && (ui.snap.watcher_off || []).includes(x.id);
@@ -1634,6 +1634,24 @@ async function onClick(e) {
     case 'limit-resume':
       await rpc('session.limit-resume', { session_id: id, on: el.ariaPressed !== 'true' });
       return;
+    case 'continue-menu': {
+      const source = ui.snap.sessions.find((x) => x.id === id);
+      if (!source || source.engine_id !== 'claude' || !source.limit_stopped || source.state === 'exited') return;
+      const menu = document.getElementById('menu');
+      const rect = el.getBoundingClientRect();
+      const engines = ui.snap.engines.filter((x) => x.light === 'green' && x.id !== source.engine_id);
+      menu.innerHTML = engines.map((x) => `<div class="item" role="menuitem" tabindex="-1" data-action="continue-session" data-id="${esc(id)}" data-engine="${esc(x.id)}">${esc(x.id)}</div>`).join('') || '<div class="mh">No other engines installed</div>';
+      menu.style.left = `${Math.max(8, rect.right - 220)}px`;
+      menu.style.top = `${rect.bottom + 4}px`;
+      showMenu(menu);
+      return;
+    }
+    case 'continue-session': {
+      hideMenu();
+      const r = await rpc('session.continue', { session_id: id, engine_id: el.dataset.engine });
+      if (r.result) await pick(r.result.session_id);
+      return;
+    }
     case 'clear-all':
       hideLater(ui.snap.sessions.map((x) => x.id), (n) => `${n} finished agent${n === 1 ? '' : 's'} cleared`);
       return;

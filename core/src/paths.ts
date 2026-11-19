@@ -36,6 +36,10 @@ export function logsDir(): string {
   return path.join(homeDir(), 'logs');
 }
 
+export function handoffDir(): string {
+  return path.join(homeDir(), 'handoff');
+}
+
 export function pipePrefix(): string {
   return process.env.METATROOPER_PIPE_PREFIX || 'metatrooper';
 }

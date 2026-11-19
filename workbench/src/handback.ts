@@ -1,5 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { GIT_SAFE_ENV } from './gitpane.ts';
 
 export type Git = (args: string[]) => string | Promise<string>;
@@ -14,7 +17,7 @@ export interface Handback {
   command: string;
 }
 
-const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse']);
+const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse', 'show']);
 
 export function gitIn(cwd: string): Git {
   return (args) => {
@@ -23,21 +26,50 @@ export function gitIn(cwd: string): Git {
   };
 }
 
-/** One file's diff against `base`; an untracked file, which `git diff` skips, shows as all new lines. */
+async function untrackedDiff(git: Git, base: string, file: string, numstat = false): Promise<string> {
+  let before: string;
+  try { before = await git(['show', `${base}:${file}`]); }
+  catch {
+    try { return await git(['diff', '--no-ext-diff', '--no-textconv', ...(numstat ? ['--numstat'] : []), '--no-index', '--', '/dev/null', file]); }
+    catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
+  }
+  const dir = await mkdtemp(join(tmpdir(), 'troop-diff-'));
+  try {
+    const old = join(dir, 'before');
+    await writeFile(old, before);
+    let out: string;
+    try { out = await git(['diff', '--no-ext-diff', '--no-textconv', ...(numstat ? ['--numstat'] : []), '--no-index', '--', old, file]); }
+    catch (e) { out = (e as { stdout?: string }).stdout ?? ''; }
+    return numstat ? out : out.replace(/^diff --git .*$/m, `diff --git a/${file} b/${file}`).replace(/^--- .*$/m, `--- a/${file}`);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** One file's diff against `base`, including untracked files saved in a checkpoint. */
 export async function fileDiff(git: Git, base: string, file: string): Promise<string> {
   const out = await git(['diff', '--no-ext-diff', '--no-textconv', base, '--', file]);
-  if (out || !(await git(['ls-files', '--others', '--exclude-standard', '--', file]))) return out;
-  try { return await git(['diff', '--no-ext-diff', '--no-textconv', '--no-index', '--', '/dev/null', file]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
+  if (await git(['ls-files', '--others', '--exclude-standard', '--', file])) return untrackedDiff(git, base, file);
+  return out;
 }
 
 /** Files changed since `base` with line counts (null for binary), and untracked files, for the Diff tab. */
 export async function sessionChanges(git: Git, base: string): Promise<{ files: Array<{ path: string; added: number | null; deleted: number | null }>; untracked: string[] }> {
   const [numstat, others] = await Promise.all([git(['diff', base, '--numstat', '--no-renames', '-z']), git(['ls-files', '--others', '--exclude-standard', '-z'])]);
+  const untracked = others.split('\0').filter(Boolean);
   const files = numstat.split('\0').filter(Boolean).map((l) => {
     const [a, r, ...name] = l.split('\t');
     return { path: name.join('\t'), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
   });
-  return { files, untracked: others.split('\0').filter(Boolean) };
+  const saved = new Set(files.map((f) => f.path));
+  for (const file of untracked) {
+    const i = files.findIndex((f) => f.path === file);
+    if (i < 0) continue;
+    const counts = (await untrackedDiff(git, base, file, true)).trim().split('\t');
+    if (counts.length < 3) files.splice(i, 1);
+    else files[i] = { path: file, added: counts[0] === '-' ? null : Number(counts[0]), deleted: counts[1] === '-' ? null : Number(counts[1]) };
+  }
+  return { files, untracked: untracked.filter((f) => !saved.has(f)) };
 }
 
 function shellQuote(s: string): string {

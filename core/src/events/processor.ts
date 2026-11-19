@@ -11,6 +11,7 @@ import { dropSecret } from '../sessions/secret.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 import { limitHit } from '../sessions/limit-resume.ts';
+import { gatherHandoff } from '../sessions/handoff.ts';
 import { spoolKind, spoolKinds, stepItems } from '../redact.ts';
 
 interface EventRow {
@@ -265,23 +266,15 @@ async function leftBehind(db: DatabaseSync, sessionId: string, titles: Record<st
 
 /** One notice to the parent of an exited session: its owned paths, whether each is committed, its last line and transcript. */
 async function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): Promise<void> {
-  const row = db.prepare('SELECT parent_id, cwd FROM session WHERE id = ?').get(sessionId) as { parent_id: string | null; cwd: string | null } | undefined;
+  const row = await gatherHandoff(db, sessionId, titles);
   if (!row) return;
-  const repo = await repoOfAsync(row.cwd);
-  const claimed = new Set<string>();
-  for (const r of db.prepare("SELECT payload FROM event WHERE kind = 'core.claim' AND session_id = ?").all(sessionId) as Array<{ payload: string }>) {
-    try { for (const f of JSON.parse(r.payload).files) claimed.add(f.path); } catch {}
-  }
-  let dirty = new Set<string>();
-  try { if (repo) dirty = new Set((await ownersAsync(db, repo, titles)).map((o) => o.path)); } catch {}
-  const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(sessionId) as { t: string } | undefined)?.t;
-  const last = liveText()[sessionId]?.line;
-  if (row.parent_id || claimed.size) {
+  const { transcript, summary: last } = row;
+  if (row.parent_id || row.files.length) {
     db.prepare('INSERT INTO handoff (id, session_id, parent_id, at, cwd, summary, files, transcript) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(ulid(), sessionId, row.parent_id, nowIso(), row.cwd, last ?? null, JSON.stringify([...claimed].sort().map((path) => ({ path, committed: !dirty.has(path) }))), transcript ?? null);
+      .run(ulid(), sessionId, row.parent_id, nowIso(), row.cwd, last, JSON.stringify(row.files), transcript);
   }
   if (!row.parent_id) return;
-  const files = [...claimed].sort().map((f) => `${f} (${dirty.has(f) ? 'uncommitted' : 'committed'})`);
+  const files = row.files.map((f) => `${f.path} (${f.committed ? 'committed' : 'uncommitted'})`);
   const lines = [`Session ${labelOf(db, sessionId, titles)}, launched from this session, has ended.`, `Files: ${files.length ? files.join(', ') : 'none changed'}.`];
   if (last) lines.push(`Its last line: ${last}`);
   if (transcript) lines.push(`Transcript: ${transcript}`);
@@ -334,6 +327,8 @@ function setTurnBase(db: DatabaseSync, sessionId: string, base: string | null): 
   if (base) db.prepare('UPDATE session SET turn_base = ? WHERE id = ?').run(base, sessionId);
 }
 
+const turnNumbers = new WeakMap<DatabaseSync, Map<string, number>>();
+
 /** A commit of the session's folder as it is now, from a copy of the index so the user's index.lock is never taken; null outside a repository. */
 async function turnSnapshot(db: DatabaseSync, sessionId: string): Promise<string | null> {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
@@ -341,8 +336,21 @@ async function turnSnapshot(db: DatabaseSync, sessionId: string): Promise<string
   const git = async (args: string[], env: Record<string, string> = {}) => (await gitAsync(row.cwd!, args, 5000, env, false)).trim();
   const index = path.join(os.tmpdir(), `troop-index-${ulid()}`);
   try {
-    await fs.promises.copyFile(path.resolve(row.cwd, await git(['rev-parse', '--git-path', 'index'])), index);
-    return (await git(['stash', 'create'], { GIT_INDEX_FILE: index })) || (await git(['rev-parse', 'HEAD']));
+    try { await fs.promises.copyFile(path.resolve(row.cwd, await git(['rev-parse', '--git-path', 'index'])), index); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
+    const env = { GIT_INDEX_FILE: index };
+    const refs = await git(['for-each-ref', '--format=%(refname)', `refs/troop/turn/${sessionId}/`], env);
+    let numbers = turnNumbers.get(db);
+    if (!numbers) turnNumbers.set(db, (numbers = new Map()));
+    const n = Math.max(numbers.get(sessionId) ?? 0, ...refs.split('\n').map((ref) => Number(ref.split('/').at(-1)) || 0)) + 1;
+    numbers.set(sessionId, n);
+    await git(['add', '-A'], env);
+    const tree = await git(['write-tree'], env);
+    let head = '';
+    try { head = await git(['rev-parse', '--verify', 'HEAD'], env); } catch {}
+    const commit = await git(['commit-tree', tree, ...(head ? ['-p', head] : []), '-m', `troop turn ${n}`], env);
+    await git(['update-ref', `refs/troop/turn/${sessionId}/${n}`, commit, '0'.repeat(commit.length)], env);
+    return commit;
   } catch {
     return null;
   } finally {

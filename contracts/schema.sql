@@ -124,6 +124,7 @@ CREATE TABLE handoff (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
   parent_id TEXT REFERENCES session(id),
+  to_session TEXT REFERENCES session(id),
   at TEXT NOT NULL,
   cwd TEXT,
   summary TEXT,                                -- the session's last terminal line
