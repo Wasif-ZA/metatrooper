@@ -360,32 +360,42 @@ test('Home chat without a transcript shows the terminal-only note', () => {
   assert.match(harness(ChatFixture).html(), /This agent shares no chat record, so cc shows its terminal only\./);
 });
 
-test('Home polls chat every 1.5 seconds, cancels on cleanup and ignores replies from the previous task', async () => {
+test('Home polls chat every 1.5 s when idle and 300 ms while working, cancels on cleanup and ignores replies from the previous task', async () => {
   const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
   const previous = internals.H;
-  const originalTimeout = g.setTimeout, originalClear = g.clearTimeout;
-  const effects: Function[] = [], replies: Function[] = [], timers = new Map<number, Function>();
+  const originalTimeout = g.setTimeout, originalClear = g.clearTimeout, originalDocument = g.document;
+  const effects: Function[] = [], replies: Function[] = [], timers = new Map<number, { fn: Function; ms: number }>();
+  const listeners = new Map<string, Set<Function>>();
   let state: any = null, serial = 0;
+  g.document = { ...(originalDocument || {}), hidden: false,
+    addEventListener: (type: string, fn: Function) => { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type)!.add(fn); },
+    removeEventListener: (type: string, fn: Function) => { listeners.get(type)?.delete(fn); } };
   g.rpc = (...args: any[]) => { calls.push(args); return new Promise((resolve) => replies.push(resolve)); };
-  g.setTimeout = (fn: Function, ms: number) => { assert.equal(ms, 1500); timers.set(++serial, fn); return serial; };
+  g.setTimeout = (fn: Function, ms: number) => { timers.set(++serial, { fn, ms }); return serial; };
   g.clearTimeout = (id: number) => timers.delete(id);
   internals.H = { useState: () => [state, (v: any) => { state = typeof v === 'function' ? v(state) : v; }], useEffect: (fn: Function) => effects.push(fn), useRef: (initial: any) => ({ current: initial }), useCallback: (fn: any) => fn, useMemo: (fn: any) => fn(), useLayoutEffect: () => {} };
   try {
-    assert.equal(useChat('first'), null);
+    assert.equal(useChat('first', 'idle'), null);
     const stopFirst = effects.shift()!();
+    effects.length = 0;
+    assert.equal(listeners.get('visibilitychange')?.size, 1, 'listens for the window coming back into view');
     replies.shift()!({ result: { session_id: 'first', items: [] } }); await flush();
     assert.equal(state.session_id, 'first'); assert.equal(timers.size, 1);
-    const tick = timers.get(serial)!; timers.delete(serial); tick();
+    assert.equal([...timers.values()][0].ms, 1500, 'idle polls every 1.5 s');
+    const [tickId, tick] = [...timers.entries()][0]; timers.delete(tickId); tick.fn();
     stopFirst();
-    assert.equal(useChat('second'), null, 'old chat is hidden during a task change');
+    assert.equal(listeners.get('visibilitychange')?.size, 0, 'cleanup removes the listener');
+    assert.equal(useChat('second', 'working'), null, 'old chat is hidden during a task change');
     const stopSecond = effects.shift()!();
+    effects.length = 0;
     replies.shift()!({ result: { session_id: 'first', items: [{ kind: 'text', text: 'stale' }] } }); await flush();
     assert.deepEqual(state.items, []);
     replies.shift()!({ result: { session_id: 'second', items: [] } }); await flush();
     assert.equal(state.session_id, 'second');
+    assert.equal([...timers.values()].at(-1)!.ms, 300, 'a working session polls every 300 ms');
     stopSecond(); assert.equal(timers.size, 0);
     assert.deepEqual(calls, [['session.chat', { session_id: 'first' }, true], ['session.chat', { session_id: 'first' }, true], ['session.chat', { session_id: 'second' }, true]]);
-  } finally { internals.H = previous; g.setTimeout = originalTimeout; g.clearTimeout = originalClear; }
+  } finally { internals.H = previous; g.setTimeout = originalTimeout; g.clearTimeout = originalClear; g.document = originalDocument; }
 });
 
 for (const [text, prompt] of [['', undefined], ['   ', undefined], ['  fix fixtures  ', 'fix fixtures']] as const) test('Home launch payload for ' + JSON.stringify(text), async () => {
