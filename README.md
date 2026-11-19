@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>Carbon Copy (cc) rebuilds the apps you already code with, an editor, terminals, an inbox and a browser, as one Windows
+  <strong>Carbon Copy (cc) rebuilds the apps you already code with, a chat box, an editor, terminals, an inbox and a browser, as one Windows
   app where every agent is just a task, so there are no sessions to manage.</strong><br>
   New to Claude Code? Type a task instead of facing a blank terminal. Already running five sessions? Stop juggling
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
@@ -124,11 +124,10 @@ What to expect:
 - `npm ci` in `workbench/` may report vulnerabilities from `npm audit`. They do not stop the install.
 - The window opens on Home with one box: "What do you want done?" If no project is open when you send, it asks
   where the agent should work: choose a folder, or let cc make one in `Documents\cc` named after your task.
-- New installs start agents in **Auto**: the engine's own auto mode in a cc worktree. Auto leaves two things off:
-  computer use, and plugins that write outside the project. Browser use stays on and still stops for its
-  approvals. The chip under the box says this and switches a task to **Ask first**, which asks before each tool
-  call. Engines with no auto mode, such as Gemini CLI, start in Ask first. The setting is `sessions.approval` in
-  `~/.metatrooper/settings.json`.
+- New installs start agents in **Auto**: the agent works without asking, in the folder you chose, and cannot
+  control your desktop or add-ons that write outside the project. Type a branch under the box to give it its own
+  worktree. Pick **Ask first** under the box to approve each step. Agents with no auto mode, such as Gemini CLI,
+  start in Ask first. The setting is `sessions.approval` in `~/.metatrooper/settings.json`.
 - From source, `troop` in any message or below means `node core/cli.ts`.
 
 > [!WARNING]
@@ -183,7 +182,7 @@ port and no browser extension. Full rules: [`contracts/browser-tools.md`](contra
 - **Approvals.** Some actions stop and wait for you: typing into a password field, typing text that looks like a
   credential, and clicking a control named like Send, Submit, Pay, Delete or Publish. An approval card shows a
   redacted crop of the target. You pick Approve once, Approve for this session, or Reject. Only the window can
-  approve, never an agent. A card waits until you answer it; there is no timer. Rules: [`contracts/approvals.md`](contracts/approvals.md).
+  approve, never an agent. A card waits until you answer it; there is no timer. A core restart clears waiting cards. Rules: [`contracts/approvals.md`](contracts/approvals.md).
 - **Origins.** The first input on a new site (scheme, host and port, after redirects) asks first. Sites listed in
   the `browser.allow_origins` setting never ask for being new.
 - **Secrets.** Save a secret for one site:
@@ -281,7 +280,7 @@ From source, `troop` means `node core/cli.ts`. Add `--json` to any command for o
 | Stop the core | `troop stop` |
 
 `launch` takes `--approval ask|edits|contained`. `ask` asks before each tool call. `contained` runs the engine's auto
-mode in a cc worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in
+mode in the session's folder. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in
 `ask`.
 
 `troop skills install` copies the skills in `skills/` into `~/.claude/skills/`. The `troop` skill teaches an agent to
@@ -290,7 +289,7 @@ start and follow other sessions through this CLI.
 ### Approval profiles
 
 `--approval ask|edits|contained` on `launch`. A new install starts agents in `contained` (Auto in the window): the
-engine's auto mode on a cc worktree. An engine with no auto mode starts in `ask` (each tool call needs your OK). A
+engine's auto mode in the session's folder (`--worktree <branch>` gives it a worktree). An engine with no auto mode starts in `ask` (each tool call needs your OK). A
 settings file from an older version keeps its value, and one that does not parse falls back to `ask`.
 
 Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
@@ -352,7 +351,7 @@ and [`contracts/approvals.md` Known limits](contracts/approvals.md#known-limits)
 - **The browser pane trusts the pid a caller reports.** A process running as you can claim another session's
   browser. It could read your files anyway.
 - **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions.
-  `ask` and approvals are the guard rails.
+  Ask first and approvals are the guard rails; Auto relies on the agent's own auto mode.
 - **IDE fallbacks.** Saving and search in files show "Not built yet" only when the window cannot reach their back end; in this release both work.
 
 ## FAQ
@@ -366,8 +365,8 @@ plugin for another editor; it is its own window.
 Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
 setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
 signs in for you. cc itself has no installer yet: you run it from a clone with Node 24.16 or newer (see
-[Quickstart](#quickstart)). The agent still runs in a terminal tile, so you will see its output and answer its
-questions there or in Needs you.
+[Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
+you. Other agents show their terminal.
 
 **How is this different from running `claude` in terminals?**
 With terminals you manage each session: open a terminal, start it, watch it, find it again when it asks something,
@@ -400,7 +399,7 @@ No. A background service owns each agent's terminal. After a restart it resumes 
 3 at a time.
 
 **Which agents does it run?**
-7 CLI agents: Claude Code, Codex, opencode, Antigravity, Gemini CLI, GitHub Copilot CLI and pi. Claude Code and Codex
+cc can start 7 agent CLIs: Claude Code, Codex, opencode, Antigravity, Gemini CLI, GitHub Copilot CLI and pi. Claude Code and Codex
 get the most; [What each agent gets](#what-each-agent-gets) has the table. You install and sign in to each yourself;
 cc never reads their login tokens.
 
@@ -413,8 +412,9 @@ separate private add-on at A$19 a month. It is not in this repo and not on sale 
 Codex and opencode tasks a view of your other tasks: what is running, another task's output and changed files, which
 task already changed a file, and a shared note board. opencode is tested with a stand-in only so far.
 The pipe methods it uses are public, so you can build your own. It includes Proof, which checks whether an agent's tests
-catch bugs, and Review, which has Codex review a change against the task's goal and saves the evidence. Review is the
-one part that sends code off your machine: the diff and goal go to the Codex CLI you installed, under your own login.
+catch bugs, and Review, which has Codex review a change against the task's goal and saves the evidence. Proof and
+Review work in Ask first tasks, not Auto. Review is the one part that sends code off your machine: the diff and goal
+go to the Codex CLI you installed, under your own login, and Codex can also read other files in that repo.
 
 **How do I check whether an agent's tests actually catch bugs?**
 Break a line the agent changed, on purpose, and rerun its tests. If they still pass, they would have missed that bug.
@@ -422,7 +422,7 @@ This is mutation testing. The [answer page](site/answers/check-agent-tests-catch
 with Proof.
 
 **Is cc a sandbox?**
-No. Agents and the commands they run use your machine with your permissions. Approvals and `ask` mode are guard rails.
+No. Agents and the commands they run use your machine with your permissions. Approvals and Ask first are guard rails; Auto relies on the agent's own auto mode.
 See [Known limits](#known-limits).
 
 ## Licence
