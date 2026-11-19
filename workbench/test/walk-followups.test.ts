@@ -119,6 +119,7 @@ function terminalTile(online = false, withUi = true) {
     tile, show, attaches, exited, written: () => written,
     resize: (width: number, needed = neededWidth) => { neededWidth = needed; tile.clientWidth = row.clientWidth = width; resized(); },
     close: () => onTerm('s1', { op: 'closed' }),
+    noSession: () => onTerm('s1', { op: 'error', code: 'no-session' }),
     retry() {
       assert.equal(timers.length, 1);
       const timer = timers.shift()!;
@@ -272,5 +273,17 @@ test('Git says no remote only for null upstream and preserves origin sync counts
     assert.equal(label(upstream, 3, 2), '3 ahead, 2 behind origin');
     assert.equal(label(upstream, 3, 0), '3 ahead origin');
     assert.equal(label(upstream, 0, 2), '2 behind origin');
+  }
+});
+
+test('a session the core answers as not running ends as "session ended" even before the first online snapshot', () => {
+  for (const state of ['working', 'done']) {
+    const t = terminalTile(false);
+    t.show(state);
+    const before = t.written();
+    t.noSession();
+    t.close();
+    assert.equal(t.written().slice(before.length), '\r\n[this session is not running]\r\n\r\n[session ended]\r\n', state);
+    assert.deepEqual(t.exited, ['s1']);
   }
 });

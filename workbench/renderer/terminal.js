@@ -230,7 +230,7 @@ const termView = (() => {
       if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');
       // a re-attach that closes again while the core is online means the session's terminal is gone, not the core
-      const ended = ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
+      const ended = t.gone || ['exited', 'done'].includes(t.el.dataset.state) || (typeof ui !== 'undefined' && Boolean(ui.snap?.core?.online));
       t.term.write(ended ? '\r\n[session ended]\r\n' : '\r\n[disconnected from the core]\r\n');
       if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
       t.held = undefined;
