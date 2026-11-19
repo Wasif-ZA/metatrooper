@@ -1,6 +1,6 @@
 # Security
 
-Windows first, Linux beta, from source. Runs on your machine: no account, no telemetry.
+Windows 10 and 11, from a zip or source. Runs on your machine: no account, no telemetry.
 
 ## Reporting a vulnerability
 
@@ -30,7 +30,7 @@ secret.
 Out of scope:
 
 - The agent CLIs themselves (Claude Code, Codex, Gemini, agy), which have their own vendors.
-- Anything that needs another process already running as the same Windows or Linux user. That process can read
+- Anything that needs another process already running as the same Windows user. That process can read
   your files and drive your apps anyway. See "Threat model" in `spec.md`.
 - Limits already listed under "Known limits" in the README, `spec.md` and the contracts.
 - A session that starts a looser child after stripping `TROOP_SESSION_SECRET` from its environment, or after reading

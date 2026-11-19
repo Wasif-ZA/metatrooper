@@ -5,7 +5,7 @@
   them. Claude Code, Codex, Gemini CLI and other agents run side by side. Free and open source.
 </p>
 
-<p align="center"><strong>Windows first. Install from source. Runs on your machine: no account, no telemetry.</strong></p>
+<p align="center"><strong>Windows 10 and 11. Zip or source. Runs on your machine: no account, no telemetry.</strong></p>
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
@@ -97,14 +97,21 @@ what runs today.
 
 ## Quickstart
 
-There is no installer yet. You run cc from a clone of this repo.
+There is no installer yet. Pick one of two ways in. Both need Windows 10 or 11 (tested on Windows 11) and at least
+one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
 
-You need:
+### New to this: the zip
 
-- Windows 10 or 11. These steps were tested on Windows 11.
-- Node 24.16 or newer (tested on 24.18).
-- At least one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
-- A network connection for the first run.
+1. Download `cc-<version>-win-x64.zip` from [Releases](https://github.com/Wasif-ZA/metatrooper/releases).
+2. Unzip it anywhere, open the folder and run `cc.exe`. It carries its own Node, so nothing else to install.
+
+The zip is not code-signed yet. Windows shows "Windows protected your PC": pick **More info**, then **Run anyway**.
+If Smart App Control is on, Windows may block it outright; use the source install below instead. Signing comes after
+launch.
+
+### Developers: from source
+
+You also need Node 24.16 or newer (tested on 24.18) and a network connection for the first run.
 
 ```bash
 git clone https://github.com/Wasif-ZA/metatrooper
@@ -128,7 +135,8 @@ What to expect:
   control your desktop or add-ons that write outside the project. Type a branch under the box to give it its own
   worktree. Pick **Ask first** under the box to approve each step. Agents with no auto mode, such as Gemini CLI,
   start in Ask first. The setting is `sessions.approval` in `~/.metatrooper/settings.json`.
-- From source, `troop` in any message or below means `node core/cli.ts`.
+- From source, `troop` in any message or below means `node core/cli.ts`. From the zip, it means
+  `resources\node\node.exe resources\app\core\cli.ts`, run inside the unzipped folder.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the window installs cc's hooks into
@@ -331,7 +339,7 @@ bundled copy, and Claude sessions are told to send shell commands through it. Tu
 
 ## Uninstall
 
-Run `node core/cli.ts hooks uninstall --codex`, stop the core with `node core/cli.ts stop`, and delete the clone.
+Run `troop hooks uninstall --codex`, stop the core with `troop stop`, and delete the clone or the unzipped folder.
 Delete `~/.metatrooper/` too if you want your history gone.
 
 ## Known limits
@@ -364,8 +372,7 @@ plugin for another editor; it is its own window.
 **I've never used Claude Code. Can I use cc?**
 Yes. You type a task in Home and pick the agent; you do not need to learn the CLI's commands or manage sessions. One
 setup step stays yours: install the Claude Code CLI (or Codex or Gemini CLI) and sign in to it once, since cc never
-signs in for you. cc itself has no installer yet: you run it from a clone with Node 24.16 or newer (see
-[Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
+signs in for you. cc has no installer yet: download the zip and run `cc.exe` (see [Quickstart](#quickstart)). A Claude Code task reads as a chat, and you answer in it or in Needs
 you. Other agents show their terminal.
 
 **How is this different from running `claude` in terminals?**
@@ -404,7 +411,7 @@ get the most; [What each agent gets](#what-each-agent-gets) has the table. You i
 cc never reads their login tokens.
 
 **Does it work on macOS or Linux?**
-Windows 10 and 11 come first. Linux runs from source as a beta, without computer use. macOS is not supported.
+Windows 10 and 11 only. macOS and Linux are not supported.
 
 **Is it free?**
 Yes, including every safety feature. Core and window are AGPL-3.0. The one paid part will be Carbon Copy Pro (cc Pro), a

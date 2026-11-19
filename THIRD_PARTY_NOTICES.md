@@ -1,6 +1,6 @@
 # Third-party notices
 
-Windows and Linux (beta). Runs on your machine: no account, no telemetry.
+Windows 10 and 11. Runs on your machine: no account, no telemetry.
 
 cc ships the third-party software below. Each keeps its own licence; none is relicensed under the AGPL-3.0
 or MIT terms of this repository.

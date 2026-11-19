@@ -1,6 +1,6 @@
 # Carbon Copy (cc)
 
-> Carbon Copy (cc) rebuilds the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Runs on your machine: no account, no telemetry. Pre-release, installs from source, Node 24.16+. Older names: Ouros, MetaTrooper.
+> Carbon Copy (cc) rebuilds the apps developers already code with, a VS Code style editor, a wall of terminal tiles, an inbox of what is waiting on you and browser panes, as one free, open-source Windows desktop app with coding agents built in. It runs coding-agent CLIs (Claude Code, Codex, Gemini CLI and others, 7 in all) side by side, each in a terminal a background service owns, so you control many agents from one window. The Wall moves the agent waiting for you to the front. Agents can drive browser panes and Windows app windows you give them; risky actions stop for your approval. Runs on your machine: no account, no telemetry. Pre-release; a zip with cc.exe, or a source install with Node 24.16+. Windows 10 and 11 only. Older names: Ouros, MetaTrooper.
 
 Carbon Copy Pro (cc Pro) will be the one paid part: a separate private add-on at A$19 a month, not on sale yet. Its task tools give Claude Code, Codex and opencode tasks a view of the other tasks in a project: what else is running, another task's last lines and changed files, which task already changed a file, and a shared note board. The pipe methods it uses are public, so anyone can build their own. It includes Proof, which checks whether an agent's tests catch bugs by breaking the changed lines on purpose and rerunning the tests, and Review, which sends a change's diff and goal to the Codex CLI under the buyer's own login for a second review (Codex can also read other files in that repo). Proof and Review work in Ask first tasks, not Auto. Every safety feature in cc is free.
 
@@ -27,9 +27,9 @@ Source: {{SITE}}/
 Carbon Copy (cc) rebuilds the apps you already code with, a VS Code style editor, terminals, an inbox and a browser, as one Windows app with agents built in. Type a task; cc starts the agent, keeps it running and brings it to you when it needs an answer. New to Claude Code or running five sessions, you never manage one.
  
 
-One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet; cc runs from a clone with Node 24.16+.
+One setup step: install and sign in to the Claude Code CLI (or Codex or Gemini CLI) yourself. No installer yet: download the zip and run cc.exe, or run it from a clone.
  
-- Windows first, Linux beta
+- Windows 10 and 11
 - Local, on your machine
 - No account, no telemetry
  git clone https://github.com/Wasif-ZA/metatrooper
@@ -177,7 +177,13 @@ Any interactive CLI agent an engine file describes. Built in, among others.
 ## Get started
  
 
-There is no installer yet. You run it from a clone. You need Node 24.16 or newer and at least one agent CLI signed in.
+There is no installer yet. You need Windows 10 or 11 and at least one agent CLI signed in.
+ 
+
+New to this: download cc-<version>-win-x64.zip from Releases, unzip it and run cc.exe. It carries its own Node. The zip is not code-signed yet, so Windows says "Windows protected your PC": pick More info, then Run anyway. If Smart App Control blocks it, use the source install.
+ 
+
+Developers: from source, with Node 24.16 or newer.
 
 git clone https://github.com/Wasif-ZA/metatrooper
 cd metatrooper/core && npm ci
@@ -192,9 +198,9 @@ The window starts the core service for you. Agents start in Auto: they work with
 ## Limits, stated plainly
  
   
-- Windows first. Linux is a beta from source, without computer use. macOS is not supported.
+- Windows 10 and 11 only. macOS and Linux are not supported.
   
-- No installer or auto-update yet. You update with git pull.
+- No installer, signing or auto-update yet. You update by downloading the new zip, or with git pull.
   
 - Not a guard against hostile programs. Grants and approvals cover cc's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.
   
@@ -278,7 +284,7 @@ Put everything an agent needs from you in one window: its terminal, its changes,
 
 - It can start 7 agent CLIs, including Claude Code, Codex and Gemini CLI. Claude Code and Codex report the most; the others show a simpler status. You install and sign in to each yourself; cc never reads their login tokens.
 
-cc is free, open source (AGPL-3.0 core) and pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. No account, no telemetry. Steps: Quickstart.
+cc is free, open source (AGPL-3.0 core) and pre-release. It runs on Windows 10 and 11, from a zip or from source. No account, no telemetry. Steps: Quickstart.
 
 ---
 Source: {{SITE}}/answers/cc-vs-plain-terminals.html
@@ -291,7 +297,7 @@ For one or two agents, plain terminals are enough. Use cc when you run three or 
 
  | Cost | Free | Free and open source (AGPL-3.0 core)
 
- | Platforms | Any | Windows 10 and 11 first. Pre-release, installs from source.
+ | Platforms | Any | Windows 10 and 11 only. Pre-release: a zip or a source install.
 
  | Windows to juggle | An editor, one terminal per agent, a browser | One: a VS Code style editor, a wall of terminal tiles, an inbox and browser panes, with the agents built in
 
@@ -376,7 +382,7 @@ From a source install, troop means node core/cli.ts.
 
 - It also runs Codex, Gemini CLI and other agent CLIs, 7 in all. Claude Code and Codex report the most; the others show a simpler status.
 
-cc is pre-release. It is Windows first, installs from source and needs Node 24.16 or newer. Steps: Quickstart.
+cc is pre-release. It runs on Windows 10 and 11, from a zip or from source. Steps: Quickstart.
 
 ---
 Source: {{SITE}}/answers/know-which-agent-needs-you.html
@@ -409,7 +415,7 @@ cc is a free, open-source Windows app that rebuilds an editor, a terminal wall, 
 
 - Engines without hooks get a simpler status read from their process.
 
-cc is pre-release, Windows first, and installs from source. Steps: Quickstart.
+cc is pre-release and runs on Windows 10 and 11, from a zip or from source. Steps: Quickstart.
 
 ---
 Source: {{SITE}}/answers/check-agent-tests-catch-bugs.html
