@@ -306,7 +306,7 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
-const PANE_OVERLAYS = '#toasts > *, #cmdk dialog[open], #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #addons:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
+const PANE_OVERLAYS = '#account-tour[data-overlay], #toasts > *, #cmdk dialog[open], #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #addons:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
   const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;

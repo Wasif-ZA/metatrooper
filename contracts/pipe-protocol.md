@@ -136,6 +136,9 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
 |---|---|---|---|---|---|
+| `auth.signIn` | `{timeout_ms?}` | {signed_in, sub?, name?, email?, picture?, signed_in_at?}; opens the system browser and waits up to timeout_ms (1000..600000, default 300000); never queued | -32602, -32003, -32098 |  | yes |
+| `auth.status` | `{}` | {signed_in, sub?, name?, email?, picture?, signed_in_at?}; local public profile only; never queued |  |  | yes |
+| `auth.signOut` | `{}` | {signed_in: false, revoked}; cancels a pending sign-in, revokes the refresh token when supported and clears local state; never queued |  |  | yes |
 | `core.ping` | `{}` | {ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |  | yes |  |
 | `settings.set` | `{key, value}` | {}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) | -32602, -32003 |  | yes |
 | `automation.set` | `{project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"\|"edits"\|"contained", id?}` | {id, next_due}; `approval` is the woken agent's approval level (null or missing means ask); `cron` is a 5-field local-time cron that wins over `every_min` (default 60); a non-empty `script` (relative to the project folder) is hashed and pinned on every save, run on schedule, and wakes the engine only when it exits 1; an empty script launches the engine on schedule; unknown labels are created with a default colour | -32002, -32003, -32602 |  | yes |
@@ -148,7 +151,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `label.set` | `{name, colour}` | {name, colour}; creates the label or changes its `#rrggbb` colour | -32602 |  | yes |
 | `cron.next` | `{cron, n?}` | {ok: true, runs: [ISO local, up to n (1-5, default 3)], words} or {ok: false, error}; the scheduler uses the same matcher |  |  |  |
 | `core.stop` | `{}` | {}; the core exits a moment after replying |  |  | yes |
-| `account.state` | `{}` | {state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in |  |  |  |
+| `account.state` | `{}` | {state: "signed_in" \| "signed_out"}; reflects the local sign-in status |  |  |  |
 | `project.open` | `{path}` | {project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` | -32002 | yes |  |
 | `project.clear` | `{project_id}` | {}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused |  |  |  |
 | `project.hide` | `{project_id}` | {}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back | -32002, -32003 |  |  |

@@ -60,6 +60,7 @@ const DEBOUNCE_MS = 50;
 const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
+  'auth.signIn', 'auth.status', 'auth.signOut',
   'session.search', 'session.list', 'session.read', 'session.chat', 'session.handoff', 'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
   'project.open', 'session.launch', 'session.stop', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check', 'engines.models',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
@@ -140,7 +141,7 @@ function syncPanes(): void {
 
 /** Applies user-started pane grants from the window UI after the core creates the row. */
 async function callUi(method: string, params: Record<string, unknown>) {
-  const out = await call(method, params, { ui: true });
+  const out = await call(method, params, { ui: true, ...(method === 'auth.signIn' ? { waitMs: 610_000 } : {}) });
   if (method === 'pane.open' && params.user_typed === true && params.agent !== true && !params.session_id && typeof params.url === 'string') {
     const paneId = out.kind === 'reply' && !out.reply.error ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
     if (paneId) await panes?.userOpen(paneId, params.url);
@@ -362,6 +363,10 @@ function handlers(): void {
     if (method === 'gh.issues') return { kind: 'reply', reply: { id: null, result: await issuesOf((params as { project_id?: unknown } | null)?.project_id) } };
     if (typeof method !== 'string' || !UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${String(method)}` } } };
     const out = await callUi(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>);
+    if (method.startsWith('auth.') && out.kind === 'reply' && out.reply.result && typeof out.reply.result === 'object') {
+      const profile = out.reply.result as Record<string, unknown>;
+      out.reply.result = Object.fromEntries(['signed_in', 'name', 'email', 'picture'].filter((key) => Object.hasOwn(profile, key)).map((key) => [key, profile[key]]));
+    }
     schedulePush();
     return out;
   });
@@ -633,12 +638,20 @@ function handlers(): void {
     void attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), toWindow);
     return { windows_build: windowsBuild() };
   });
-  on('uiSettings', () => ({ approval: settings().sessions.approval, worktreesRoot: worktreesRoot(), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
+  on('uiSettings', () => ({ authConfigured: Boolean(settings().auth.issuer.trim() && settings().auth.client_id.trim()), manageConfigured: Boolean(URL.canParse(settings().auth.account_url) && settings().auth.account_url.startsWith('https://')), approval: settings().sessions.approval, worktreesRoot: worktreesRoot(), terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), home: app.getPath('home') }));
   on('setTheme', async (name: unknown) => {
     if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);
     return error ? { error } : activeTheme({ ...settings(), ui: { ...settings().ui, theme: name } });
   });
+  on(
+    'setTour',
+    async (value: unknown) => {
+      if (value !== 'done' && value !== 'later') return { error: 'tour must be done or later' };
+      const error = await writeSetting('ui.tour', value);
+      return error ? { error } : { ok: true };
+    },
+  );
   on('setApproval', async (value: unknown) => {
     if (value !== 'ask' && value !== 'contained') return { error: 'approval must be ask or contained' };
     const error = await writeSetting('sessions.approval', value);
@@ -780,6 +793,11 @@ function handlers(): void {
     });
   });
   on('openLink', (target: unknown, line: unknown, col: unknown) => {
+    if (target === 'account') {
+      const accountUrl = settings().auth.account_url;
+      if (!accountUrl.startsWith('https://')) return false;
+      target = accountUrl;
+    }
     if (typeof target !== 'string') return false;
     if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
     try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }

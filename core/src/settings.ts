@@ -8,6 +8,12 @@ const MONO = "'Cascadia Mono', Consolas, monospace";
 const DITHER_MONO = "'Geist Mono', ui-monospace, Consolas, monospace";
 
 export const DEFAULTS = {
+  auth: {
+    issuer: '',
+    client_id: '',
+    account_url: '',
+    ports: [] as number[],
+  },
   projects: {
     default: '',
   },
@@ -69,6 +75,7 @@ export const DEFAULTS = {
     } as Record<string, { label: string; command: string[]; fallback: string[] }>,
   },
   ui: {
+    tour: '',
     theme: 'dither',
     rail_width: 290,
     split_width: 420,

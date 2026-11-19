@@ -17,6 +17,9 @@ before(buildGenerated);
 
 // Literal list of all public methods declared in spec.
 const EXPECTED_METHODS = [
+  'auth.signIn',
+  'auth.status',
+  'auth.signOut',
   'core.ping',
   'settings.set',
   'automation.set',
@@ -148,6 +151,9 @@ const EXPECTED_MOVED = [
 
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
+  'auth.signIn',
+  'auth.status',
+  'auth.signOut',
   'loop.choose',
   'plugin.enable',
   'session.stop',

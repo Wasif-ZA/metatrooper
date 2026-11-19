@@ -23,12 +23,13 @@ function fakeDpapi(): boolean {
 }
 
 /** The script's output, sent back as base64 of its UTF-8 bytes so the console codepage cannot change it. */
-function powershell(script: string, stdin: string): string {
-  const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', '-'], {
-    input: `$out = & { ${script} }; [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$out))\n`,
+function powershell(script: string, stdin: string, pipeInput = false): string {
+  const command = `$out = & { ${pipeInput ? '$v = [Console]::In.ReadToEnd(); ' : ''}${script} }; [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$out))`;
+  const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', pipeInput ? command : '-'], {
+    input: pipeInput ? stdin : command + '\n',
     encoding: 'utf8',
     windowsHide: true,
-    env: { ...process.env, TROOP_SECRET_IN: stdin },
+    env: pipeInput ? process.env : { ...process.env, TROOP_SECRET_IN: stdin },
   });
   if (r.status !== 0) throw new Error(`powershell failed: ${(r.stderr || '').trim().split('\n')[0]}`);
   return Buffer.from(r.stdout.trim(), 'base64').toString('utf8');
@@ -78,7 +79,7 @@ function encrypt(pluginId: string, name: string, value: string): string {
   return fakeDpapi()
     ? FAKE_PREFIX + Buffer.from(value, 'utf8').reverse().toString('base64')
     : process.platform === 'win32'
-      ? powershell('$v = $env:TROOP_SECRET_IN; ConvertTo-SecureString -String $v -AsPlainText -Force | ConvertFrom-SecureString', value)
+      ? powershell(`${pluginId === 'core-auth' ? '' : '$v = $env:TROOP_SECRET_IN; '}ConvertTo-SecureString -String $v -AsPlainText -Force | ConvertFrom-SecureString`, value, pluginId === 'core-auth')
       : linuxBlob(pluginId, name, value);
 }
 
@@ -112,7 +113,7 @@ export function setSecret(db: DatabaseSync, pluginId: string, name: string, valu
     throw e;
   }
   dropKeyring(pluginId, name, old);
-  if (pluginId !== 'core-notify' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  if (pluginId !== 'core-notify' && pluginId !== 'core-auth' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
   noteSaved(pluginId, name, value, file);
 }
 

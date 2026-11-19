@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import * as auth from './auth.ts';
 import { DEFAULTS, setSetting, settings } from './settings.ts';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -72,6 +73,9 @@ export interface MethodDecl {
 }
 
 export const METHODS: MethodDecl[] = [
+  { name: 'auth.signIn', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION, E.INTERRUPTED], params: '{timeout_ms?}', result: '{signed_in, sub?, name?, email?, picture?, signed_in_at?}; opens the system browser and waits up to timeout_ms (1000..600000, default 300000); never queued' },
+  { name: 'auth.status', needsUi: true, params: '{}', result: '{signed_in, sub?, name?, email?, picture?, signed_in_at?}; local public profile only; never queued' },
+  { name: 'auth.signOut', needsUi: true, params: '{}', result: '{signed_in: false, revoked}; cancels a pending sign-in, revokes the refresh token when supported and clears local state; never queued' },
   { name: 'core.ping', stable: true, params: '{}', result: '{ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued' },
   { name: 'settings.set', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION], params: '{key, value}', result: '{}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4)' },
   { name: 'automation.set', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], approval?: "ask"|"edits"|"contained", id?}', result: '{id, next_due}; `approval` is the woken agent\'s approval level (null or missing means ask); `cron` is a 5-field local-time cron that wins over `every_min` (default 60); a non-empty `script` (relative to the project folder) is hashed and pinned on every save, run on schedule, and wakes the engine only when it exits 1; an empty script launches the engine on schedule; unknown labels are created with a default colour' },
@@ -84,7 +88,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'label.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, colour}', result: '{name, colour}; creates the label or changes its `#rrggbb` colour' },
   { name: 'cron.next', params: '{cron, n?}', result: '{ok: true, runs: [ISO local, up to n (1-5, default 3)], words} or {ok: false, error}; the scheduler uses the same matcher' },
   { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
-  { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
+  { name: 'account.state', params: '{}', result: '{state: "signed_in" | "signed_out"}; reflects the local sign-in status' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
@@ -214,6 +218,21 @@ function int(p: Record<string, unknown>, key: string): number {
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
   const m = new Map<string, MethodSpec>();
+  m.set('auth.signIn', {
+    needsUi: true,
+    handler: (p) => {
+      if (Object.keys(p).some((k) => k !== 'timeout_ms') || (p.timeout_ms !== undefined && (typeof p.timeout_ms !== 'number' || !Number.isInteger(p.timeout_ms) || p.timeout_ms < 1000 || p.timeout_ms > 600_000))) throw new RpcError(E.INVALID_PARAMS, 'timeout_ms must be 1000..600000');
+      return auth.signIn(db, { timeout_ms: p.timeout_ms as number | undefined });
+    },
+  });
+  m.set('auth.status', { needsUi: true, handler: (p) => {
+    if (Object.keys(p).length) throw new RpcError(E.INVALID_PARAMS, 'auth.status takes no params');
+    return auth.status();
+  } });
+  m.set('auth.signOut', { needsUi: true, handler: (p) => {
+    if (Object.keys(p).length) throw new RpcError(E.INVALID_PARAMS, 'auth.signOut takes no params');
+    return auth.signOut(db);
+  } });
   const blockerList = (v: unknown): string[] => {
     if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new RpcError(E.INVALID_PARAMS, 'blocker_ids must be an array of strings');
     const ids = [...new Set(v as string[])];
@@ -223,7 +242,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     return ids;
   };
 
-  m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
+  m.set('account.state', { handler: () => ({ state: auth.status().signed_in ? 'signed_in' : 'signed_out' }) });
 
   const startedAt = nowIso();
   const version = String((JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
