@@ -16,6 +16,18 @@ const wall = (() => {
   const active = (s) => s.shell || !['done', 'idle', 'exited'].includes(s.state);
   const folded = (s) => !active(s) && !s.open;
   const waiting = () => [...BIG, ...ORDER].filter((id) => S[id] && S[id].state === 'waiting_for_you');
+  const TIMING = new Set(['duration', 'ease', 'delay', 'repeat', 'repeatDelay', 'overwrite', 'yoyo']);
+  function tween(target, a, b) {
+    const end = b ?? a;
+    if (document?.hidden) {
+      const clean = {};
+      for (const k of Object.keys(end || {})) if (!TIMING.has(k) && k !== 'onComplete') clean[k] = end[k];
+      const tw = gsap.set(target, clean);
+      end?.onComplete?.();
+      return tw;
+    }
+    return b ? gsap.fromTo(target, a, b) : gsap.to(target, a);
+  }
 
   function setBig(id) {
     if (!S[id] || BIG[0] === id) return;
@@ -220,22 +232,22 @@ const wall = (() => {
         // a set leaves a running layout tween alive, and it would land at the old spot
         gsap.killTweensOf?.(el, 'left,top,width,height');
         gsap.set(el, r);
-        if (animate && RM) gsap.fromTo(el, { opacity: 0.4 }, { opacity: 1, duration: 0.4 });
+        if (animate && RM) tween(el, { opacity: 0.4 }, { opacity: 1, duration: 0.4 });
         continue;
       }
       if (el.dataset.fresh) {
         delete el.dataset.fresh;
         gsap.set(el, { ...r, opacity: 0 });
-        gsap.to(el, { opacity: 1, duration: 0.15, ease: 'power4.out' });
+        tween(el, { opacity: 1, duration: 0.15, ease: 'power4.out' });
         continue;
       }
-      gsap.to(el, { ...r, duration: dur, ease: 'power4.out', overwrite: 'auto' });
+      tween(el, { ...r, duration: dur, ease: 'power4.out', overwrite: 'auto' });
     }
     for (const id of Object.keys(S)) { const el = pane(id); if (el) delete el.dataset.fresh; }
     const go = animate && !RM;
     const to = (sel, v) => {
       if (!go) gsap.killTweensOf?.(sel, Object.keys(v).filter((k) => k !== 'onComplete').join(','));
-      gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power4.out', overwrite: 'auto' } : {}) });
+      go ? tween(sel, { ...v, duration: dur, ease: 'power4.out', overwrite: 'auto' }) : gsap.set(sel, v);
     };
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
@@ -266,7 +278,8 @@ const wall = (() => {
   function startLive(id) {
     const s = S[id], el = pane(id);
     if (!s || s.shimT || !el || RM) return;
-    gsap.to($('.shim', el), { opacity: 0.85, duration: 0.6 });
+    tween($('.shim', el), { opacity: 0.85, duration: 0.6 });
+    if (document?.hidden) return;
     s.shimT = gsap.fromTo($('.shim i', el), { xPercent: -100 }, { xPercent: 360, duration: 2.8, ease: 'sine.inOut', repeat: -1, repeatDelay: 0.6, delay: Math.random() * 1.5 });
   }
   function stopLive(id) {
@@ -274,7 +287,7 @@ const wall = (() => {
     if (!s || !s.shimT) return;
     s.shimT.kill(); s.shimT = null;
     const el = pane(id);
-    if (el) { gsap.to($('.shim', el), { opacity: 0, duration: 0.5 }); drawSpk(id, Array(SPN).fill(0)); }
+    if (el) { tween($('.shim', el), { opacity: 0, duration: 0.5 }); drawSpk(id, Array(SPN).fill(0)); }
   }
 
   const spkPts = (a) => a.map((v, i) => [0, 1, 2, 3, 4].map((j) => `<rect x="${i * 2}" y="${(9.6 - j * 2.4).toFixed(1)}" width="1.6" height="1.6"${j < Math.round(v * 5) ? ' class="on"' : ''}/>`).join('')).join('');
@@ -284,7 +297,7 @@ const wall = (() => {
     for (const [id, s] of Object.entries(S)) {
       if (s.state !== 'working' && !s.lvl) continue;
       s.hist.shift(); s.hist.push(Math.min(1, s.lvl)); s.lvl = s.lvl < 0.01 ? 0 : s.lvl * 0.45;
-      drawSpk(id, s.hist);
+      if (!document?.hidden) drawSpk(id, s.hist);
     }
   }, 350);
 
@@ -292,18 +305,18 @@ const wall = (() => {
     const s = S[id], el = pane(id), b = $('.badge', el);
     el.classList.toggle('working', s.state === 'working');
     b.className = `ou-ah-state tile-state badge ${s.state === 'waiting_for_you' ? 'wait' : s.state === 'working' ? 'work' : s.state === 'done' ? 'unseen' : 'done'}`;
-    if (anim) gsap.fromTo(b, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+    if (anim) tween(b, { opacity: 0 }, { opacity: 1, duration: 0.3 });
   }
 
   function roll(el, n) {
     const old = el.lastElementChild;
     if (!old || old.textContent === String(n)) return;
-    if (RM) { old.textContent = n; gsap.fromTo(old, { opacity: 0.2 }, { opacity: 1, duration: 0.3 }); return; }
+    if (RM) { old.textContent = n; tween(old, { opacity: 0.2 }, { opacity: 1, duration: 0.3 }); return; }
     const up = +n > +old.textContent ? 1 : -1;
     const nu = h(`<span>${n}</span>`);
     el.appendChild(nu);
-    gsap.fromTo(nu, { yPercent: 100 * up }, { yPercent: 0, duration: 0.25, ease: 'power4.out' });
-    gsap.to(old, { yPercent: -100 * up, duration: 0.25, ease: 'power4.out', onComplete: () => old.remove() });
+    tween(nu, { yPercent: 100 * up }, { yPercent: 0, duration: 0.25, ease: 'power4.out' });
+    tween(old, { yPercent: -100 * up, duration: 0.25, ease: 'power4.out', onComplete: () => old.remove() });
   }
 
   /** Replaces a gate's actions with an APPROVED or REJECTED stamp, then fades the card. */
@@ -312,8 +325,8 @@ const wall = (() => {
     const ga = card.querySelector('.ga') || card;
     ga.innerHTML = `<span class="verdict ${ok ? 'ok' : 'no'}">${ok ? 'Approved' : 'Rejected'}</span>`;
     const v = $('.verdict', ga);
-    if (RM) gsap.fromTo(v, { opacity: 0, rotation: -2 }, { opacity: 1, duration: 0.3 });
-    else gsap.fromTo(v, { scale: 1.3, rotation: -2, opacity: 0 }, { scale: 1, rotation: -2, opacity: 1, duration: 0.25, ease: 'power4.out' });
+    if (RM) tween(v, { opacity: 0, rotation: -2 }, { opacity: 1, duration: 0.3 });
+    else tween(v, { scale: 1.3, rotation: -2, opacity: 0 }, { scale: 1, rotation: -2, opacity: 1, duration: 0.25, ease: 'power4.out' });
   }
 
   const T = (open, d) => (RM ? 0.15 : open ? d : d * 0.6);
@@ -325,9 +338,9 @@ const wall = (() => {
     if (open) {
       gsap.set(l, { visibility: 'visible' });
       if (RM) gsap.set(l, { x: 0 });
-      gsap.to(l, RM ? { opacity: 1, duration: T(1) } : { x: 0, opacity: 1, duration: T(1, 0.25), ease: 'power4.out' });
-    } else gsap.to(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.25), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
-    gsap.to('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.25) });
+      tween(l, RM ? { opacity: 1, duration: T(1) } : { x: 0, opacity: 1, duration: T(1, 0.25), ease: 'power4.out' });
+    } else tween(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.25), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
+    tween('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.25) });
   }
   function setSheet(open) {
     sheetOpen = open;
@@ -335,8 +348,8 @@ const wall = (() => {
     if (open) sh.classList.add('up');
     sh.querySelector('.tab').setAttribute('aria-expanded', open);
     const done = () => sh.classList.toggle('up', sheetOpen);
-    gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0, onComplete: done } : { y: open ? 0 : 208, duration: T(open, 0.25), ease: open ? 'power4.out' : 'power2.in', onComplete: done });
-    gsap.to('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.25) });
+    tween(sh, RM ? { y: open ? 0 : 208, duration: 0, onComplete: done } : { y: open ? 0 : 208, duration: T(open, 0.25), ease: open ? 'power4.out' : 'power2.in', onComplete: done });
+    tween('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.25) });
   }
   /** Closed: the title bar's free gap, or a 34px icon when the gap is under 160px. Open: centred, up to 600px. */
   function searchSpot(open) {
@@ -359,15 +372,15 @@ const wall = (() => {
     box.classList.add('open');
     box.classList.remove('icon-only');
     const to = searchSpot(true);
-    gsap.fromTo(box, { width: box.offsetWidth }, { width: to.w, left: to.left, duration: RM ? 0 : 0.15, ease: 'power4.out' });
-    gsap.fromTo(['#palette-list', '.sfoot'], { opacity: 0, y: RM ? 0 : -6 }, { opacity: 1, y: 0, duration: 0.15, ease: 'power4.out' });
+    tween(box, { width: box.offsetWidth }, { width: to.w, left: to.left, duration: RM ? 0 : 0.15, ease: 'power4.out' });
+    tween(['#palette-list', '.sfoot'], { opacity: 0, y: RM ? 0 : -6 }, { opacity: 1, y: 0, duration: 0.15, ease: 'power4.out' });
   }
   function closeSearch() {
     const box = $('#search');
     if (!box.classList.contains('open')) return;
     box.classList.remove('open');
     const to = searchSpot(false);
-    gsap.to(box, { width: to.w, left: to.left, duration: RM ? 0 : 0.1, ease: 'power2.in', onComplete: () => box.classList.toggle('icon-only', to.mini) });
+    tween(box, { width: to.w, left: to.left, duration: RM ? 0 : 0.1, ease: 'power2.in', onComplete: () => box.classList.toggle('icon-only', to.mini) });
   }
 
   gsap.set('#list', { x: -310, visibility: 'hidden' });
@@ -376,6 +389,14 @@ const wall = (() => {
   const stage = $('#stage');
   if (stage && typeof ResizeObserver === 'function') new ResizeObserver(() => layout(false)).observe(stage);
   for (const type of ['keydown', 'mousedown']) addEventListener(type, (e) => { if (e.target && e.target.closest && e.target.closest('.tile.big')) touchAt = Date.now(); }, true);
+  document?.addEventListener?.('visibilitychange', () => {
+    if (!document?.hidden) {
+      for (const tw of (gsap.globalTimeline?.getChildren?.() || []).slice()) {
+        if (tw.repeat?.() !== -1) tw.progress?.(1);
+      }
+      for (const [id, s] of Object.entries(S)) if (s.state === 'working') startLive(id);
+    }
+  });
   $('#search').addEventListener('click', (e) => {
     const box = e.currentTarget;
     if (!box.classList.contains('icon-only')) return;
