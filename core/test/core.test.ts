@@ -145,7 +145,7 @@ test('launcher exits silently with no core and adds under one second to engine s
   } finally { rmSync(isolated.home, { recursive: true, force: true }); }
 });
 
-test('launcher preserves every argument, records its own pid, and passes through exit codes', async () => {
+test('launcher preserves every argument, writes no launch event, and passes through exit codes', async () => {
   const h = await harness();
   try {
     const session = randomUUID();
@@ -159,15 +159,8 @@ test('launcher preserves every argument, records its own pid, and passes through
     assert.equal(observed.session, session);
     const store = database(h.home);
     try {
-      const rows = store.prepare("SELECT session_id, kind, source, payload FROM event WHERE session_id = ? AND kind = 'launch'").all(session);
-      assert.equal(rows.length, 1);
-      assert.equal(rows[0].source, 'launch');
-      const payload = JSON.parse(rows[0].payload);
-      assert.equal(payload.session_id, session);
-      assert.equal(payload.engine, 'fake');
-      assert.equal(payload.cwd, root);
-      assert.equal(payload.pid, observed.parent);
-      assert.ok(typeof payload.started_at === 'string');
+      // M7-10: the core writes the launch event after term.open, so launch.js writes none
+      assert.equal(store.prepare("SELECT count(*) AS n FROM event WHERE session_id = ? AND kind = 'launch'").get(session).n, 0);
     } finally { store.close(); }
     const exitArgs = Buffer.from(JSON.stringify([process.execPath, '-e', 'process.exit(23)'])).toString('base64');
     const exitResult = await runNode(['core/launch.js', '--session', randomUUID(), '--engine', 'fake', '--args-b64', exitArgs], h.env);

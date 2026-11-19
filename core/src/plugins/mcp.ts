@@ -168,15 +168,18 @@ function entriesFor(db: DatabaseSync, engineId: string, ctx: AttachContext): Shi
   return out;
 }
 
-interface AttachServer { name: string; args: string[]; http?: { url: string; headers: boolean } }
+interface AttachServer { name: string; command?: string; args: string[]; http?: { url: string; headers: boolean } }
 
 function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, ctx: AttachContext): { node: string; servers: AttachServer[] } {
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
+  const exe = path.join(coreDir, 'bin', 'metatrooper-launch.exe').split(String.fromCharCode(92)).join('/');
+  const native = process.platform === 'win32' && fs.existsSync(exe);
+  const ouros = ['steps', 'ui'].map((server) => ({ name: `ouros-${server}`, ...(native ? { command: exe, args: ['mcp', server] } : { args: [shim, server] }) }));
   const servers: AttachServer[] = [
-    ...(ctx.approval === 'isolated' ? [] : [{ name: 'ouros-steps', args: [shim, 'steps'] }, { name: 'ouros-ui', args: [shim, 'ui'] }]),
-    ...(browser || wantsBrowser(ctx) ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
-    ...(wantsDesktop(db, ctx) ? [{ name: 'metatrooper-desktop', args: [desktopServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
+    ...(ctx.approval === 'isolated' ? [] : ouros),
+    ...(browser || wantsBrowser(ctx) ? [{ name: 'metatrooper-browser', ...(native ? { command: exe, args: ['mcp', 'browser'] } : { args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }) }] : []),
+    ...(wantsDesktop(db, ctx) ? [{ name: 'metatrooper-desktop', ...(native ? { command: exe, args: ['mcp', 'desktop'] } : { args: [desktopServerPath().split(String.fromCharCode(92)).join('/')] }) }] : []),
     ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId, shimToken(e.pluginId)], http: e.http })),
   ];
   return { node, servers };
@@ -186,9 +189,9 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
 function mcpJson(node: string, servers: AttachServer[], format = 'mcpServers', plugin?: string): Record<string, unknown> {
   const plain = servers.filter((s) => !s.http?.headers);
   if (format === 'opencode-mcp') {
-    return { mcp: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'remote', url: s.http.url, enabled: true } : { type: 'local', command: [node, ...s.args], enabled: true }])), ...(plugin ? { plugin: [plugin] } : {}) };
+    return { mcp: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'remote', url: s.http.url, enabled: true } : { type: 'local', command: [s.command ?? node, ...s.args], enabled: true }])), ...(plugin ? { plugin: [plugin] } : {}) };
   }
-  return { mcpServers: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'http', url: s.http.url } : { command: node, args: s.args }])) };
+  return { mcpServers: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'http', url: s.http.url } : { command: s.command ?? node, args: s.args }])) };
 }
 
 /** Environment for env-json and config-dir engines: the shim commands as JSON, or a per-session folder holding mcp-config.json. Never a secret value. */
@@ -214,7 +217,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, s.http
         ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${s.args[0]}" headers "${s.args[1]}" "${s.args[2]}" "${s.args[3]}"` } : {}) }
-        : { command: node, args: s.args }]));
+        : { command: s.command ?? node, args: s.args }]));
       writeSessionFile(db, sessionId, file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
       return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`, ...(servers.some((s) => s.name === 'ouros-steps') ? ['--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui'] : [])];
@@ -224,13 +227,13 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const user = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(CODEX_BLOCK, '') : '';
       return servers
         .filter((s) => !new RegExp(`^\\[\\s*mcp_servers\\s*\\.\\s*(?:${s.name}|"${s.name}"|'${s.name}')\\s*\\]`, 'm').test(user))
-        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`, '-c', `mcp_servers.${s.name}.env_vars=${JSON.stringify(CODEX_ENV_VARS)}`]);
+        .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(s.command ?? node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`, '-c', `mcp_servers.${s.name}.env_vars=${JSON.stringify(CODEX_ENV_VARS)}`]);
     }
     case 'args-template': {
       const template = engine.mcp_attach.template ?? [];
       const wantsUrl = template.some((t) => t.includes('{url}'));
       return servers.filter((s) => Boolean(s.http) === wantsUrl && !s.http?.headers).flatMap((s) => {
-        const values: Record<string, string> = { name: s.name, node, shim: s.args[0], plugin: s.args[1] ?? '', server: s.args[2] ?? '', token: s.args[3] ?? '', url: s.http?.url ?? '' };
+        const values: Record<string, string> = { name: s.name, node: s.command ?? node, shim: s.args[0], plugin: s.args[1] ?? '', server: s.args[2] ?? '', token: s.args[3] ?? '', url: s.http?.url ?? '' };
         return template.map((t) => t.replace(/\{(name|node|shim|plugin|server|token|url)\}/g, (_, k: string) => values[k]));
       });
     }

@@ -11,6 +11,7 @@ file in the same pull request.
 ## Setup
 
 Node 24.16 or newer, Windows 10 or 11.
+Rust toolchain optional; without it sessions use the node launcher.
 
 ```bash
 cd core && npm ci

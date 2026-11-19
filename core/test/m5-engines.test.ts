@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -184,7 +184,11 @@ test('M5-14c env-json and config-dir expose shim commands only; launch leaves us
       ...opencode, id: 'args-template-fixture', mcp_attach: { kind: 'args-template', template: ['--mcp={node}:{shim}:{plugin}:{server}:{token}'] },
     };
     const args = mcpAttachArgs(db, argsEngine, 'args-session');
-    assert.deepEqual(args, [`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:steps::`, `--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:ui::`, `--mcp=${process.execPath.replaceAll('\\', '/')}:${join(root, 'core', 'metatrooper-browser.js').replaceAll('\\', '/')}:::`, `--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server:${shimToken('fixture-plugin')}`]);
+    const exe = join(root, 'core', 'bin', 'metatrooper-launch.exe').replaceAll('\\', '/');
+    const own = (server: string) => process.platform === 'win32' && existsSync(exe) ? `--mcp=${exe}:mcp:${server}::`
+      : server === 'browser' ? `--mcp=${process.execPath.replaceAll('\\', '/')}:${join(root, 'core', 'metatrooper-browser.js').replaceAll('\\', '/')}:::`
+      : `--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:${server}::`;
+    assert.deepEqual(args, [own('steps'), own('ui'), own('browser'),`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server:${shimToken('fixture-plugin')}`]);
     assert.ok(!JSON.stringify(args).includes('FIXTURE_SECRET_VALUE'));
   } finally {
     db.close();

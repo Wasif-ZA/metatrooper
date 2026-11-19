@@ -83,7 +83,7 @@ test('M8-40e: grant.pin is a trusted-UI method: needsUi, refused on an agent con
   const runner = new CommandRunner(f.db, f.methods);
   await assert.rejects(runner.call({ id: 1, jsonrpc: '2.0', method: 'grant.pin', params: { grant_id: f.grant, title_pattern: '*' } } as any, {} as any), /needs a trusted UI connection/);
   assert.equal(grantPin(f.db, f.grant), null, 'the refused pin was not stored');
-  const mcp = readFileSync(join(import.meta.dirname, '../src/hook/desktop-mcp.ts'), 'utf8');
+  const mcp = readFileSync(join(import.meta.dirname, '../src/hook/desktop-tools.ts'), 'utf8');
   assert.doesNotMatch(mcp, /grant\.pin|unpin|title_pattern/);
 });
 

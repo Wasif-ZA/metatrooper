@@ -149,11 +149,11 @@ test('a pipe connection without ui.hello cannot lend or change browser.lent even
 });
 
 test('navigate MCP schema exposes signed_in as a boolean', () => {
-  const source = readFileSync(new URL('../src/hook/browser-mcp.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/hook/browser-tools.ts', import.meta.url), 'utf8');
   const start = source.indexOf('const pane =');
-  const end = source.indexOf('const browser =');
+  const end = source.indexOf('export async function browserToolList');
   assert.ok(start >= 0 && end > start);
-  const declarations = stripTypeScriptTypes(source.slice(start, end));
+  const declarations = stripTypeScriptTypes(source.slice(start, end)).replace(/^export /gm, '');
   const schema = runInNewContext(declarations + '; TOOLS.find(t => t.name === "navigate").inputSchema', { BATCH_MAX: 8, BATCH_TOOLS: [] });
   assert.deepEqual(JSON.parse(JSON.stringify(schema.properties.signed_in)), { type: 'boolean' });
   assert.deepEqual(JSON.parse(JSON.stringify(schema.required)), ['url']);

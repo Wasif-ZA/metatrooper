@@ -1,0 +1,29 @@
+import type { ToolDef } from './mcp-stdio.ts';
+
+export const STEPS_TOOL: ToolDef = {
+  name: 'steps_set',
+  description: 'Show your plan to the user as a checklist in cc. Call it once you have a plan of 2 or more steps, and again each time a step is done or the plan changes. Send the whole list every time; it replaces the last one. Short step text, up to 30 steps.',
+  inputSchema: {
+    type: 'object',
+    properties: { items: { type: 'array', maxItems: 30, items: { type: 'object', properties: { text: { type: 'string', maxLength: 200 }, done: { type: 'boolean' } }, required: ['text', 'done'] } } },
+    required: ['items'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};
+
+export const UI_TOOL: ToolDef = {
+  name: 'ouros_ui',
+  description: 'Draw a screen for the user in cc as a tab. Send JSON naming catalogue parts; cc checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      surface: { type: 'string', description: 'Id, 1 to 64 letters, digits, dots, dashes or underscores, e.g. "run-r0412".' },
+      title: { type: 'string', description: 'The tab title.' },
+      zone: { type: 'string', enum: ['tab'], default: 'tab' },
+      catalogue: { type: 'string', description: 'Catalogue version you wrote against; "1".' },
+      spec: { type: 'object', description: 'Usually { "type": "page", "children": [ ... ] }.' },
+    },
+    required: ['surface', 'spec'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};

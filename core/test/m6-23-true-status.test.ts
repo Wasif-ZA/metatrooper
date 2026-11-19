@@ -1307,9 +1307,12 @@ test('M6-23 launch supplies plugin environment and opencode config with no exter
     assert.equal(h.db.prepare('SELECT count(*) AS n FROM plugin').get()!.n, 0);
     const env = mcpAttachEnv(h.db, engine, h.id);
     assert.deepEqual(Object.keys(env), ['OPENCODE_CONFIG_CONTENT']);
-    const steps = { type: 'local', command: [process.execPath.replaceAll('\\', '/'), join(ROOT, 'core/mcp-shim.js').replaceAll('\\', '/'), 'steps'], enabled: true };
+    const exe = join(ROOT, 'core/bin/metatrooper-launch.exe').replaceAll('\\', '/');
+    const native = process.platform === 'win32' && existsSync(exe);
+    const own = (server: string, node: string[]) => ({ type: 'local', command: native ? [exe, 'mcp', server] : [process.execPath.replaceAll('\\', '/'), ...node], enabled: true });
+    const shim = join(ROOT, 'core/mcp-shim.js').replaceAll('\\', '/');
     assert.deepEqual(JSON.parse(env.OPENCODE_CONFIG_CONTENT), {
-      mcp: { 'ouros-steps': steps, 'ouros-ui': { ...steps, command: [...steps.command.slice(0, 2), 'ui'] }, 'metatrooper-browser': { type: 'local', command: [process.execPath.replaceAll('\\', '/'), join(ROOT, 'core/metatrooper-browser.js').replaceAll('\\', '/')], enabled: true } },
+      mcp: { 'ouros-steps': own('steps', [shim, 'steps']), 'ouros-ui': own('ui', [shim, 'ui']), 'metatrooper-browser': own('browser', [join(ROOT, 'core/metatrooper-browser.js').replaceAll('\\', '/')]) },
       plugin: [pathToFileURL(join(ROOT, 'engines/plugins/opencode-state.js')).href],
     });
     assert.deepEqual(Object.keys(JSON.parse(mcpAttachEnv(h.db, {

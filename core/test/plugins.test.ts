@@ -514,16 +514,16 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           assert.equal(args[1], '--allowedTools=mcp__ouros-steps__steps_set');
           const config = readFileSync(args[0].slice('--mcp-config='.length), 'utf8');
           assert.match(config, /mcp-shim\.js/);
-          assert.match(config, /metatrooper-browser\.js/);
+          assert.match(config, /metatrooper-browser\.js|"mcp",\s*"browser"/);
           assert.ok(!config.includes(literal));
           const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2', true));
           assert.ok(!existsSync(codexConfig));
           // ouros-steps, ouros-ui, metatrooper-browser, plus metatrooper-desktop from the built-in desktop plugin on Windows (M6-15)
           assert.equal(codex.filter((a) => a === '-c').length, process.platform === 'win32' ? 12 : 9);
-          assert.match(codex[3], /^mcp_servers\.ouros-steps\.args=\[".*mcp-shim\.js","steps"\]$/);
+          assert.match(codex[3], /^mcp_servers\.ouros-steps\.args=\[(".*mcp-shim\.js"|"mcp"),"steps"\]$/);
           assert.match(codex[13], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
-          assert.match(codex[15], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
-          if (process.platform === 'win32') assert.match(codex[21], /^mcp_servers\.metatrooper-desktop\.args=\[".*metatrooper-desktop\.js"\]$/);
+          assert.match(codex[15], /^mcp_servers\.metatrooper-browser\.args=\[(".*metatrooper-browser\.js"|"mcp","browser")\]$/);
+          if (process.platform === 'win32') assert.match(codex[21], /^mcp_servers\.metatrooper-desktop\.args=\[(".*metatrooper-desktop\.js"|"mcp","desktop")\]$/);
           assert.ok(!codex.join(' ').includes(literal));
         } finally {
           if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;
