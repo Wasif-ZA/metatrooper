@@ -49,7 +49,7 @@ test('wire-03 worktree branch traversal, dash and spaces are refused; slash bran
   git('init'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.com');
   writeFileSync(join(f.project, 'a'), 'test'); git('add', 'a'); git('commit', '-m', 'fixture');
   const call = (branch: string) => f.methods.get('worktree.create')!.handler({ project_id: 'p1', branch }, ctx) as any;
-  for (const branch of ['..', '../escape', 'a..b', '-x', 'with space']) assert.throws(() => call(branch), invalid, branch);
+  for (const branch of ['..', '../escape', 'a..b', '-x', 'with space']) await assert.rejects(async () => call(branch), invalid, branch);
   const r = await call('feature/safe'); const rel = relative(join(f.home, 'worktrees', 'p1'), r.path);
   assert.ok(rel && !rel.startsWith('..') && !isAbsolute(rel), r.path);
   assert.equal(existsSync(join(r.path, '.git')), true);
@@ -68,7 +68,8 @@ function launchHarness() {
     launchSession: (_: unknown, opts: any) => { launched.push(opts); return { session_id: 'recorded' }; }, isPreset: () => true,
   });
   const strSource = methodSource.match(/^function str\([^]*?^}/m); assert.ok(strSource);
-  vm.runInContext(stripTypeScriptTypes(strSource[0] + '\n' + match[0]), c);
+  const gatewaySource = methodSource.match(/^function refuseGateway\([^]*?^}/m); assert.ok(gatewaySource);
+  vm.runInContext(stripTypeScriptTypes(strSource[0] + '\n' + gatewaySource[0] + '\n' + match[0]), c);
   return { handler, launched, engine };
 }
 // Protects methods.ts:236, :250-262: malformed launch values cannot silently become defaults.
