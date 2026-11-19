@@ -477,7 +477,8 @@ export function Inbox() {
     g.items = filter !== 'all' && filter !== g.key ? [] : g.items.filter(([item, isSession]) => passes(item, isSession));
     g.count = g.key === 'working' ? workingCounts({ live: g.items.map(([x]) => x) }).working : g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
   }
-  const totalItems = groups.reduce((acc, g) => acc + g.count, 0);
+  const rowCount = (g) => g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
+  const totalItems = groups.reduce((acc, g) => acc + rowCount(g), 0);
   const allRows = groups.flatMap((g) => g.items.map(([item, isSession]) => ({ id: item.id, item, isSession, group: g })));
   const visibleRows = allRows.filter((r) => !collapsed.includes(r.group.key));
   const activeRow = selectedId ? allRows.find((r) => r.id === selectedId) || null : null;
@@ -676,7 +677,7 @@ export function Inbox() {
 
   const groupHead = (group, isFolded) => (
     <div
-      className={`ou-ihead ou-ny-ghead ${group.count === 0 ? 'ou-ny-gdim' : ''}`}
+      className={`ou-ihead ou-ny-ghead ${rowCount(group) === 0 ? 'ou-ny-gdim' : ''}`}
       role="button"
       tabIndex={0}
       aria-expanded={!isFolded}
@@ -904,7 +905,7 @@ export function Inbox() {
         ) : (
           <ListMotion order={order} counts={counts}>
             {groups.map((group) => {
-              const isFolded = collapsed.includes(group.key) || group.count === 0;
+              const isFolded = collapsed.includes(group.key) || rowCount(group) === 0;
               return (
                 <Fold key={group.key} open={!isFolded} head={groupHead(group, isFolded)}>
                   {isFolded ? null : [

@@ -141,3 +141,24 @@ test('Inbox Working counts filtered top-level sessions while retaining helper ro
   if (workingCount().length) assertWorkingCount(0);
   assert.deepEqual(h.all(hasClass('ou-irow')).map((n: any) => n.props['data-id']), ['W'], 'Kinds actually filters to the waiting row');
 });
+
+test('a Working section holding only helpers stays open with its rows, and Needs you is not empty', () => {
+  const live = [
+    { id: 'P', state: 'waiting_for_you', project_id: 'p1', engine_id: 'synthetic', title: 'Task P' },
+    { id: 'H', state: 'working', project_id: 'p1', engine_id: 'synthetic', title: 'Task H', parent_id: 'P' },
+  ];
+  Object.assign(g, {
+    ui: { view: 'inbox', projectId: 'p1', snap: { live, sessions: [], approvals: [], needs_you: [], engines: [], projects: [{ id: 'p1', name: 'Alpha' }] } },
+    waitingAll: () => live.filter((x) => x.state === 'waiting_for_you'),
+    taskOf: (x: any) => x.title,
+    ago: () => '1m ago',
+  });
+  inboxStore.set({ filter: 'all', engine: '', project: '', collapsed: [], selectedId: null });
+  const h = harness(Inbox);
+  h.draw();
+  const count = h.one((n: any) => hasClass('ou-ny-gcount')(n) && n.props['data-group'] === 'working');
+  assert.equal(textContent(count), '0', 'no started session is working');
+  const fold = h.one((n: any) => n.type?.name === 'Fold' && n.props.head?.props['data-group'] === 'working');
+  assert.equal(fold.props.open, true, 'the section is not folded away while it has a row');
+  assert.deepEqual(h.all(hasClass('ou-irow')).map((n: any) => n.props['data-id']).sort(), ['H', 'P']);
+});
