@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Drop, press } from './home.jsx';
-import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, mergeEcho, revealSteps, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
+import { approvalInput, approvalText, chatModeOf, fileTotals, groupItems, mergeEcho, pollDelay, revealSteps, splitLabel, TERMINAL_ONLY_NOTE } from './chat-model.js';
 import { canMove } from './motion.js';
 import { NOT_SENT } from './words.js';
 import { ChevronRightIcon } from './icons/index.js';
@@ -21,17 +21,22 @@ export function echoSend(id, text) {
   session.polls.forEach((poll) => void poll());
 }
 
-export function useChat(id) {
+export function useChat(id, state) {
   const [chat, setChat] = useState(null);
   const [, refresh] = useState(0);
+  const latestState = useRef(state);
+  const wake = useRef(null);
+  latestState.current = state;
   useEffect(() => {
     const session = sessionOf(id);
     const notify = () => refresh((n) => n + 1);
     let stopped = false;
     let timer;
+    let delay;
     let request = 0;
     const poll = async () => {
       clearTimeout(timer);
+      timer = undefined;
       const current = ++request;
       try {
         const r = await rpc('session.chat', { session_id: id }, true);
@@ -43,13 +48,24 @@ export function useChat(id) {
       } catch {
         if (!stopped && current === request) setChat((prev) => prev?.session_id === id ? prev : { session_id: id, error: true });
       }
-      if (!stopped && current === request) timer = setTimeout(poll, 1500);
+      if (!stopped && current === request) {
+        delay = pollDelay({ state: latestState.current, pending: session.echoes.length, hidden: document.hidden });
+        timer = setTimeout(poll, delay);
+      }
     };
+    wake.current = () => {
+      if (timer !== undefined && delay === 1500 && !document.hidden) void poll();
+    };
+    const visible = () => { if (!document.hidden) void poll(); };
+    document.addEventListener('visibilitychange', visible);
     session.listeners.add(notify);
     session.polls.add(poll);
     void poll();
-    return () => { stopped = true; clearTimeout(timer); session.listeners.delete(notify); session.polls.delete(poll); };
+    return () => { stopped = true; clearTimeout(timer); wake.current = null; document.removeEventListener('visibilitychange', visible); session.listeners.delete(notify); session.polls.delete(poll); };
   }, [id]);
+  useEffect(() => {
+    if (state === 'working' || state === 'starting') wake.current?.();
+  }, [state]);
   return chat?.session_id === id ? chat : null;
 }
 

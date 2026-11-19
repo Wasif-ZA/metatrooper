@@ -79,3 +79,15 @@ test('nothing new means nothing to reveal; shrunk or replaced text shows at once
   assert.deepEqual(revealSteps(10, '0123456789', 1200), []);
   assert.deepEqual(revealSteps(20, 'short', 1200), [{ at: 0, len: 5 }]);
 });
+
+test('the chat polls fast only while a reply is in flight and the window is visible', async () => {
+  const { pollDelay } = await import('../ui/src/chat-model.js');
+  assert.equal(pollDelay({ state: 'working', pending: 0, hidden: false }), 300);
+  assert.equal(pollDelay({ state: 'starting', pending: 0, hidden: false }), 300);
+  assert.equal(pollDelay({ state: 'idle', pending: 1, hidden: false }), 300);
+  assert.equal(pollDelay({ state: 'idle', pending: 0, hidden: false }), 1500);
+  assert.equal(pollDelay({ state: 'waiting_for_you', pending: 0, hidden: false }), 1500);
+  assert.equal(pollDelay({ state: 'exited', pending: 0, hidden: false }), 1500);
+  assert.equal(pollDelay({ state: 'working', pending: 1, hidden: true }), 1500);
+  assert.equal(pollDelay({ state: undefined, pending: 0, hidden: false }), 1500);
+});

@@ -2,6 +2,11 @@ export const chatModeOf = (engineId, source) => source === 'transcript' ? 'chat'
 
 export const TERMINAL_ONLY_NOTE = 'This agent shares no chat record, so cc shows its terminal only.';
 
+export function pollDelay({ state, pending, hidden }) {
+  if (hidden) return 1500;
+  return state === 'working' || state === 'starting' || pending > 0 ? 300 : 1500;
+}
+
 export function mergeEcho(items, echoes, now) {
   const pending = echoes.filter(({ text, base, at }) => now - at <= 30000 &&
     items.filter((item) => item.kind === 'user' && item.text.trim() === text.trim()).length <= base);

@@ -306,7 +306,7 @@ function Trigger({ x, kids, open, toggle }) {
 
 function TaskView({ x, kids, openList, toggle, picked }) {
   const [answer, setAnswer] = useState('');
-  const chat = useChat(x.id);
+  const chat = useChat(x.id, x.state);
   const ask = picked && picked !== x && statusOf(picked) === 'waiting' ? picked : statusOf(x) === 'waiting' ? x : null;
   const here = !ask?.project_id || ask.project_id === ui.projectId;
   const send = async () => {
