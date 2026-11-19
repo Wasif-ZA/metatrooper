@@ -11,7 +11,7 @@ export interface ToolItem {
   output?: string[];
 }
 
-export type Item = { kind: 'user' | 'text'; text: string } | ToolItem;
+export type Item = { kind: 'user' | 'text'; text: string; id?: string } | ToolItem;
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -71,16 +71,17 @@ export function parseChat(lines: string[], state: string, cwd: string | null = n
     try { entry = record(JSON.parse(line)); } catch { continue; }
     if (entry.isSidechain || entry.isMeta || (entry.type !== 'user' && entry.type !== 'assistant')) continue;
     const content = record(entry.message).content;
+    const uuid = string(entry.uuid);
     if (typeof content === 'string') {
-      if (entry.type === 'user' && !/^(<command-|<local-command|Caveat:)/.test(content)) items.push({ kind: 'user', text: content });
+      if (entry.type === 'user' && !/^(<command-|<local-command|Caveat:)/.test(content)) items.push({ kind: 'user', text: content, ...(uuid ? { id: uuid } : {}) });
       continue;
     }
     if (!Array.isArray(content)) continue;
-    for (const value of content) {
+    for (const [blockIndex, value] of content.entries()) {
       const block = record(value);
       if (block.type === 'text' && typeof block.text === 'string') {
         const text = entry.type === 'assistant' ? block.text.trim() : block.text;
-        if (text) items.push({ kind: entry.type === 'user' ? 'user' : 'text', text });
+        if (text) items.push({ kind: entry.type === 'user' ? 'user' : 'text', text, ...(uuid ? { id: `${uuid}:${blockIndex}` } : {}) });
       } else if (block.type === 'tool_use') {
         const id = string(block.id), name = string(block.name);
         const input = record(block.input);

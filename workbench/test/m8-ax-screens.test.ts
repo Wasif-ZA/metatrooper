@@ -91,6 +91,8 @@ function harness(Screen: any, runEffects = false) {
         useSyncExternalStore: (_subscribe: any, snapshot: any) => snapshot(),
         useRef: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i]; },
         useLayoutEffect: () => {},
+        useCallback: (fn: any) => { cursor++; return fn; },
+        useMemo: (fn: any) => { cursor++; return fn(); },
         useState: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], (v: any) => { const next = typeof v === 'function' ? v(slots[i]) : v; if (!Object.is(next, slots[i])) { slots[i] = next; rerender = true; } }]; },
       };
       let output;
@@ -367,7 +369,7 @@ test('Home polls chat every 1.5 seconds, cancels on cleanup and ignores replies 
   g.rpc = (...args: any[]) => { calls.push(args); return new Promise((resolve) => replies.push(resolve)); };
   g.setTimeout = (fn: Function, ms: number) => { assert.equal(ms, 1500); timers.set(++serial, fn); return serial; };
   g.clearTimeout = (id: number) => timers.delete(id);
-  internals.H = { useState: () => [state, (v: any) => { state = typeof v === 'function' ? v(state) : v; }], useEffect: (fn: Function) => effects.push(fn) };
+  internals.H = { useState: () => [state, (v: any) => { state = typeof v === 'function' ? v(state) : v; }], useEffect: (fn: Function) => effects.push(fn), useRef: (initial: any) => ({ current: initial }), useCallback: (fn: any) => fn, useMemo: (fn: any) => fn(), useLayoutEffect: () => {} };
   try {
     assert.equal(useChat('first'), null);
     const stopFirst = effects.shift()!();

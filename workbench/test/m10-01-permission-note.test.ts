@@ -114,6 +114,8 @@ function harness(Screen: any, runEffects = false) {
         useSyncExternalStore: (_subscribe: any, snapshot: any) => snapshot(),
         useRef: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i]; },
         useLayoutEffect: () => {},
+        useCallback: (fn: any) => { cursor++; return fn; },
+        useMemo: (fn: any) => { cursor++; return fn(); },
         useState: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], (v: any) => { const next = typeof v === 'function' ? v(slots[i]) : v; if (!Object.is(next, slots[i])) { slots[i] = next; rerender = true; } }]; },
       };
       let output;
