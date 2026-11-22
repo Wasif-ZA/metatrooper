@@ -150,8 +150,11 @@ const wall = (() => {
     const wh = !open.length ? A : !work.length ? 0 : (A - G) * 1.2 / 2.2;
     const row = (list, y, hh) => {
       const cols = Math.min(list.length, Math.max(1, Math.floor((RW + G) / (200 + G)))), rows = Math.ceil(list.length / cols);
-      const w = (RW - G * (cols - 1)) / cols, rh = (hh - G * (rows - 1)) / rows;
-      list.forEach((id, i) => R[id] = { left: RX + (i % cols) * (w + G), top: y + Math.floor(i / cols) * (rh + G), width: w, height: rh });
+      const rh = (hh - G * (rows - 1)) / rows;
+      list.forEach((id, i) => {
+        const r = Math.floor(i / cols), n = r === rows - 1 ? list.length - r * cols : cols, w = (RW - G * (n - 1)) / n;
+        R[id] = { left: RX + (i % cols) * (w + G), top: y + r * (rh + G), width: w, height: rh };
+      });
     };
     row(work, TOP, wh);
     row(open, work.length ? TOP + wh + G : TOP, work.length ? A - wh - G : A);

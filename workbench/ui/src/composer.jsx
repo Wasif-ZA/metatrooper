@@ -37,12 +37,21 @@ export function tokenAt(text, caret) {
 
 const fileToken = (p) => `@${/\s/.test(p) ? `"${p}"` : p} `;
 
-// @ lists project files (fsFind), / lists this composer's own actions; up/down/enter/tab pick, Esc closes.
-function Mentions({ actions }) {
+/** Up to `max` commands for `q`: name prefix, then name substring, then description substring. */
+export function rankCommands(list, q, max = 8) {
+  const s = q.toLowerCase();
+  const tier = (c) => (c.name.toLowerCase().startsWith(s) ? 0 : c.name.toLowerCase().includes(s) ? 1 : c.description.toLowerCase().includes(s) ? 2 : 3);
+  return list.map((c) => [tier(c), c]).filter(([t]) => t < 3).sort((a, b) => a[0] - b[0]).slice(0, max).map(([, c]) => c);
+}
+
+// @ lists project files (fsFind); / lists Claude's slash commands (commandsList), then this composer's own actions; up/down/enter/tab pick, Esc closes.
+function Mentions({ actions, engineId }) {
   const ref = useRef(null);
   const [st, setSt] = useState(null);
   const live = useRef(null);
   live.current = st;
+  const engine = useRef(engineId);
+  engine.current = engineId;
   const uid = useId();
   useEffect(() => {
     const ta = ref.current?.closest('.ou-cmp')?.querySelector('textarea');
@@ -54,13 +63,25 @@ function Mentions({ actions }) {
     const ta = ref.current?.closest('.ou-cmp')?.querySelector('textarea');
     if (!ta) return undefined;
     let seq = 0;
+    let cmds = null;
     const read = () => {
       const t = ta.selectionStart === ta.selectionEnd ? tokenAt(ta.value, ta.selectionStart) : null;
       const n = ++seq;
+      if (!t || t.kind !== '/') cmds = null;
       if (!t) { setSt(null); return; }
       if (t.kind === '/') {
-        const list = actions().filter((a) => a.label.toLowerCase().includes(t.query.toLowerCase()));
-        setSt(list.length ? { ...t, list, i: 0 } : null);
+        const acts = actions().filter((a) => a.label.toLowerCase().includes(t.query.toLowerCase()));
+        const show = (found) => {
+          const list = [...rankCommands(found, t.query).map((c) => ({ label: c.name, description: c.description, command: true })), ...acts];
+          setSt(list.length ? { ...t, list, i: 0 } : null);
+        };
+        if (engine.current !== 'claude') { show([]); return; }
+        if (cmds) { show(cmds); return; }
+        show([]);
+        void Promise.resolve(api.commandsList?.(ui.projectId, engine.current)).then((found) => {
+          cmds = Array.isArray(found) ? found : [];
+          if (n === seq) show(cmds);
+        }, () => { cmds = []; });
         return;
       }
       if (!t.query) { setSt({ ...t, list: [], i: 0, hint: 'Type to find a file' }); return; }
@@ -79,8 +100,8 @@ function Mentions({ actions }) {
     const choose = (s, item) => {
       setSt(null);
       seq++;
-      if (s.kind === '@') {
-        const token = fileToken(item.path);
+      if (s.kind === '@' || item.command) {
+        const token = item.command ? `/${item.label} ` : fileToken(item.path);
         put(ta.value.slice(0, s.start) + token + ta.value.slice(s.end).replace(/^ /, ''), s.start + token.length);
       } else {
         put(ta.value.slice(0, s.start) + ta.value.slice(s.end), s.start);
@@ -112,7 +133,7 @@ function Mentions({ actions }) {
     <span ref={ref} className="ou-cmp-mention" hidden={!st}>
       {st ? (
         <span role="listbox" id={`${uid}lb`} aria-label={st.kind === '@' ? 'Files' : 'Commands'}>
-          {st.list.map((x, i) => <span key={x.label} id={`${uid}o${i}`} role="option" aria-selected={i === st.i} onMouseDown={(e) => { e.preventDefault(); ref.current.choose(i); }}>{st.kind === '/' ? `/${x.label}` : x.label}</span>)}
+          {st.list.map((x, i) => <span key={`${x.command ? 'c' : 'a'}:${x.label}`} id={`${uid}o${i}`} role="option" aria-selected={i === st.i} title={x.description || undefined} onMouseDown={(e) => { e.preventDefault(); ref.current.choose(i); }}>{st.kind === '/' ? `/${x.label}` : x.label}{x.description ? <span className="ou-cmp-mention-desc" style={{ marginLeft: 10, color: 'var(--mute)', fontFamily: 'var(--font-sans, inherit)' }}>{x.description}</span> : null}</span>)}
           {!st.list.length ? <span className="ou-cmp-mention-hint">{st.hint}</span> : null}
         </span>
       ) : null}
@@ -129,7 +150,7 @@ export function composer({ field, opts, plus, attach, engine, send, context, sta
       <div className="ou-composer ou-cmp" data-filled={filled ? 'true' : 'false'} onKeyDown={onKeyDown}
         onDragOver={attach ? (e) => e.preventDefault() : undefined} onDrop={attach ? (e) => { e.preventDefault(); attach(api.filePaths([...e.dataTransfer.files])); } : undefined}>
         {field}
-        <Mentions actions={() => [
+        <Mentions engineId={engine?.id} actions={() => [
           ...(items || []).map((x) => ({ label: x.label, run: x.onClick })),
           ...(send && !send.isDisabled ? [{ label: send.label, run: send.onClick }] : []),
         ]} />

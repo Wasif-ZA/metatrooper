@@ -1,3 +1,4 @@
+import { listCommands } from './commands.ts';
 import { createEntry, deleteTarget, inside as fsInside, listDir, openOutside, rankFiles, readFileUrl, readImage, readText, renameEntry, searchText, writeText } from './files.ts';
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
@@ -621,6 +622,7 @@ function handlers(): void {
     if (!root || typeof query !== 'string' || query.length > 200) return [];
     try { return rankFiles((await runIn(root)(['ls-files', '-z', '--cached', '--others', '--exclude-standard'])).split('\0').filter(Boolean), query); } catch { return []; }
   });
+  on('commandsList', (projectId: unknown, engineId: unknown) => (engineId === 'claude' ? listCommands(app.getPath('home'), projectRoot(projectId)) : []));
   on('fsRead', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? readText(root, rel) : { error: 'pick a project first' }; });
   on('fsImage', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root ? readImage(root, rel) : { error: 'pick a project first' }; });
   on('fsFileUrl', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root ? readFileUrl(root, rel) : { error: 'pick a project first' }; });

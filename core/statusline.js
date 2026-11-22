@@ -49,7 +49,7 @@ function ownLine() {
   try { d = JSON.parse(input.toString('utf8')); } catch {}
   const parts = [];
   if (d.model?.display_name) parts.push(d.model.display_name);
-  const dir = d.workspace?.current_dir || d.cwd;
+  const dir = d.workspace?.project_dir || d.workspace?.current_dir || d.cwd;
   if (dir) parts.push(path.basename(dir));
   if (dir) {
     const b = spawnSync('git', ['-C', dir, 'branch', '--show-current'], { encoding: 'utf8', windowsHide: true });

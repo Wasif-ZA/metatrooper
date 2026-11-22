@@ -66,7 +66,9 @@ const PIC_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
 const isPic = (p) => PIC_EXTS.has(p ? ext(p) : '');
 const isPdf = (p) => /\.pdf$/i.test(p);
 const isHtml = (p) => /\.html?$/i.test(p);
-const canPreview = (p) => isMd(p) || isHtml(p);
+const isSvg = (p) => /\.svg$/i.test(p);
+const svgUrl = (text) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+const canPreview = (p) => isMd(p) || isHtml(p) || isSvg(p);
 const under = (p, root) => { const norm = root.endsWith('/') ? root.slice(0, -1) : root; return p === norm || p.startsWith(`${norm}/`); };
 const canWrite = () => typeof api.fsWrite === 'function';
 const canSearch = () => typeof api.fsSearch === 'function';
@@ -278,7 +280,7 @@ async function readTab(st, t, path) {
 
 async function openFile(st, path, { owner, changes, line } = {}) {
   let t = tabOf(st, path);
-  if (!t) { t = { path, mode: isMd(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
+  if (!t) { t = { path, mode: isMd(path) || isSvg(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
   st.active = path;
   if (owner) { t.owner = owner; t.gitDiff = false; }
   if (line) { t.gotoLine = line; t.mode = 'file'; }
@@ -1480,6 +1482,7 @@ export function Ide() {
                       ? leftActive.previewError ? <EmptyState isCompact title={leftActive.previewError} />
                         : leftActive.previewUrl ? <iframe className="ou-ide-document-frame" src={leftActive.previewUrl} title={`Preview ${leftActive.path}`} sandbox="" />
                           : <p className="ou-ide-muted ou-ide-pad">Loading.</p>
+                      : isSvg(leftActive.path) ? <div className="ou-ide-image"><img src={svgUrl(leftActive.text)} alt={leftActive.path} /></div>
                       : <Preview key={leftActive.path} text={leftActive.text} path={leftActive.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={leftActive} />) : null}
         </div>
         </div>

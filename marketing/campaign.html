@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cc launch campaign</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23151516'/%3E%3Cg fill='none' stroke='%23f1f1ef' stroke-width='6' stroke-linejoin='miter'%3E%3Cpath d='M24 21H12V43H24'/%3E%3Cpath d='M40 21H28V43H40'/%3E%3C/g%3E%3Crect x='44' y='37' width='9' height='6' fill='%23ff7a1a'/%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light;--bg:#f1f1ef;--fg:#151516;--panel:#fff;--line:#c8c8c3;--accent:#c45200;--muted:#55565a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#151516;--fg:#f1f1ef;--panel:#222225;--line:#45454a;--accent:#ff7a1a;--muted:#b4b4b4}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#151516;--fg:#f1f1ef;--panel:#222225;--line:#45454a;--accent:#ff7a1a;--muted:#b4b4b4}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,textarea{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:.5rem .8rem;color:var(--fg);background:var(--panel)}
+button:hover{border-color:var(--accent)}
+a{color:var(--accent);overflow-wrap:anywhere}
+h1,h2,h3,.mono,th,.eyebrow,code{font-family:"Cascadia Mono",Consolas,"Courier New",monospace}
+code{font-size:.9em;overflow-wrap:anywhere}
+h1{font-size:clamp(1.8rem,6vw,3.2rem);line-height:1.1;margin:.3rem 0}
+h2{font-size:clamp(1.2rem,4vw,1.6rem);line-height:1.25;margin:.2rem 0 .8rem}
+h3{font-size:1rem;margin:1.2rem 0 .4rem}
+p,li{max-width:78ch}
+header,main,footer{width:min(100% - 2rem,1040px);margin:auto}
+header{padding:1.2rem 0 1.6rem}
+.top{display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:.6rem}
+.brand svg{width:40px;height:40px;flex:none}
+.actions{display:flex;gap:.4rem;flex-wrap:wrap}
+.eyebrow{font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0}
+.lede{font-size:1.1rem}
+nav.toc{display:flex;flex-wrap:wrap;gap:.3rem .9rem;font-size:.9rem;margin-top:.8rem}
+section{border-top:1px solid var(--line);padding:1.5rem 0 1.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:.8rem}
+.card,.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;min-width:0}
+.card h3{margin-top:0}
+.note{border-left:4px solid var(--accent);margin:.8rem 0}
+.small{font-size:.9rem;color:var(--muted)}
+.tag{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:0 .45rem;font:.75rem "Cascadia Mono",Consolas,monospace}
+.hi{color:var(--accent);border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;margin:.6rem 0}
+th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:.55rem .5rem}
+th{font-size:.8rem}
+td{overflow-wrap:anywhere}
+.t{font-family:"Cascadia Mono",Consolas,monospace;font-size:.86rem;white-space:nowrap}
+.comment{margin-top:1.3rem}
+.comment label{display:block;font-family:"Cascadia Mono",Consolas,monospace;font-size:.82rem;margin-bottom:.35rem;color:var(--muted)}
+.comment textarea{width:100%;min-height:4.5rem;resize:vertical;padding:.6rem;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px}
+.checklist{list-style:none;padding:0}
+.checklist li{border-bottom:1px solid var(--line);padding:.55rem 0}
+.checklist label{display:flex;gap:.6rem;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:.35rem;accent-color:var(--accent);flex:none}
+.sources li{margin-bottom:.7rem}
+dl.risk{display:grid;grid-template-columns:8rem 1fr;gap:.3rem .8rem;margin:.4rem 0}
+dl.risk dt{font-family:"Cascadia Mono",Consolas,monospace;font-size:.82rem;color:var(--muted)}
+dl.risk dd{margin:0}
+footer{padding:0 0 2rem;color:var(--muted);font-size:.85rem}
+#copybox{display:none;width:100%;min-height:12rem;margin-top:.6rem}
+@media(max-width:650px){
+ header,main,footer{width:calc(100% - 2rem)}
+ table.r thead{display:none}
+ table.r,table.r tbody,table.r tr,table.r td{display:block;width:100%}
+ table.r tr{background:var(--panel);border:1px solid var(--line);border-radius:9px;margin:.6rem 0;padding:.3rem .6rem}
+ table.r td{display:grid;grid-template-columns:minmax(78px,32%) 1fr;gap:.5rem;border:0;padding:.3rem 0}
+ table.r td:before{content:attr(data-label);font-family:"Cascadia Mono",Consolas,monospace;font-size:.74rem;color:var(--muted)}
+ .t{white-space:normal}
+ dl.risk{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+ <div class="top">
+  <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cc"><rect width="64" height="64" rx="14" fill="#151516"/><rect x="24" y="8" width="32" height="22" rx="4" fill="none" stroke="#f1f1ef" stroke-opacity=".45" stroke-width="3"/><rect x="17" y="15" width="32" height="22" rx="4" fill="#151516" stroke="#f1f1ef" stroke-opacity=".75" stroke-width="3"/><rect x="8" y="23" width="40" height="33" rx="5" fill="#ff7a1a"/><g transform="translate(13 32) scale(.7) translate(-12 -21)" stroke="#151516"><g fill="none" stroke-width="6" stroke-linejoin="miter"><path d="M24 21H12V43H24"/><path d="M40 21H28V43H40"/></g><rect x="44" y="37" width="9" height="6" fill="#151516" stroke="none"/></g></svg><strong class="mono">cc launch campaign</strong></div>
+  <div class="actions"><button id="theme" type="button">Theme</button><button id="copy" type="button">Copy all</button></div>
+ </div>
+ <p class="eyebrow" style="margin-top:1rem">Plan · written 2026-11-18T14:40+11:00 · nothing posted</p>
+ <h1>Launch cc on Show HN on Friday 4 December, 04:00 Sydney.</h1>
+ <p class="lede">That is 09:00 Thursday 3 December in US Pacific. Fix the old names and the screenshots first: today every screenshot says OUROS.</p>
+ <p class="small">Product facts come only from the repo's README.md. Launch numbers come from other projects' public postmortems and datasets, listed in Sources with a trust rating. cc is not affiliated with or endorsed by Anthropic, OpenAI or Google.</p>
+ <textarea id="copybox" aria-label="Copy fallback" readonly></textarea>
+ <nav class="toc"><a href="#positioning">Positioning</a><a href="#plan">Plan</a><a href="#channels">Channels</a><a href="#goals">Goals</a><a href="#faq">FAQ</a><a href="#risks">Risks</a><a href="#checklist">Checklist</a><a href="#sources">Sources</a></nav>
+</header>
+<main>
+
+<section id="positioning">
+ <p class="eyebrow">01 / Positioning</p>
+ <h2>cc is an IDE where your coding agents run side by side, and the one that needs you comes to you.</h2>
+ <p><strong>Who it is for:</strong></p>
+ <ul>
+  <li>Developers on Windows 10 or 11 who run more than one CLI coding agent at once, such as Claude Code and Codex, and lose track of which one is waiting.</li>
+  <li>People who want agent sessions to keep running when the window closes or crashes.</li>
+  <li>People who want agents to use a browser or Windows apps, with risky actions stopping for their approval.</li>
+  <li>People who want local-only tools: no account and no telemetry.</li>
+ </ul>
+ <h3>Two other ways to say it</h3>
+ <table class="r"><thead><tr><th>Line</th><th>Trade-off</th></tr></thead><tbody>
+  <tr><td data-label="Line">A workspace for many CLI agents that shows you which one is waiting.</td><td data-label="Trade-off">Clear on the wall. Hides the editor and source control.</td></tr>
+  <tr><td data-label="Line">A Windows IDE where agents can drive a browser and your apps, and anything risky stops for you.</td><td data-label="Trade-off">Most distinctive feature. Leads with the part people worry about most (see FAQ 1).</td></tr>
+ </tbody></table>
+ <p class="small">Recommendation: use the main line. It matches the README's own first line ("an IDE built around your coding agents"). Claude Code is Anthropic's and Codex is OpenAI's; cc is not affiliated with either, or with Google.</p>
+</section>
+
+<section id="plan">
+ <p class="eyebrow">02 / Four-week plan</p>
+ <h2>Two weeks to prepare, one launch day, two weeks to follow up.</h2>
+ <div class="note"><strong>Why this slot.</strong> A count of 48,923 Show HN posts found posts made at 12:00 US Eastern reached 50 points 4.4% of the time, against 2.9% overall (<a href="#s1">source 1</a>). 12:00 Eastern is 09:00 Pacific. In December Sydney is AEDT (UTC+11) and Pacific is PST (UTC−8), so Sydney = Pacific + 19 h. 09:00 Thursday Pacific is 04:00 Friday Sydney. This is a link between time and score, not proof that time causes the score.<br><br><strong>Cost to Wasif:</strong> a 02:30 alarm. Most star gains land in the first 48 h (<a href="#s2">source 2</a>), so the first hours of replies matter most.</div>
+ <p class="small">Sizes: <span class="tag">S</span> under 1 h. <span class="tag">M</span> 1 to 3 h. <span class="tag">L</span> half a day or more. Owner of every task: Wasif.</p>
+
+ <h3>Week −2: Wed 19 to Tue 25 November</h3>
+ <table class="r"><thead><tr><th>Task</th><th>Size</th></tr></thead><tbody>
+  <tr><td data-label="Task">Decide the name question (see Risk 1): search "cc", "cc IDE" and "cc agents" on GitHub and Google, and check trademark registers.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Replace visible "Ouros" UI strings with "cc" (see Risk 2 list).</td><td data-label="Size"><span class="tag">L</span></td></tr>
+  <tr><td data-label="Task">Fresh source install on a clean Windows user, following the README Quickstart word for word. Log every failure.</td><td data-label="Size"><span class="tag">L</span></td></tr>
+  <tr><td data-label="Task">Record the baseline: stars, open issues, and traffic JSON (see Goals).</td><td data-label="Size"><span class="tag">S</span></td></tr>
+ </tbody></table>
+
+ <h3>Week −1: Wed 26 November to Thu 3 December</h3>
+ <table class="r"><thead><tr><th>Task</th><th>Size</th></tr></thead><tbody>
+  <tr><td data-label="Task">Fix install blockers, then repeat the clean install.</td><td data-label="Size"><span class="tag">L</span></td></tr>
+  <tr><td data-label="Task">Capture a README hero image from the running window: the wall, with one tile waiting in the big slot.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Record a demo GIF of 20 to 30 s: an agent asks a question, its tile turns orange and moves to the big slot, you answer.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Add a feature-request issue template next to <code>bug.yml</code>.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Task">Draft the Show HN title, first comment (who it is for, known limits, not affiliated), one Reddit post and one X post. Do not post.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Test the traffic export commands once.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+ </tbody></table>
+
+ <h3>Launch day: Friday 4 December Sydney = Thursday 3 December Pacific</h3>
+ <table class="r"><thead><tr><th>Sydney (AEDT)</th><th>Pacific (PST)</th><th>Task</th><th>Size</th></tr></thead><tbody>
+  <tr><td data-label="Sydney" class="t">Fri 02:30</td><td data-label="Pacific" class="t">Thu 07:30</td><td data-label="Task">Start the core, open the window, check the README, GIF and links load.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 03:30</td><td data-label="Pacific" class="t">Thu 08:30</td><td data-label="Task">Save baseline stars, issues and traffic JSON.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 04:00</td><td data-label="Pacific" class="t">Thu 09:00</td><td data-label="Task">Post Show HN linking straight to the GitHub repo. Add the first comment.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 04:00–07:00</td><td data-label="Pacific" class="t">Thu 09:00–12:00</td><td data-label="Task">Answer every HN comment. Note each install failure as you go.</td><td data-label="Size"><span class="tag">L</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 06:00</td><td data-label="Pacific" class="t">Thu 11:00</td><td data-label="Task">Post one Reddit write-up in a community whose rules allow it.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 07:00</td><td data-label="Pacific" class="t">Thu 12:00</td><td data-label="Task">List the questions that came up twice. Add answers to the FAQ below.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 08:00</td><td data-label="Pacific" class="t">Thu 13:00</td><td data-label="Task">Fix any install or docs blocker that two people hit.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 10:00</td><td data-label="Pacific" class="t">Thu 15:00</td><td data-label="Task">Post the demo GIF on X, with the not-affiliated line.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 11:00</td><td data-label="Pacific" class="t">Thu 16:00</td><td data-label="Task">Export day-one traffic. Record stars and issues.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Sydney" class="t">Fri 12:00</td><td data-label="Pacific" class="t">Thu 17:00</td><td data-label="Task">Last reply pass on HN and Reddit, then sleep.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+ </tbody></table>
+
+ <h3>Week +1: Sat 5 to Fri 11 December</h3>
+ <table class="r"><thead><tr><th>Task</th><th>Size</th></tr></thead><tbody>
+  <tr><td data-label="Task">Triage and answer every issue that can be reproduced.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Pitch one developer newsletter with the GIF and repo link.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Task">Write one technical post (for example, how the wall decides who needs you), where community rules allow it.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Export traffic daily. Record day-7 results on 11 December.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+ </tbody></table>
+
+ <h3>Week +2: Sat 12 to Fri 18 December</h3>
+ <table class="r"><thead><tr><th>Task</th><th>Size</th></tr></thead><tbody>
+  <tr><td data-label="Task">Ship the most-asked install and docs fixes. Note them in CHANGELOG.md.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Write a short results note against the goals below.</td><td data-label="Size"><span class="tag">M</span></td></tr>
+  <tr><td data-label="Task">Set a holiday reply schedule and pin it on the repo.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+  <tr><td data-label="Task">Keep exporting traffic. GitHub only keeps 14 days.</td><td data-label="Size"><span class="tag">S</span></td></tr>
+ </tbody></table>
+ <p class="small">Week +2 runs into the Christmas holidays. Day 28 is Friday 1 January 2027. Plan only a traffic export that day, no new post.</p>
+</section>
+
+<section id="channels">
+ <p class="eyebrow">03 / Channel ranking</p>
+ <h2>Show HN first. Everything after it has thin evidence.</h2>
+ <table class="r"><thead><tr><th>#</th><th>Channel</th><th>Why</th><th>Evidence</th><th>Trust</th></tr></thead><tbody>
+  <tr><td data-label="#">1</td><td data-label="Channel">Show HN, linking to GitHub</td><td data-label="Why">Biggest measured sample. Posts linking to github.com reached 50 points 3.5% of the time (17,535 posts). 138 AI-tool repos that got HN exposure averaged 121 stars in 24 h. Most posts get almost nothing: the median score is 2.</td><td data-label="Evidence"><a href="#s1">1</a>, <a href="#s2">2</a>, <a href="#s3">3</a></td><td data-label="Trust">High</td></tr>
+  <tr><td data-label="#">2</td><td data-label="Channel">One relevant subreddit</td><td data-label="Why">Impulse.dev got 893 unique landing-page views from eight Reddit posts, against 16 from HN. Reddit was 10.08% of Vue's first-week traffic. Two launches, other channels running at the same time.</td><td data-label="Evidence"><a href="#s5">5</a>, <a href="#s8">8</a></td><td data-label="Trust">Medium</td></tr>
+  <tr><td data-label="#">3</td><td data-label="Channel">Developer newsletter</td><td data-label="Why">A tldr.tech mention sent Impulse 2,646 page views. Newsletter referrals were 10.42% of Vue's traffic. Getting picked is up to the editor.</td><td data-label="Evidence"><a href="#s5">5</a>, <a href="#s8">8</a></td><td data-label="Trust">Medium</td></tr>
+  <tr><td data-label="#">4</td><td data-label="Channel">X</td><td data-label="Why">A peer-reviewed study of 44,544 tweets about 2,370 repos found tweets linked to star gains. It says nothing about a new solo account in 2026.</td><td data-label="Evidence"><a href="#s10">10</a></td><td data-label="Trust">High for the study, low as a forecast</td></tr>
+  <tr><td data-label="#">5</td><td data-label="Channel">Product Hunt</td><td data-label="Why">Plausible got over 1,000 visitors and 15 trial signups on launch day, then under 20 visitors a few days later. Built for products with a download or signup; cc has neither yet.</td><td data-label="Evidence"><a href="#s9">9</a>, <a href="#s5">5</a></td><td data-label="Trust">Medium</td></tr>
+  <tr><td data-label="#">6</td><td data-label="Channel">GitHub Trending</td><td data-label="Why">An outcome, not a channel. Papercups got follow-on traffic from it. Wasp aimed for it and did not reach it.</td><td data-label="Evidence"><a href="#s7">7</a>, <a href="#s6">6</a></td><td data-label="Trust">Medium</td></tr>
+  <tr><td data-label="#">7</td><td data-label="Channel">Lobsters, dev.to</td><td data-label="Why">No source found with measured launch traffic from either.</td><td data-label="Evidence">None</td><td data-label="Trust">Low</td></tr>
+ </tbody></table>
+ <p class="small"><strong>Evidence is thin past rank 1.</strong> No source gives a base rate for r/programming, r/LocalLLaMA or r/ClaudeAI. Reddit, newsletter and Product Hunt numbers come from single launches where several channels ran at once. Read each community's current rules before posting.</p>
+</section>
+
+<section id="goals">
+ <p class="eyebrow">04 / Goals</p>
+ <h2>Modest targets, counted from the 3 December baseline.</h2>
+ <table class="r"><thead><tr><th>Metric (added since baseline)</th><th>Day 1 · 4 Dec</th><th>Day 7 · 11 Dec</th><th>Day 28 · 1 Jan</th></tr></thead><tbody>
+  <tr><td data-label="Metric">GitHub stars</td><td data-label="Day 1">12</td><td data-label="Day 7">25</td><td data-label="Day 28">40</td></tr>
+  <tr><td data-label="Metric">Unique repo visitors</td><td data-label="Day 1">100</td><td data-label="Day 7">230</td><td data-label="Day 28">no target (see below)</td></tr>
+  <tr><td data-label="Metric">Repo views</td><td data-label="Day 1">150</td><td data-label="Day 7">350</td><td data-label="Day 28">600</td></tr>
+  <tr><td data-label="Metric">Clones</td><td data-label="Day 1">20</td><td data-label="Day 7">45</td><td data-label="Day 28">70</td></tr>
+  <tr><td data-label="Metric">New issues with real reports</td><td data-label="Day 1">2</td><td data-label="Day 7">5</td><td data-label="Day 28">8</td></tr>
+ </tbody></table>
+
+ <h3>Working: stars</h3>
+ <p>Source 3 tracked 138 AI-tool repos after HN exposure. They averaged 121 stars at 24 h and 289 at one week. Those repos all got HN attention, and an average is pulled up by a few big hits. So the plan takes 10% of each. The 10% is a planning assumption, not a measured number.</p>
+ <ul>
+  <li>Day 1: 121 × 0.10 = 12.1, so <strong>12</strong>.</li>
+  <li>Day 7: 289 × 0.10 = 28.9, rounded down to <strong>25</strong>.</li>
+  <li>Day 28: 25 + 15 = <strong>40</strong>. Source 2 found 92% of star gains are over by 48 h, so the extra 15 needs a second push, such as a newsletter mention. Treat it as a stretch.</li>
+ </ul>
+ <p>Why so low: source 1 found only 2.9% of Show HN posts reach 50 points, and source 2 found the median post scores 2. A post that does not catch on will land below these numbers.</p>
+
+ <h3>Working: traffic</h3>
+ <p>Vue's first day (source 8) brought 1,880 unique GitHub visitors. The plan uses about 5% of that: 100 ÷ 1,880 = 5.3%, so <strong>100</strong> day-1 visitors. Views are set at 1.5 × visitors: 100 × 1.5 = <strong>150</strong>. The 1.5 ratio is an assumption.</p>
+ <p>GitHub reports unique visitors per day. Adding daily uniques double-counts returning people, so there is no 28-day unique target.</p>
+
+ <h3>Working: clones and issues</h3>
+ <p>No source gives clone or issue rates for a launch. Clones assume 13% of views: 150 × 0.13 = 19.5, so <strong>20</strong> on day 1. Issues are a capacity target for one maintainer, not a forecast. Confidence is low on both.</p>
+
+ <h3>How to measure</h3>
+ <ul>
+  <li><strong>Stars and issues:</strong> the repo page and the issues list, filtered by creation date after 3 December.</li>
+  <li><strong>Views, visitors, clones:</strong> Insights → Traffic. GitHub keeps only the last 14 days (<a href="https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-traffic-to-a-repository">GitHub Docs</a>). Save it daily:<br><code>gh api repos/Wasif-ZA/metatrooper/traffic/views &gt; views-YYYY-MM-DD.json</code><br><code>gh api repos/Wasif-ZA/metatrooper/traffic/clones &gt; clones-YYYY-MM-DD.json</code><br>Keep the files outside the repo.</li>
+  <li><strong>Where visitors came from:</strong> <code>gh api repos/Wasif-ZA/metatrooper/traffic/popular/referrers</code>. Use it to check the channel ranking against real results.</li>
+ </ul>
+</section>
+
+<section id="faq">
+ <p class="eyebrow">05 / Objections FAQ</p>
+ <h2>Answers drawn only from the README.</h2>
+
+ <h3>Is it safe to let agents drive my browser and Windows apps?</h3>
+ <p>Risky actions stop for you first. In a browser pane, typing into a password field, typing text that looks like a credential, and clicking buttons named like Send, Submit, Pay, Delete or Publish all wait for your approval. The first input on a new site also asks first. On the desktop, an agent acts only on windows you give it. Admin windows and the cc window can never be given. Ctrl+Alt+Q pauses all agent input at once. A watcher pauses agents if input comes from another program, or the desktop changes while you are away. The honest limit: there is no sandbox for agents' code yet, so agents and their commands run with your permissions.</p>
+
+ <h3>Why AGPL? What does it mean for me?</h3>
+ <p>The licence is split by folder. <code>core/</code>, <code>workbench/</code>, <code>sandbox/</code> and anything without its own licence file are AGPL-3.0-only. <code>sdk/</code>, <code>plugins/*/</code>, <code>skills/</code>, <code>engines/</code> and <code>router/</code> are MIT. The public formats listed in <code>contracts/LICENSE-MIT</code> are MIT too. If you plan to change cc and share or host it, read the licence text first. This page is not legal advice.</p>
+
+ <h3>Windows only?</h3>
+ <p>Yes, for now. The README lists Windows 10 or 11 as a requirement, and its steps were tested on Windows 11. Computer use is built on UI Automation, which ships with Windows. Secrets are encrypted with your Windows login (DPAPI). No other system is listed.</p>
+
+ <h3>No installer?</h3>
+ <p>Not yet. You clone the repo and run it from source. You need Node 24.16 or newer and at least one agent CLI installed and signed in: <code>claude</code>, <code>codex</code>, <code>gemini</code> or <code>agy</code>. Setup is two <code>npm ci</code> runs, <code>node core/cli.ts start</code>, then <code>npm run dev</code>. An installer is the top item on the checklist below. cc is not affiliated with Anthropic, OpenAI or Google.</p>
+
+ <h3>Why not just tmux, or VS Code with terminals?</h3>
+ <p>Those show terminals. They do not tell you which agent is waiting. In cc, a tile that asks a question turns orange and moves to the big slot, and Alt+J jumps to the session that has waited longest. A background service owns the terminals, so agents keep working if the window closes, and sessions come back after a restart. The editor marks files an agent changed, and a comment on a diff line goes to that agent as your next message. cc also has an "Open in VS Code" action, so you can keep using both.</p>
+</section>
+
+<section id="risks">
+ <p class="eyebrow">06 / Risks</p>
+ <h2>Two must be dealt with before launch day.</h2>
+
+ <div class="card">
+  <h3>Risk 1: the name "cc" clashes twice <span class="tag hi">fix before launch</span></h3>
+  <dl class="risk">
+   <dt>What</dt><dd><code>cc</code> is the standard C compiler command on Unix-like systems. "CC" is also a common nickname for Claude Code, which cc runs. cc is not affiliated with Anthropic, OpenAI or Google.</dd>
+   <dt>Why it hurts</dt><dd>Search: a search for "cc" returns compilers, Creative Commons and much else, so people cannot find the project without the exact link. Confusion: people may think cc is an Anthropic product, or Anthropic may object to the similarity.</dd>
+   <dt>How likely</dt><dd>Search problem: certain. Confusion: likely, because Claude Code is the first engine the README names.</dd>
+   <dt>Do before launch</dt><dd>Check trademark registers and Anthropic's published brand rules for third-party tools. Use a longer search name in every title, such as "cc, an IDE for coding agents". Put the not-affiliated line in every post. Do not ship a command called <code>cc</code>; it would shadow the compiler. If the checks look bad, rename now, while the public name is new. Rename later costs more.</dd>
+  </dl>
+ </div>
+
+ <div class="card" style="margin-top:.8rem">
+  <h3>Risk 2: Ouros and MetaTrooper leftovers <span class="tag hi">fix before launch</span></h3>
+  <dl class="risk">
+   <dt>What</dt><dd>On 2026-11-18, tracked files mentioned "MetaTrooper" 1,274 times across 349 files, and "Ouros" 783 times across 187 files. The README already says the repo, the <code>troop</code> command, <code>~/.metatrooper/</code> and package names still use MetaTrooper.</dd>
+   <dt>Why it hurts</dt><dd>A visitor from a "cc" post sees OUROS in the screenshots and the window, and MetaTrooper in the URL. It looks like a half-finished rename.</dd>
+   <dt>How likely</dt><dd>Certain. The repo URL is <code>github.com/Wasif-ZA/metatrooper</code>.</dd>
+   <dt>Visible leftovers found</dt><dd>
+    <ul>
+     <li>All 6 screenshots in <code>assets/ouros/</code> show the OUROS wordmark and branch names like <code>ouros/rate-limit</code>.</li>
+     <li>UI text: <code>workbench/src/demo.ts</code> (<code>'Ouros (demo)'</code>), <code>workbench/src/main.ts</code> (error box titled Ouros), <code>workbench/renderer/app.js</code> ("Ouros never commits…"), <code>workbench/ui/src/settings.jsx</code> ("Keep runs going when Ouros closes" and others), <code>workbench/ui/src/addons.jsx</code>, <code>workbench/src/browser/panes.ts</code> ("Ouros blocked this page"), <code>workbench/src/report-issue.ts</code> (issue titles start "Ouros:").</li>
+     <li>Names users will type or see: packages <code>metatrooper</code>, <code>@metatrooper/core</code>, <code>@metatrooper/workbench</code>, <code>@metatrooper/sdk</code>; the <code>troop</code> command; <code>~/.metatrooper/</code>; the pipe <code>\\.\pipe\metatrooper</code>; the MCP servers <code>metatrooper-browser</code> and <code>metatrooper-desktop</code>.</li>
+    </ul></dd>
+   <dt>Do before launch</dt><dd>Change every on-screen "Ouros" to "cc". Retake every screenshot from the running window. Leave package, folder and pipe names for a later release, and keep the README line that explains them. Decide whether to rename the GitHub repo; GitHub redirects old repo links after a rename, but check this before relying on it.</dd>
+  </dl>
+ </div>
+
+ <div class="card" style="margin-top:.8rem">
+  <h3>Risk 3: screenshots may not show the product that runs today</h3>
+  <dl class="risk">
+   <dt>What</dt><dd><code>wall.png</code> shows chat-style tiles, while the README describes each tile as a live terminal. <code>today.png</code> shows a "Today" screen and <code>rewind.png</code> a rewind screen; neither is in the README's list of screens. <code>jobs.png</code> shows non-coding tasks (a spreadsheet, a sales pipeline, a poster). In <code>wall.png</code>, a tile has its Claude tab selected while its footer says Gemini needs you.</dd>
+   <dt>Why it hurts</dt><dd>HN readers who install it and see something different will say so in the thread.</dd>
+   <dt>Do before launch</dt><dd>Use only captures of the running window. Keep design mockups out of the README and the posts.</dd>
+  </dl>
+ </div>
+
+ <div class="card" style="margin-top:.8rem">
+  <h3>Risk 4: timing and a single maintainer</h3>
+  <dl class="risk">
+   <dt>What</dt><dd>The post goes up at 04:00 Sydney. The follow-up weeks run into Christmas. One person answers everything.</dd>
+   <dt>Do</dt><dd>Sleep early on 3 December. Have the first comment and FAQ answers ready to paste. Post the holiday reply schedule on the repo.</dd>
+  </dl>
+ </div>
+</section>
+
+<section id="checklist">
+ <p class="eyebrow">07 / Pre-launch checklist</p>
+ <h2>Tick each one before 4 December.</h2>
+ <p class="small">Repo check on 2026-11-18: no installer, no hero image or GIF in the README, one issue template (<code>bug.yml</code>). LICENSE, SECURITY.md, CONTRIBUTING.md and CHANGELOG.md exist. Ticks save in this browser.</p>
+ <ul class="checklist">
+  <li><label><input type="checkbox" data-check="installer"><span><strong>Installer</strong>, or at least a source install tested on a clean Windows user with the README steps. The README says there is no installer yet.</span></label></li>
+  <li><label><input type="checkbox" data-check="hero"><span><strong>README hero image</strong> captured from the running window, showing the cc mark and a waiting tile in the big slot.</span></label></li>
+  <li><label><input type="checkbox" data-check="gif"><span><strong>Demo GIF</strong>, 20 to 30 s: a question, the tile turns orange and comes to the big slot, the answer.</span></label></li>
+  <li><label><input type="checkbox" data-check="bug" checked><span><strong>Bug issue template</strong> exists at <code>.github/ISSUE_TEMPLATE/bug.yml</code>.</span></label></li>
+  <li><label><input type="checkbox" data-check="feature"><span><strong>Feature-request issue template</strong> added.</span></label></li>
+  <li><label><input type="checkbox" data-check="ouros-ui"><span>No "Ouros" left anywhere on screen.</span></label></li>
+  <li><label><input type="checkbox" data-check="shots"><span>Every screenshot retaken from the running window. No old names, no mockups.</span></label></li>
+  <li><label><input type="checkbox" data-check="name"><span>Name check done: search results and trademark registers. Decision written down.</span></label></li>
+  <li><label><input type="checkbox" data-check="posts"><span>Show HN title and first comment, Reddit post and X post drafted. Each carries the not-affiliated line.</span></label></li>
+  <li><label><input type="checkbox" data-check="metrics"><span>Baseline saved. Traffic export commands tested.</span></label></li>
+  <li><label><input type="checkbox" data-check="rules"><span>Rules read for each community before posting there.</span></label></li>
+ </ul>
+</section>
+
+<section id="sources">
+ <p class="eyebrow">08 / Sources</p>
+ <h2>Public launch data, with trust ratings.</h2>
+ <p class="small">Every source below was opened by the research worker. Sources 1, 2, 3 and 9 were then reopened and their quotes checked on 2026-11-18. No vendor best-practice blogs are used.</p>
+ <ol class="sources">
+  <li id="s1"><a href="https://www.thegrowthlist.co/launch/best-time-to-post-on-hacker-news">Best time to post on Hacker News</a>, Ryan Doyle (founder of CommunityMentions and Sales.co), data 2025-11-16 to 2026-11-15. 48,923 Show HN posts. "2.9% (1,423)" reached 50 points; 12 PM Eastern "4.4%"; github.com links 3.5% of 17,535. <strong>Trust: high for the counts.</strong> Full-year count with method stated. The author sells marketing services, so use the data, not the advice.</li>
+  <li id="s2"><a href="https://danfking.github.io/blog/2026/04/23/show-hn-by-the-numbers/">Show HN by the numbers</a>, Daniel King, 2026-04-23. 188,085 posts. "The median is 2, the 90th percentile is 24, and the 99th percentile is 263." "After 48h, 92% of the star impact is over." <strong>Trust: high for scores, medium for stars.</strong> The star part covers only 491 of the top 500 repos, which are the biggest hits.</li>
+  <li id="s3"><a href="https://arxiv.org/abs/2511.04453">Launch-Day Diffusion: Tracking Hacker News Impact on GitHub Stars for AI Tools</a>, Obada Kraishan, 2025-11-06. 138 launches. "an average of 121 stars within 24 hours, 189 stars within 48 hours, and 289 stars within a week". <strong>Trust: high for that sample.</strong> Public method with n stated. It is an average of launches that got HN exposure, so it overstates a typical launch.</li>
+  <li id="s4"><a href="https://arxiv.org/abs/2506.12643">Hacker News and AI open-source projects</a>, Meakpaiboonwattana et al., 2025-06-14. 2,195 HN stories and 1,814 GitHub repos. <strong>Trust: high.</strong> Research dataset. Background only: it gives no rate cc can use.</li>
+  <li id="s5"><a href="https://dev.to/kirillrogovoy/how-i-launched-impulsedev-4di3">How I launched Impulse.dev</a>, Kirill Rogovoy, 2022-10-12. "893 unique LP views" from Reddit, "16 unique LP views" from HN, "94 -&gt; 180 Github stars", tldr.tech "2646 page views". <strong>Trust: medium.</strong> Honest single postmortem with counts. Channels overlapped.</li>
+  <li id="s6"><a href="https://wasp.sh/blog/2023/01/31/wasp-beta-launch-review">Wasp beta launch review</a>, Matija Sosic, 2023-01-31. "190 GitHub stars added". <strong>Trust: medium.</strong> Single launch week with HN, Reddit and Product Hunt at once.</li>
+  <li id="s7"><a href="https://kam-81875.medium.com/launching-an-open-source-project-c5e1fcc14eed">Launching an open source project</a>, Kam Leung (Papercups), 2020-09-25. 510 stars before HN, 1,500 a week after, about 5,000 unique repo visitors that week. <strong>Trust: medium.</strong> Real numbers, but an unusually good outcome.</li>
+  <li id="s8"><a href="https://blog.evanyou.me/2014/02/11/first-week-of-launching-an-oss-project/">First week of launching an OSS project</a>, Evan You (Vue.js), 2014-02-11. "GitHub unique visits: 1880", "GitHub Stars: 212 (+181)", Reddit "10.08%", newsletter "10.42%". <strong>Trust: medium.</strong> Detailed daily ledger, but old and exceptional.</li>
+  <li id="s9"><a href="https://plausible.io/blog/open-source-saas">How we built a $1M ARR open source SaaS</a>, Marko Saric (Plausible), 2022-06-22. "More than 25,000 people visited our site on the day we published the post" (HN). Product Hunt: "more than 1,000 visitors and 15 trial signups", then "fewer than 20 visitors". <strong>Trust: medium.</strong> First-hand numbers from a product with a website and signups, unlike a new repo.</li>
+  <li id="s10"><a href="https://cmustrudel.github.io/papers/fang2022twitter.pdf">Tweets about open-source repos</a>, Fang, Lamba, Herbsleb and Vasilescu, ICSE 2022. "44,544 tweets containing links to 2,370 open-source GitHub repositories". <strong>Trust: high for the study.</strong> Peer-reviewed with controls. Old Twitter data, so low as a 2026 forecast.</li>
+ </ol>
+</section>
+</main>
+<footer>Plan only. Nothing has been posted, sent or published. Product facts: README.md. cc is not affiliated with or endorsed by Anthropic, OpenAI or Google.</footer>
+<script>
+(()=>{
+const root=document.documentElement,KEY='cc-campaign-';
+const get=k=>{try{return localStorage.getItem(KEY+k)}catch(e){return null}};
+const set=(k,v)=>{try{localStorage.setItem(KEY+k,v)}catch(e){}};
+const t=get('theme');if(t==='dark'||t==='light')root.dataset.theme=t;
+const isDark=()=>root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+const btn=document.getElementById('theme');
+const sync=()=>{btn.textContent=isDark()?'Light mode':'Dark mode'};sync();
+btn.addEventListener('click',()=>{root.dataset.theme=isDark()?'light':'dark';set('theme',root.dataset.theme);sync()});
+document.querySelectorAll('main section').forEach(s=>{
+ const box=document.createElement('div');box.className='comment';
+ const l=document.createElement('label');l.htmlFor='c-'+s.id;l.textContent='Your notes on this section';
+ const a=document.createElement('textarea');a.id=l.htmlFor;a.value=get('comment-'+s.id)||'';
+ a.addEventListener('input',()=>set('comment-'+s.id,a.value));
+ box.append(l,a);s.append(box)});
+document.querySelectorAll('[data-check]').forEach(i=>{
+ const v=get('check-'+i.dataset.check);if(v!==null)i.checked=v==='true';
+ i.addEventListener('change',()=>set('check-'+i.dataset.check,String(i.checked)))});
+document.getElementById('copy').addEventListener('click',async()=>{
+ const out=[document.querySelector('h1').innerText,document.querySelector('.lede').innerText];
+ document.querySelectorAll('main section').forEach(s=>{
+  out.push('','## '+s.querySelector('h2').innerText);
+  s.querySelectorAll('h3,p,li,tr,dl.risk dt').forEach(n=>{
+   if(n.closest('.comment')||n.closest('thead'))return;
+   if(n.matches('tr')){out.push([...n.cells].map(c=>c.innerText.trim()).join(' | '));return}
+   if(n.closest('tr'))return;
+   if(n.matches('dt')){out.push(n.innerText+': '+n.nextElementSibling.innerText.trim());return}
+   if(n.closest('dd'))return;
+   if(n.matches('h3')){out.push('','### '+n.innerText.trim());return}
+   const c=n.querySelector&&n.querySelector('input[type=checkbox]');
+   out.push((c?(c.checked?'[x] ':'[ ] '):'')+n.innerText.trim())});
+  const note=s.querySelector('.comment textarea').value.trim();
+  out.push('Notes: '+(note||'(none)'))});
+ const text=out.join('\n');
+ try{await navigator.clipboard.writeText(text);document.getElementById('copy').textContent='Copied';setTimeout(()=>document.getElementById('copy').textContent='Copy all',1600)}
+ catch(e){const b=document.getElementById('copybox');b.style.display='block';b.value=text;b.select()}});
+})();
+</script>
+</body>
+</html>

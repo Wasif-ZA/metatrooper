@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cc block monogram with terminal cursor">
+  <rect width="64" height="64" rx="13" fill="#f1f1ef"/>
+  <path d="M8 17h20v8H16v14h12v8H8V17Zm27 0h21v8H43v14h13v8H35V17Z" fill="#151516"/>
+  <rect x="44" y="31" width="12" height="6" fill="#ff7a1a"/>
+</svg>

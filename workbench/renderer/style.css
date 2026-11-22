@@ -243,6 +243,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .git-row .on { font-weight: 600; }
 #git-msg { width: 100%; box-sizing: border-box; margin: 8px 0 6px; }
 .git-log { max-height: 360px; white-space: pre; }
+.log.stat { white-space: pre; word-break: normal; }
 .ring { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); min-width: 0; }
 .ring i { flex: none; width: 12px; height: 12px; border-radius: 50%; background: conic-gradient(var(--body) calc(var(--p) * 360deg), var(--hairline-strong) 0); -webkit-mask: radial-gradient(circle, transparent 3px, #000 3.5px); mask: radial-gradient(circle, transparent 3px, #000 3.5px); }
 .ring em { font-style: normal; color: var(--wait); }
