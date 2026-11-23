@@ -89,7 +89,6 @@ document.addEventListener('keydown', (e) => {
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
 globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn, dropProject };
 globalThis.ideView.draw = () => { void syncDrawn(); if (ui.view === 'ide') void syncWorkspace(ui.projectId); return drawIde(); };
-document.addEventListener('keydown', (e) => { if (ideView.shown()) workspaceKey(e); });
 globalThis.paletteView = paletteView;
 
 document.addEventListener('keydown', (e) => {
@@ -106,6 +105,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (ideView.shown() && workspaceKey(e)) return;
   if (!ideView.shown() || !e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'p' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.find(); }
