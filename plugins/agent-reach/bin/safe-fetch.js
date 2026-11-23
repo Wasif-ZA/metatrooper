@@ -3,8 +3,8 @@ import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
 
-const V4_BLOCKED = [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.168.0.0', 16], ['224.0.0.0', 3]];
-const V6_BLOCKED = [['::', 96], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]];
+const V4_BLOCKED = [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 3]];
+const V6_BLOCKED = [['::', 96], ['64:ff9b::', 96], ['2002::', 16], ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8]];
 
 const blocked = new net.BlockList();
 for (const [base, bits] of V4_BLOCKED) blocked.addSubnet(base, bits, 'ipv4');
