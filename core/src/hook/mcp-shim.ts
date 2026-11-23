@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.ts';
 import { createDecoder, encode } from '../pipe/framing.ts';
 import { resolveCommand } from './resolve.ts';
-import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
+import { ENGINE_TOOL, STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
 
 interface Resolved {
   command: string;
@@ -99,13 +99,14 @@ async function serveUi(): Promise<void> {
   const { serveMcp } = await import('./mcp-stdio.ts');
   const { findSession } = await import('./workbench-pipe.ts');
   const { call } = await import('../pipe/client.ts');
-  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
+  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL, ENGINE_TOOL], async (name, args) => {
     const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
-    if (name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
+    if (name !== 'ouros_ui' && name !== 'ouros_workspace' && name !== 'ouros_engine') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
     const d = args.data as Record<string, unknown> | undefined;
-    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
+    const out = name === 'ouros_engine' ? await call('engine.run', { session_id: sessionId, engine: args.engine, action: args.action, input: args.input, surface: args.surface })
+      : name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
       : d && typeof d === 'object' && args.spec === undefined ? await call('ui.data', { session_id: sessionId, surface: args.surface, path: d.path, value: d.value }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
     if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');
     if (out.reply.error) return fail(out.reply.error.message);

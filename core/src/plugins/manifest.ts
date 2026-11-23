@@ -15,6 +15,7 @@ export interface ActionSpec {
   input_schema?: Record<string, unknown>;
   output_schema?: Record<string, unknown>;
   timeout_seconds?: number;
+  binds?: { from: string; to: string };
 }
 
 export interface McpSpec {

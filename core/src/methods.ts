@@ -50,6 +50,7 @@ import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
 import { catalogueProposals, getSurface, setSurfaceData, showSurface, surfaceEvent } from './surfaces.ts';
 import { blockReason } from './plugins/blocklist.ts';
+import { runEngine } from './plugins/engine-run.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -149,6 +150,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'ui.data', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, path, value}', result: '{surface, seq}; sets the value at a JSON pointer in the surface data (M8-08); a prop written {"bind": "/path"} takes it and the screen redraws with no parts resent. Only the session that drew the surface; data stays under 64 KB. Called by the `ouros_ui` MCP tool with `data`' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
   { name: 'catalogue.proposals', params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
+  { name: 'engine.run', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, engine, action, input?, surface?}', result: '{status: ok | failed, outputs?, error?, bound?, run}; runs one action of an installed, enabled plugin in the session project by the action process contract (plugins.md); a binary the plugin ships runs in the AppContainer box. With `surface` (one this session drew), the action `binds` fill that surface data path (M8-12). An `external` action is refused (-32003) until engine gates exist. Called by the `ouros_engine` MCP tool' },
   { name: 'workspace.change', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, op?: set | save | restore | example, workspace?, name?}', result: '{project_id, current, usual, undo, saved, examples, last: {applied, reasons, setter, asked, at}}; set checks a whole layout (ouros-spec 6c) and applies it, or leaves the old one and lists the reasons in `last`; save names the current layout; restore applies a saved one; example applies a shipped layout from workbench/ui/src/workspaces. The setter is the calling session, never the `by` inside the layout. Called by the `ouros_workspace` MCP tool' },
   { name: 'workspace.get', params: '{project_id}', result: '{project_id, current, usual, undo, saved, last}; current is null for your usual layout' },
   { name: 'workspace.undo', needsUi: true, errors: [E.VALIDATION], params: '{project_id}', result: 'as workspace.get; the layout before the last change (Ctrl Z)' },
@@ -1045,6 +1047,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
   m.set('ui.data', { handler: (p) => setSurfaceData(db, p) });
   m.set('catalogue.proposals', { handler: () => ({ proposals: catalogueProposals(db) }) });
+  m.set('engine.run', { handler: (p) => runEngine(db, p) });
   m.set('workspace.change', { handler: (p) => changeWorkspace(db, p) });
   m.set('workspace.get', { handler: (p) => getWorkspace(str(p, 'project_id')) });
   m.set('workspace.undo', { needsUi: true, handler: (p) => undoWorkspace(str(p, 'project_id')) });

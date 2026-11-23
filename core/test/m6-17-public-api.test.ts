@@ -84,6 +84,7 @@ const EXPECTED_METHODS = [
   'ui.data',
   'ui.event',
   'catalogue.proposals',
+  'engine.run',
   'workspace.change',
   'workspace.get',
   'workspace.undo',

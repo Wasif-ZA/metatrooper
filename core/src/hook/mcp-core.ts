@@ -10,7 +10,7 @@ import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { appendEvent } from '../events/append.ts';
 import { buildPayload } from '../redact.ts';
 import { mcpReply } from './mcp-stdio.ts';
-import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
+import { ENGINE_TOOL, STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
 
 export interface McpHello { server?: unknown; session_id?: unknown; pid?: unknown }
 
@@ -52,9 +52,9 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
       const { workbench, tools } = bridge;
       return mcpReply(`metatrooper-${server}`, server === 'desktop' ? DESKTOP_TOOLS : () => browserToolList(workbench), async (name, args) => screenResult(await tools(name, args)), msg);
     }
-    return mcpReply(`ouros-${server}`, server === 'steps' ? [STEPS_TOOL] : [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
+    return mcpReply(`ouros-${server}`, server === 'steps' ? [STEPS_TOOL] : [UI_TOOL, WORKSPACE_TOOL, ENGINE_TOOL], async (name, args) => {
       const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
-      if (server === 'steps' ? name !== 'steps_set' : name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
+      if (server === 'steps' ? name !== 'steps_set' : name !== 'ouros_ui' && name !== 'ouros_workspace' && name !== 'ouros_engine') return fail(`unknown tool ${name}`);
       if (server === 'steps' && !Array.isArray(args.items)) return fail('items must be an array of {text, done}');
       const session = sessions.get(hello);
       if (!session) return fail('this process is not inside a cc session');
@@ -63,6 +63,10 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
           const payload = buildPayload('core.steps', args) as { items: unknown[] };
           appendEvent('core.steps', session, payload, db);
           return { content: [{ type: 'text', text: `saved ${payload.items.length} steps` }] };
+        }
+        if (name === 'ouros_engine') {
+          const result = await runner.call({ id: ulid(), method: 'engine.run', params: { session_id: session, engine: args.engine, action: args.action, input: args.input, surface: args.surface }, origin: 'cli' }, { ui: false, origin: 'cli' });
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
         }
         if (name === 'ouros_workspace') {
           const result = await runner.call({ id: ulid(), method: 'workspace.change', params: { session_id: session, op: args.op, workspace: args.workspace, name: args.name }, origin: 'cli' }, { ui: false, origin: 'cli' });

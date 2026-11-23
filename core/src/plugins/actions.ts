@@ -5,6 +5,7 @@ import { resolveCommand } from '../hook/resolve.ts';
 import { validate } from '../jsonschema.ts';
 import { nowIso } from '../time.ts';
 import { insideDir, type ActionSpec } from './manifest.ts';
+import { boxArgv, containerName } from './box.ts';
 import type { InstalledPlugin } from './store.ts';
 
 export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TROOP_CHROME', 'TROOP_PDFTOTEXT', 'TROOP_WHISPER', 'TROOP_WHISPER_MODEL', 'TROOP_GMAIL_API'];
@@ -131,8 +132,20 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
   }
   const { env, missing } = actionEnv(req);
   if (missing.length) return Promise.resolve(fail(`secret ${missing.join(', ')} is not set for ${req.plugin.id}`));
-  const plan = planCommand(action.run, req.plugin.path, env);
+  let plan = planCommand(action.run, req.plugin.path, env);
   if (!plan) return Promise.resolve(fail(`command not found: ${action.run[0]}`));
+  const root = path.resolve(req.plugin.path).toLowerCase() + path.sep;
+  if (process.platform === 'win32' && req.plugin.source !== 'builtin' && path.resolve(plan.file).toLowerCase().startsWith(root)) {
+    const has = (x: string) => req.plugin.permissions.includes(x);
+    const grants = [`r ${req.plugin.path}`, ...(has('project:write') ? [`w ${req.projectDir}`] : has('project:read') ? [`r ${req.projectDir}`] : []), `w ${req.run.dir}`];
+    try {
+      const tmp = path.join(req.run.dir, 'tmp');
+      plan = { ...boxArgv({ name: containerName(req.plugin.id, [action.id, ...grants].join('|')), net: has('network'), grants }, plan.file, plan.args, tmp), verbatim: false };
+      env.TEMP = env.TMP = tmp;
+    } catch (e) {
+      return Promise.resolve(fail(`not run: ${(e as Error).message}`));
+    }
+  }
   const log = new RunLog(req.run.dir);
   const secrets = req.plugin.permissions.filter((p) => p.startsWith('secrets:')).map((p) => env[p.slice(8)]).filter(Boolean);
   const redact = (line: string) => secrets.reduce((l, v) => l.split(v).join('[redacted]'), line);
