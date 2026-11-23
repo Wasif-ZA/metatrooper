@@ -114,7 +114,7 @@ beforeEach(() => {
   calls.length = 0;
   Object.assign(g, {
     ui: { view: 'inbox', projectId: 'p1', pendingHide: new Set(), snap: { sessions: [], live: [], approvals: [], needs_you: [], projects: [{ id: 'p1', name: 'Synthetic project' }] } },
-    rpc: async (...args: any[]) => { calls.push(['rpc', ...args]); return args[0] === 'session.owners' ? { result: { paths: [] } } : { result: { lines: ['synthetic terminal'] } }; },
+    rpc: async (...args: any[]) => { calls.push(['rpc', ...args]); return args[0] === 'session.owners' ? { result: { paths: [] } } : args[0] === 'session.chat' ? chatOf(args[1]) : { result: { lines: ['synthetic terminal'] } }; },
     api: { fsList: async () => [], fsFind: async (...args: any[]) => { calls.push(['fsFind', ...args]); return []; }, fsSearch: async () => ({ hits: [] }), git: async (...args: any[]) => { calls.push(['git', ...args]); return { branch: 'synthetic', files: [] }; } },
     troop: { termInput: (...args: any[]) => calls.push(['termInput', ...args]) },
     homeView: { set: (v: string) => { calls.push(['view', v]); g.ui.view = v; } },
@@ -128,11 +128,13 @@ beforeEach(() => {
   });
   inboxStore.set({ filter: 'all', selectedId: null, collapsed: [] });
 });
+const chatOf = (p: any) => ({ result: { items: [{ kind: 'text', text: g.ui.snap.live.find((s: any) => s.id === p.session_id)?.last_line }] } });
 function asks() { g.ui.snap.live = [session('s-a', 'Which branch for alpha?'), session('s-b', 'Which branch for beta?')]; }
 
-test('ad63319c clicking an answer row selects its question without opening the Wall', () => {
+test('ad63319c clicking an answer row selects its question without opening the Wall', async () => {
   asks(); const h = harness(Inbox); h.draw();
   h.one(row('s-b')).props.onClick(event());
+  h.draw(); await flush();
   const markup = h.html();
   assert.equal(h.one(row('s-b')).props['aria-pressed'], true);
   assert.equal(text(h.one(hasClass('ou-ipane-lastline'))), 'Which branch for beta?');
@@ -193,7 +195,7 @@ test('ad63319c preview shows the last 20 returned lines in order', async () => {
 
 for (const failure of ['rejection', 'error response']) test('ad63319c session.read ' + failure + ' settles into the error fallback without terminal lines', async () => {
   asks(); inboxStore.set({ selectedId: 's-a' }); let rejectRead: any; let resolveRead: any;
-  g.rpc = (method: string) => method === 'session.read' ? new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }) : Promise.resolve({ result: {} });
+  g.rpc = (method: string, params: any) => method === 'session.read' ? new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }) : Promise.resolve(method === 'session.chat' ? chatOf(params) : { result: {} });
   const h = harness(Inbox); h.draw();
   if (failure === 'rejection') rejectRead(new Error('synthetic read failure'));
   else resolveRead({ error: { code: -1, message: 'synthetic read failure' } });
