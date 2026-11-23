@@ -44,8 +44,12 @@ test("ui.show draws a use part from the person's templates folder", async t => {
 
   const got = await call('ui.get', { surface: 'screen' });
   assert.deepEqual(got.templates['run-summary'], summary);
-  assert.deepEqual(got.templates.wrapped, { type: 'text', text: 'w' });
-  assert.deepEqual(Object.keys(got.templates).sort(), ['run-summary', 'wrapped']);
+  // ui.get carries only the templates the screen names; the folder still loads the rest, a {spec} file unwrapped
+  assert.deepEqual(Object.keys(got.templates).sort(), ['run-summary']);
+  const { loadTemplates } = await import('../src/surfaces.ts');
+  const all = loadTemplates('project');
+  assert.deepEqual(all.wrapped, { type: 'text', text: 'w' });
+  assert.deepEqual(Object.keys(all).sort(), ['run-summary', 'wrapped']);
 });
 
 async function setup(t: any, sessions: number) {
