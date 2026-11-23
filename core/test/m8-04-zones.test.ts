@@ -27,3 +27,9 @@ test('tab zone folds nothing', () => {
   assert.equal(r.children.length, 3);
   assert.ok(r.children.every((c: any) => !c.folded));
 });
+
+test('a choice keeps one action in inbox and all of them in tab', () => {
+  const choice = { type: 'choice', question: 'Pick', options: ['a', 'b'], actions: [{ label: 'A' }, { label: 'B' }, { label: 'C' }] };
+  assert.equal(root(choice, 'inbox').actions.length, 1);
+  assert.equal(root(choice, 'tab').actions.length, 3);
+});
