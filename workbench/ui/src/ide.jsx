@@ -19,7 +19,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { applyPatch, editorState, ext, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
+import { applyPatch, editorState, ext, openEditor, openDiff, patchSides, preloadMonaco, onProblems, editorLook, setEditorLook } from './editor.js';
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
@@ -29,6 +29,7 @@ import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
+import { Verdict } from './verdict.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -86,6 +87,7 @@ export async function drawIde() {
     if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur, cur.gitSnap, ui.snap.git || {});
     cur.sig = sig;
     cur.gitSnap = ui.snap.git || {};
+    followStep(cur);
     bump();
     return;
   }
@@ -187,6 +189,7 @@ async function loadGitStatus(st) {
   if (typeof rpc === 'function') void rpc('session.owners', { project_id: st.pid }, true).then((o) => {
     if (st.gitSeq !== seq || !o.result) return;
     st.owners = new Map(o.result.paths.filter((p) => p.owners.length).map((p) => [p.path, p.owners.map((w) => w.title).join(', ')]));
+    st.ownerCount = new Map(o.result.paths.map((p) => [p.path, p.owners.length]));
     bump();
   });
   bump();
@@ -196,6 +199,19 @@ async function gitStage(st, paths, unstage = false) {
   let r;
   try { r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths); } catch (e) { r = { error: String(e) }; }
   if (r && r.error) { toast(r.error, true); return; }
+  await loadGitStatus(st);
+}
+
+async function gitShip(st) {
+  if (st.shipping) return;
+  st.shipping = true;
+  bump();
+  let r;
+  try { r = await api.git(st.pid, 'ship', st.commitMsg.trim()); } catch (e) { r = { error: String(e) }; }
+  st.shipping = false;
+  if (r && r.error) { toast(r.error, true); bump(); return; }
+  st.commitMsg = '';
+  toast(r && r.url ? `Pushed and opened ${r.url}` : 'Pushed');
   await loadGitStatus(st);
 }
 
@@ -288,6 +304,30 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   if (changes) void showChanges(st, path);
   if (t.text === undefined && !t.image && !t.pdf && !t.error && !t.reading) await readTab(st, t, path);
   else setTimeout(() => goto(t), 0);
+}
+
+/** Follow agent (M8-19f): the editor opens each new file the followed agent touches, in its changes view. */
+export function setFollow(id) {
+  if (!cur) return;
+  cur.follow = id || null;
+  cur.followSeen = new Set(id ? changedFiles(id).map(slashed) : []);
+  bump();
+}
+
+function followStep(st) {
+  if (!st.follow) return;
+  const x = ui.snap.sessions.find((y) => y.id === st.follow);
+  if (!x || x.state === 'exited') { st.follow = null; toast('Stopped following: the agent has ended.'); return; }
+  const fresh = changedFiles(x.id).map(slashed).filter((f) => !st.followSeen.has(f));
+  for (const f of fresh) st.followSeen.add(f);
+  if (fresh.length) void openFile(st, fresh[fresh.length - 1], { owner: x.id, changes: true });
+}
+
+function FollowChip({ st }) {
+  const agents = agentsIn(st.pid);
+  if (!st.follow && !agents.length) return null;
+  return <Button size="sm" variant={st.follow ? 'secondary' : 'ghost'} label={st.follow ? `Following ${agentName(st.follow)}` : 'Follow agent'}
+    tooltip={st.follow ? 'Stop following' : 'Open each file the agent touches as it works'} onClick={() => setFollow(st.follow ? null : agents[0]?.id)} />;
 }
 
 export async function openAt(rel, line) {
@@ -779,6 +819,34 @@ function treeItems(st, rel, changed, dirty = gitDirs(st)) {
 
 const NotBuilt = () => <Badge label="Not built yet" />;
 
+function ChangedGroup({ st }) {
+  useEffect(() => {
+    let t = 0, live = true;
+    const tick = async () => { if (!globalThis.document?.hidden) await loadGitStatus(st).catch(() => {}); if (live) t = setTimeout(tick, 2000); };
+    t = setTimeout(tick, 2000);
+    return () => { live = false; clearTimeout(t); };
+  }, [st]);
+  const files = (st.git && st.git.files) || [];
+  if (!files.length) return null;
+  return (
+    <div className="ou-ide-changed" role="group" aria-label="Changed files">
+      <div className="ou-ide-chhead"><span>Changed</span><span>{files.length}</span></div>
+      {files.map((f) => {
+        const letter = f.conflict ? 'C' : statusLetter(f.index, f.worktree, f.worktree === '.');
+        const many = (st.ownerCount?.get(f.path) || 0) > 1;
+        return (
+          <button key={f.path} type="button" className="ou-ide-hit ou-ide-chrow" title={f.path} onClick={() => void openFile(st, f.path)}>
+            <FileIcon path={f.path} /><span className="ou-ide-name">{base(f.path)}</span>
+            <span className="ou-ide-dir">{st.owners?.get(f.path) || 'not an agent'}</span>
+            {many ? <span className="ou-ide-chmany" title={`Changed by ${st.owners.get(f.path)}`}>{st.ownerCount.get(f.path)} agents</span> : null}
+            <span className="ou-ide-chletter" data-letter={letter}>{letter}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Files({ st, changed }) {
   const p = project();
   const [target, setTarget] = useState(null);
@@ -819,6 +887,7 @@ function Files({ st, changed }) {
         </div>
       ) : null}
       <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-hit')}>
+        {st.q.trim() ? null : <ChangedGroup st={st} />}
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
             <FileIcon path={h} /><span className={`ou-ide-name ${fileLabelClass(st, h)}`}>{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
@@ -1027,6 +1096,43 @@ const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid &&
   .sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')));
 const agentName = (id) => ui.snap.sessions.find((x) => x.id === id)?.engine_id || 'the agent';
 
+const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000)); return Number.isNaN(m) ? 'at an unknown time' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+
+function blameOf(tab) {
+  if (tab.gitDiff) return null;
+  const id = ownerOf(tab.path, tab.owner);
+  const x = id ? ui.snap.sessions.find((y) => y.id === id) : null;
+  return x ? `Changed by ${x.engine_id}, run ${x.run_id || x.id}, started ${ago(x.started_at)}` : null;
+}
+
+function ReviewHeader({ st, tab }) {
+  if (!st.git || st.git.error) return null;
+  const { staged, unstaged } = gitFiles(st);
+  const ownerId = (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path);
+  const owner = ownerId ? ui.snap.sessions.find((x) => x.id === ownerId) : null;
+  const settled = owner && (owner.state === 'done' || owner.state === 'idle');
+  const blocked = unstaged.length > 0 && !staged.length;
+  const n = staged.length;
+  const title = n ? `${n} staged ${n === 1 ? 'file' : 'files'} to ship` : blocked ? 'Nothing staged to ship' : 'Nothing to commit';
+  const sub = [`Branch ${st.git.branch || '(none)'}`, unstaged.length ? `${unstaged.length} not staged, left out` : ''].filter(Boolean).join(', ');
+  const go = () => {
+    if (n && !st.commitMsg.trim()) { st.side = 'changes'; bump(); toast('Write a commit message in Source Control first.', true); return; }
+    void gitShip(st);
+  };
+  return (
+    <div className="ou-ide-ship" data-part="shipbar">
+      <div className="ou-ide-shipm">
+        <b>{title}</b>
+        <em>{sub}</em>
+        <div className="ou-ide-shipck">{settled ? <Verdict x={owner} /> : null}{settled ? null : <span>{owner ? 'The agent is still working; nothing checked yet.' : 'No check has run on these files.'}</span>}</div>
+      </div>
+      <div className="ou-ide-shipa">
+        <Button size="sm" variant="primary" label={st.shipping ? 'Shipping' : 'Commit, push, open PR'} tooltip={blocked ? 'Stage the files to ship first; only staged files are committed' : 'Commit the staged files, push this branch and open a pull request; stops at the first step that fails'} isDisabled={Boolean(st.shipping || st.committing || blocked)} onClick={go} />
+      </div>
+    </div>
+  );
+}
+
 function DiffView({ st, tab }) {
   const ref = useRef(null);
   const view = useRef(null);
@@ -1049,6 +1155,7 @@ function DiffView({ st, tab }) {
     const h = openDiff(ref.current, sides, tab.path, {
       onLine: (at) => setDraft({ ...at, text: '', error: null, busy: false, to: (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path) || agentsIn(st.pid)[0]?.id || null }),
       onMove: () => setMoved((n) => n + 1),
+      ...(blameOf(tab) ? { blame: () => blameOf(tab) } : {}),
     });
     view.current = h;
     return () => { view.current = null; h.dispose(); };
@@ -1288,6 +1395,11 @@ export function ideCommands(cmd = defaultCmd) {
   out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
   if (t) out.push(cmd('IDE', 'Delete file', () => { st.ask = { kind: 'delete', path: t.path }; bump(); }));
   out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
+  for (const x of agentsIn(st.pid)) if (x.id !== st.follow) out.push(cmd('Follow', `Follow ${x.engine_id}: ${taskOf(x)}`.slice(0, 80), () => setFollow(x.id)));
+  if (st.follow) out.push(cmd('Follow', 'Stop following', () => setFollow(null)));
+  const look = editorLook();
+  for (const [name, label] of [['quiet', 'Quiet'], ['default', 'Default'], ['all', 'Everything']]) if (name !== look) out.push(cmd('Appearance', `Appearance: ${label}`, () => { setEditorLook(name); toast(`Look: ${label}`); }));
+  if (look !== 'default') out.push(cmd('Appearance', 'Appearance: Reset to Default', () => { setEditorLook('default'); toast('Look: Default'); }));
   if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
   if (t && canPreview(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => void showPreview(st, t.path)));
   if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
@@ -1469,6 +1581,7 @@ export function Ide() {
               {st.tabs.map((t) => tabItem(st, t, changed, () => closeTab(st, t.path)))}
             </TabList>
           ) : null}
+          <FollowChip st={st} />
           <TabActions st={st} tab={leftActive} changed={changed} />
           <GroupActions items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
         </div>
@@ -1477,7 +1590,7 @@ export function Ide() {
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== leftActive || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
           {!leftActive ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
-            : (changed.has(leftActive.path) || leftActive.gitDiff) && leftActive.mode === 'changes' ? <DiffView st={st} tab={leftActive} />
+            : (changed.has(leftActive.path) || leftActive.gitDiff) && leftActive.mode === 'changes' ? <div className="ou-ide-review"><ReviewHeader st={st} tab={leftActive} /><div className="ou-ide-reviewbody"><DiffView st={st} tab={leftActive} /></div></div>
               : leftActive.error ? <EmptyState isCompact title={leftActive.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, leftActive.path)} /></>} />
                 : leftActive.image ? <div className="ou-ide-image"><img src={leftActive.image} alt={leftActive.path} /></div>
                   : leftActive.pdf ? <EmptyState title="PDF" description="PDFs open in your PDF reader." actions={<Button size="sm" variant="primary" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} />} />

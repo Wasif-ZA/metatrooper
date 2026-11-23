@@ -307,6 +307,23 @@ export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | nu
   return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 
+export const GATE_AGE_MS = 120_000;
+
+/** Gates (an agent waiting on a person, or an approval) waiting 2 minutes or more that have not been toasted; the first call seeds `seen` with the ones already old, so a restart sends nothing for them (M8-22b). */
+export function agedGates(seen: Set<string> | null, s: Pick<Snapshot, 'live' | 'approvals'>, now: number): { seen: Set<string>; aged: Array<{ id: string; session_id: string; text: string }> } {
+  const gates = [
+    ...s.live.filter((x) => x.state === 'waiting_for_you').map((x) => ({ id: `w:${x.id}:${x.state_at}`, session_id: x.id, at: Date.parse(x.state_at), text: x.reason || 'waiting for you' })),
+    ...(s.approvals || []).map((a) => ({ id: `a:${a.id}`, session_id: a.session_id, at: Date.parse(a.created_at), text: a.summary })),
+  ];
+  const old = gates.filter((g) => Number.isFinite(g.at) && now - g.at >= GATE_AGE_MS);
+  if (!seen) return { seen: new Set(old.map((g) => g.id)), aged: [] };
+  const aged = old.filter((g) => !seen.has(g.id));
+  for (const g of aged) seen.add(g.id);
+  const ids = new Set(gates.map((g) => g.id));
+  for (const id of [...seen]) if (!ids.has(id)) seen.delete(id);
+  return { seen, aged: aged.map(({ id, session_id, text }) => ({ id, session_id, text })) };
+}
+
 /** Needs-you rows to toast: none until a snapshot read from the database seeds `seen`; a fallback snapshot leaves `seen` as it is. */
 export function freshNeeds(seen: Set<string> | null, s: Pick<Snapshot, 'needs_you'>, fromDb: boolean): { seen: Set<string> | null; fresh: Snapshot['needs_you'] } {
   if (!fromDb) return { seen, fresh: [] };

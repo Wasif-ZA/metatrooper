@@ -13,7 +13,10 @@ const wall = (() => {
   let SEED = null, KEY = {}, changed = () => {};
   let touchAt = -Infinity, want = [], wantNext = false, holdT, wake = () => {};
   const pane = (id) => termView.tile(id);
-  const active = (s) => s.shell || !['done', 'idle', 'exited'].includes(s.state);
+  const DONE_FOLD_MS = 10 * 60_000;
+  let foldT = null;
+  const fresh = (s) => s.state === 'done' && Date.now() - (s.at || 0) < DONE_FOLD_MS;
+  const active = (s) => s.shell || !['done', 'idle', 'exited'].includes(s.state) || fresh(s);
   const folded = (s) => !active(s) && !s.open;
   const waiting = () => [...BIG, ...ORDER].filter((id) => S[id] && S[id].state === 'waiting_for_you');
   const TIMING = new Set(['duration', 'ease', 'delay', 'repeat', 'repeatDelay', 'overwrite', 'yoyo']);
@@ -43,9 +46,13 @@ const wall = (() => {
     const fx = [];
     for (const x of list) {
       const s = S[x.id];
-      if (!s) { S[x.id] = { state: x.state, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); KEY[x.id] = x.from || x.id; }
-      else if (s.state !== x.state) { fx.push([x.id, s.state, x.state]); s.state = x.state; if (active(s)) s.open = false; }
+      const at = Number.isFinite(x.stateAt) ? x.stateAt : 0;
+      if (!s) { S[x.id] = { state: x.state, at, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); KEY[x.id] = x.from || x.id; }
+      else if (s.state !== x.state) { fx.push([x.id, s.state, x.state]); s.state = x.state; s.at = at; if (active(s)) s.open = false; }
     }
+    const young = Object.values(S).filter(fresh).map((s) => s.at + DONE_FOLD_MS - Date.now());
+    if (foldT) { clearTimeout(foldT); foldT = null; }
+    if (young.length) foldT = setTimeout(() => layout(true), Math.max(0, Math.min(...young)) + 20);
     for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); delete S[id]; delete KEY[id]; }
     BIG = BIG.filter((id) => S[id]);
     ORDER = ORDER.filter((id) => S[id] && !BIG.includes(id));

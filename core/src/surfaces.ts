@@ -8,6 +8,17 @@ const ID = /^[A-Za-z0-9._-]{1,64}$/;
 
 export interface UiResult { surface: string; status: 'drawn' | 'partly' | 'rejected'; fellBack: Array<{ part: string; type: string; why: string }> }
 
+const GATE_TEXT = ['title', 'text', 'why', 'aside'];
+
+/** An agent can never draw a real gate: every gate part keeps only its plain text (title, text, why, aside) and loses any action, hash or other field, so it draws as the inert grey card (M8-28a, Wasif #32). */
+export function inertGates(x: unknown, depth = 0): unknown {
+  if (depth > 64 || !x || typeof x !== 'object') return x;
+  if (Array.isArray(x)) return x.map((y) => inertGates(y, depth + 1));
+  const o = x as Record<string, unknown>;
+  if (o.type === 'gate') return Object.fromEntries([['type', 'gate'], ...GATE_TEXT.filter((k) => typeof o[k] === 'string').map((k) => [k, o[k]])]);
+  return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, inertGates(v, depth + 1)]));
+}
+
 /** Stores or replaces a screen an agent session drew; the workbench opens it as a tab. Only the session that drew a surface may redraw it. */
 export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiResult {
   const sessionId = typeof p.session_id === 'string' ? p.session_id : '';
@@ -19,8 +30,9 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (zone !== 'tab') throw new RpcError(E.INVALID_PARAMS, 'zone must be "tab"; the other zones are not built yet');
   const title = typeof p.title === 'string' && p.title.trim() ? p.title.trim().slice(0, 80) : surface;
   const catalogue = typeof p.catalogue === 'string' ? p.catalogue.slice(0, 20) : VERSION;
-  const spec = p.spec;
-  if (!spec || typeof spec !== 'object') throw new RpcError(E.INVALID_PARAMS, 'spec must be an object, usually { type: "page", children: [...] }');
+  if (!p.spec || typeof p.spec !== 'object') throw new RpcError(E.INVALID_PARAMS, 'spec must be an object, usually { type: "page", children: [...] }');
+  if (Buffer.byteLength(JSON.stringify(p.spec), 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
+  const spec = inertGates(p.spec) as object;
   const text = JSON.stringify(spec);
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;

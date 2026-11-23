@@ -5,8 +5,9 @@ import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } f
 import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
+import { usdFor } from '../../core/src/meter.ts';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
 import { installPlan, toolPath } from './agent-install.ts';
 import { cleanReport, ISSUE_PREFIX, issueUrl, localIso } from './report-issue.ts';
@@ -33,9 +34,9 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { agedGates, browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, ship, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { formatComment } from './editor-comment.js';
@@ -68,7 +69,7 @@ export const UI_METHODS = new Set([
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
-  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
+  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'session.history',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable',
   'ui.get', 'ui.event', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
@@ -173,6 +174,8 @@ function cursorLook(sessionId: string): DesktopLook {
 }
 
 let toasted: Set<string> | null = null;
+let agedSeen: Set<string> | null = null;
+let lastSnap: Snapshot | null = null;
 /** The tile the renderer shows big, reported on every change; ui_selection lags behind shell picks and project switches. */
 let focused: string | null = null;
 
@@ -207,12 +210,31 @@ function toastNew(s: Snapshot, fromDb: boolean): void {
   }
 }
 
+/** One Windows toast per gate that has waited 2 minutes (M8-22b); not while its tile is the one in front of a focused window. */
+function toastAged(now = Date.now()): void {
+  if (!lastSnap) return;
+  const next = agedGates(agedSeen, lastSnap, now);
+  agedSeen = next.seen;
+  for (const g of next.aged) {
+    if (!Notification.isSupported()) continue;
+    const toast = toastFor({ id: g.id, kind: 'question', ref: g.session_id, text: `Waiting 2 minutes: ${g.text}` } as Snapshot['needs_you'][number], sessionOf(lastSnap, { ref: g.session_id } as Snapshot['needs_you'][number]), { window: !!win && !win.isDestroyed() && win.isFocused(), session: focused });
+    if (!toast) continue;
+    const note = new Notification({ ...toast, silent: false });
+    note.on('click', () => {
+      if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+      void call('session.focus', { session_id: g.session_id }, { ui: true }).then(schedulePush);
+    });
+    note.show();
+  }
+}
+
 function push(): void {
   if (!win || win.isDestroyed()) return;
   syncPanes();
   const s = read();
   lastOnline = s.core.online;
   toastNew(s, readFromDb);
+  if (readFromDb) { lastSnap = s; toastAged(); }
   win.webContents.send('snapshot', s);
 }
 
@@ -241,6 +263,7 @@ function watch(): void {
   fs.mkdirSync(dir, { recursive: true });
   watchDb(dir, path.basename(dbFile()), schedulePush);
   setInterval(() => {
+    toastAged();
     const d = db();
     let changed = false;
     if (d) {
@@ -569,8 +592,13 @@ function handlers(): void {
     }
     let error: string | undefined;
     let commit: string | undefined;
+    let url: string | undefined;
     try {
-      if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
+      if (op === 'ship') {
+        if (demo) throw new Error('Commit, push, open PR is off in the demo');
+        const gh = (args: string[]) => new Promise<string>((resolve, reject) => execFile('gh', args, { cwd: project.path, encoding: 'utf8', windowsHide: true, timeout: 60000 }, (err, out, errOut) => (err ? reject(Object.assign(err, { stderr: /ENOENT/.test(String(err.message)) ? 'GitHub CLI (gh) is not installed or not on PATH' : errOut })) : resolve(out))));
+        ({ commit, url } = await ship(git, gh, typeof arg === 'string' ? arg : ''));
+      } else if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
     } catch (e) {
       error = why(e);
     } finally {
@@ -581,7 +609,7 @@ function handlers(): void {
       const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
       try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
-      return { ...view, groups, error, commit };
+      return { ...view, groups, error, commit, url };
     } catch (e) {
       return { error: why(e) };
     }
@@ -625,6 +653,24 @@ function handlers(): void {
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
       return await sessionChanges(gitIn(cwd), await diffBase(sessionId, scope, cwd));
+    } catch (e) {
+      return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
+    }
+  });
+  // M8-F17b: what a second-model review of this session's changes would cost, as an estimate: the diff plus each changed file once, about 4 characters a token, priced at the input rate of the model that engine last used here.
+  on('reviewEstimate', async (sessionId: unknown, engineId: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd || typeof engineId !== 'string') return { error: 'this session has no folder recorded' };
+    try {
+      const g = gitIn(cwd);
+      const base = await diffBase(sessionId, undefined, cwd);
+      const changes = await sessionChanges(g, base);
+      let chars = (await g(['diff', base]).catch(() => '')).length;
+      for (const f of new Set([...changes.files.map((x) => x.path), ...changes.untracked])) { try { chars += fs.statSync(path.join(cwd, f)).size; } catch {} }
+      const tokens = Math.ceil(chars / 4);
+      const row = db()?.prepare('SELECT u.model FROM usage u JOIN session s ON s.id = u.session_id WHERE s.engine_id = ? AND u.model IS NOT NULL ORDER BY u.rowid DESC LIMIT 1').get(engineId) as { model: string } | undefined;
+      const model = row?.model ?? null;
+      return { tokens, model, usd: usdFor(model, tokens, 0, 0, 0), estimate: true };
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
