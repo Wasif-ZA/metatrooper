@@ -188,7 +188,8 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         owned.push({ id: paneId } as PaneRow);
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
-      const own = owned.length ? `your panes: ${owned.map((r) => r.id).join(', ')}` : 'leave pane_id out of navigate and cc opens your own pane';
+      // ids are not listed: pane ids read as secrets to the output redactor
+      const own = owned.length === 1 ? 'leave pane_id out to use your own pane' : owned.length ? 'call panes for your pane ids' : 'leave pane_id out of navigate and cc opens your own pane';
       if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, `an agent may drive only its own agent panes, not a user pane (${own}); to use the user's sign-in, ask them to lend the site (navigate with signed_in: true)`);
       if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, `pane not owned by the calling session (${own})`);
       if (tool === 'outcome') {
