@@ -220,12 +220,12 @@ test('worktree.create keeps a branch with backslashes inside the worktrees folde
     const m = buildMethods(db, { engines: () => engines, stop: () => {}, uiKey: 'k' });
     const { project_id } = m.get('project.open')!.handler({ path: proj }, { ui: false, origin: 'test' }) as { project_id: string };
     const branch = ['..', '..', 'outside'].join(String.fromCharCode(92));
-    try { await m.get('worktree.create')!.handler({ project_id, branch }, { ui: false, origin: 'test' }); } catch {}
+    try { await m.get('worktree.create')!.handler({ project_id, branch }, { ui: true, origin: 'test' }); } catch {}
     assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
     fs.mkdirSync(path.join(home, 'mt', 'worktrees', project_id, '.git'), { recursive: true });
     fs.mkdirSync(path.join(home, 'mt', 'worktrees', '.git'), { recursive: true });
     for (const name of ['..', '.']) {
-      await assert.rejects(async () => m.get('worktree.create')!.handler({ project_id, branch: name }, { ui: false, origin: 'test' }), { message: /branch/ }, name);
+      await assert.rejects(async () => m.get('worktree.create')!.handler({ project_id, branch: name }, { ui: true, origin: 'test' }), { message: /branch/ }, name);
     }
     assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
   } finally {
