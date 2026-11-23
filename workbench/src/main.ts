@@ -621,7 +621,9 @@ function handlers(): void {
         try { return (await g(['merge-base', 'HEAD', ref])).trim(); } catch {}
       }
     }
-    return 'HEAD';
+    try { await g(['rev-parse', '--verify', '-q', 'HEAD']); return 'HEAD'; } catch {}
+    // A repo with no commit yet has no HEAD: compare against the empty tree.
+    return (await g(['rev-parse', '--show-object-format']).catch(() => 'sha1')).trim() === 'sha256' ? '6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321' : '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
   };
   on('sessionDiff', async (sessionId: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
