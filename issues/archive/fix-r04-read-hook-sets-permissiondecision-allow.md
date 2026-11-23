@@ -31,3 +31,5 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: obsolete. The Read branch of router/metarouter/hook.py was removed in aeb72989 (ROUTER-01); the hook now handles Bash only (hook.py:45). Boxes left unticked.

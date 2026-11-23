@@ -31,3 +31,5 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: obsolete. mcp.py and mcp_daemon.py were removed in aeb72989 (ROUTER-01); nothing left to fix or test. Boxes left unticked.
