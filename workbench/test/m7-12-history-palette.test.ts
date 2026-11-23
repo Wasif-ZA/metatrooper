@@ -57,7 +57,7 @@ function boot() {
   const api = new Proxy({}, {
     get: (_t, name: string) => {
       if (name.startsWith('on')) return (f: (...a: any[]) => any) => { handlers[name] = f; };
-      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); if (!UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${method}` } } }; const r = replies[method]; return { kind: 'ok', reply: { result: (typeof r === 'function' ? await r(params) : r) ?? {} } }; };
+      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); if (!UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${method}` } } }; const r = replies[method]; if (r && r.__error) return { kind: 'ok', reply: { error: { code: -1, message: r.__error } } }; return { kind: 'ok', reply: { result: (typeof r === 'function' ? await r(params) : r) ?? {} } }; };
       if (name === 'git') return async () => ({ branch: 'main', changes: [], staged: [], log: '', ahead: 0, behind: 0 });
       if (name === 'uiSettings') return async () => ({ theme: {}, ui: { toast_ms: 3500, error_toast_ms: 7000, layout: {} }, terminal: { git_every_ms: 10000, scrollback: 1000, font_size: 13 }, themes: [] });
       return async (...args: any[]) => { calls.push({ method: `api.${name}`, params: args, at: now }); return undefined; };
@@ -199,6 +199,18 @@ test('M7-12a choosing an exited History row resumes it and picks the session the
   assert.deepEqual(focus.map((c) => c.params.session_id), ['new1']);
   assert.ok(w.calls.indexOf(resume) < w.calls.indexOf(focus[0]), 'resume first');
   assert.equal(w.el('palette').hidden, true);
+});
+
+test('M7-12a a failed resume toasts the reason and picks nothing', async () => {
+  const w = boot();
+  const items = await search(w, [old]);
+  w.replies['session.resume'] = { __error: 'engine missing' };
+  await w.click({ palette: String(items.findIndex((x) => x.group === 'History')) });
+  await w.advance(0);
+  assert.ok(w.calls.some((c) => c.method === 'session.resume'));
+  assert.deepEqual(w.el('toasts').children.map((c: any) => c.textContent), ['Could not resume: engine missing']);
+  assert.equal(w.calls.some((c) => c.method === 'session.focus'), false, 'nothing picked');
+  assert.equal(w.t.ui.pendingPick == null, true);
 });
 
 test('M7-12a choosing a History row that is not exited picks it without resuming', async () => {

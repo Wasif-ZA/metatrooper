@@ -75,32 +75,59 @@ test('M7-14a: app.js flushes the queue right after storing the snapshot', () => 
   assert.match(body, /^api\.onSnapshot\(async \(s\) => \{\s*ui\.snap = s;\s*globalThis\.flushQueued\?\.\(\[\.\.\.s\.sessions, \.\.\.\(s\.live \|\| \[\]\)\.filter\(\(x\) => !s\.sessions\.some\(\(y\) => y\.id === x\.id\)\)\]\);/);
 });
 
-test('M7-14a: a follow-up for a session of another project (only in live) is sent when it goes idle', () => {
+test('M7-14a: a follow-up for a session of another project (absent from the lists) is sent when it reappears settled', () => {
   setQueued('d1', 'other project');
   const sent: string[][] = [];
   const send = (x: any, t: string) => { sent.push([x.id, t]); };
   flushQueued([{ id: 'here', state: 'working' }, { id: 'd1', state: 'working' }], send);
   assert.deepEqual(sent, []);
+  // another project's session is in neither sessions nor live (live never carries idle)
+  flushQueued([{ id: 'here', state: 'working' }], send);
+  flushQueued([{ id: 'here', state: 'working' }], send);
+  assert.deepEqual(sent, []);
   assert.equal(queuedText('d1'), 'other project');
-  flushQueued([{ id: 'here', state: 'working' }, { id: 'd1', state: 'idle' }], send);
+  // after a project switch it shows up settled
+  flushQueued([{ id: 'd1', state: 'idle' }], send);
   assert.deepEqual(sent, [['d1', 'other project']]);
+  assert.equal(queuedText('d1'), '');
 });
 
-test('M7-14a: a queued id missing from every list is dropped and never sent later', () => {
-  setQueued('e1', 'gone');
+test('M7-14a: a queued id missing from every list is kept, sent once when it shows up idle/done, dropped when it shows up exited', () => {
+  setQueued('e1', 'kept');
+  setQueued('e2', 'dies');
   const sent: string[][] = [];
   const send = (x: any, t: string) => { sent.push([x.id, t]); };
   flushQueued([{ id: 'other', state: 'working' }], send);
-  assert.equal(queuedText('e1'), '');
-  flushQueued([{ id: 'e1', state: 'idle' }], send);
-  assert.deepEqual(sent, []);
+  assert.equal(queuedText('e1'), 'kept');
+  assert.equal(queuedText('e2'), 'dies');
+  flushQueued([{ id: 'e1', state: 'done' }, { id: 'e2', state: 'exited' }], send);
+  flushQueued([{ id: 'e1', state: 'idle' }, { id: 'e2', state: 'idle' }], send);
+  assert.deepEqual(sent, [['e1', 'kept']]);
+  assert.equal(queuedText('e2'), '');
 });
 
-test('M7-14a: home.jsx sends t + CR and wires flushQueued to sendFollowUp', () => {
+test('M7-14a: an empty (fallback) snapshot keeps every queued follow-up', () => {
+  setQueued('f1', 'one');
+  setQueued('f2', 'two');
+  const sent: string[][] = [];
+  const send = (x: any, t: string) => { sent.push([x.id, t]); };
+  flushQueued([], send);
+  flushQueued(undefined as any, send);
+  assert.equal(queuedText('f1'), 'one');
+  assert.equal(queuedText('f2'), 'two');
+  flushQueued([{ id: 'f1', state: 'idle' }, { id: 'f2', state: 'idle' }], send);
+  assert.deepEqual(sent, [['f1', 'one'], ['f2', 'two']]);
+});
+
+test('M7-14a: home.jsx sends through session.send (no raw pty write), toasts the text back on a failed send, wires flushQueued to sendFollowUp', () => {
   const src = read('../ui/src/home.jsx');
   const i = src.indexOf("const sendFollowUp = async (x, t) => {");
   assert.ok(i >= 0, "sendFollowUp present");
-  assert.ok(src.slice(i, i + 250).includes("troop.termInput(x.id, t + '" + String.fromCharCode(92) + "r')"));
+  const body = src.slice(i, src.indexOf('globalThis.flushQueued', i));
+  assert.ok(body.includes("rpc('session.send', { session_id: x.id, text: t }, true)"));
+  assert.ok(!body.includes('termInput'));
+  assert.ok(!body.includes("'" + String.fromCharCode(92) + "r'"));
+  assert.match(body, /if \(!r \|\| !r\.result\) \{[^}]*toast\([^)]*\$\{t\}[^)]*\);\s*return false;/);
   assert.match(src, /globalThis\.flushQueued = \(sessions\) => flushQueued\(sessions, sendFollowUp\);/);
 });
 

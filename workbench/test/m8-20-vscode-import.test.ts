@@ -17,6 +17,12 @@ test('M8-20 parseJsonc reads comments, trailing commas and // inside strings', (
   assert.equal(parseJsonc('{ nope'), null);
 });
 
+test('M8-20 parseJsonc keeps ",]" and ",}" inside strings, ignores a leading BOM, still drops trailing commas outside strings', () => {
+  assert.deepEqual(parseJsonc('{"t": "a,] b,}", "k": [1,\n],}'), { t: 'a,] b,}', k: [1] });
+  assert.deepEqual(parseJsonc('\ufeff{"a": 1,}'), { a: 1 });
+  assert.deepEqual(parseJsonc('[1,2,]'), [1, 2]);
+});
+
 const ESC_CR = '\u001b\r';
 function writeVs(appData: string) {
   const u = join(appData, 'Code', 'User'); mkdirSync(u, { recursive: true });
@@ -72,6 +78,7 @@ async function loadBoot() {
   s = s.split('`../renderer/${f}`').join('`' + renderer + '/${f}`').split("'../src/main.ts'").join("'" + mainTs + "'")
     .replace('function boot() {', 'function boot(opts: any = {}) {')
     .replace("if (name === 'git')", "if (name === 'vscodeImport') return opts.vscode ? async () => opts.vscode() : undefined; if (name === 'git')")
+    .replace("if (name === 'uiSettings') return async () => ({ theme: {}, ui: {", "if (name === 'uiSettings') return async () => ({ theme: {}, ui: { theme: opts.uiTheme(),")
     .replace('localStorage: { getItem: () => null, setItem() {}, removeItem() {} }', 'localStorage: opts.ls');
   s += '\nexport { boot, snapOf };\n';
   const file = join(tmp, 'boot.ts'); writeFileSync(file, s);
@@ -80,8 +87,9 @@ async function loadBoot() {
 const { boot, snapOf } = await loadBoot();
 const fakeLs = () => { const m = new Map<string, string>(); return { m, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, String(v)); }, removeItem: (k: string) => { m.delete(k); } }; };
 const found = { theme: 'light', summary: { applied: ['theme "Solarized Light" as Crisp light'], skipped: ['alt+j (x): cc cannot rebind keys yet'] }, keys: [{ key: 'ctrl+alt+q', command: 'editor.action.quickFix' }, { key: 'alt+j', command: 'workbench.action.nextEditor' }, { key: 'shift+enter', command: 'sendSequence' }] };
-const start = async (ls: any, vscode: any = () => found) => {
-  const w = boot({ ls, vscode });
+const start = async (ls: any, vscode: any = () => found, theme = 'dither') => {
+  const th = { v: theme };
+  const w = boot({ ls, vscode, uiTheme: () => th.v }); w.th = th;
   w.t.ui.look = { theme: { name: 'neutral', scheme: 'dark' } };
   await w.snap(snapOf([]));
   return w;
@@ -89,7 +97,7 @@ const start = async (ls: any, vscode: any = () => found) => {
 const told = (w: any): string[] => w.el('toasts').children.map((c: any) => c.textContent as string).filter((t: string) => t.includes('VS Code'));
 const themeCalls = (w: any) => w.calls.filter((c: any) => c.method === 'api.setTheme').map((c: any) => c.params[0]);
 
-test('M8-20a first start applies the theme once and toasts one summary; the second start shows none', async () => {
+test('M8-20a first start over the default theme (dither) applies the theme once and toasts one summary; the second start shows none', async () => {
   const ls = fakeLs();
   const w = await start(ls);
   assert.deepEqual(themeCalls(w), ['light']);
@@ -98,11 +106,21 @@ test('M8-20a first start applies the theme once and toasts one summary; the seco
   await w.snap(snapOf([]));
   assert.equal(told(w).length, 1, 'later snapshots do not ask again');
   const rec = JSON.parse(ls.m.get('cc.vscodeImport')!);
-  assert.equal(rec.prev, 'neutral'); assert.equal(rec.theme, 'light');
+  assert.equal(rec.prev, 'dither'); assert.equal(rec.theme, 'light');
   const again = await start(ls);
   assert.deepEqual(themeCalls(again), []); assert.equal(told(again).length, 0);
   const none = fakeLs(); await start(none, () => null);
   assert.deepEqual(JSON.parse(none.m.get('cc.vscodeImport')!), { none: true });
+});
+
+test('M8-20a a theme the user already chose is not replaced: nothing applied, skipped list says so', async () => {
+  const ls = fakeLs();
+  const w = await start(ls, () => ({ ...found, summary: { applied: [], skipped: [...found.summary.skipped] } }), 'neutral');
+  assert.deepEqual(themeCalls(w), []);
+  const rec = JSON.parse(ls.m.get('cc.vscodeImport')!);
+  assert.equal(rec.theme, null);
+  assert.deepEqual(rec.skipped, ['theme light: you already chose a cc theme', 'alt+j (x): cc cannot rebind keys yet']);
+  assert.equal(told(w).length, 1);
 });
 
 test('M8-20c a chord bound only in VS Code toasts exactly once, even across a restart; unbound and consumed ones toast nothing', async () => {
@@ -124,15 +142,37 @@ test('M8-20c a chord bound only in VS Code toasts exactly once, even across a re
   assert.equal(told(w3).filter((t) => t.includes(' did "')).length, 0);
 });
 
-test('M8-20e undo puts the previous theme back and marks the import undone', async () => {
+test('M8-20e undo puts the previous theme back (theme still the imported one) and marks the import undone', async () => {
   const ls = fakeLs();
   const w = await start(ls);
   assert.deepEqual(themeCalls(w), ['light']);
+  w.th.v = 'light';
   await w.t.globalThis.undoVscodeImport();
-  assert.deepEqual(themeCalls(w), ['light', 'neutral']);
+  assert.deepEqual(themeCalls(w), ['light', 'dither']);
   assert.equal(JSON.parse(ls.m.get('cc.vscodeImport')!).undone, true);
   await w.t.globalThis.undoVscodeImport();
-  assert.deepEqual(themeCalls(w), ['light', 'neutral'], 'a second undo does nothing');
+  assert.deepEqual(themeCalls(w), ['light', 'dither'], 'a second undo does nothing');
+});
+
+test('M8-20e undo does nothing, keeps the record and says why when the user changed the theme afterwards', async () => {
+  const ls = fakeLs();
+  const w = await start(ls);
+  w.th.v = 'neutral';
+  await w.t.globalThis.undoVscodeImport();
+  assert.deepEqual(themeCalls(w), ['light']);
+  assert.notEqual(JSON.parse(ls.m.get('cc.vscodeImport')!).undone, true);
+  assert.ok(w.el('toasts').children.some((c: any) => c.textContent === 'Not undone: you changed the theme after the import.'));
+});
+
+test('M8-20e undo does nothing and says why when the previous theme is unknown', async () => {
+  const ls = fakeLs();
+  const w = await start(ls);
+  const rec = JSON.parse(ls.m.get('cc.vscodeImport')!); ls.m.set('cc.vscodeImport', JSON.stringify({ ...rec, prev: null }));
+  w.th.v = 'light';
+  await w.t.globalThis.undoVscodeImport();
+  assert.deepEqual(themeCalls(w), ['light']);
+  assert.notEqual(JSON.parse(ls.m.get('cc.vscodeImport')!).undone, true);
+  assert.ok(w.el('toasts').children.some((c: any) => c.textContent === 'Not undone: the theme before the import is not known.'));
 });
 
 // ---- Settings > Learning ----------------------------------------------------
