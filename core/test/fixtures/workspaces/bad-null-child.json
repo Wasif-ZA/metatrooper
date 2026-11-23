@@ -1,0 +1,1 @@
+{"name": "Broken", "by": "codex", "rail": ["files"], "layout": {"split": "row", "sizes": [50, 50], "children": [null, {"view": "editor"}]}}
