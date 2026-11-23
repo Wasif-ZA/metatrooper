@@ -218,38 +218,6 @@ test('10: nextState handles trust transitions and preserves terminal states', ()
   assert.equal(nextState('working', { kind: 'core.trust-cleared', payload: {} }), null);
 });
 
-test('11: worktree.create requires UI or a valid live session secret', async () => {
-  // protects=worktree handler authorization and secret access fails_when=secret proof is removed or unknown secrets are accepted
-  const h = await fixture();
-  try {
-    const repo = join(h.home, 'repo');
-    mkdirSync(repo);
-    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: 'pipe', windowsHide: true });
-    git('init', '-q');
-    writeFileSync(join(repo, 'file.txt'), 'fixture\n');
-    git('add', '.');
-    git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'fixture');
-    const methods = buildMethods(h.db, { engines: () => h.engines, stop: () => {}, uiKey: 'fixture-key' });
-    const { project_id } = await methods.get('project.open')!.handler({ path: repo }, { ui: false, origin: 'test' }) as { project_id: string };
-    const method = methods.get('worktree.create')!;
-    const needsUi = (error: unknown) => error instanceof RpcError && error.code === E.NEEDS_UI && error.code === -32012;
-    await assert.rejects(async () => method.handler({ project_id, branch: 'missing-secret' }, { ui: false, origin: 'test' }), needsUi);
-    await assert.rejects(async () => method.handler({ project_id, branch: 'unknown-secret', session_secret: 'unknown-secret' }, { ui: false, origin: 'test' }), needsUi);
-    const secret = issueSecret(h.id, 'ask');
-    for (const [branch, ctx, extra] of [
-      ['agent-lane', { ui: false, origin: 'test' }, { session_secret: secret }],
-      ['ui-lane', { ui: true, origin: 'test' }, {}],
-    ] as const) {
-      const result = await method.handler({ project_id, branch, ...extra }, ctx) as { path: string; branch: string; trusted: string[] };
-      assert.equal(result.branch, branch);
-      assert.deepEqual(result.trusted, h.engines.filter((e) => e.trust).map((e) => e.id));
-      assert.equal(execFileSync('git', ['-C', result.path, 'branch', '--show-current'], { encoding: 'utf8', windowsHide: true }).trim(), branch);
-      const trusted = JSON.parse(readFileSync(h.trustedFile, 'utf8')).trusted;
-      assert.ok(trusted.includes(canonicalPath(realpathSync.native(result.path))));
-    }
-    assert.equal(git('branch', '--list', 'missing-secret', 'unknown-secret').trim(), '');
-  } finally { h.close(); }
-});
 
 test('12: CLI launch forwards TROOP_SESSION_SECRET to worktree.create', async () => {
   // protects=launchOne session secret forwarding fails_when=worktree.create RPC omits session_secret

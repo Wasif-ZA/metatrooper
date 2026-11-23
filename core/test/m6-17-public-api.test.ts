@@ -159,6 +159,7 @@ const EXPECTED_NEEDS_UI = new Set([
   'plugin.enable',
   'session.stop',
   'session.continue',
+  'worktree.create',
   'ui.event',
   'audit.list',
   'automation.set',
