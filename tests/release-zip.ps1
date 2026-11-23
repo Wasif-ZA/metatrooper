@@ -67,7 +67,9 @@ if (-not $app) { throw 'zip has no cc-*-win-x64 folder' }
 $exe = Join-Path $app.FullName 'cc.exe'
 $node = Join-Path $app.FullName 'resources/node/node.exe'
 $cli = Join-Path $app.FullName 'resources/app/core/cli.ts'
-foreach ($f in $exe, $node, $cli) { if (-not (Test-Path $f)) { throw "missing in zip: $f" } }
+$layouts = Join-Path $app.FullName 'resources/app/workbench/ui/src/workspaces/dev.json'
+$box = Join-Path $app.FullName 'resources/app/core/src/plugins/boxrun.cs'
+foreach ($f in $exe, $node, $cli, $layouts, $box) { if (-not (Test-Path $f)) { throw "missing in zip: $f" } }
 
 $engines = Join-Path $home2 'engines.json'
 [IO.File]::WriteAllText($engines, '[]')
