@@ -51,6 +51,10 @@ namespace TroopUia {
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint type);
     [DllImport("user32.dll")] public static extern IntPtr SetProcessDpiAwarenessContext(IntPtr v);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] public struct MONITORINFOEX { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice; }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFOEX info);
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] public static extern bool GetProcessTimes(IntPtr h, out long create, out long exit, out long kernel, out long user);
@@ -136,6 +140,7 @@ namespace TroopUia {
         case "snapshot": return Snapshot(hwnd, (int)Math.Max(1, Num(r, "max_nodes")));
         case "describe": return Describe(hwnd, Str(r, "ref"));
         case "screenshot": return Screenshot(new IntPtr(hwnd));
+        case "locate": return Locate(hwnd, Str(r, "ref"));
         case "set_text": {
           Action again = () => Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r);
           var tb = TreeBefore(hwnd, r);
@@ -514,6 +519,24 @@ namespace TroopUia {
       return false;
     }
 
+    // M8-49 row 4: where a control is on screen in physical pixels, read only (D78: input stays pattern and message based)
+    static object Locate(long hwnd, string reference) {
+      var e = Find(hwnd, reference);
+      var b = e.Current.BoundingRectangle;
+      if (b.IsEmpty) throw new Exception("ref " + reference + " has no place on screen");
+      var h = new IntPtr(hwnd);
+      var mon = Native.MonitorFromWindow(h, 2);
+      var mi = new Native.MONITORINFOEX(); mi.cbSize = Marshal.SizeOf(typeof(Native.MONITORINFOEX));
+      object monitor = null;
+      if (Native.GetMonitorInfo(mon, ref mi)) monitor = new Dictionary<string, object> { { "device", mi.szDevice }, { "rect_px", new[] { mi.rcMonitor.Left, mi.rcMonitor.Top, mi.rcMonitor.Right - mi.rcMonitor.Left, mi.rcMonitor.Bottom - mi.rcMonitor.Top } }, { "primary", (mi.dwFlags & 1) != 0 } };
+      return new Dictionary<string, object> {
+        { "screen_rect_px", new[] { (int)Math.Round(b.X), (int)Math.Round(b.Y), (int)Math.Round(b.Width), (int)Math.Round(b.Height) } },
+        { "window_rect_px", RectOf(h) },
+        { "dpi", (int)Native.GetDpiForWindow(h) },
+        { "monitor", monitor },
+      };
+    }
+
     static object Screenshot(IntPtr h) {
       var rc = RectOf(h);
       if (rc[2] <= 0 || rc[3] <= 0) throw new Exception("the window has no size (minimised?)");
@@ -534,7 +557,7 @@ namespace TroopUia {
               outBmp.Save(ms, codec, ps);
               string data = Convert.ToBase64String(ms.ToArray());
               // the reply travels the core pipe, whose lines stop at 1 MiB
-              if (data.Length <= MAX_BASE64 || w <= 64) return new Dictionary<string, object> { { "data_base64", data }, { "mime", "image/jpeg" }, { "width", w }, { "height", hh } };
+              if (data.Length <= MAX_BASE64 || w <= 64) return new Dictionary<string, object> { { "data_base64", data }, { "mime", "image/jpeg" }, { "width", w }, { "height", hh }, { "origin_px", new[] { rc[0], rc[1] } }, { "scale", scale } };
             }
           }
           if (attempt >= qualities.Length - 1) scale *= 0.75;

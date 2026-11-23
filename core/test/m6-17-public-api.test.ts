@@ -135,6 +135,7 @@ const EXPECTED_METHODS = [
   'desktop.describe',
   'desktop.snapshot',
   'desktop.screenshot',
+  'desktop.locate',
   'desktop.check',
   'desktop.find',
   'desktop.action.verify',
