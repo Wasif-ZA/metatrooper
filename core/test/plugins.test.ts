@@ -257,9 +257,9 @@ test('install refuses approvals that do not match the permissions asked for, and
   }
 });
 
-function pluginRecord(dir: string, actions: unknown[], permissions: string[] = []) {
+function pluginRecord(dir: string, actions: unknown[], permissions: string[] = [], source: 'native' | 'builtin' = 'native') {
   return {
-    id: 'act', version: '1.0.0', path: dir, source: 'native' as const, enabled: true, permissions,
+    id: 'act', version: '1.0.0', path: dir, source, enabled: true, permissions,
     manifest: { schema: 1 as const, id: 'act', version: '1.0.0', name: 'Act', permissions, actions: actions as never },
   };
 }
@@ -278,7 +278,7 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
       });`);
     process.env.TROOP_TEST_LEAK = 'leaked';
     const r = await runAction({
-      plugin: pluginRecord(dir, [{ id: 'env', run: ['bin/env.js'], output_schema: { type: 'object', required: ['got'] } }], ['secrets:API_TOKEN', 'network']),
+      plugin: pluginRecord(dir, [{ id: 'env', run: ['bin/env.js'], output_schema: { type: 'object', required: ['got'] } }], ['secrets:API_TOKEN', 'network', 'run:write']),
       actionId: 'env', input: { a: 1 }, projectDir: dir, run: { id: 'r1', dir: runDir },
       secret: (n) => (n === 'API_TOKEN' ? 'sekrit' : null),
     });
@@ -289,7 +289,7 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
     const env = JSON.parse(readFileSync(join(runDir, 'env.json'), 'utf8'));
     const allowed = new Set([...BASE_ENV, 'TROOP_RUN_DIR', 'TROOP_PROJECT_DIR', 'TROOP_PLUGIN_DIR', 'API_TOKEN']);
     // libuv's required_vars (src/win/process.c) are copied from the parent on every Windows spawn.
-    if (process.platform === 'win32') for (const k of ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'SYSTEMDRIVE', 'USERDOMAIN', 'USERNAME']) allowed.add(k);
+    if (process.platform === 'win32') for (const k of ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'SYSTEMDRIVE', 'USERDOMAIN', 'USERNAME', 'NODE_OPTIONS', 'NPM_CONFIG_CACHE']) allowed.add(k);
     const unexpected = Object.keys(env).filter((k) => !allowed.has(k.toUpperCase()) && !(process.platform === 'win32' && k.startsWith('=')));
     assert.deepEqual(unexpected, []);
     assert.equal(env.API_TOKEN, 'sekrit');
@@ -357,7 +357,7 @@ test('M1-16 a hung action is killed with its child processes at its timeout', as
       setInterval(() => {}, 1000);`);
     const started = Date.now();
     const r = await runAction({
-      plugin: pluginRecord(dir, [{ id: 'hang', run: ['bin/hang.js'], timeout_seconds: 1 }]),
+      plugin: pluginRecord(dir, [{ id: 'hang', run: ['bin/hang.js'], timeout_seconds: 1 }], [], 'builtin'),
       actionId: 'hang', input: {}, projectDir: dir, run: { id: 'r2', dir: join(dir, 'run') }, secret: () => null,
     });
     assert.deepEqual(r, { ok: false, error: { message: 'action timed out after 1 s', retryable: true } });
@@ -397,7 +397,7 @@ test('M1-25a an action with the stripped environment runs npm by name', async ()
         process.stdout.write(JSON.stringify({ ok: true, outputs: { v } }));
       });`);
     const r = await runAction({
-      plugin: pluginRecord(dir, [{ id: 'nested', run: ['bin/npm-version.js'] }]),
+      plugin: pluginRecord(dir, [{ id: 'nested', run: ['bin/npm-version.js'] }], [], 'builtin'),
       actionId: 'nested', input: {}, projectDir: dir, run: { id: 'r4', dir: join(dir, 'run') }, secret: () => null,
     });
     assert.equal(r.ok, true, JSON.stringify(r));
