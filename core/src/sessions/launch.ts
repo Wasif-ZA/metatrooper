@@ -48,6 +48,11 @@ export function folderApproval(_dir: string, approval?: string): string {
   return approval ?? 'contained';
 }
 
+/** The approval a launch with none requested starts with (D89): the preferred default if the engine has it (ask only when ask was chosen), else contained, else edits; ask only for an engine with neither. */
+export function defaultApproval(engine: EngineSpec, preferred: string): string {
+  return [preferred, 'contained', 'edits'].find((a) => a !== 'isolated' && (a === 'ask' ? preferred === 'ask' : Boolean(engine.approval_profiles?.[a]))) || 'ask';
+}
+
 export const METAROUTER_BLOCK = `## Tools
 Run shell commands through metarouter.
 - Look for a saved recipe first: \`metarouter search <words>\`, then \`metarouter run <recipe> ...\`.

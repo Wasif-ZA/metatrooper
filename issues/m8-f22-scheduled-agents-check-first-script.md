@@ -43,6 +43,7 @@ Not sized until M8-0.
 - [ ] M8-F22c. A check that errors or times out shows as failed and starts nothing.
 - [ ] M8-F22d. A run missed while the core was off shows as missed, and does not start late on its own.
 - [ ] M8-F22e. A scheduled agent cannot pass a gate alone. It waits in the inbox.
+  Note (D89, Wasif 2026-11-23): scheduled launches no longer start in ask; they take the default approval (contained, then edits) like any launch. This criterion now rests on cc's own gates (M8-21), not on the engine asking.
 - [ ] M8-F22f. An agent cannot change a check script without a gate.
 - [ ] M8-F22g. The shipped screen matches `n13-automations.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
   Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.
