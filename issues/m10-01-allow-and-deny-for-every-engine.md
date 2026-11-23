@@ -32,8 +32,8 @@ cc does not claim to flag a waiting permission prompt for Codex, Gemini CLI or A
 
 ## Acceptance checks
 
-- [ ] M10-01a. A terminal-only session waiting with reason `permission` shows the line once (workbench test).
-- [ ] M10-01b. The line is absent when the session works or waits for another reason.
-- [ ] M10-01c. A Claude chat keeps Allow and Deny and never shows the line.
-- [ ] M10-01d. `approvalInput` returns `null` for codex, agy, gemini and opencode.
+- [x] M10-01a. A terminal-only session waiting with reason `permission` shows the line once (workbench test). (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m10-01-permission-note.test.ts 5/5)
+- [x] M10-01b. The line is absent when the session works or waits for another reason. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m10-01-permission-note.test.ts 5/5)
+- [x] M10-01c. A Claude chat keeps Allow and Deny and never shows the line. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m10-01-permission-note.test.ts 5/5)
+- [x] M10-01d. `approvalInput` returns `null` for codex, agy, gemini and opencode. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m10-01-permission-note.test.ts 5/5)
 - [ ] Each test is written by a different engine than the code and fails on the code before the change where it guards new behaviour.

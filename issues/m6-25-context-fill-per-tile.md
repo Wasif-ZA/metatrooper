@@ -9,7 +9,7 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Medium. Effort: 0.75 C
 
 ## Acceptance criteria
 
-- [ ] M6-25a. A Claude tile whose last turn used 170,000 of a 200,000-token window shows 85% in orange with "compacts soon"; an engine with no usage shows no context chip.
+- [x] M6-25a. A Claude tile whose last turn used 170,000 of a 200,000-token window shows 85% in orange with "compacts soon"; an engine with no usage shows no context chip. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-25-context-fill.test.ts 1/1; it feeds the 85% reading directly, as Claude's statusline reports it)
 
 ## Rules that bind every child
 

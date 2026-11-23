@@ -9,7 +9,7 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Medium. Effort: 0.5 CC
 
 ## Acceptance criteria
 
-- [ ] M6-20a. A Claude tile's cost chip equals the session's tokens in `usage`; an engine with no usage shows "usage unknown".
+- [x] M6-20a. A Claude tile's cost chip equals the session's tokens in `usage`; an engine with no usage shows "usage unknown". (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-20-cost-chip.test.ts 3/3)
 
 ## Rules that bind every child
 

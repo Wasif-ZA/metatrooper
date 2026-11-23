@@ -9,8 +9,8 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 3.5 
 
 ## Acceptance criteria
 
-- [ ] M6-12a. `handoff` makes every other browser tool fail with "the user has the pane" until Give back.
-- [ ] M6-12b. `type` with `{{secret:NAME}}` into a password field on the saved origin fills it; on another origin or a plain field it fails; the value appears in no `event` row, log, tool result, approval row or crop (marker test as M1-05).
+- [x] M6-12a. `handoff` makes every other browser tool fail with "the user has the pane" until Give back. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-12-handoff.test.ts 1/1)
+- [x] M6-12b. `type` with `{{secret:NAME}}` into a password field on the saved origin fills it; on another origin or a plain field it fails; the value appears in no `event` row, log, tool result, approval row or crop (marker test as M1-05). (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-12-handoff.test.ts 1/1 and core/test/m6-12-browser.test.ts 10/10)
 
 ## Rules that bind every child
 

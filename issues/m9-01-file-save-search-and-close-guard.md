@@ -45,11 +45,11 @@ As exposed in `workbench/src/preload.cjs` today (working tree, not yet committed
 ## Acceptance checks
 
 - [ ] M9-01a. On screen: change a line in a tracked file, press Ctrl+S, run `git diff` in a shell pane. The diff shows that one line and nothing else.
-- [ ] M9-01b. A CRLF file saves as CRLF and an LF file as LF, byte for byte outside the edit.
-- [ ] M9-01c. Edit the same file in another program, then save in Ouros: the conflict question appears and nothing is overwritten until he chooses.
+- [x] M9-01b. A CRLF file saves as CRLF and an LF file as LF, byte for byte outside the edit. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-ide.test.ts 14/14 (fix-04 CRLF/LF) and workbench/test/m9-files.test.ts 22/22 (CRLF and BOM kept))
+- [x] M9-01c. Edit the same file in another program, then save in Ouros: the conflict question appears and nothing is overwritten until he chooses. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-files.test.ts baseMtimeMs conflict and workbench/test/m9-ide.test.ts 'conflict reply shows question and Overwrite resends with null')
 - [ ] M9-01d. Each refusal has a test: not a string, NUL, over 512 KiB, a `.git` segment, `..`, an absolute path, a junction that points outside the root, a link swapped in between check and write.
-- [ ] M9-01e. `fsSearch` with a query that starts with `-` is treated as text, not as a git option.
-- [ ] M9-01f. Closing the window with an unsaved file asks first. Cancel keeps the window and the edit.
+- [x] M9-01e. `fsSearch` with a query that starts with `-` is treated as text, not as a git option. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-files.test.ts 22/22, fsSearch with a leading dash)
+- [x] M9-01f. Closing the window with an unsaved file asks first. Cancel keeps the window and the edit. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/wiring-main-guards.test.ts 9/9, fix-01 unsaved Cancel and setDirty close guard)
 - [ ] M9-01g. Codex's tests pass, and a mutation run catches every mutant in `files.ts` (list kept in scratch).
 
 ## Engines

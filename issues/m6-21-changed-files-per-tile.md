@@ -9,7 +9,7 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Medium. Effort: 1.0 CC
 
 ## Acceptance criteria
 
-- [ ] M6-21a. A session that edits 3 files shows "3 changed"; committing one shows "2 changed".
+- [x] M6-21a. A session that edits 3 files shows "3 changed"; committing one shows "2 changed". (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-21-changed-files.test.ts 4/4)
 
 ## Rules that bind every child
 
