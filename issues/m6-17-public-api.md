@@ -9,8 +9,8 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: High. Effort: 2.0 CC d
 
 ## Acceptance criteria
 
-- [ ] M6-17a. The generated method table, `troop --help` and the skill list the same methods as `methods.ts`; a test fails when one is edited by hand.
-- [ ] M6-17b. `session.wait` returns within 1 s of the state change, at once when already in the state, at the timeout when it never comes, and -32602 for an empty `states` or a `timeout_ms` of 0.
+- [x] M6-17a. The generated method table, `troop --help` and the skill list the same methods as `methods.ts`; a test fails when one is edited by hand. (2026-11-24, B4 on a8a3b642: core/test/m6-17-public-api.test.ts 11/11: GENERATED entries, troop --help, buildMethods)
+- [x] M6-17b. `session.wait` returns within 1 s of the state change, at once when already in the state, at the timeout when it never comes, and -32602 for an empty `states` or a `timeout_ms` of 0. (2026-11-24, B4 on a8a3b642: core/test/m6-17-public-api.test.ts 11/11: the five session.wait tests)
 
 ## Rules that bind every child
 

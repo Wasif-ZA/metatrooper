@@ -33,9 +33,9 @@ agent-browser's MCP server (one author's run, 2026-10-26, Opus 5.5, 19 tasks twi
 
 ## Acceptance criteria
 
-- [ ] M8-41a. `find` on a fixture returns the right ref in fewer tokens than a whole snapshot, measured with `meter.ts`.
+- [x] M8-41a. `find` on a fixture returns the right ref in fewer tokens than a whole snapshot, measured with `meter.ts`. (2026-11-24, B4 on a8a3b642: core/test/m8-41-find.test.ts 11/11)
 - [ ] M8-41b. A `div` with `cursor:pointer` and no role gets a ref, and the page's DOM is unchanged afterwards.
-- [ ] M8-41c. A fixture with white-on-white and `opacity:0` instructions reaches the agent with them dropped or marked.
+- [x] M8-41c. A fixture with white-on-white and `opacity:0` instructions reaches the agent with them dropped or marked. (2026-11-24, B4 on a8a3b642: core/test/m8-41-hidden.test.ts 12/12: hidden text left out of the snapshot)
 - [ ] M8-41d. A recorded click-through exports a Playwright test that passes, with no typed text in it.
 
 ## Rules that bind every child

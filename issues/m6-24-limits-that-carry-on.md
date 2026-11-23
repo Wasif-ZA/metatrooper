@@ -9,8 +9,8 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: High. Effort: 1.0 CC d
 
 ## Acceptance criteria
 
-- [ ] M6-24a. A limit-hit fixture whose `resets_at` passes (fake clock) gets "Continue where you left off." pasted exactly once; a core restart after that does not paste it again; with the tile's toggle off, nothing is pasted.
-- [ ] M6-24b. Six readings 10 minutes apart rising from 40% to 90%, with the reset 2 h after the last one, raise one early-end item naming a time 10 minutes after the last reading. Worked: slope = (90 - 40) / 50 minutes = 1 point per minute; (100 - 90) / 1 = 10 minutes, which is before the reset, so the item fires.
+- [x] M6-24a. A limit-hit fixture whose `resets_at` passes (fake clock) gets "Continue where you left off." pasted exactly once; a core restart after that does not paste it again; with the tile's toggle off, nothing is pasted. (2026-11-24, B4 on a8a3b642: core/test/m6-24-limits.test.ts 11/11; the restart is a database reopen in the test)
+- [x] M6-24b. Six readings 10 minutes apart rising from 40% to 90%, with the reset 2 h after the last one, raise one early-end item naming a time 10 minutes after the last reading. Worked: slope = (90 - 40) / 50 minutes = 1 point per minute; (100 - 90) / 1 = 10 minutes, which is before the reset, so the item fires. (2026-11-24, B4 on a8a3b642: core/test/m6-24-limits.test.ts 11/11)
 
 ## Rules that bind every child
 

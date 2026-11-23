@@ -9,9 +9,9 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 2.0 
 
 ## Acceptance criteria
 
-- [ ] M6-04a. Starting a second core while one runs exits with "core already running (pid N)" before it opens `troop.db` (the database file's mtime is unchanged and a fixture command left `accepted` runs exactly once).
+- [x] M6-04a. Starting a second core while one runs exits with "core already running (pid N)" before it opens `troop.db` (the database file's mtime is unchanged and a fixture command left `accepted` runs exactly once). (2026-11-24, B4 on a8a3b642: core/test/m6-04-reliability.test.ts 18/18, both M6-04a tests)
 - [ ] M6-04b. A `settings.json` holding invalid JSON is left byte-identical after the workbench changes a setting, and the workbench shows "settings.json does not parse, line N". A valid change writes the new value; killing the core between the temp write and the rename leaves the old file valid and the next start removes the temp file.
-- [ ] M6-04c. A database at the M5 schema opens under the new code, applies its numbered migrations once, and opens again with no change.
+- [x] M6-04c. A database at the M5 schema opens under the new code, applies its numbered migrations once, and opens again with no change. (2026-11-24, B4 on a8a3b642: core/test/m6-04-reliability.test.ts 18/18, M6-04c and the migrate baseline test)
 
 ## Rules that bind every child
 

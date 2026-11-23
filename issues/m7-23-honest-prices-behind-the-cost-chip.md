@@ -17,9 +17,9 @@ Status: open.
 ## Acceptance criteria
 
 - [ ] M7-23a. Every price carries a source URL and date, or the chip says "estimated" for a fallback rate.
-- [ ] M7-23b. An unpriced engine shows tokens with "no price", never $0.
-- [ ] M7-23c. A test feeds an unknown gpt model and asserts the estimated flag.
-- [ ] M7-23d. M8-24 reuses the same flag.
+- [x] M7-23b. An unpriced engine shows tokens with "no price", never $0. (2026-11-24, B4 on a8a3b642: core/test/m7-23-honest-prices.test.ts 5/5, M7-23b agy unpriced, chip says no price)
+- [x] M7-23c. A test feeds an unknown gpt model and asserts the estimated flag. (2026-11-24, B4 on a8a3b642: core/test/m7-23-honest-prices.test.ts 5/5, M7-23c)
+- [x] M7-23d. M8-24 reuses the same flag. (2026-11-24, B4 on a8a3b642: core/test/m7-23d-usage-usd.test.ts 3/3)
 
 ## Rules that bind every child
 

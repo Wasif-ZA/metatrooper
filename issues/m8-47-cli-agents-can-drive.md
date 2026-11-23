@@ -35,10 +35,10 @@ Not sized until M8-0.
 
 ## Acceptance criteria
 
-- [ ] M8-47a. From inside one session, a script launches a second, waits for it to finish and reads its last output, all with `--json`.
-- [ ] M8-47b. A wait returns when the session waits on a person, and says so.
-- [ ] M8-47c. No CLI verb can answer a gate. An agent cannot approve itself or another agent.
-- [ ] M8-47d. A secret never appears in read output.
+- [x] M8-47a. From inside one session, a script launches a second, waits for it to finish and reads its last output, all with `--json`. (2026-11-24, B4 on a8a3b642: core/test/m8-47-cli-drive.test.ts 11/11)
+- [x] M8-47b. A wait returns when the session waits on a person, and says so. (2026-11-24, B4 on a8a3b642: core/test/m8-47-cli-drive.test.ts 11/11)
+- [x] M8-47c. No CLI verb can answer a gate. An agent cannot approve itself or another agent. (2026-11-24, B4 on a8a3b642: core/test/m8-47-cli-drive.test.ts 11/11)
+- [x] M8-47d. A secret never appears in read output. (2026-11-24, B4 on a8a3b642: core/test/m8-47-cli-drive.test.ts 11/11)
 
 ## Rules that bind every child
 

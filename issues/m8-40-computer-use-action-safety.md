@@ -34,7 +34,7 @@ Rows 1 and 7 change what a retry or a grant allows. The approval gate stays the 
 ## Acceptance criteria
 
 - [ ] M8-40a. A click returning `unverifiable` is refused on the identical retry; a passing assertion or the user's release clears it.
-- [ ] M8-40b. A rejection with text reaches the agent as that text, marked as coming from the user.
+- [x] M8-40b. A rejection with text reaches the agent as that text, marked as coming from the user. (2026-11-24, B4 on a8a3b642: core/test/m8-40-row2.test.ts 10/10 and core/test/overnight-rejection-mcp.test.ts 2/2)
 - [ ] M8-40c. A failed assertion returns the actual value, and no model is called to judge it.
 - [ ] M8-40d. A window title holding Unicode tag characters reaches the agent without them, and the removal is logged.
 - [ ] M8-40e. A session granted a pinned record pauses when the title stops matching.

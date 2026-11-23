@@ -47,9 +47,9 @@ The first two are copied from `spec.md` and must not be reworded here.
 - [ ] M7-04b. The handoff file also lists the session's changed files and its last failing command; when the last 10 turns hold 1 KB each, the oldest are dropped first until the file fits 6 KB. A limit stop never switches engine without the click.
 - [ ] M7-04c. The button shows on a Claude tile after `core.limit-hit` and is gone after `core.limit-resumed`; it never shows on a tile with no limit hit. The menu lists only installed engines and leaves out the source engine.
 - [ ] M7-04d. A fixture transcript holding a secret value and an `sk-ant-` token in a turn writes neither into the handoff file.
-- [ ] M7-04e. After Continue, the old session's `limit_resume` is 0, the new session runs in the old `cwd`, and the old tile receives no pasted text when the new session exits.
-- [ ] M7-04f. A source with no readable transcript still writes a valid file with the task, folder, changed files and the "no transcript" line, and launches.
-- [ ] M7-04g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
+- [x] M7-04e. After Continue, the old session's `limit_resume` is 0, the new session runs in the old `cwd`, and the old tile receives no pasted text when the new session exits. (2026-11-24, B4 on a8a3b642: core/test/m7-04-continue.test.ts 13/13)
+- [x] M7-04f. A source with no readable transcript still writes a valid file with the task, folder, changed files and the "no transcript" line, and launches. (2026-11-24, B4 on a8a3b642: core/test/m7-04-continue.test.ts 13/13)
+- [x] M7-04g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (2026-11-24, B4 on a8a3b642: card check by B4: core/test/m7-04-continue.test.ts and workbench/test/m7-04-continue-button.test.ts)
 - [ ] M7-04h. The existing core and workbench suites still pass.
 
 ## Testing plan

@@ -84,7 +84,7 @@ Its window must be grantable only to that copy's own sessions. The real workbenc
   - `windows` on the `driver` session never lists a window outside its grant.
 - [ ] M6-16e. With `--demo`, a `snapshot` of the wall returns at least 20 nodes on its first or second read and contains: the nodes named "Open preview" and "Approve once", and one `group` per seeded session.
 - [ ] M6-16f. Quitting the demo workbench removes the demo home folder. A real workbench running at the same time keeps working, with its heartbeat unbroken through the run.
-- [ ] M6-16g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
+- [x] M6-16g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (2026-11-24, B4 on a8a3b642: card check by B4: every test in core/test/m6-16-demo-guard, m6-16-grants and workbench/test/m6-16-demo, m6-16-self-test.e2e names protects=, fails_when=, no_claim=)
 - [ ] M6-16h. The existing workbench and core suites still pass.
 
 ## Testing plan
