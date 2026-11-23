@@ -14,6 +14,8 @@ const DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secre
 const RETRY_MS = [10_000, 60_000, 300_000];
 const STALE_MS = 24 * 3600_000;
 const FAILED_PREFIX = 'notify-failed';
+/** Sinks that quiet hours hold (Q9b): ntfy only. Slack, Discord, Teams, webhook and command sinks still send at night. */
+export const PHONE_SINKS: ReadonlySet<string> = new Set(['ntfy']);
 
 interface SinkRow {
   id: string;
@@ -132,9 +134,9 @@ export function quietNow(at = new Date()): boolean {
   return settings().notify.quiet_at_night && (h >= 22 || h < 7);
 }
 
-/** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind; during quiet hours nothing is sent and rows wait until 07:00. */
+/** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind; during quiet hours phone sinks send nothing and their rows wait until 07:00. */
 export async function notifyTick(db: DatabaseSync, now = new Date()): Promise<void> {
-  if (busy || quietNow(now)) return;
+  if (busy) return;
   const started = Date.now();
   const quietAtSend = () => quietNow(new Date(now.getTime() + Date.now() - started));
   busy = true;
@@ -142,35 +144,43 @@ export async function notifyTick(db: DatabaseSync, now = new Date()): Promise<vo
     const sinks = db.prepare('SELECT * FROM notify_sink WHERE enabled = 1').all() as unknown as SinkRow[];
     if (!sinks.length) return;
     const now = Date.now();
-    const rows = db.prepare(`SELECT id, at, kind, text FROM needs_you n WHERE notified_at IS NULL AND resolved_at IS NULL
+    const page = db.prepare(`SELECT rowid AS r, id, at, kind, text FROM needs_you n WHERE notified_at IS NULL AND resolved_at IS NULL
       AND NOT (kind = 'other' AND text LIKE ?)
       AND NOT EXISTS (SELECT 1 FROM notify_delivery d WHERE d.needs_you_id = n.id AND d.state = 'pending' AND d.next_at > ?)
-      ORDER BY rowid LIMIT 50`).all(`${FAILED_PREFIX}%`, now) as unknown as Item[];
+      AND rowid > ? ORDER BY rowid LIMIT 50`);
     const mark = db.prepare('UPDATE needs_you SET notified_at = ? WHERE id = ?');
     const get = db.prepare('SELECT state, tries, next_at FROM notify_delivery WHERE needs_you_id = ? AND sink_id = ?');
     const put = db.prepare('INSERT OR REPLACE INTO notify_delivery (needs_you_id, sink_id, state, tries, next_at) VALUES (?, ?, ?, ?, ?)');
-    for (const row of rows) {
-      if (now - Date.parse(row.at) > STALE_MS) { mark.run(`${nowIso()} skipped`, row.id); continue; }
-      const targets = sinks.filter((s) => sinkKinds(s).includes(row.kind));
-      if (!targets.length) { mark.run(`${nowIso()} no-sink`, row.id); continue; }
-      const states = await Promise.all(targets.map(async (sink) => {
-        const d = (get.get(row.id, sink.id) as Delivery | undefined) ?? { state: 'pending', tries: 0, next_at: 0 };
-        if (d.state !== 'pending' || Date.now() < d.next_at || quietAtSend()) return d.state;
-        let failed: string | null;
-        try {
-          failed = await deliver(sink, row);
-        } catch {
-          console.error(`notify sink ${sink.id} could not send`);
-          failed = 'send failed';
-        }
-        if (failed === null) { put.run(row.id, sink.id, 'done', d.tries + 1, 0); return 'done'; }
-        const tries = d.tries + 1;
-        if (tries > RETRY_MS.length) { put.run(row.id, sink.id, 'failed', tries, 0); raiseFailed(db, sink); return 'failed'; }
-        put.run(row.id, sink.id, 'pending', tries, Date.now() + RETRY_MS[tries - 1]);
-        return 'pending';
-      }));
-      if (states.includes('pending')) continue;
-      mark.run(states.includes('failed') ? `${nowIso()} failed` : nowIso(), row.id);
+    // Pages past rows held only for a quiet ntfy sink, so they cannot crowd out rows other sinks still send at night.
+    let after = 0;
+    for (let n = 0; n < 20; n++) {
+      const rows = page.all(`${FAILED_PREFIX}%`, now, after) as unknown as Array<Item & { r: number }>;
+      if (!rows.length) break;
+      after = rows[rows.length - 1].r;
+      for (const row of rows) {
+        if (now - Date.parse(row.at) > STALE_MS) { mark.run(`${nowIso()} skipped`, row.id); continue; }
+        const targets = sinks.filter((s) => sinkKinds(s).includes(row.kind));
+        if (!targets.length) { mark.run(`${nowIso()} no-sink`, row.id); continue; }
+        const states = await Promise.all(targets.map(async (sink) => {
+          const d = (get.get(row.id, sink.id) as Delivery | undefined) ?? { state: 'pending', tries: 0, next_at: 0 };
+          if (d.state !== 'pending' || Date.now() < d.next_at || (PHONE_SINKS.has(sink.kind) && quietAtSend())) return d.state;
+          let failed: string | null;
+          try {
+            failed = await deliver(sink, row);
+          } catch {
+            console.error(`notify sink ${sink.id} could not send`);
+            failed = 'send failed';
+          }
+          if (failed === null) { put.run(row.id, sink.id, 'done', d.tries + 1, 0); return 'done'; }
+          const tries = d.tries + 1;
+          if (tries > RETRY_MS.length) { put.run(row.id, sink.id, 'failed', tries, 0); raiseFailed(db, sink); return 'failed'; }
+          put.run(row.id, sink.id, 'pending', tries, Date.now() + RETRY_MS[tries - 1]);
+          return 'pending';
+        }));
+        if (states.includes('pending')) continue;
+        mark.run(states.includes('failed') ? `${nowIso()} failed` : nowIso(), row.id);
+      }
+      if (rows.length < 50) break;
     }
   } finally {
     busy = false;

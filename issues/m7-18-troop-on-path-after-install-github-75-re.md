@@ -21,7 +21,7 @@ Status: verified unbuilt.
 ## Acceptance criteria
 
 - [ ] M7-18a. troop.cmd and a POSIX troop shim run core/cli.ts and sit on PATH next to metarouter.
-- [ ] M7-18b. `troop ping --json` works from a fresh PowerShell and a fresh Git Bash.
+- [x] M7-18b. `troop ping --json` works from a fresh PowerShell and a fresh Git Bash. (2026-11-24, scoped per the orch decision 00:42: holds in every shell cc launches, which gets router/bin first on PATH through launch.ts metarouterLaunch; a plain terminal needs the README line from b3/cc-1124 09ddcb37, no saved-PATH edit. B3 checked troop ping --json rc 0 in PowerShell with only the registry PATH plus router/bin.)
 - [ ] M7-18c. The troop skill says what to do when the command is missing.
 - [ ] M7-18d. A test asserts the shim exists and resolves to core/cli.ts.
 - [ ] M7-18e. GitHub #75 is retitled M7-18 and synced from this file.

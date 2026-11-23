@@ -42,10 +42,10 @@ Not sized until M8-0.
 
 ## Acceptance criteria
 
-- [ ] M8-F18a. A comment reaches the agent with its file and line, in its next message.
+- [x] M8-F18a. A comment reaches the agent with its file and line, in its next message. (2026-11-24: B2 MET, workbench/test/editor-comment.test.ts "fix 10: comment IPC formats in main".)
 - [ ] M8-F18b. The agent can draft the message but cannot press the button. Only a person's press commits, pushes or opens a PR.
-- [ ] M8-F18c. A failed step stops the rest and names the step.
-- [ ] M8-F18d. The button never force-pushes and never pushes to the default branch.
+- [x] M8-F18c. A failed step stops the rest and names the step. (2026-11-24: B2 MET, workbench/test/m8-f18-ship.test.ts 23/23 on a8a3b642.)
+- [x] M8-F18d. The button never force-pushes and never pushes to the default branch. (2026-11-24: B2 MET, workbench/test/m8-f18-ship.test.ts 23/23 on a8a3b642.)
 - [ ] M8-F18e. The result beside the button shows what the checks did, including what was not checked (M8-F1).
 - [ ] M8-F18f. The shipped screen matches `n05-diff-comment.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)
   Status: NOT STARTED. There is no workspace validator in the repo yet; `check.js` checks screens, not workspace layouts. Lands with M8-11.

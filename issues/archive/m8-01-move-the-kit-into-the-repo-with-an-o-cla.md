@@ -35,3 +35,5 @@ As built (D84): the kit is React on @astryxdesign/core in `workbench/ui/src/kit/
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. Archived by B4 (cc run 2026-11-24); core/test/m8-01-kit-check.test.ts, workbench/test/m8-01-kit-draw.test.ts and m8-01-kit-parts.test.ts. Note: 01b (ou- prefix) was ticked earlier with no test that reads the kit CSS.
