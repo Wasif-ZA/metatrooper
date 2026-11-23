@@ -87,6 +87,7 @@ export async function drawIde() {
     if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur, cur.gitSnap, ui.snap.git || {});
     cur.sig = sig;
     cur.gitSnap = ui.snap.git || {};
+    followStep(cur);
     bump();
     return;
   }
@@ -303,6 +304,30 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   if (changes) void showChanges(st, path);
   if (t.text === undefined && !t.image && !t.pdf && !t.error && !t.reading) await readTab(st, t, path);
   else setTimeout(() => goto(t), 0);
+}
+
+/** Follow agent (M8-19f): the editor opens each new file the followed agent touches, in its changes view. */
+export function setFollow(id) {
+  if (!cur) return;
+  cur.follow = id || null;
+  cur.followSeen = new Set(id ? changedFiles(id).map(slashed) : []);
+  bump();
+}
+
+function followStep(st) {
+  if (!st.follow) return;
+  const x = ui.snap.sessions.find((y) => y.id === st.follow);
+  if (!x || x.state === 'exited') { st.follow = null; toast('Stopped following: the agent has ended.'); return; }
+  const fresh = changedFiles(x.id).map(slashed).filter((f) => !st.followSeen.has(f));
+  for (const f of fresh) st.followSeen.add(f);
+  if (fresh.length) void openFile(st, fresh[fresh.length - 1], { owner: x.id, changes: true });
+}
+
+function FollowChip({ st }) {
+  const agents = agentsIn(st.pid);
+  if (!st.follow && !agents.length) return null;
+  return <Button size="sm" variant={st.follow ? 'secondary' : 'ghost'} label={st.follow ? `Following ${agentName(st.follow)}` : 'Follow agent'}
+    tooltip={st.follow ? 'Stop following' : 'Open each file the agent touches as it works'} onClick={() => setFollow(st.follow ? null : agents[0]?.id)} />;
 }
 
 export async function openAt(rel, line) {
@@ -1370,6 +1395,8 @@ export function ideCommands(cmd = defaultCmd) {
   out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
   if (t) out.push(cmd('IDE', 'Delete file', () => { st.ask = { kind: 'delete', path: t.path }; bump(); }));
   out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
+  for (const x of agentsIn(st.pid)) if (x.id !== st.follow) out.push(cmd('Follow', `Follow ${x.engine_id}: ${taskOf(x)}`.slice(0, 80), () => setFollow(x.id)));
+  if (st.follow) out.push(cmd('Follow', 'Stop following', () => setFollow(null)));
   const look = editorLook();
   for (const [name, label] of [['quiet', 'Quiet'], ['default', 'Default'], ['all', 'Everything']]) if (name !== look) out.push(cmd('Appearance', `Appearance: ${label}`, () => { setEditorLook(name); toast(`Look: ${label}`); }));
   if (look !== 'default') out.push(cmd('Appearance', 'Appearance: Reset to Default', () => { setEditorLook('default'); toast('Look: Default'); }));
@@ -1554,6 +1581,7 @@ export function Ide() {
               {st.tabs.map((t) => tabItem(st, t, changed, () => closeTab(st, t.path)))}
             </TabList>
           ) : null}
+          <FollowChip st={st} />
           <TabActions st={st} tab={leftActive} changed={changed} />
           <GroupActions items={tabMenu} split={leftActive ? () => splitRight(st) : null} />
         </div>
