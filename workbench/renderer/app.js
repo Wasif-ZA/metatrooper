@@ -1973,6 +1973,7 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
+  globalThis.flushQueued?.(s.sessions);
   if (s.core.online) ui.coreSeen = true;
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
