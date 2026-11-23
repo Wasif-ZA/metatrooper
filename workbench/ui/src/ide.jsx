@@ -795,7 +795,12 @@ function treeItems(st, rel, changed, dirty = gitDirs(st)) {
 const NotBuilt = () => <Badge label="Not built yet" />;
 
 function ChangedGroup({ st }) {
-  useEffect(() => { const t = setInterval(() => void loadGitStatus(st), 2000); return () => clearInterval(t); }, [st]);
+  useEffect(() => {
+    let t = 0, live = true;
+    const tick = async () => { if (!globalThis.document?.hidden) await loadGitStatus(st).catch(() => {}); if (live) t = setTimeout(tick, 2000); };
+    t = setTimeout(tick, 2000);
+    return () => { live = false; clearTimeout(t); };
+  }, [st]);
   const files = (st.git && st.git.files) || [];
   if (!files.length) return null;
   return (

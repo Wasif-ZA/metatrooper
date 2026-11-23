@@ -314,6 +314,7 @@ function Trigger({ x, kids, open, toggle }) {
 
 function TaskView({ x, kids, openList, toggle, picked }) {
   const [answer, setAnswer] = useState('');
+  const [draft, setDraft] = useState('');
   const chat = useChat(x.id, x.state);
   const ask = picked && picked !== x && statusOf(picked) === 'waiting' ? picked : statusOf(x) === 'waiting' ? x : null;
   const here = !ask?.project_id || ask.project_id === ui.projectId;
@@ -324,9 +325,10 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   };
   const queue = !ask && (!x.project_id || x.project_id === ui.projectId) && isWorking(x);
   const waitingText = queuedText(x.id);
-  const enqueue = () => { if (!answer.trim()) return; setQueued(x.id, answer); setAnswer(''); bumpHome(); };
-  const sendNow = async () => { const t = queuedText(x.id); setQueued(x.id, ''); if (t) await sendFollowUp(x, t); };
-  const editQueued = () => { setAnswer(queuedText(x.id)); setQueued(x.id, ''); bumpHome(); };
+  const working = isWorking(x);
+  const enqueue = () => { if (!draft.trim()) return; setQueued(x.id, draft); setDraft(''); bumpHome(); };
+  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t) await sendFollowUp(x, t); };
+  const editQueued = () => { if (!isWorking(x)) return; setDraft(queuedText(x.id)); setQueued(x.id, ''); bumpHome(); };
   const clearQueued = () => { setQueued(x.id, ''); bumpHome(); };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
@@ -367,13 +369,13 @@ function TaskView({ x, kids, openList, toggle, picked }) {
           <div className="ou-hm-ask ou-hm-queued" data-queued="1">
             <p><b>1 queued</b>, sent when {nameOf(x)} finishes this turn: {waitingText}</p>
             <span className="ou-hm-chatactions">
-              <Button size="sm" variant="primary" label="Send now" onClick={() => void sendNow()} />
-              <Button size="sm" variant="ghost" label="Edit" onClick={editQueued} />
+              <Button size="sm" variant="primary" label="Send now" isDisabled={!working} onClick={() => void sendNow()} />
+              <Button size="sm" variant="ghost" label="Edit" isDisabled={!working} onClick={editQueued} />
               <Button size="sm" variant="ghost" label="Clear" onClick={clearQueued} />
             </span>
           </div>
         ) : queue ? (
-          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}, Enter queues it`} value={answer} onChange={setAnswer} onEnter={enqueue} width="100%" /></div>
+          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}, Enter queues it`} value={draft} onChange={setDraft} onEnter={enqueue} width="100%" /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">

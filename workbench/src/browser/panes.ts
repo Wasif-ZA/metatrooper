@@ -832,19 +832,23 @@ export class PaneManager {
     if (!pane.overlay.webContents.isDestroyed()) pane.overlay.webContents.close();
     if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
+    const open = [pane.view.webContents, ...[...pane.popups].filter((w) => !w.isDestroyed()).map((w) => w.webContents)];
     pane.view.webContents.close();
     if (!id.startsWith(AGENT_PANE) || pane.row.lent) return;
     const partition = [...this.guarded].find((p) => electronSession.fromPartition(p) === ses);
-    if (partition) this.guarded.delete(partition);
-    ses.webRequest.onBeforeRequest(null);
-    ses.webRequest.onBeforeSendHeaders?.(null);
-    ses.webRequest.onHeadersReceived?.(null);
-    ses.removeAllListeners?.('will-download');
-    ses.setPermissionCheckHandler?.(null);
-    ses.setPermissionRequestHandler?.(null);
-    void ses.clearStorageData().then(() => {
+    // The guards stay on until every page of the pane is gone, and the partition is reused only once all its caches are clear.
+    const gone = (wc: WebContents) => new Promise<void>((done) => (wc.isDestroyed() ? done() : wc.once('destroyed', () => done())));
+    void Promise.all(open.map(gone)).then(async () => {
+      if (partition) this.guarded.delete(partition);
+      ses.webRequest.onBeforeRequest(null);
+      ses.webRequest.onBeforeSendHeaders?.(null);
+      ses.webRequest.onHeadersReceived?.(null);
+      ses.removeAllListeners?.('will-download');
+      ses.setPermissionCheckHandler?.(null);
+      ses.setPermissionRequestHandler?.(null);
+      await Promise.all([ses.clearStorageData(), ses.clearCache(), ses.clearAuthCache()]);
       if (partition && ![...this.panes.values()].some((p) => !p.view.webContents.isDestroyed() && p.view.webContents.session === ses)) this.spare.set(pane.row.project_id, [...(this.spare.get(pane.row.project_id) ?? []), partition]);
-    }, () => {});
+    }).catch(() => {});
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */
