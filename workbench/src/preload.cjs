@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('troop', {
   focus: (id) => ipcRenderer.invoke('focus', id),
   call: (method, params) => ipcRenderer.invoke('call', method, params),
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
+  loginsPick: () => ipcRenderer.invoke('loginsPick'),
+  loginsImport: (token, picks) => ipcRenderer.invoke('loginsImport', token, picks),
   makeTaskFolder: (task) => ipcRenderer.invoke('makeTaskFolder', task),
   handback: (projectId) => ipcRenderer.invoke('handback', projectId),
   copyText: (text) => ipcRenderer.invoke('copyText', text),

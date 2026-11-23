@@ -104,6 +104,10 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   plugin.remove           {plugin_id}
   plugin.enable           {plugin_id, on: boolean}
   plugin.secret.set       {plugin_id, name, value}
+  browser.logins.preview  {text}
+  browser.logins.import   {text, picks: [{i, replace?}]}
+  browser.logins.list     {}
+  browser.logins.remove   {name}
   browser.secret.set      {name, origin, value}
   mcp.resolve             {plugin_id, server_id, token}
   mcp.missing             {plugin_id, names, token}

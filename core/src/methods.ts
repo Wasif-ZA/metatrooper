@@ -50,6 +50,7 @@ import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
 import { catalogueProposals, getSurface, setSurfaceData, showSurface, surfaceEvent } from './surfaces.ts';
 import { blockReason } from './plugins/blocklist.ts';
+import { importLogins, listLogins, parseLoginCsv, previewLogins, removeLogin } from './browser/login-import.ts';
 import { runEngine } from './plugins/engine-run.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
@@ -165,6 +166,10 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{plugin_id, on: boolean}', result: '{enabled}; persists the switch; a disabled plugin contributes no engines, MCP servers or actions to new sessions until it is turned on again' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
+  { name: 'browser.logins.preview', needsUi: true, errors: [E.INVALID_PARAMS], params: '{text}', result: '{rows: [{i, origin, username, name, exists, skip}]}; reads a password CSV the person exported from their browser (url, username, password columns; 5 MB, 5,000 rows) and says what an import would do. No password is returned (M8-50)' },
+  { name: 'browser.logins.import', needsUi: true, errors: [E.INVALID_PARAMS], params: '{text, picks: [{i, replace?}]}', result: '{imported, origins, skipped: [{i, why}]}; saves each ticked https (or loopback http) login as origin-bound browser secrets NAME and NAME_user that the browser type tool fills and an agent never reads; a saved login is replaced only when ticked; at most 500 browser secrets; one line in logs/logins.log with the count and origins (M8-50)' },
+  { name: 'browser.logins.list', needsUi: true, params: '{}', result: '{logins: [{name, origin, user}]}; the imported logins, never a value' },
+  { name: 'browser.logins.remove', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name}', result: '{}; removes an imported login and its username' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
   { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
   { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names, token}', result: '{}; raises a `missing-secret` needs-you item per name' },
@@ -1030,6 +1035,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  const csvText = (p: Record<string, unknown>) => { if (typeof p.text !== 'string') throw new RpcError(E.INVALID_PARAMS, 'text must be the CSV text'); try { return parseLoginCsv(p.text); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); } };
+  m.set('browser.logins.preview', { needsUi: true, handler: (p) => ({ rows: previewLogins(csvText(p)) }) });
+  m.set('browser.logins.import', {
+    needsUi: true,
+    handler: (p) => {
+      if (!Array.isArray(p.picks) || p.picks.some((x) => !x || typeof x !== 'object' || !Number.isInteger((x as { i: unknown }).i))) throw new RpcError(E.INVALID_PARAMS, 'picks must be [{i, replace?}]');
+      return importLogins(db, csvText(p), p.picks as Array<{ i: number; replace?: boolean }>);
+    },
+  });
+  m.set('browser.logins.list', { needsUi: true, handler: () => ({ logins: listLogins() }) });
+  m.set('browser.logins.remove', { needsUi: true, handler: (p) => { try { removeLogin(str(p, 'name')); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); } return {}; } });
   m.set('browser.secret.set', {
     handler: (p) => {
       if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');

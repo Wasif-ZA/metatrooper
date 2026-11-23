@@ -70,7 +70,7 @@ export const UI_METHODS = new Set([
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable',
-  'ui.get', 'ui.event', 'workspace.get', 'workspace.undo', 'workspace.usual', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
+  'ui.get', 'ui.event', 'browser.logins.list', 'browser.logins.remove', 'workspace.get', 'workspace.undo', 'workspace.usual', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -408,6 +408,34 @@ function handlers(): void {
   on('makeTaskFolder', (task: unknown) => {
     if (typeof task !== 'string') throw new Error('Task must be text');
     return makeTaskFolder(process.env.METATROOPER_NEW_FOLDER_ROOT || path.join(app.getPath('documents'), 'cc'), task);
+  });
+
+  // M8-50: the exported CSV is read here and kept here; the window gets only origins and usernames, never a password.
+  const loginFiles = new Map<string, { file: string; text: string; at: number }>();
+  on('loginsPick', async () => {
+    if (!win) return null;
+    const r = await dialog.showOpenDialog(win, { title: 'Pick the password file you exported from your browser', properties: ['openFile'], filters: [{ name: 'Password export', extensions: ['csv'] }] });
+    const file = r.canceled ? null : r.filePaths[0];
+    if (!file) return null;
+    if (fs.statSync(file).size > 5 * 1024 * 1024) return { error: 'The file is over 5 MB.' };
+    const text = fs.readFileSync(file, 'utf8');
+    const out = await callUi('browser.logins.preview', { text });
+    if (out.kind !== 'reply' || out.reply.error) return { error: out.kind === 'reply' ? out.reply.error?.message ?? 'cc could not read it' : 'the core is offline' };
+    for (const [k, v] of loginFiles) if (Date.now() - v.at > 10 * 60_000) loginFiles.delete(k);
+    const token = crypto.randomUUID();
+    loginFiles.set(token, { file, text, at: Date.now() });
+    return { token, file: path.basename(file), rows: (out.reply.result as { rows: unknown[] }).rows };
+  });
+  on('loginsImport', async (token: unknown, picks: unknown) => {
+    const held = typeof token === 'string' ? loginFiles.get(token) : undefined;
+    if (!held || !win) return { error: 'Pick the file again.' };
+    loginFiles.delete(token as string);
+    const out = await callUi('browser.logins.import', { text: held.text, picks });
+    if (out.kind !== 'reply' || out.reply.error) return { error: out.kind === 'reply' ? out.reply.error?.message ?? 'import failed' : 'the core is offline' };
+    const ask = await dialog.showMessageBox(win, { type: 'warning', message: 'Delete the exported password file?', detail: `${held.file} holds your passwords in plain text. cc has saved what you picked.`, buttons: ['Delete the file', 'Keep it'], defaultId: 0, cancelId: 1 });
+    let deleted = false;
+    if (ask.response === 0) { try { fs.rmSync(held.file); deleted = true; } catch {} }
+    return { ...(out.reply.result as object), deleted };
   });
 
   on('pickFolder', async () => {
