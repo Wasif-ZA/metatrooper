@@ -185,7 +185,7 @@ export async function ship(git: Run, gh: (args: string[]) => Promise<string>, me
     commit = (await git(['rev-parse', '--short', 'HEAD'])).trim();
   }
   await step('push', () => git(['push', '--set-upstream', 'origin', branch]));
-  const existing = await gh(['pr', 'view', branch, '--json', 'url']).then((r) => String(JSON.parse(r).url || ''), () => '');
+  const existing = await gh(['pr', 'view', branch, '--json', 'url']).then((r) => String(JSON.parse(r).url || '')).catch(() => '');
   if (existing) return { commit, url: existing };
   const [title, ...rest] = message.trim().split(/\r?\n/);
   const out = await step('open PR', () => gh(title ? ['pr', 'create', '--head', branch, '--title', title, '--body', rest.join('\n').trim()] : ['pr', 'create', '--head', branch, '--fill']));
