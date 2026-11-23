@@ -348,6 +348,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
       {x.prompt && !chat?.items?.some((item) => item.kind === 'user') ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
+      {x.resumed_from ? <div className="ou-hm-resumed" data-resumed-from={x.resumed_from}>resumed after close</div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
           <Status k={x} />

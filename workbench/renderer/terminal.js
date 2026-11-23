@@ -289,8 +289,8 @@ const termView = (() => {
     t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
     const continued = t.el.querySelector('.tile-continued');
-    continued.hidden = !x.continuedEngine;
-    continued.textContent = x.continuedEngine ? `continued from ${x.continuedEngine}` : '';
+    continued.hidden = !x.continuedEngine && !x.resumed;
+    continued.textContent = x.continuedEngine ? `continued from ${x.continuedEngine}` : x.resumed ? 'resumed after close' : '';
     t.el.querySelector('.tile-task').title = x.task || '';
     set('.tile-last', x.last || '');
     t.el.querySelector('.tile-last').title = x.last || '';
