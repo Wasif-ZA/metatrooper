@@ -12,10 +12,13 @@ import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 import { scrubbedCaption } from '../cursor-glide.ts';
 import { exportTest, type Step } from '../../../core/src/browser/export-test.ts';
+import { actionHash } from '../../../core/src/approvals.ts';
 
-const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
+const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'upload', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
-const CHECKED = new Set(['click', 'type', 'select', 'key']);
+const CHECKED = new Set(['click', 'type', 'select', 'key', 'upload']);
+// approvals already spent on an upload; each approves exactly one
+const usedUploads = new Set<string>();
 
 type Bound = { kind: 'session'; sessionId: string; grant: string | null } | { kind: 'core' } | null;
 
@@ -200,6 +203,15 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const sessionId = bound.sessionId;
       let status = 'ok';
       const origin = deps.panes.origin(paneId);
+      if (tool === 'upload') {
+        // a direct call that skipped the core's approval check finds no approved row bound to these exact paths and this origin
+        const ap = typeof params.approval_id === 'string' ? params.approval_id : '';
+        const row = ap && !usedUploads.has(ap) ? db.prepare("SELECT action_hash, decided_at FROM approval WHERE id = ? AND session_id = ? AND surface = 'browser' AND action = 'upload' AND status = 'approved'").get(ap, sessionId) as { action_hash: string; decided_at: string } | undefined : undefined;
+        const { expect: _e, approval_id: _a, ...args } = params;
+        const want = actionHash({ session_id: sessionId, surface: 'browser', target: origin || 'about:blank', action: 'upload', args, control: null });
+        if (!row || row.action_hash !== want || !(Date.now() - Date.parse(row.decided_at) < 120_000)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
+        usedUploads.add(ap);
+      }
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
         record(sessionId, tool, params);

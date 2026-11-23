@@ -181,6 +181,8 @@ interface Pane {
   typed: Set<number>;
   ready: Promise<void>;
   dialog: Dialog | null;
+  /** Set while an upload waits for the file chooser a click opens (M8-49 row 2). */
+  onChooser?: (backendNodeId: number) => void;
   onDialog: ((d: Dialog) => void) | null;
   /** The URL whose load error or crash the pane is showing, or null. */
   errorFor: string | null;
@@ -712,6 +714,10 @@ export class PaneManager {
     }
     if (method === 'Page.frameDetached') {
       dropFrame(pane.refs, params.frameId);
+      return;
+    }
+    if (method === 'Page.fileChooserOpened') {
+      if (typeof params.backendNodeId === 'number') pane.onChooser?.(params.backendNodeId);
       return;
     }
     if (method === 'Page.javascriptDialogOpening') {
@@ -1561,6 +1567,39 @@ ame, after checking the ref's field is a password field on the origin saved with
             }
           }
           return { ok: true };
+        });
+      }
+      case 'upload': {
+        const files = Array.isArray(a.paths) ? a.paths.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0) : [];
+        if (!files.length || files.length !== (a.paths as unknown[]).length) throw new ToolError(-32602, 'paths must be a list of file paths');
+        return this.answer(pane, session, async () => {
+          const node = this.node(pane, a.ref);
+          const d = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: node.backendNodeId });
+          const attrs: string[] = d?.node?.attributes ?? [];
+          const fileInput = d?.node?.nodeName === 'INPUT' && attrs.some((v, i) => i % 2 === 0 && v.toLowerCase() === 'type' && String(attrs[i + 1]).toLowerCase() === 'file');
+          let target = node.backendNodeId;
+          if (fileInput) {
+            await recheck();
+            this.notPaused(a, pane);
+          } else {
+            // the chooser the button opens is caught by the debugger, so no native dialog ever shows
+            await this.cmd(pane, 'Page.setInterceptFileChooserDialog', { enabled: true });
+            try {
+              const opened = new Promise<number>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new ToolError(-32602, 'that control opened no file chooser')), 5000);
+                pane.onChooser = (id) => { clearTimeout(timer); resolve(id); };
+              });
+              opened.catch(() => {});
+              const p = await this.target(pane, a.ref, a);
+              await this.clickAt(pane, p.x, p.y, recheck, a, p.size);
+              target = await opened;
+            } finally {
+              pane.onChooser = undefined;
+              await this.cmd(pane, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+            }
+          }
+          await this.cmd(pane, 'DOM.setFileInputFiles', { files, backendNodeId: target });
+          return { ok: true, files: files.length };
         });
       }
       case 'select':
