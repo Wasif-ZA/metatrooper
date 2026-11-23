@@ -70,3 +70,10 @@ A desktop shortcut runs `daily.sh start`.
 - Never touch `projects/metatrooper` (unclaimed uncommitted edits there) or his real home.
 - No push, no reset, no rebase, no force.
 - No em dashes. One-line comments.
+
+Status 2026-11-24 (B4, read-only check): built, not proven. `daily.sh` (in the ouros-daily scratch folder, outside the repo) exists with
+all five verbs, plus its README and the desktop shortcut command. `daily.sh status` prints "Commit: 8bc997c5",
+"Promoted: 2026-11-11T20:07+11:00 (core=1323/2 wb=819/2, 4 fail)", "not running". Since 2026-11-11T12:20, every promote
+in promoted.log is promote-manual, which skips the suite. That goes against "a red suite never promotes, no skip flag".
+M9-06b fails as it stands, because status shows 4 fail. Checks a and c to g are live hand runs and were not run here:
+they start, stop and promote the daily copy, and promote runs the full suite, which is M's HEAVY.lock job. Open.

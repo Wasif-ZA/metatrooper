@@ -5,7 +5,7 @@ Part of Ouros, Milestone 8. Priority: High. Effort: not sized until M8-0. Depend
 ## Source of truth
 
 - Scratch `~/.cache/claude-scratch/ouros-direction-2026-11-05/` (also `ouros/direction` in the wip repo): `proto/kit/ds.css`, `proto/kit/parts-next.js`, `proto/BRIEF-round3.md` "Look", `board.py` lists `STACK` and `LOOK`.
-- `issues/m8-34-text-contrast-tokens-for-the-whole-kit.md`, `issues/m8-01-move-the-kit-into-the-repo-with-an-o-cla.md`.
+- `issues/m8-34-text-contrast-tokens-for-the-whole-kit.md`, `issues/archive/m8-01-move-the-kit-into-the-repo-with-an-o-cla.md`.
 
 ## What it does
 
