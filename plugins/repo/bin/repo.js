@@ -77,10 +77,11 @@ function runTests(dir, command) {
 }
 
 function diff(dir, base, runDir) {
-  const stat = git(dir, ['diff', '--stat', base]).trim();
-  const files = git(dir, ['diff', '--name-only', base]).split(/\r?\n/).filter(Boolean);
+  if (typeof base !== 'string' || !base || base.startsWith('-')) throw new Error(`base must name a commit, not ${JSON.stringify(base)}`);
+  const stat = git(dir, ['diff', '--stat', '--end-of-options', base]).trim();
+  const files = git(dir, ['diff', '--name-only', '--end-of-options', base]).split(/\r?\n/).filter(Boolean);
   const untracked = git(dir, ['ls-files', '--others', '--exclude-standard']).split(/\r?\n/).filter(Boolean);
-  const patch = git(dir, ['diff', '--binary', base]);
+  const patch = git(dir, ['diff', '--binary', '--end-of-options', base]);
   const file = path.join(runDir, `diff-${Date.now()}.patch`);
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(file, patch);
