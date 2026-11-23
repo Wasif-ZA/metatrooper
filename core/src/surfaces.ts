@@ -1,4 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
+import { homeDir } from './paths.ts';
 import { E, RpcError } from './pipe/errors.ts';
 import { nowIso, ulid } from './time.ts';
 import { KIT, VERSION, expand, flatten, isFallback } from '../../workbench/ui/src/kit/check.js';
@@ -25,7 +28,7 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;
   if (owner && owner.session_id !== sessionId) throw new RpcError(E.VALIDATION, 'that surface belongs to another session; pick a different surface id');
-  const { root, fellBack } = expand(spec);
+  const { root, fellBack } = expand(spec, 'tab', readData(surface));
   const status = isFallback(root) ? 'rejected' : fellBack.length ? 'partly' : 'drawn';
   db.prepare(
     `INSERT INTO ui_surface (id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at)
@@ -38,7 +41,40 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
 export function getSurface(db: DatabaseSync, id: string): Record<string, unknown> {
   const r = db.prepare('SELECT id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at FROM ui_surface WHERE id = ?').get(id) as (Record<string, unknown> & { spec: string }) | undefined;
   if (!r) throw new RpcError(E.NOT_FOUND, 'surface not found');
-  return { ...r, spec: JSON.parse(r.spec) };
+  return { ...r, spec: JSON.parse(r.spec), data: readData(id) };
+}
+
+export const MAX_DATA_BYTES = 64 * 1024;
+const dataFile = (id: string) => path.join(homeDir(), 'surface-data', `${id}.json`);
+function readData(id: string): Record<string, unknown> {
+  try { const d = JSON.parse(fs.readFileSync(dataFile(id), 'utf8')); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch { return {}; }
+}
+
+/** M8-08c: sets one value at a JSON pointer in a surface's data; parts bound to it with {bind: "/path"} redraw with no parts resent. Only the session that drew the surface may. */
+export function setSurfaceData(db: DatabaseSync, p: Record<string, unknown>): { surface: string; seq: number } {
+  const id = p.surface;
+  if (typeof id !== 'string' || !ID.test(id)) throw new RpcError(E.INVALID_PARAMS, 'surface must be a surface id');
+  const r = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(id) as { session_id: string } | undefined;
+  if (!r) throw new RpcError(E.NOT_FOUND, 'surface not found; draw it with ouros_ui first');
+  if (r.session_id !== p.session_id) throw new RpcError(E.VALIDATION, 'that surface belongs to another session');
+  const ptr = p.path;
+  if (typeof ptr !== 'string' || !/^(\/[^/]{1,80}){1,8}$/.test(ptr)) throw new RpcError(E.INVALID_PARAMS, 'path must be a JSON pointer such as /tokens, at most 8 levels');
+  const keys = ptr.split('/').slice(1).map((k) => k.replaceAll('~1', '/').replaceAll('~0', '~'));
+  if (keys.some((k) => k === '__proto__' || k === 'constructor' || k === 'prototype')) throw new RpcError(E.INVALID_PARAMS, 'path names a reserved key');
+  const data = readData(id);
+  let at: Record<string, unknown> = data;
+  for (const k of keys.slice(0, -1)) {
+    const next = at[k];
+    at = (at[k] = next && typeof next === 'object' && !Array.isArray(next) ? next : {}) as Record<string, unknown>;
+  }
+  at[keys[keys.length - 1]] = p.value;
+  const text = JSON.stringify(data);
+  if (Buffer.byteLength(text, 'utf8') > MAX_DATA_BYTES) throw new RpcError(E.INVALID_PARAMS, `surface data is over ${MAX_DATA_BYTES / 1024} KB`);
+  fs.mkdirSync(path.dirname(dataFile(id)), { recursive: true });
+  fs.writeFileSync(`${dataFile(id)}.tmp`, text);
+  fs.renameSync(`${dataFile(id)}.tmp`, dataFile(id));
+  db.prepare('UPDATE ui_surface SET seq = (SELECT coalesce(max(seq), 0) + 1 FROM ui_surface), updated_at = ? WHERE id = ?').run(nowIso(), id);
+  return { surface: id, seq: (db.prepare('SELECT seq FROM ui_surface WHERE id = ?').get(id) as { seq: number }).seq };
 }
 
 export const MAX_EVENT_LINE = 4000;

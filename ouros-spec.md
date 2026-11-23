@@ -109,6 +109,18 @@ type Message = { catalogue: string } & (
 
 A child id that has not arrived yet draws as `spinner`. Value updates (a live token count) use `data` and never resend parts.
 
+Binding a data path to a prop (built 2026-11-24, M8-08): a prop written `{ "bind": "/tokens" }` takes the value at
+that data path (a JSON pointer into the surface's data) each time the surface draws. Until the value arrives the
+part draws as `spinner`. A `data` message sets one path and redraws; the parts stay as sent. With `ouros_ui` that
+is a call with `surface` and `data: { path, value }` and no `spec`. Meter example:
+
+```json
+{ "type": "meter", "label": "Tokens", "value": { "bind": "/tokens" }, "max": 200000, "unit": "tokens" }
+```
+
+then `{ "op": "data", "surface": "run-r0412", "path": "/tokens", "value": 51200 }` moves the meter to 51,200 with
+no parts resent. Data stays under 64 KB per surface.
+
 ## 4. Zones
 
 | Zone | Where | Size it gets | Typical parts |

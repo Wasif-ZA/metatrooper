@@ -81,6 +81,7 @@ const EXPECTED_METHODS = [
   'worktree.create',
   'ui.show',
   'ui.get',
+  'ui.data',
   'ui.event',
   'catalogue.proposals',
   'workspace.change',

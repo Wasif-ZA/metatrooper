@@ -28,7 +28,7 @@ export async function syncDrawn() {
     if (!r) { st.seen.delete(s.id); continue; }
     let t = st.tabs.find((x) => x.id === s.id);
     if (!t) { t = { id: s.id }; st.tabs.push(t); if (!fresh) st.active = s.id; }
-    Object.assign(t, { title: s.title, spec: r.spec, session: s.session_id, seq: r.seq, said: '' });
+    Object.assign(t, { title: s.title, spec: r.spec, data: r.data || {}, session: s.session_id, seq: r.seq, said: '' });
     bump();
   }
 }
@@ -64,7 +64,7 @@ export function DrawnTabs({ pid }) {
         <Button size="sm" variant="ghost" label="Back to files" onClick={() => { st.active = null; bump(); }} />
         <Text className="ou-drawn-who" color="secondary" size="sm">{`drawn by session ${cur.session.slice(-6)}${cur.said ? ` · ${cur.said}` : ''}`}</Text>
       </div>
-      <Drawn key={`${cur.id}:${cur.seq}`} spec={cur.spec} onEvent={(e) => send(cur, e)} />
+      <Drawn key={`${cur.id}:${cur.seq}`} spec={cur.spec} data={cur.data} onEvent={(e) => send(cur, e)} />
     </div>
   );
 }

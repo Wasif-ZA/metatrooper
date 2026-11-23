@@ -91,6 +91,18 @@ export function flatten(spec) {
   return { root: add(spec, 0), parts };
 }
 
+/** The value at a JSON pointer such as /tokens or /rows/0 in `data`; undefined when it is not there. */
+export function atPointer(data, pointer) {
+  if (typeof pointer !== 'string' || (pointer && !pointer.startsWith('/'))) return undefined;
+  let v = data;
+  for (const k of pointer.split('/').slice(1).map((x) => x.replaceAll('~1', '/').replaceAll('~0', '~'))) {
+    if (v === null || typeof v !== 'object' || !Object.hasOwn(v, k)) return undefined;
+    v = v[k];
+  }
+  return v;
+}
+const isBind = (v) => isObj(v) && typeof v.bind === 'string' && Object.keys(v).length === 1;
+
 const FIRST = ['title', 'text', 'question', 'label', 'name', 'path'];
 /** The one line a part folds to outside its zone. */
 export function firstLine(p) {
@@ -100,7 +112,7 @@ export function firstLine(p) {
 }
 
 /** Turns a spec (nested or flat) into a checked nested tree of parts ready to draw for `zone`, plus fellBack: what became text and why. Limits and state live in this call. */
-export function expand(spec, zone = 'tab') {
+export function expand(spec, zone = 'tab', data = {}) {
   const z = ZONES[zone] ?? ZONES.tab;
   let flat;
   try { flat = flatten(spec); } catch { flat = { root: 'p1', parts: { p1: null } }; }
@@ -109,9 +121,13 @@ export function expand(spec, zone = 'tab') {
   let n = 0;
   const fail = (id, f) => { fellBack.push({ part: String(id).slice(0, 40), type: f.name, why: f.why }); return f; };
   const build = (id, depth) => {
-    if (typeof id !== 'string' || !Object.hasOwn(parts, id)) return fail(id, fallback(null, `no part with id ${JSON.stringify(String(id).slice(0, 40))}`));
+    if (typeof id !== 'string') return fail(id, fallback(null, `no part with id ${JSON.stringify(String(id).slice(0, 40))}`));
+    if (!Object.hasOwn(parts, id)) return { type: 'spinner', text: 'Loading' };
     if (++n > MAX_PARTS) return n === MAX_PARTS + 1 ? fail(id, fallback(null, `screen too big: over ${MAX_PARTS} parts`)) : DROP;
-    const raw = parts[id];
+    const sent = parts[id];
+    const bound = isObj(sent) && Object.values(sent).some(isBind);
+    const raw = bound ? Object.fromEntries(Object.entries(sent).map(([k, v]) => [k, isBind(v) ? atPointer(data, v.bind) : v])) : sent;
+    if (bound && Object.values(raw).some((v) => v === undefined)) return { type: 'spinner', text: 'Waiting for data' };
     const c = check(raw);
     if (c !== raw) return fail(id, c);
     if (depth >= MAX_DEPTH) return fail(id, fallback(raw, 'nested too deep'));

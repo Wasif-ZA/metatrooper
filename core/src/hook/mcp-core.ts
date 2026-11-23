@@ -68,6 +68,11 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
           const result = await runner.call({ id: ulid(), method: 'workspace.change', params: { session_id: session, op: args.op, workspace: args.workspace, name: args.name }, origin: 'cli' }, { ui: false, origin: 'cli' });
           return { content: [{ type: 'text', text: JSON.stringify(result) }] };
         }
+        if (args.data && typeof args.data === 'object' && args.spec === undefined) {
+          const d = args.data as Record<string, unknown>;
+          const result = await runner.call({ id: ulid(), method: 'ui.data', params: { session_id: session, surface: args.surface, path: d.path, value: d.value }, origin: 'cli' }, { ui: false, origin: 'cli' });
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        }
         const result = await runner.call({ id: ulid(), method: 'ui.show', params: { session_id: session, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec }, origin: 'cli' }, { ui: false, origin: 'cli' });
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       } catch (e) {

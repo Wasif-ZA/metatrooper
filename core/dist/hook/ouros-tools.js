@@ -14,7 +14,7 @@ export const STEPS_TOOL          = {
 
 export const UI_TOOL          = {
   name: 'ouros_ui',
-  description: 'Draw a screen for the user in cc as a tab. Send JSON naming catalogue parts; cc checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}.',
+  description: 'Draw a screen for the user in cc as a tab. Send JSON naming catalogue parts; cc checks every part and draws it itself. No HTML, script or outside URL is ever drawn. A part that is unknown or has a wrong prop is shown as a plain-text box naming it; its siblings still draw. The same surface id replaces your earlier screen; you cannot replace a surface drawn by another session. Parts drawn so far: page {children}, section {label, children, aside?}, header {title, sub?, big?, tabs?}, text {text, size?: h1|h2|body|small, tone?: plain|mute|ok|error}, table {cols: string[], rows: (string | part)[][], foot?}, buttons {actions: [{label, primary?}]} (buttons do nothing yet). Every other catalogue part is shown as text for now. Up to 12 levels and 1,500 parts. Returns {surface, status: drawn|partly|rejected, fellBack}. Live values: write a prop as {"bind": "/tokens"} and later call with only surface and data: {path: "/tokens", value: 51200}; the screen redraws without resending parts. A part whose bound value has not arrived, or a child id not sent yet, draws as a spinner.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -23,8 +23,9 @@ export const UI_TOOL          = {
       zone: { type: 'string', enum: ['tab'], default: 'tab' },
       catalogue: { type: 'string', description: 'Catalogue version you wrote against; "1".' },
       spec: { type: 'object', description: 'Usually { "type": "page", "children": [ ... ] }.' },
+      data: { type: 'object', description: 'Instead of spec: {path: JSON pointer, value} sets one live value on a surface you drew.', properties: { path: { type: 'string' }, value: {} }, required: ['path'] },
     },
-    required: ['surface', 'spec'],
+    required: ['surface'],
   },
   annotations: { readOnlyHint: false, destructiveHint: false },
 };

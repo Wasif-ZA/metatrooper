@@ -104,7 +104,9 @@ async function serveUi(): Promise<void> {
     if (name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
-    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
+    const d = args.data as Record<string, unknown> | undefined;
+    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
+      : d && typeof d === 'object' && args.spec === undefined ? await call('ui.data', { session_id: sessionId, surface: args.surface, path: d.path, value: d.value }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
     if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');
     if (out.reply.error) return fail(out.reply.error.message);
     return { content: [{ type: 'text', text: JSON.stringify(out.reply.result) }] };

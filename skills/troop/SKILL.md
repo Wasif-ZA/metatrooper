@@ -86,6 +86,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   worktree.create         {project_id, branch?, base?: "HEAD", session_secret?}  (stable)
   ui.show                 {session_id, surface, title?, zone?: "tab", catalogue?, spec}
   ui.get                  {surface}
+  ui.data                 {session_id, surface, path, value}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
   catalogue.proposals     {}
   workspace.change        {session_id, op?: set | save | restore | example, workspace?, name?}
