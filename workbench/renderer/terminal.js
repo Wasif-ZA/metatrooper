@@ -313,6 +313,8 @@ const termView = (() => {
       r2.hidden = !hasInfo;
     }
     t.el.dataset.state = x.state;
+    t.el.dataset.waitAt = x.state === 'waiting_for_you' && Number.isFinite(x.stateAt) ? String(x.stateAt) : '';
+    t.el.classList.toggle('aged', Boolean(t.el.dataset.waitAt) && Date.now() - Number(t.el.dataset.waitAt) >= 120_000);
     const name = `${x.task || x.engine_id}, ${x.words || x.state}`;
     if (t.el.ariaLabel !== name) t.el.ariaLabel = name;
     t.el.querySelector('.stp').hidden = Boolean(x.shell || x.outside || x.state === 'exited');

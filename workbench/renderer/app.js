@@ -1973,6 +1973,7 @@ function observeLongTasks() {
 }
 
 function tickAges() {
+  for (const el of document.querySelectorAll('.tile[data-wait-at]')) el.classList.toggle('aged', Boolean(el.dataset.waitAt) && Date.now() - Number(el.dataset.waitAt) >= 120_000);
   for (const el of document.querySelectorAll('[data-ago]')) {
     const text = ago(el.dataset.ago);
     if (el.textContent !== text) el.textContent = text;

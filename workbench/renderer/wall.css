@@ -283,3 +283,6 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ph .ou-ah-acts .mx { flex: none; width: 24px; min-width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 2px; background: none; color: var(--mute); cursor: pointer; }
 .ph .ou-ah-acts .mx:hover, .ph .ou-ah-acts .mx[aria-pressed="true"] { background: var(--canvas-soft); color: var(--ink); }
 .ph .ou-ah-acts :is(.mx, .tx) svg { flex: none; }
+/* M8-22b: a gate waiting 2 minutes turns its tile header solid orange. */
+.tile[data-state="waiting_for_you"].aged .ph { background: var(--wait); color: #0b0b0c; }
+.tile[data-state="waiting_for_you"].aged .ph :is(.tile-task, .tile-engine, .tile-state, button) { color: #0b0b0c; }

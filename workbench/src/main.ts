@@ -33,7 +33,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { agedGates, browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, ship, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
@@ -173,6 +173,8 @@ function cursorLook(sessionId: string): DesktopLook {
 }
 
 let toasted: Set<string> | null = null;
+let agedSeen: Set<string> | null = null;
+let lastSnap: Snapshot | null = null;
 /** The tile the renderer shows big, reported on every change; ui_selection lags behind shell picks and project switches. */
 let focused: string | null = null;
 
@@ -207,12 +209,31 @@ function toastNew(s: Snapshot, fromDb: boolean): void {
   }
 }
 
+/** One Windows toast per gate that has waited 2 minutes (M8-22b); not while its tile is the one in front of a focused window. */
+function toastAged(now = Date.now()): void {
+  if (!lastSnap) return;
+  const next = agedGates(agedSeen, lastSnap, now);
+  agedSeen = next.seen;
+  for (const g of next.aged) {
+    if (!Notification.isSupported()) continue;
+    const toast = toastFor({ id: g.id, kind: 'question', ref: g.session_id, text: `Waiting 2 minutes: ${g.text}` } as Snapshot['needs_you'][number], sessionOf(lastSnap, { ref: g.session_id } as Snapshot['needs_you'][number]), { window: !!win && !win.isDestroyed() && win.isFocused(), session: focused });
+    if (!toast) continue;
+    const note = new Notification({ ...toast, silent: false });
+    note.on('click', () => {
+      if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+      void call('session.focus', { session_id: g.session_id }, { ui: true }).then(schedulePush);
+    });
+    note.show();
+  }
+}
+
 function push(): void {
   if (!win || win.isDestroyed()) return;
   syncPanes();
   const s = read();
   lastOnline = s.core.online;
   toastNew(s, readFromDb);
+  if (readFromDb) { lastSnap = s; toastAged(); }
   win.webContents.send('snapshot', s);
 }
 
@@ -241,6 +262,7 @@ function watch(): void {
   fs.mkdirSync(dir, { recursive: true });
   watchDb(dir, path.basename(dbFile()), schedulePush);
   setInterval(() => {
+    toastAged();
     const d = db();
     let changed = false;
     if (d) {
