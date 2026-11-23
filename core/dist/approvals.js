@@ -16,7 +16,7 @@ export const APPROVAL_TIMEOUT_MS = 0;
 export const GATE_WAIT_MS = 2_147_483_647;
 export const SURFACES = ['browser', 'desktop']         ;
 export const INSTRUCTION_MAX = 500;
-export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate']         ;
+export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate', 'upload']         ;
 
                                                                               
 

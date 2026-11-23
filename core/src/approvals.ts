@@ -15,7 +15,7 @@ export const APPROVAL_TIMEOUT_MS = 0;
 export const GATE_WAIT_MS = 2_147_483_647;
 export const SURFACES = ['browser', 'desktop'] as const;
 export const INSTRUCTION_MAX = 500;
-export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate'] as const;
+export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate', 'upload'] as const;
 
 export interface Control { automation_id: string; name: string; role: string }
 
