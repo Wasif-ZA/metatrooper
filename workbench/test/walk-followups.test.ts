@@ -27,8 +27,8 @@ function node(tagName = 'div'): any {
       }
     },
     querySelectorAll(selector: string) {
-      if (selector === ':scope > :not(.tile-previews, .tile-desk, .pb)') {
-        return el.children.filter((n: any) => !['tile-previews', 'tile-desk', 'pb'].some((c) => n.classList.contains(c)));
+      if (selector === ':scope > :not(.tile-previews, .tile-desk, .pb, .mdiff)') {
+        return el.children.filter((n: any) => !['tile-previews', 'tile-desk', 'pb', 'mdiff'].some((c) => n.classList.contains(c)));
       }
       const matches: any[] = [];
       const [tag, cls] = selector.split('.');

@@ -31,7 +31,7 @@ const USAGE = `usage: troop <command> [--json]
   launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>] [--model <name>]
                                 open claude, codex or agy in a new Windows Terminal window,
                                 optionally in a worktree of the project (new or existing branch);
-                                --approval ask|edits|contained (default: contained on a worktree, else ask)
+                                --approval ask|edits|contained (default: the Settings choice, contained unless you picked ask; ask only when you pass it)
   launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt","model"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
   owners [path]                 uncommitted files of the current project and the session that owns each

@@ -214,7 +214,8 @@ for (const [name, text, line] of [
       assert.equal(settingsError(), 'settings.json does not parse, line ' + line);
       const defaults = settings();
       assert.equal(defaults.ui.theme, 'dither');
-      assert.equal(defaults.sessions.approval, 'ask');
+      // protects= D89: malformed settings keep contained while preserving bytes and parse-line errors.
+      assert.equal(defaults.sessions.approval, 'contained');
       assert.deepEqual(defaults.sessions.ask_paths, []);
       assert.equal(defaults.projects.default, '');
       assert.equal(defaults.worktree.npm_ci, true);
