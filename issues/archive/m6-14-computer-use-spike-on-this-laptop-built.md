@@ -16,3 +16,5 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 1.0 
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done. M6-14a ticked: results recorded in m6-14-computer-use-spike.md (2f899236). Smart App Control was Off on this laptop; the clean-PC check stays with M10-0 G3.
