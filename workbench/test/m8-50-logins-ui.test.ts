@@ -28,9 +28,11 @@ test('loginsPick keeps the CSV text in main', () => {
 // no_claim=the file really being deleted
 test('loginsImport offers to delete the file with Delete as the default', () => {
   const h = handler('loginsImport');
-  assert.match(h, /showMessageBox/);
-  assert.match(h, /buttons: \['Delete the file'/);
-  assert.match(h, /defaultId: 0/);
+  assert.match(h, /offerDelete\(held\.file/);
+  const offer = main.match(/const offerDelete = [\s\S]*?\n  \};/)?.[0] ?? '';
+  assert.match(offer, /showMessageBox/);
+  assert.match(offer, /buttons: \['Delete the file'/);
+  assert.match(offer, /defaultId: 0/);
   assert.match(h, /callUi\('browser\.logins\.import', \{ text: held\.text/);
 });
 

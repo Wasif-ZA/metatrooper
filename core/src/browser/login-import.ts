@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { homeDir, logsDir } from '../paths.ts';
 import { MIN_SECRET_LENGTH } from '../redact.ts';
-import { deleteSecret, setBrowserSecret } from '../secrets.ts';
+import { deleteSecret, setBrowserSecrets } from '../secrets.ts';
 import { nowIso } from '../time.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, originFile, SECRET_NAME } from './secret-origin.ts';
 
@@ -64,28 +64,41 @@ function savedNames(): string[] {
   return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.dpapi')).map((f) => f.slice(0, -'.dpapi'.length)) : [];
 }
 
-/** What an import would do, row by row, with no password in it: origin, username, the secret name, whether it exists, and why a row is skipped. */
-export function previewLogins(rows: LoginRow[], existing = new Set(savedNames())): PreviewRow[] {
-  const taken = new Map<string, number>();
+/** Each saved browser secret name with the origin saved beside it (null when unreadable). */
+function savedOrigins(): Map<string, string | null> {
+  return new Map(savedNames().map((n) => [n, browserSecretOrigin(n)]));
+}
+
+/** What an import would do, row by row, with no password in it: origin, username, the secret name, whether it exists, and why a row is skipped. A saved login is replaced only by a row for the same origin; another site whose host maps to the same name gets the next free _2, _3 name. */
+export function previewLogins(rows: LoginRow[], saved = savedOrigins()): PreviewRow[] {
+  const used = new Set<string>();
   return rows.map((r, i) => {
     const origin = loginOrigin(r.url);
     const skip = !origin ? 'not an https site (or http on localhost)' : r.password.length < MIN_SECRET_LENGTH ? `password shorter than ${MIN_SECRET_LENGTH} characters` : null;
     if (skip) return { i, origin, username: r.username.slice(0, 200), name: null, exists: false, skip };
     const host = new URL(origin!).host.replace(/[^A-Za-z0-9]/g, '_').slice(0, 48);
-    const n = (taken.get(host) ?? 0) + 1;
-    taken.set(host, n);
-    const name = `${PREFIX}${host}${n > 1 ? `_${n}` : ''}`;
-    return { i, origin, username: r.username.slice(0, 200), name, exists: existing.has(name), skip: null };
+    let name = '';
+    for (let n = 1; ; n++) {
+      name = `${PREFIX}${host}${n > 1 ? `_${n}` : ''}`;
+      if (used.has(name)) continue;
+      if (!saved.has(name) || saved.get(name) === origin) break;
+    }
+    used.add(name);
+    return { i, origin, username: r.username.slice(0, 200), name, exists: saved.has(name), skip: null };
   });
 }
 
 /** Saves the ticked rows as browser secrets (password as login_<host>, username as loginuser_<host> when long enough to scrub); an existing secret is replaced only when ticked to replace. */
 export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ i: number; replace?: boolean }>): { imported: number; origins: string[]; skipped: Array<{ i: number; why: string }> } {
-  const plan = previewLogins(rows);
+  const saved = savedOrigins();
+  const plan = previewLogins(rows, saved);
   const skipped: Array<{ i: number; why: string }> = [];
   const origins = new Set<string>();
-  let room = MAX_SECRETS - savedNames().length;
+  let room = MAX_SECRETS - saved.size;
   let imported = 0;
+  const items: Array<{ name: string; origin: string; value: string }> = [];
+  const isPassword: Array<string | null> = [];
+  const stale: string[] = [];
   for (const pick of picks) {
     const p = plan[pick.i];
     if (!p) { skipped.push({ i: pick.i, why: 'no such row' }); continue; }
@@ -93,14 +106,27 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
     if (p.exists && !pick.replace) { skipped.push({ i: p.i, why: 'kept the saved login' }); continue; }
     const withUser = rows[p.i].username.length >= MIN_SECRET_LENGTH;
     if (room < (withUser ? 2 : 1)) { skipped.push({ i: p.i, why: `cc keeps at most ${MAX_SECRETS} browser secrets` }); continue; }
-    setBrowserSecret(db, p.name!, p.origin!, rows[p.i].password);
+    items.push({ name: p.name!, origin: p.origin!, value: rows[p.i].password });
+    isPassword.push(p.origin!);
     room--;
-    if (withUser) { setBrowserSecret(db, userName(p.name!), p.origin!, rows[p.i].username); room--; }
-    origins.add(p.origin!);
-    imported++;
+    if (withUser) { items.push({ name: userName(p.name!), origin: p.origin!, value: rows[p.i].username }); isPassword.push(null); room--; }
+    // a replaced login with no username to save must not keep the old one
+    else if (saved.has(userName(p.name!))) stale.push(userName(p.name!));
   }
-  fs.mkdirSync(logsDir(), { recursive: true });
-  fs.appendFileSync(path.join(logsDir(), 'logins.log'), JSON.stringify({ at: nowIso(), imported, skipped: skipped.length, origins: [...origins] }) + '\n');
+  try {
+    setBrowserSecrets(db, items, (k) => {
+      const o = isPassword[k];
+      if (o) { origins.add(o); imported++; }
+    });
+    for (const n of stale) {
+      deleteSecret(BROWSER_SECRETS, n);
+      fs.rmSync(originFile(n), { force: true });
+    }
+  } finally {
+    // written even when a save fails part way, so every saved login is logged
+    fs.mkdirSync(logsDir(), { recursive: true });
+    fs.appendFileSync(path.join(logsDir(), 'logins.log'), JSON.stringify({ at: nowIso(), by: 'ui', imported, skipped: skipped.length, origins: [...origins] }) + '\n');
+  }
   return { imported, origins: [...origins], skipped };
 }
 

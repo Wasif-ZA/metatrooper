@@ -142,8 +142,8 @@ function syncPanes(): void {
 }
 
 /** Applies user-started pane grants from the window UI after the core creates the row. */
-async function callUi(method: string, params: Record<string, unknown>) {
-  const out = await call(method, params, { ui: true, ...(method === 'auth.signIn' ? { waitMs: 610_000 } : {}) });
+async function callUi(method: string, params: Record<string, unknown>, waitMs?: number) {
+  const out = await call(method, params, { ui: true, ...(waitMs ? { waitMs } : method === 'auth.signIn' ? { waitMs: 610_000 } : {}) });
   if (method === 'pane.open' && params.user_typed === true && params.agent !== true && !params.session_id && typeof params.url === 'string') {
     const paneId = out.kind === 'reply' && !out.reply.error ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
     if (paneId) await panes?.userOpen(paneId, params.url);
@@ -411,31 +411,48 @@ function handlers(): void {
   });
 
   // M8-50: the exported CSV is read here and kept here; the window gets only origins and usernames, never a password.
-  const loginFiles = new Map<string, { file: string; text: string; at: number }>();
+  // each held file is dropped after 10 minutes, picked or not
+  const loginFiles = new Map<string, { file: string; text: string; timer: NodeJS.Timeout }>();
+  const takeLoginFile = (token: unknown) => {
+    const held = typeof token === 'string' ? loginFiles.get(token) : undefined;
+    if (held) { clearTimeout(held.timer); loginFiles.delete(token as string); }
+    return held;
+  };
+  const offerDelete = async (file: string, saved: boolean): Promise<boolean> => {
+    if (!win) return false;
+    const ask = await dialog.showMessageBox(win, { type: 'warning', message: 'Delete the exported password file?', detail: `${path.basename(file)} holds your passwords in plain text.${saved ? ' cc has saved what you picked.' : ''}`, buttons: ['Delete the file', 'Keep it'], defaultId: 0, cancelId: 1 });
+    if (ask.response !== 0) return false;
+    try { fs.rmSync(file); return true; } catch { return false; }
+  };
   on('loginsPick', async () => {
     if (!win) return null;
     const r = await dialog.showOpenDialog(win, { title: 'Pick the password file you exported from your browser', properties: ['openFile'], filters: [{ name: 'Password export', extensions: ['csv'] }] });
-    const file = r.canceled ? null : r.filePaths[0];
-    if (!file) return null;
+    const picked = r.canceled ? null : r.filePaths[0];
+    if (!picked) return null;
+    // the real file, so a link is never reported deleted while the plain-text file stays
+    const file = fs.realpathSync(picked);
     if (fs.statSync(file).size > 5 * 1024 * 1024) return { error: 'The file is over 5 MB.' };
     const text = fs.readFileSync(file, 'utf8');
     const out = await callUi('browser.logins.preview', { text });
     if (out.kind !== 'reply' || out.reply.error) return { error: out.kind === 'reply' ? out.reply.error?.message ?? 'cc could not read it' : 'the core is offline' };
-    for (const [k, v] of loginFiles) if (Date.now() - v.at > 10 * 60_000) loginFiles.delete(k);
     const token = crypto.randomUUID();
-    loginFiles.set(token, { file, text, at: Date.now() });
+    loginFiles.set(token, { file, text, timer: setTimeout(() => loginFiles.delete(token), 10 * 60_000) });
     return { token, file: path.basename(file), rows: (out.reply.result as { rows: unknown[] }).rows };
   });
   on('loginsImport', async (token: unknown, picks: unknown) => {
-    const held = typeof token === 'string' ? loginFiles.get(token) : undefined;
+    const held = takeLoginFile(token);
     if (!held || !win) return { error: 'Pick the file again.' };
-    loginFiles.delete(token as string);
-    const out = await callUi('browser.logins.import', { text: held.text, picks });
-    if (out.kind !== 'reply' || out.reply.error) return { error: out.kind === 'reply' ? out.reply.error?.message ?? 'import failed' : 'the core is offline' };
-    const ask = await dialog.showMessageBox(win, { type: 'warning', message: 'Delete the exported password file?', detail: `${held.file} holds your passwords in plain text. cc has saved what you picked.`, buttons: ['Delete the file', 'Keep it'], defaultId: 0, cancelId: 1 });
-    let deleted = false;
-    if (ask.response === 0) { try { fs.rmSync(held.file); deleted = true; } catch {} }
+    const n = Array.isArray(picks) ? picks.length : 0;
+    // one DPAPI spawn per import, but the core may be busy: wait 60 s plus 2 s a login, at most 20 minutes
+    const out = await callUi('browser.logins.import', { text: held.text, picks }, Math.min(60_000 + 2_000 * n, 20 * 60_000));
+    const ok = out.kind === 'reply' && !out.reply.error;
+    const deleted = await offerDelete(held.file, ok);
+    if (!ok) return { error: out.kind === 'reply' ? out.reply.error?.message ?? 'import failed' : 'the core did not answer in time; check the saved list.', deleted };
     return { ...(out.reply.result as object), deleted };
+  });
+  on('loginsCancel', async (token: unknown) => {
+    const held = takeLoginFile(token);
+    return { deleted: held ? await offerDelete(held.file, false) : false };
   });
 
   on('pickFolder', async () => {

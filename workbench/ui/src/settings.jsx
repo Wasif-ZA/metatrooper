@@ -110,8 +110,13 @@ export function Logins() {
     const picks = Object.entries(ticks).filter(([, on]) => on).map(([i]) => ({ i: Number(i), replace: true }));
     const r = await api.loginsImport(pick.token, picks);
     setPick(null);
-    setSaid(r.error ? r.error : `Saved ${r.imported} login${r.imported === 1 ? '' : 's'}${r.skipped.length ? `, skipped ${r.skipped.length}` : ''}.${r.deleted ? ' The exported file was deleted.' : ' The exported file was kept; delete it yourself.'}`);
+    setSaid(r.error ? `${r.error}${r.deleted ? ' The exported file was deleted.' : ''}` : `Saved ${r.imported} login${r.imported === 1 ? '' : 's'}${r.skipped.length ? `, skipped ${r.skipped.length}` : ''}.${r.deleted ? ' The exported file was deleted.' : ' The exported file was kept; delete it yourself.'}`);
     await load();
+  };
+  const cancel = async () => {
+    const r = await api.loginsCancel(pick.token);
+    setPick(null);
+    setSaid(r?.deleted ? 'Nothing saved. The exported file was deleted.' : 'Nothing saved. The exported file was kept; delete it yourself.');
   };
   const remove = async (names) => { for (const name of names) await api.call('browser.logins.remove', { name }); await load(); };
   const skipped = pick ? pick.rows.filter((x) => x.skip).length : 0;
@@ -127,7 +132,7 @@ export function Logins() {
               <CheckboxInput key={x.i} size="sm" label={`${x.origin}  ${x.username || '(no username)'}${x.exists ? '  (replaces the saved one)' : ''}`} value={Boolean(ticks[x.i])} onChange={(on) => setTicks({ ...ticks, [x.i]: on })} />
             ))}
           </div>
-          <span className="ou-logins-acts"><Button size="sm" variant="primary" label="Save ticked logins" onClick={() => void run()} /><Button size="sm" variant="secondary" label="Cancel" onClick={() => setPick(null)} /></span>
+          <span className="ou-logins-acts"><Button size="sm" variant="primary" label="Save ticked logins" onClick={() => void run()} /><Button size="sm" variant="secondary" label="Cancel" onClick={() => void cancel()} /></span>
         </div>
       ) : <Button size="sm" variant="secondary" label="Import from a password file" onClick={() => void choose()} />}
       {said ? <Text color="secondary">{said}</Text> : null}
