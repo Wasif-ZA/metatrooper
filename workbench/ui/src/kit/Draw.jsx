@@ -12,10 +12,9 @@ import PB from './parts-b.jsx';
 import PC from './parts-c.jsx';
 import PD from './parts-d.jsx';
 import PE from './parts-e.jsx';
-import PF from './parts-f.jsx';
 import './kit.css';
 
-const MORE = { ...PA, ...PB, ...PC, ...PD, ...PE, ...PF };
+const MORE = { ...PA, ...PB, ...PC, ...PD, ...PE };
 
 const TONE = { plain: 'primary', mute: 'secondary', ok: 'accent', error: 'primary' };
 const LEVEL = { h1: 1, h2: 2 };

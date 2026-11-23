@@ -154,7 +154,7 @@ const catalogueParts = [
   { type: 'chart', kind: 'bar', labels: [], series: [] }, { type: 'field', label: 'L', kind: 'text' },
   { type: 'calendar', days: [], events: [] }, { type: 'image', asset: 'asset:synthetic', alt: 'A' }, { type: 'use', template: 'hello' },
 ];
-const undrawn = ['use'];
+const undrawn = ['gate', 'tile', 'use'];
 for (const part of catalogueParts) {
   const draws = !undrawn.includes(part.type);
   test(`catalogue ${part.type} is checked then ${draws ? 'expanded for drawing' : 'marked not drawn yet'}`, () => {
@@ -169,17 +169,6 @@ for (const part of catalogueParts) {
       assert.equal(isFallback(out.root), true);
       assert.equal(out.root.why, 'not drawn yet');
     }
-  });
-}
-
-for (const [part, missing] of [[{ type: 'gate', text: 'T', why: 'W' }, 'why'], [{ type: 'tile', engine: 'E', task: 'T', state: 'done', lines: [] }, 'lines']] as const) {
-  test(`catalogue ${part.type} without ${missing} still falls back`, () => {
-    const bad: any = { ...part };
-    delete bad[missing];
-    const out = expand(bad);
-    assert.equal(isFallback(out.root), true);
-    assert.equal(out.fellBack.length, 1);
-    assert.equal(out.fellBack[0].type, part.type);
   });
 }
 
