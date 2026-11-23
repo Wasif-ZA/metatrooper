@@ -308,23 +308,30 @@ namespace TroopUia {
       AutomationElement.IsValuePatternAvailableProperty, ValuePattern.ValueProperty, ValuePattern.IsReadOnlyProperty };
 
     static List<KeyValuePair<int, AutomationElement>> WalkCached(AutomationElement top, int max, bool skipWrappers, out bool truncated) {
-      var cr = new CacheRequest { TreeScope = TreeScope.Element | TreeScope.Subtree, TreeFilter = Automation.ControlViewCondition };
+      // one call per visited node fetches it and its children's line properties, so a huge window stops at max_nodes
+      var cr = new CacheRequest { TreeScope = TreeScope.Element | TreeScope.Children, TreeFilter = Automation.ControlViewCondition };
       foreach (var prop in CachedProps) cr.Add(prop);
-      AutomationElement root;
-      using (cr.Activate()) root = top.GetUpdatedCache(cr);
       var outList = new List<KeyValuePair<int, AutomationElement>>();
       var stack = new Stack<KeyValuePair<int, AutomationElement>>();
-      stack.Push(new KeyValuePair<int, AutomationElement>(0, root));
+      stack.Push(new KeyValuePair<int, AutomationElement>(0, top));
       while (stack.Count > 0 && outList.Count < max) {
-        var cur = stack.Pop();
+        var popped = stack.Pop();
+        AutomationElement node;
+        using (cr.Activate()) node = popped.Value.GetUpdatedCache(cr);
+        var cur = new KeyValuePair<int, AutomationElement>(popped.Key, node);
         bool wrapper = skipWrappers && cur.Key > 0 && CachedWrapper(cur.Value);
         if (!wrapper) outList.Add(cur);
+        if (outList.Count >= max) break;
         AutomationElementCollection kids;
         try { kids = cur.Value.CachedChildren; } catch { continue; }
         for (int i = kids.Count - 1; i >= 0; i--) stack.Push(new KeyValuePair<int, AutomationElement>(wrapper ? cur.Key : cur.Key + 1, kids[i]));
       }
       truncated = stack.Count > 0;
       return outList;
+    }
+
+    static bool Flag(AutomationElement e, AutomationProperty p) {
+      try { var v = e.GetCachedPropertyValue(p, true); return v is bool && (bool)v; } catch { return false; }
     }
 
     static bool CachedWrapper(AutomationElement e) {
@@ -340,14 +347,14 @@ namespace TroopUia {
       if (name.Length > 0) sb.Append(" \"").Append(name.Length > 200 ? name.Substring(0, 200) : name).Append('"');
       if (aid.Length > 0) sb.Append(" #").Append(aid);
       if (c.IsPassword) sb.Append(" password");
-      bool hasValue = (bool)e.GetCachedPropertyValue(AutomationElement.IsValuePatternAvailableProperty);
+      bool hasValue = Flag(e, AutomationElement.IsValuePatternAvailableProperty);
       string val = hasValue && !c.IsPassword ? e.GetCachedPropertyValue(ValuePattern.ValueProperty) as string : null;
       if (!string.IsNullOrEmpty(val)) sb.Append(" value=\"").Append((val.Length > 200 ? val.Substring(0, 200) + "..." : val).Replace("\r", " ").Replace("\n", " ")).Append('"');
       var actions = new List<string>();
-      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsInvokePatternAvailableProperty)) actions.Add("Invoke");
-      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsTogglePatternAvailableProperty)) actions.Add("Toggle");
-      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsSelectionItemPatternAvailableProperty)) actions.Add("Select");
-      if (hasValue && !(bool)e.GetCachedPropertyValue(ValuePattern.IsReadOnlyProperty)) actions.Add("SetValue");
+      if (Flag(e, AutomationElement.IsInvokePatternAvailableProperty)) actions.Add("Invoke");
+      if (Flag(e, AutomationElement.IsTogglePatternAvailableProperty)) actions.Add("Toggle");
+      if (Flag(e, AutomationElement.IsSelectionItemPatternAvailableProperty)) actions.Add("Select");
+      if (hasValue && !Flag(e, ValuePattern.IsReadOnlyProperty)) actions.Add("SetValue");
       return sb.Append(" actions=[").Append(string.Join(",", actions)).Append("]").ToString();
     }
 
