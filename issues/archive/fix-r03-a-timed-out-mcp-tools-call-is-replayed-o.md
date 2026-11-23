@@ -1,18 +1,18 @@
-# FIX-R8: MCP daemon takes unauthenticated requests on loopback
+# FIX-R3: A timed-out MCP tools/call is replayed on a fresh server
 
 From the 2026-10-31 audit of router, plugins, sandbox, release. Severity: Medium. Effort: S unless the fix says otherwise.
 
 ## Where
 
-- router/metarouter/mcp_daemon.py:25-29, 54-63
+- router/metarouter/mcp.py:281-316; mcp_daemon.py:60-70, 137-153
 
 ## What goes wrong
 
-Any local process can send tools/call with any cwd, or stop, and run his configured MCP servers with their credentials. The browse daemon already requires a token (browse/daemon.py:39, 93).
+call_tool falls back to a new Session on ConnectionError, TimeoutError or OSError, including a 60 s timeout after the daemon already sent the call, or a server that crashed after acting. Send, create, delete and spend tools run twice.
 
 ## Fix
 
-Generate a token at start, keep it in the user-only state file, require it on every request.
+Fall back only when the daemon could not be reached; never replay a call already written.
 
 ## Audit
 
@@ -20,8 +20,9 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 
 ## Acceptance criteria
 
-- [ ] FIX-R8a. A request with no or a wrong token is refused and spawns nothing.
-- [ ] FIX-R8b. mcp stop and normal calls work through the token.
+- [ ] FIX-R3a. A fake server sleeping over 60 s on tools/call is invoked exactly once.
+- [ ] FIX-R3b. A server that exits after acting is invoked once and the error returned.
+- [ ] FIX-R3c. An unreachable daemon still falls back once.
 
 ## Rules
 
@@ -30,3 +31,5 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: obsolete. mcp.py and mcp_daemon.py were removed in aeb72989 (ROUTER-01); nothing left to fix or test. Boxes left unticked.
