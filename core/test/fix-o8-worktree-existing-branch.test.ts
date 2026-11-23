@@ -147,3 +147,43 @@ test('worktree.create returns existing true when worktree folder already exists'
     db.close();
   }
 }));
+
+// protects=FIX-C5a: colliding folder names reject the requested branch and leave refs unchanged.
+test('FIX-C5a: worktree.create rejects feat/x when its folder holds feat-x', () => withHome(async (home) => {
+  const { db, m, repo, project_id } = await setupTestContext(home);
+  const { RpcError } = await import('../src/pipe/errors.ts');
+  try {
+    const first = (await m.get('worktree.create')!.handler({ project_id, branch: 'feat-x' }, { ui: true, origin: 'test' })) as any;
+    assert.equal(first.branch, 'feat-x');
+    await assert.rejects(
+      () => m.get('worktree.create')!.handler({ project_id, branch: 'feat/x' }, { ui: true, origin: 'test' }),
+      (err: unknown) => {
+        assert.ok(err instanceof RpcError);
+        assert.equal(err.code, -32003);
+        assert.match(err.message, /holds feat-x\b/);
+        return true;
+      }
+    );
+    const branches = execFileSync('git', ['-C', repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/feat/x'], { encoding: 'utf8' }).trim();
+    assert.equal(branches, '', 'the rejected request must not create feat/x');
+  } finally {
+    db.close();
+  }
+}));
+
+// protects=FIX-C5b: repeated requests for the held branch return the existing worktree.
+test('FIX-C5b: worktree.create reuses feat-x with the same branch', () => withHome(async (home) => {
+  const { db, m, project_id } = await setupTestContext(home);
+  try {
+    const first = (await m.get('worktree.create')!.handler({ project_id, branch: 'feat-x' }, { ui: true, origin: 'test' })) as any;
+    assert.equal(first.branch, 'feat-x');
+    for (let i = 0; i < 2; i++) {
+      const existing = (await m.get('worktree.create')!.handler({ project_id, branch: 'feat-x' }, { ui: true, origin: 'test' })) as any;
+      assert.equal(existing.existing, true);
+      assert.equal(existing.branch, 'feat-x');
+      assert.equal(existing.path, first.path);
+    }
+  } finally {
+    db.close();
+  }
+}));
