@@ -300,7 +300,7 @@ function appendLine(envName: string, value: unknown): void {
 }
 
 /** The settings the Settings page may write. */
-const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback', 'reliability.loop_alarm', 'reliability.loop_nudge_at', 'reliability.loop_stop_at', 'reliability.token_limit', 'reliability.done_needs_check', 'agent_cursor.mode', 'agent_cursor.idle_fade_ms', 'agent_cursor.show_in_recordings', 'ui.toast_ms', 'ui.error_toast_ms']);
+const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback', 'reliability.loop_alarm', 'reliability.loop_nudge_at', 'reliability.loop_stop_at', 'reliability.token_limit', 'reliability.done_needs_check', 'agent_cursor.mode', 'agent_cursor.idle_fade_ms', 'agent_cursor.show_in_recordings', 'ui.toast_ms', 'ui.error_toast_ms', 'notify.quiet_at_night']);
 
 /** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
 async function writeSetting(key: string, value: unknown): Promise<string | null> {
@@ -736,7 +736,7 @@ function handlers(): void {
     const s = settings();
     const alarms = db()?.prepare("SELECT value FROM meta WHERE key = 'loop_false_alarms'").get() as { value: string } | undefined;
     const defaults = Object.fromEntries([...PAGE_KEYS].map((k) => [k, k.split('.').reduce<unknown>((o, p) => (o as Record<string, unknown>)[p], DEFAULTS)]));
-    return { defaults, reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme, toast_ms: s.ui.toast_ms, error_toast_ms: s.ui.error_toast_ms } };
+    return { defaults, reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, notify: s.notify, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme, toast_ms: s.ui.toast_ms, error_toast_ms: s.ui.error_toast_ms } };
   });
   on('setSetting', async (key: unknown, value: unknown) => {
     if (typeof key !== 'string' || !PAGE_KEYS.has(key)) return { error: 'not a Settings page key' };
