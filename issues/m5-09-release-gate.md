@@ -33,3 +33,7 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 1.75 
   `tests/release-logs/<version>/` and their last lines pasted into the release notes.
 - M5-09b. Changing one plugin's version makes the version check fail.
 - M5-09c. CI is green on both operating systems for the commit tagged `v0.1.0`.
+
+Status 2026-11-24 (B4, on a8a3b642): M5-09b met. core/test/m5-09-version-check.test.ts passes 2/2, including
+"version check fails and names a mismatched manifest". M5-09a and M5-09c need the v0.1.0 tag, which is Wasif's: no tag
+and no tests/release-logs/ exist yet. The code parts (release.ps1, version-check.mjs, ci.yml) are in place. Open.
