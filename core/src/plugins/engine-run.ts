@@ -4,7 +4,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { homeDir } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { atPointer } from '../../../workbench/ui/src/kit/check.js';
-import { setSurfaceData } from '../surfaces.ts';
+import { getSurface, setSurfaceData } from '../surfaces.ts';
 import { ulid } from '../time.ts';
 import { runAction } from './actions.ts';
 import { blockReason } from './blocklist.ts';
@@ -48,6 +48,10 @@ export async function runEngine(db: DatabaseSync, p: Record<string, unknown>, ap
   const r = await runAction({ plugin, actionId: action.id, input, projectDir: row.path, run, secret: (name) => getSecret(plugin.id, name) });
   if (!r.ok) return { status: 'failed', error: r.error.message, run: run.id };
   const out: EngineResult = { status: 'ok', outputs: r.outputs, run: run.id };
+  // the engine is here now, so an install card left by an earlier call goes
+  if (typeof p.surface === 'string') {
+    try { if ((getSurface(db, p.surface).data as Record<string, unknown>)?.missing_engine) setSurfaceData(db, { session_id: sessionId, surface: p.surface, path: '/missing_engine', value: null }); } catch {}
+  }
   if (typeof p.surface === 'string' && action.binds) {
     const value = atPointer(r.outputs, action.binds.from);
     if (value !== undefined) {
