@@ -1,0 +1,3 @@
+{"name": "Broken", "by": "codex", "asked": "Show the deploy site full screen in the IDE.",
+ "rail": ["files", "browser"],
+ "layout": {"split": "row", "sizes": [100], "children": [{"view": "iframe", "src": "https://example.com"}]}}

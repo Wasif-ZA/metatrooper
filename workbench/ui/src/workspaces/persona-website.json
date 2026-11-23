@@ -1,0 +1,286 @@
+{
+ "name": "Website builder",
+ "by": "claude",
+ "place": "rye-and-crumb : website",
+ "asked": "I want to build a website for my bakery, Rye & Crumb. Home page, pre-orders, opening hours.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   19,
+   57,
+   24
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     60,
+     40
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "sitepages",
+       "site": "Rye & Crumb bakery",
+       "domain": "ryeandcrumb.example",
+       "state": "draft",
+       "pages": [
+        {
+         "name": "Home",
+         "path": "/",
+         "open": true,
+         "sections": [
+          {
+           "name": "Hero",
+           "kind": "hero",
+           "note": "photo + 1 line",
+           "sel": true
+          },
+          {
+           "name": "Today's bread",
+           "kind": "grid"
+          },
+          {
+           "name": "Opening hours",
+           "kind": "list"
+          },
+          {
+           "name": "Find us",
+           "kind": "map"
+          },
+          {
+           "name": "Footer",
+           "kind": "footer"
+          }
+         ]
+        },
+        {
+         "name": "Pre-order",
+         "path": "/order",
+         "sections": [
+          {
+           "name": "Order form",
+           "kind": "form"
+          },
+          {
+           "name": "Footer",
+           "kind": "footer"
+          }
+         ]
+        },
+        {
+         "name": "Our story",
+         "path": "/story",
+         "sections": [
+          {
+           "name": "Text",
+           "kind": "text"
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Site",
+      "part": {
+       "type": "kv",
+       "rows": [
+        [
+         "address",
+         "ryeandcrumb.example"
+        ],
+        [
+         "status",
+         "draft, not live"
+        ],
+        [
+         "pre-order form",
+         "emails the shop"
+        ],
+        [
+         "last change",
+         "hours text, 2 min ago"
+        ],
+        [
+         "phone check",
+         "390 px, 2 notes"
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     79,
+     21
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "previewstage",
+       "title": "Home page, first build",
+       "url": "127.0.0.1:4410",
+       "stamp": "build 1",
+       "action": "Publish",
+       "versions": [
+        {
+         "label": "build 1",
+         "commit": "a71e0c3"
+        }
+       ],
+       "notes": [
+        {
+         "n": "1",
+         "where": "hero",
+         "text": "Headline runs off the right edge at 390 px",
+         "fix": "heading now 48 px down to 34 px on phones"
+        },
+        {
+         "n": "2",
+         "where": "hours",
+         "text": "Hours text too light on the flour background"
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Hero section",
+      "part": {
+       "type": "columns",
+       "children": [
+        [
+         {
+          "type": "field",
+          "label": "Headline",
+          "kind": "text",
+          "value": "Bread baked before sunrise, six days a week"
+         },
+         {
+          "type": "field",
+          "label": "Button",
+          "kind": "text",
+          "value": "Pre-order"
+         }
+        ],
+        [
+         {
+          "type": "field",
+          "label": "Photo",
+          "kind": "select",
+          "value": "counter-morning.jpg",
+          "options": [
+           "counter-morning.jpg",
+           "loaves-rack.jpg",
+           "flour-hands.jpg"
+          ]
+         },
+         {
+          "type": "field",
+          "label": "Layout",
+          "kind": "select",
+          "value": "Photo left, hours right",
+          "options": [
+           "Photo left, hours right",
+           "Full-width photo",
+           "Text only"
+          ]
+         }
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     76,
+     24
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Use the morning counter photo for the top.",
+       "say": "Done. The headline wrapped badly on phones, so I made it shrink. The opening hours are hard to read on the flour colour; fixing that next. Publishing is yours: it puts the site on ryeandcrumb.example, so it waits for your yes.",
+       "log": [
+        [
+         "read your brief",
+         "3 pages asked for"
+        ],
+        [
+         "built 3 pages",
+         "11 sections"
+        ],
+        [
+         "photo: counter-morning.jpg",
+         "hero"
+        ],
+        [
+         "checked at 1280 and 390 px",
+         "2 notes"
+        ],
+        [
+         "fixed note 1",
+         "hero heading"
+        ],
+        [
+         "[x] home, hours, bread list",
+         "done"
+        ],
+        [
+         "[x] pre-order form",
+         "done"
+        ],
+        [
+         "[ ] hours text contrast",
+         "next"
+        ],
+        [
+         "[ ] publish",
+         "your yes"
+        ]
+       ],
+       "now": [
+        "Darkening the hours text",
+        ""
+       ],
+       "hint": "Ask for a change to the site",
+       "strip": [
+        "auto · building",
+        "1 note left",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "digest",
+       "title": "Not live yet",
+       "facts": "3 pages · 11 sections · 94 kB",
+       "note": "Publishing puts it on ryeandcrumb.example. It asks you first.",
+       "actions": [
+        {
+         "label": "Share preview link"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

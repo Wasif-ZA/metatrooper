@@ -195,7 +195,7 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
     assert.match(steps[3], /^mcp_servers\.ouros-steps\.args=\[(".+mcp-shim\.js"|"mcp"),"steps"\]$/);
     assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), steps);
     fs.writeFileSync(config, '');
-    assert.deepEqual(mcpAttachArgs(db, claude, 'K1').slice(1), ['--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui']);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'K1').slice(1), ['--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui', '--allowedTools=mcp__ouros-ui__ouros_workspace']);
     const args = mcpAttachArgs(db, codex, 'C2', true);
     assert.equal(args.length, 18);
     assert.match(args[13], /^mcp_servers\.metatrooper-browser\.command=".+"$/);

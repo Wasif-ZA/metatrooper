@@ -126,9 +126,9 @@ test('sandboxRefusal requires Claude login to outlast its safety margin', () => 
     const now = Date.now();
     const creds = join(home, '.claude', '.credentials.json');
     writeFileSync(creds, JSON.stringify({ claudeAiOauth: { expiresAt: now + 30 * 60 * 1000 } }));
-    assert.match(sandboxRefusal(claude, project, { runtime: () => process.execPath, now: () => now })!, /refresh its login/);
+    assert.match(sandboxRefusal(claude, project, { runtime: () => process.execPath, now: () => now, label: () => "h", hash: () => "h" })!, /refresh its login/);
     writeFileSync(creds, JSON.stringify({ claudeAiOauth: { expiresAt: now + 2 * 60 * 60 * 1000 } }));
-    assert.equal(sandboxRefusal(claude, project, { runtime: () => process.execPath, now: () => now }), null);
+    assert.equal(sandboxRefusal(claude, project, { runtime: () => process.execPath, now: () => now, label: () => "h", hash: () => "h" }), null);
   } finally {
     process.chdir(cwd);
     if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;

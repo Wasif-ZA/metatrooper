@@ -1,0 +1,483 @@
+{
+ "name": "Part design",
+ "by": "claude",
+ "place": "motor-mount : MB-204 bracket",
+ "asked": "Design a mounting bracket for the NEMA 23 motor on the conveyor frame. Set this up for part design.",
+ "rail": [
+  "files",
+  "search",
+  "git",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   19,
+   55,
+   26
+  ],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "featuretree",
+     "part": "MB-204 motor bracket",
+     "rollback": 9,
+     "features": [
+      {
+       "name": "Base plate",
+       "kind": "extrude",
+       "note": "10 mm",
+       "children": [
+        {
+         "name": "Sketch 1",
+         "kind": "sketch",
+         "note": "120 × 80"
+        }
+       ]
+      },
+      {
+       "name": "Upright",
+       "kind": "extrude",
+       "note": "70 mm",
+       "children": [
+        {
+         "name": "Sketch 2",
+         "kind": "sketch"
+        }
+       ]
+      },
+      {
+       "name": "Motor bore",
+       "kind": "cut",
+       "note": "Ø28 through",
+       "sel": true,
+       "children": [
+        {
+         "name": "Sketch 3",
+         "kind": "sketch",
+         "state": "under",
+         "note": "1 free"
+        }
+       ]
+      },
+      {
+       "name": "Gusset",
+       "kind": "extrude",
+       "note": "8 mm",
+       "children": [
+        {
+         "name": "Sketch 4",
+         "kind": "sketch"
+        }
+       ]
+      },
+      {
+       "name": "Gusset mirror",
+       "kind": "mirror",
+       "note": "R plane"
+      },
+      {
+       "name": "Mount holes",
+       "kind": "hole",
+       "note": "4 × M5"
+      },
+      {
+       "name": "Edge fillets",
+       "kind": "fillet",
+       "note": "R2",
+       "state": "error"
+      },
+      {
+       "name": "Weight pockets",
+       "kind": "cut",
+       "state": "off"
+      }
+     ]
+    }
+   },
+   {
+    "split": "col",
+    "sizes": [
+     66,
+     34
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "viewport3d",
+       "part": "MB-204 motor bracket",
+       "view": "iso",
+       "selected": "Motor bore · Ø28 through upright",
+       "bodies": [
+        {
+         "at": [
+          0,
+          0,
+          0
+         ],
+         "size": [
+          120,
+          80,
+          10
+         ]
+        },
+        {
+         "at": [
+          0,
+          0,
+          10
+         ],
+         "size": [
+          120,
+          12,
+          70
+         ],
+         "sel": true
+        },
+        {
+         "at": [
+          8,
+          12,
+          10
+         ],
+         "size": [
+          8,
+          24,
+          26
+         ]
+        },
+        {
+         "at": [
+          104,
+          12,
+          10
+         ],
+         "size": [
+          8,
+          24,
+          26
+         ]
+        }
+       ],
+       "holes": [
+        {
+         "at": [
+          26,
+          50,
+          10
+         ],
+         "r": 5,
+         "face": "top"
+        },
+        {
+         "at": [
+          94,
+          50,
+          10
+         ],
+         "r": 5,
+         "face": "top"
+        },
+        {
+         "at": [
+          26,
+          68,
+          10
+         ],
+         "r": 5,
+         "face": "top"
+        },
+        {
+         "at": [
+          94,
+          68,
+          10
+         ],
+         "r": 5,
+         "face": "top"
+        },
+        {
+         "at": [
+          60,
+          12,
+          52
+         ],
+         "r": 14,
+         "face": "front"
+        },
+        {
+         "at": [
+          36.4,
+          12,
+          28.4
+         ],
+         "r": 2.5,
+         "face": "front"
+        },
+        {
+         "at": [
+          36.4,
+          12,
+          75.6
+         ],
+         "r": 2.5,
+         "face": "front"
+        },
+        {
+         "at": [
+          83.6,
+          12,
+          28.4
+         ],
+         "r": 2.5,
+         "face": "front"
+        },
+        {
+         "at": [
+          83.6,
+          12,
+          75.6
+         ],
+         "r": 2.5,
+         "face": "front"
+        }
+       ],
+       "dims": [
+        {
+         "from": [
+          0,
+          80,
+          0
+         ],
+         "to": [
+          120,
+          80,
+          0
+         ],
+         "text": "120"
+        },
+        {
+         "from": [
+          120,
+          0,
+          0
+         ],
+         "to": [
+          120,
+          80,
+          0
+         ],
+         "text": "80"
+        },
+        {
+         "from": [
+          0,
+          0,
+          10
+         ],
+         "to": [
+          0,
+          0,
+          80
+         ],
+         "text": "70"
+        }
+       ],
+       "status": [
+        "1 sketch under-defined",
+        "Aluminium 6061",
+        "212 g",
+        "Units mm"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "bom",
+       "assembly": "MA-20 motor mount",
+       "rev": "C",
+       "items": [
+        {
+         "part": "MB-204 motor bracket",
+         "qty": "1",
+         "source": "make",
+         "material": "Al 6061-T6",
+         "mass": "212 g",
+         "status": "changed",
+         "note": "bore moved 2 mm"
+        },
+        {
+         "part": "MP-11 base plate",
+         "qty": "1",
+         "source": "make",
+         "material": "Steel S275",
+         "mass": "640 g"
+        },
+        {
+         "part": "NEMA 23 stepper motor",
+         "qty": "1",
+         "source": "buy",
+         "material": "",
+         "mass": "1.0 kg",
+         "status": "ordered"
+        },
+        {
+         "part": "M5 × 12 socket head screw",
+         "qty": "8",
+         "source": "buy",
+         "material": "A2 stainless",
+         "mass": "4 g"
+        },
+        {
+         "part": "M5 flat washer",
+         "qty": "8",
+         "source": "buy",
+         "material": "A2 stainless",
+         "mass": "1 g",
+         "status": "missing"
+        }
+       ],
+       "totals": [
+        [
+         "Parts",
+         "19"
+        ],
+        [
+         "Mass",
+         "1.93 kg"
+        ],
+        [
+         "Cost",
+         "$84.60"
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     52,
+     48
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "partprops",
+       "title": "Sketch 3 · motor bore",
+       "stamp": "Under-defined",
+       "free": 1,
+       "sections": [
+        {
+         "label": "Selected",
+         "rows": [
+          [
+           "Circle",
+           "Ø28.000 mm"
+          ],
+          [
+           "Centre",
+           "60.000, 52.000"
+          ],
+          [
+           "Plane",
+           "Upright front face"
+          ]
+         ]
+        },
+        {
+         "label": "Body",
+         "rows": [
+          [
+           "Material",
+           "Al 6061-T6"
+          ],
+          [
+           "Mass",
+           "212 g"
+          ],
+          [
+           "Volume",
+           "78.5 cm³"
+          ]
+         ]
+        }
+       ],
+       "constraints": [
+        {
+         "name": "Diameter",
+         "count": "1"
+        },
+        {
+         "name": "Horizontal",
+         "count": "1"
+        },
+        {
+         "name": "Coincident",
+         "count": "2"
+        },
+        {
+         "name": "Vertical distance",
+         "state": "under",
+         "count": "missing"
+        }
+       ]
+      }
+     },
+     {
+      "view": "agent",
+      "chat": {
+       "you": "The motor shaft sits 52 mm above the base. Centre the bore on it.",
+       "say": "Moved the bore to 52 mm and left the height free so you can lock it. The R2 fillets fail on the gusset edges; trying R1.5.",
+       "log": [
+        [
+         "read the motor datasheet",
+         "shaft 52 mm, Ø6.35"
+        ],
+        [
+         "moved Motor bore",
+         "50 → 52 mm"
+        ],
+        [
+         "rebuilt 9 features",
+         "1 fails"
+        ],
+        [
+         "checked 4 mount holes",
+         "M5, 31 mm apart"
+        ],
+        [
+         "[x] bore and base",
+         "done"
+        ],
+        [
+         "[ ] edge fillets",
+         "retrying"
+        ],
+        [
+         "[ ] export bracket-v3.step",
+         "your yes"
+        ]
+       ],
+       "now": [
+        "Retrying Edge fillets at R1.5",
+        ""
+       ],
+       "hint": "Ask for a change to the part",
+       "strip": [
+        "auto · rebuilding",
+        "1 sketch free",
+        "1 waiting on you"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

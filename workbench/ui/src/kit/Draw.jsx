@@ -6,7 +6,7 @@ import { Heading } from '@astryxdesign/core/Heading';
 import { Table } from '@astryxdesign/core/Table';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
-import { expand, isFallback } from './check.js';
+import { expand, isFallback, PAGE_ROWS } from './check.js';
 import PA from './parts-a.jsx';
 import PB from './parts-b.jsx';
 import PC from './parts-c.jsx';
@@ -57,16 +57,32 @@ export function Act({ a, size }) {
   return <Button size={size} label={String(a.label)} variant={a.primary === true ? 'primary' : 'secondary'} onClick={() => emit(ev)} />;
 }
 
+/** How many of `n` rows to draw, and a button that draws 50 more and sends a "more" event. */
+export function usePage(n) {
+  const emit = useEmit();
+  const [shown, setShown] = useState(PAGE_ROWS);
+  const more = n > shown ? <Button size="sm" variant="secondary" label={`Show ${Math.min(PAGE_ROWS, n - shown)} more`} onClick={() => { setShown(shown + PAGE_ROWS); emit('more'); }} /> : null;
+  return [shown, more];
+}
+
+/** A part its zone cannot hold: its first line and an "open" button. */
+function Folded({ p }) {
+  const emit = useEmit();
+  return <div className="ou-drawn-folded"><Text size="sm">{p.line}</Text><Button size="sm" variant="secondary" label="open" onClick={() => emit('open')} /></div>;
+}
+
 const Cell = ({ v }) => (typeof v === 'string' ? v : <Part p={v} />);
 
 function Grid({ p }) {
   const columns = p.cols.map((h, j) => ({ key: `c${j}`, header: h, renderCell: (r) => <Cell v={r.cells[j]} /> }));
-  const data = p.rows.map((cells, i) => ({ id: String(i), cells: isFallback(cells) ? [] : cells, bad: isFallback(cells) ? cells : null }));
+  const [shown, more] = usePage(p.rows.length);
+  const data = p.rows.slice(0, shown).map((cells, i) => ({ id: String(i), cells: isFallback(cells) ? [] : cells, bad: isFallback(cells) ? cells : null }));
   return (
     <div className="ou-drawn-table">
       <Table data={data.filter((r) => !r.bad)} columns={columns} idKey="id" hasHover />
       {data.filter((r) => r.bad).map((r) => <Plain key={r.id} f={r.bad} />)}
       {p.foot ? <Text color="secondary" size="sm">{String(p.foot)}</Text> : null}
+      {more}
       {p.more ? <Text color="secondary" size="sm">{`${p.more} more rows not drawn`}</Text> : null}
     </div>
   );
@@ -74,6 +90,7 @@ function Grid({ p }) {
 
 export function Part({ p }) {
   if (isFallback(p)) return <Plain f={p} />;
+  if (p.folded) return <Folded p={p} />;
   switch (p.type) {
     case 'page': return <VStack gap={4}>{p.children.map((c, i) => <Part key={i} p={c} />)}</VStack>;
     case 'section':
@@ -111,8 +128,8 @@ export function Part({ p }) {
 }
 
 /** Draws an agent's spec from the catalogue only; every part is checked before it draws, and a bad one becomes a text box. */
-export function Drawn({ spec, onEvent }) {
-  const { root } = expand(spec);
+export function Drawn({ spec, onEvent, zone = 'tab', data }) {
+  const { root } = expand(spec, zone, data);
   const [missing, setMissing] = useState([]);
   const vals = useRef({}).current;
   const need = useRef(new Set()).current;

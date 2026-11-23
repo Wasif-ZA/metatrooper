@@ -6,6 +6,8 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { coreDir, homeDir } from '../paths.ts';
 import { canonicalPath, isAskPath } from '../project.ts';
 import { settings } from '../settings.ts';
+import { loadEngines } from '../engines/registry.ts';
+import { HASH_LABEL, imageHash } from './build.ts';
 
 const LOGIN_MARGIN_MS = 60 * 60 * 1000;
 
@@ -40,7 +42,14 @@ function authCmdRefusal(engine: EngineSpec): string | null {
 }
 
 /** Why an isolated launch of this engine in this folder must not start, or null when every check passes. */
-export function sandboxRefusal(engine: EngineSpec, cwd: string, deps = { runtime: containerRuntime, now: Date.now }): string | null {
+/** The troop.hash label of the built image, or null when it has none. */
+function imageLabel(runtime: string): string | null {
+  const r = spawnSync(runtime, ['image', 'inspect', '--format', `{{ index .Config.Labels "${HASH_LABEL}" }}`, imageTag()], { stdio: 'pipe', encoding: 'utf8', timeout: 15_000, windowsHide: true });
+  const v = r.status === 0 ? String(r.stdout).trim() : '';
+  return v && v !== '<no value>' ? v : null;
+}
+
+export function sandboxRefusal(engine: EngineSpec, cwd: string, deps: { runtime: () => string | null; now: () => number; label?: (runtime: string) => string | null; hash?: () => string } = { runtime: containerRuntime, now: Date.now }): string | null {
   if (!engine.sandbox || !engine.approval_profiles?.isolated) return `${engine.id} has no sandbox setup`;
   const dir = canonicalPath(cwd);
   if (isAskPath(dir, settings().sessions.ask_paths)) return 'isolated never runs on an ask path';
@@ -50,6 +59,7 @@ export function sandboxRefusal(engine: EngineSpec, cwd: string, deps = { runtime
   if (!runtime) return 'no container runtime answers; start Docker Desktop';
   const image = spawnSync(runtime, ['image', 'inspect', imageTag()], { stdio: 'pipe', timeout: 15_000, windowsHide: true });
   if (image.status !== 0) return `the sandbox image ${imageTag()} is not built; run troop sandbox build`;
+  if ((deps.label ?? imageLabel)(runtime) !== (deps.hash ?? (() => imageHash(loadEngines())))()) return `the sandbox image ${imageTag()} is out of date (hook code, sandbox files or the egress list changed); rebuild it with troop sandbox build`;
   if (engine.id === 'claude') return claudeLoginRefusal(deps.now());
   return authCmdRefusal(engine);
 }

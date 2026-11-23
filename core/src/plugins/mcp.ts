@@ -8,7 +8,8 @@ import { getSecret, getSecretAsync } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { headerSecretNames, mcpWrites, type McpSpec } from './manifest.ts';
-import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
+import { blockReason } from './blocklist.ts';
+import { checkShippedFiles, listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
 const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
 
@@ -19,11 +20,14 @@ export interface ResolvedServer {
   refs: Record<string, string>;
   missing: string[];
   headers?: Record<string, string>;
+  box?: { net: boolean; grants: string[]; project: 'r' | 'w' } | null;
 }
 
 function pluginServer(db: DatabaseSync, pluginId: string, serverId: string) {
   const plugin = loadPlugin(db, pluginId);
   if (!plugin) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+  const blocked = plugin.source === 'builtin' ? null : blockReason(plugin.id, plugin.version);
+  if (blocked) throw new RpcError(E.VALIDATION, `${plugin.id} ${plugin.version} is on cc's block list: ${blocked}`);
   const server = (plugin.manifest.mcp ?? []).find((s) => s.id === serverId);
   if (!server) throw new RpcError(E.NOT_FOUND, `MCP server ${serverId} not found in ${pluginId}`);
   return { plugin, server };
@@ -47,8 +51,10 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
     }
     return out;
   }
+  checkShippedFiles(db, plugin);
   const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
-  const out: ResolvedServer = { command: server.command ?? '', args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
+  const shipped = (server.command ?? '').startsWith('{{plugin_dir}}');
+  const out: ResolvedServer = { command: (server.command ?? '').replaceAll('{{plugin_dir}}', () => plugin.path), args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
   for (const key of server.env_keys ?? []) {
     if (!plugin.permissions.includes(`secrets:${key}`)) {
       out.missing.push(key);
@@ -76,6 +82,9 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
       if (!out.missing.includes('CC_PLUGIN_DATA')) out.missing.push('CC_PLUGIN_DATA');
     }
   }
+  out.box = shipped && process.platform === 'win32' && plugin.source !== 'builtin'
+    ? { net: plugin.permissions.includes('network') || mcpWrites(server) === 'external', grants: [`r ${plugin.path}`, ...(out.env.CC_PLUGIN_DATA ? [`w ${out.env.CC_PLUGIN_DATA}`] : [])], project: mcpWrites(server) === 'project' ? 'w' : 'r' }
+    : null;
   return out;
 }
 
@@ -220,7 +229,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
         : { command: s.command ?? node, args: s.args }]));
       writeSessionFile(db, sessionId, file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
-      return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`, ...(servers.some((s) => s.name === 'ouros-steps') ? ['--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui'] : [])];
+      return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`, ...(servers.some((s) => s.name === 'ouros-steps') ? ['--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui', '--allowedTools=mcp__ouros-ui__ouros_workspace'] : [])];
     }
     case 'codex-config': {
       const file = codexConfigFile();

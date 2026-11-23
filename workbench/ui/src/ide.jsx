@@ -30,6 +30,7 @@ import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
 import { Verdict } from './verdict.jsx';
+import { Pane, WorkspaceBanner, hasView, wsStore } from './workspace.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -1498,6 +1499,7 @@ function RightGroup({ st, right, changed }) {
 
 export function Ide() {
   ideStore.use();
+  const { ws } = wsStore.use();
   const { open: panel, tab: bottom } = cur ? paneOf(cur) : { open: true, tab: 'terminal' };
   const setPanel = (v) => cur && setPane(cur, v);
   const setBottom = (v) => cur && setPane(cur, paneOf(cur).open, v);
@@ -1523,11 +1525,13 @@ export function Ide() {
   const problems = st.problems || [];
   const showProblems = () => { setPanel(true); setBottom('problems'); };
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
+  const layout = ws && ws.project_id === st.pid ? ws.current : null;
+  const allow = new Set(layout ? (layout.rail || []).map((r) => (r === 'git' ? 'changes' : r)) : ['files', 'search', 'changes']);
   const views = (
     <>
-      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" data-ide-side="files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={24} />} onClick={() => { st.side = 'files'; bump(); }} />
-      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" data-ide-side="search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={24} />} onClick={() => { st.side = 'search'; bump(); }} />
-      <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" data-ide-side="changes" aria-pressed={st.side === 'changes'}
+      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" data-ide-side="files" hidden={!allow.has('files')} aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={24} />} onClick={() => { st.side = 'files'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" data-ide-side="search" hidden={!allow.has('search')} aria-pressed={st.side === 'search'} icon={<Ic.Search size={24} />} onClick={() => { st.side = 'search'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" data-ide-side="changes" hidden={!allow.has('changes')} aria-pressed={st.side === 'changes'}
         icon={<span className="ou-ide-railicon"><Ic.Branch size={24} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
         onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
     </>
@@ -1547,8 +1551,7 @@ export function Ide() {
     { label: 'Open in VS Code', onClick: () => void openInVsCode(st, tp) },
   ];
 
-  return (
-    <div className="ou-ide" key={st.pid}>
+  const explorer = (
       <aside className="ou-ide-side">
         {rail ? createPortal(views, rail) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
         <div className="ou-ide-pane">
@@ -1569,7 +1572,8 @@ export function Ide() {
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
         </div>
       </aside>
-      <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
+  );
+  const editor = (
         <div className="ou-ide-groups">
         <DrawnTabs pid={st.pid} />
         <div className="ou-ide-group" data-focused={st.focus !== 1} onMouseDownCapture={() => { if (st.focus === 1) { st.focus = 0; bump(); } }}>
@@ -1605,6 +1609,24 @@ export function Ide() {
         </div>
         {right.length ? <RightGroup st={st} right={right} changed={changed} /> : null}
         </div>
+  );
+  if (layout) {
+    return (
+      <div className="ou-ide ou-ide-ws" key={st.pid}>
+        {rail && !hasView(layout.layout, 'explorer') ? createPortal(views, rail) : null}
+        <WorkspaceBanner />
+        <div className="ou-ws-root"><Pane node={layout.layout} pid={st.pid} views={{ explorer, editor: <section className="ou-ide-main ou-ide-folded">{editor}</section>, terminal: <Terminal key={`${st.pid}:${gen}`} pid={st.pid} onKind={setShellName} />, wall: <EmptyState isCompact title="The Wall" actions={<Button size="sm" label="Open the Wall" onClick={() => homeView?.set?.('wall')} />} /> }} /></div>
+        <StatusBar st={st} active={active} problems={problems} onProblems={showProblems} />
+        <Asks st={st} />
+      </div>
+    );
+  }
+  return (
+    <div className="ou-ide" key={st.pid}>
+      <WorkspaceBanner />
+      {explorer}
+      <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
+        {editor}
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
             <TabList size="sm" role="tablist" aria-label="Panel" value={bottom} onChange={(v) => { setBottom(v); setPanel(true); }}>

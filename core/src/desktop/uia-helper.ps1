@@ -301,6 +301,56 @@ namespace TroopUia {
       return outList;
     }
 
+    // M8-38 row 3: one cross-process call fetches the whole control-view subtree with the properties a snapshot line needs
+    static readonly AutomationProperty[] CachedProps = {
+      AutomationElement.NameProperty, AutomationElement.AutomationIdProperty, AutomationElement.ControlTypeProperty, AutomationElement.IsPasswordProperty,
+      AutomationElement.IsInvokePatternAvailableProperty, AutomationElement.IsTogglePatternAvailableProperty, AutomationElement.IsSelectionItemPatternAvailableProperty,
+      AutomationElement.IsValuePatternAvailableProperty, ValuePattern.ValueProperty, ValuePattern.IsReadOnlyProperty };
+
+    static List<KeyValuePair<int, AutomationElement>> WalkCached(AutomationElement top, int max, bool skipWrappers, out bool truncated) {
+      var cr = new CacheRequest { TreeScope = TreeScope.Element | TreeScope.Subtree, TreeFilter = Automation.ControlViewCondition };
+      foreach (var prop in CachedProps) cr.Add(prop);
+      AutomationElement root;
+      using (cr.Activate()) root = top.GetUpdatedCache(cr);
+      var outList = new List<KeyValuePair<int, AutomationElement>>();
+      var stack = new Stack<KeyValuePair<int, AutomationElement>>();
+      stack.Push(new KeyValuePair<int, AutomationElement>(0, root));
+      while (stack.Count > 0 && outList.Count < max) {
+        var cur = stack.Pop();
+        bool wrapper = skipWrappers && cur.Key > 0 && CachedWrapper(cur.Value);
+        if (!wrapper) outList.Add(cur);
+        AutomationElementCollection kids;
+        try { kids = cur.Value.CachedChildren; } catch { continue; }
+        for (int i = kids.Count - 1; i >= 0; i--) stack.Push(new KeyValuePair<int, AutomationElement>(wrapper ? cur.Key : cur.Key + 1, kids[i]));
+      }
+      truncated = stack.Count > 0;
+      return outList;
+    }
+
+    static bool CachedWrapper(AutomationElement e) {
+      try { return e.Cached.ControlType == ControlType.Pane && (e.Cached.Name ?? "").Length == 0 && (e.Cached.AutomationId ?? "").Length == 0; } catch { return false; }
+    }
+
+    // NodeLine plus ActionsOf from the cache only
+    static string CachedLine(AutomationElement e) {
+      var c = e.Cached;
+      string name = c.Name ?? "", aid = c.AutomationId ?? "";
+      string n = c.ControlType.ProgrammaticName;
+      var sb = new StringBuilder(n.StartsWith("ControlType.") ? n.Substring(12).ToLowerInvariant() : n.ToLowerInvariant());
+      if (name.Length > 0) sb.Append(" \"").Append(name.Length > 200 ? name.Substring(0, 200) : name).Append('"');
+      if (aid.Length > 0) sb.Append(" #").Append(aid);
+      if (c.IsPassword) sb.Append(" password");
+      bool hasValue = (bool)e.GetCachedPropertyValue(AutomationElement.IsValuePatternAvailableProperty);
+      string val = hasValue && !c.IsPassword ? e.GetCachedPropertyValue(ValuePattern.ValueProperty) as string : null;
+      if (!string.IsNullOrEmpty(val)) sb.Append(" value=\"").Append((val.Length > 200 ? val.Substring(0, 200) + "..." : val).Replace("\r", " ").Replace("\n", " ")).Append('"');
+      var actions = new List<string>();
+      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsInvokePatternAvailableProperty)) actions.Add("Invoke");
+      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsTogglePatternAvailableProperty)) actions.Add("Toggle");
+      if ((bool)e.GetCachedPropertyValue(AutomationElement.IsSelectionItemPatternAvailableProperty)) actions.Add("Select");
+      if (hasValue && !(bool)e.GetCachedPropertyValue(ValuePattern.IsReadOnlyProperty)) actions.Add("SetValue");
+      return sb.Append(" actions=[").Append(string.Join(",", actions)).Append("]").ToString();
+    }
+
     static string ActionsOf(AutomationElement e) {
       var actions = new List<string>();
       object p;
@@ -357,15 +407,20 @@ namespace TroopUia {
 
     static object Snapshot(long hwnd, int max) {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
-      bool truncated;
+      bool truncated = false;
       bool chromium = ClassOf(Native.GetAncestor(new IntPtr(hwnd), GA_ROOT)) == "Chrome_WidgetWin_1";
       bool pages = chromium && WaitForPages(new IntPtr(hwnd));
       if (pages) top = AutomationElement.FromHandle(new IntPtr(hwnd));
-      var nodes = Walk(top, max, chromium, out truncated);
-      if (!pages && nodes.Count < 20 && !truncated) { Thread.Sleep(2000); nodes = Walk(top, max, chromium, out truncated); }
+      bool cached = true;
+      Func<List<KeyValuePair<int, AutomationElement>>> walk = () => {
+        if (cached) { try { return WalkCached(top, max, chromium, out truncated); } catch { cached = false; } }
+        return Walk(top, max, chromium, out truncated);
+      };
+      var nodes = walk();
+      if (!pages && nodes.Count < 20 && !truncated) { Thread.Sleep(2000); nodes = walk(); }
       var map = new Dictionary<string, AutomationElement>();
       int n;
-      string text = Render(nodes, e => NodeLine(e) + ActionsOf(e), map, out n);
+      string text = Render(nodes, e => cached ? CachedLine(e) : NodeLine(e) + ActionsOf(e), map, out n);
       if (truncated) text += "[truncated: max_nodes=" + max + "; more nodes remain]\n";
       Refs[hwnd] = map;
       return new Dictionary<string, object> { { "text", text }, { "nodes", n }, { "truncated", truncated } };

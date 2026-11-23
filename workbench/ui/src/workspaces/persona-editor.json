@@ -1,0 +1,359 @@
+{
+ "name": "Cutting room",
+ "by": "claude",
+ "place": "repot-monstera : 2 min cut",
+ "asked": "Cut this footage into a 2-minute video: repotting a monstera, for the shop's channel.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "col",
+  "sizes": [
+   54,
+   46
+  ],
+  "children": [
+   {
+    "split": "row",
+    "sizes": [
+     18,
+     58,
+     24
+    ],
+    "children": [
+     {
+      "split": "col",
+      "sizes": [
+       60,
+       40
+      ],
+      "children": [
+       {
+        "view": "kit",
+        "title": "Footage",
+        "part": {
+         "type": "tree",
+         "nodes": [
+          {
+           "label": "footage",
+           "children": [
+            {
+             "label": "take-01 wide.mp4",
+             "right": "6:12",
+             "state": "ok"
+            },
+            {
+             "label": "take-02 hands.mp4",
+             "right": "4:40",
+             "state": "ok"
+            },
+            {
+             "label": "take-03 pot.mp4",
+             "right": "3:05",
+             "state": "ok"
+            },
+            {
+             "label": "voice.wav",
+             "right": "9:58",
+             "state": "ok"
+            },
+            {
+             "label": "ambient-loop-01.mp3",
+             "right": "2:00"
+            }
+           ]
+          },
+          {
+           "label": "edit",
+           "children": [
+            {
+             "label": "monstera-cut.timeline",
+             "right": "1:58"
+            },
+            {
+             "label": "captions.srt",
+             "right": "46"
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "view": "kit",
+        "title": "Clip",
+        "part": {
+         "type": "kv",
+         "rows": [
+          [
+           "name",
+           "take-03 pot.mp4"
+          ],
+          [
+           "length",
+           "3:05"
+          ],
+          [
+           "format",
+           "1920x1080, 30 fps"
+          ],
+          [
+           "used",
+           "14 of 41 shots"
+          ],
+          [
+           "audio",
+           "stereo, -18 dB"
+          ]
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "screening",
+       "length": 118,
+       "playhead": 69.6,
+       "time": "1:09",
+       "total": "1:58",
+       "caption": "fill in around it",
+       "meta": "monstera-cut.mp4, 1920x1080, 30 fps",
+       "tabs": [
+        {
+         "label": "rough",
+         "on": false
+        },
+        {
+         "label": "cut 2",
+         "on": true
+        }
+       ],
+       "notes": [
+        {
+         "at": "0:21",
+         "sec": 21.4,
+         "by": "AI",
+         "src": "check",
+         "text": "Hands cover the roots; punched in to 110%",
+         "state": "fixed"
+        },
+        {
+         "at": "1:10",
+         "sec": 69.6,
+         "by": "AI",
+         "src": "check",
+         "text": "Cut at 1:10 clips a word; sliding it 6 frames",
+         "state": "open",
+         "choices": [
+          "slide the cut 6 frames",
+          "keep the cut"
+         ]
+        }
+       ],
+       "around": {
+        "label": "3 s around 1:10",
+        "range": "1:08.6 to 1:11.6"
+       },
+       "stats": "46 captions · music ducked"
+      }
+     },
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Keep it under 2 minutes and keep the bit where the roots come out.",
+       "say": "First cut is 1:58. The roots shot stays at 0:22. One cut at 1:10 lands mid-word; sliding it 6 frames. Rendering the 1080p file is yours to approve.",
+       "log": [
+        [
+         "transcribed voice track",
+         "2,140 words"
+        ],
+        [
+         "picked the best take per step",
+         "3 takes"
+        ],
+        [
+         "cut to 41 shots",
+         "1:58"
+        ],
+        [
+         "captions from the voice track",
+         "46 lines"
+        ],
+        [
+         "[x] rough cut",
+         "done"
+        ],
+        [
+         "[x] captions",
+         "done"
+        ],
+        [
+         "[ ] fix the 1:10 cut",
+         "next"
+        ],
+        [
+         "[ ] render 1080p",
+         "your yes"
+        ]
+       ],
+       "now": [
+        "Fixing the 1:10 cut",
+        "+6 frames"
+       ],
+       "hint": "Ask for a change to the edit",
+       "strip": [
+        "auto · cutting",
+        "1 cut left",
+        "1 waiting on you"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "cuttimeline",
+     "title": "Timeline",
+     "file": "monstera, 2 min cut",
+     "length": 118,
+     "playhead": 69.6,
+     "scale": [
+      "0:00",
+      "0:30",
+      "1:00",
+      "1:30",
+      "1:58"
+     ],
+     "view": {
+      "start": 52,
+      "len": 36
+     },
+     "stats": [
+      "41 cuts",
+      "46 captions",
+      "1:58"
+     ],
+     "foot": "1 cut is waiting on a fix",
+     "tracks": [
+      {
+       "label": "Titles",
+       "sub": "",
+       "kind": "overlay",
+       "items": [
+        {
+         "start": 0,
+         "len": 5,
+         "label": "title card"
+        },
+        {
+         "start": 92,
+         "len": 6,
+         "label": "step 3"
+        }
+       ]
+      },
+      {
+       "label": "Video",
+       "sub": "",
+       "kind": "video",
+       "items": [
+        {
+         "start": 0,
+         "len": 22,
+         "label": "take-02",
+         "scene": "b"
+        },
+        {
+         "start": 22,
+         "len": 42,
+         "label": "take-01",
+         "scene": "a"
+        },
+        {
+         "start": 64,
+         "len": 54,
+         "label": "take-03",
+         "scene": "a"
+        }
+       ]
+      },
+      {
+       "label": "Captions",
+       "sub": "",
+       "kind": "caps",
+       "items": [
+        {
+         "start": 1,
+         "len": 14,
+         "label": "trim to firm roots"
+        },
+        {
+         "start": 16,
+         "len": 16,
+         "label": "add a layer of soil"
+        },
+        {
+         "start": 34,
+         "len": 17,
+         "label": "plant below the rim"
+        },
+        {
+         "start": 66,
+         "len": 22,
+         "label": "fill in around it"
+        },
+        {
+         "start": 90,
+         "len": 26,
+         "label": "leave room at top"
+        }
+       ]
+      },
+      {
+       "label": "Voice",
+       "sub": "",
+       "kind": "wave"
+      },
+      {
+       "label": "Music",
+       "sub": "",
+       "kind": "music",
+       "items": [
+        {
+         "start": 0,
+         "len": 118,
+         "label": "ambient-loop-01, ducked under the voice"
+        }
+       ]
+      }
+     ],
+     "marks": [
+      {
+       "at": 21.4,
+       "kind": "flag",
+       "label": "0:21 punch-in"
+      },
+      {
+       "at": 22,
+       "kind": "take"
+      },
+      {
+       "at": 64,
+       "kind": "take"
+      },
+      {
+       "at": 69.6,
+       "kind": "flag",
+       "label": "1:10 fixing"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
