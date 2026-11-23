@@ -12,7 +12,8 @@ const GATE_TEXT = ['title', 'text', 'why', 'aside'];
 
 /** An agent can never draw a real gate: every gate part keeps only its plain text (title, text, why, aside) and loses any action, hash or other field, so it draws as the inert grey card (M8-28a, Wasif #32). */
 export function inertGates(x: unknown, depth = 0): unknown {
-  if (depth > 64 || !x || typeof x !== 'object') return x;
+  if (!x || typeof x !== 'object') return x;
+  if (depth > 64) return null;
   if (Array.isArray(x)) return x.map((y) => inertGates(y, depth + 1));
   const o = x as Record<string, unknown>;
   if (o.type === 'gate') return Object.fromEntries([['type', 'gate'], ...GATE_TEXT.filter((k) => typeof o[k] === 'string').map((k) => [k, o[k]])]);

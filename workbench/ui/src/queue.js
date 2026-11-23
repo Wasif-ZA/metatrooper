@@ -9,6 +9,8 @@ export function setQueued(id, text) {
 }
 
 export function flushQueued(sessions, send) {
+  const known = new Set((sessions || []).map((x) => x.id));
+  for (const id of [...queued.keys()]) if (!known.has(id)) queued.delete(id);
   for (const x of sessions || []) {
     const t = queued.get(x.id);
     if (!t) continue;

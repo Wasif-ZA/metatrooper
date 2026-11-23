@@ -1049,9 +1049,14 @@ function historyItems(q) {
 }
 
 async function openHistory(x) {
-  if (x.state !== 'exited') { await pick(x.id); return; }
-  const r = await rpc('session.resume', { session_id: x.id });
-  if (r.result) await pick(r.result.session_id);
+  let id = x.id;
+  if (x.state === 'exited') {
+    const r = await rpc('session.resume', { session_id: x.id });
+    if (!r.result) return;
+    id = r.result.session_id;
+  }
+  if (x.project_id && x.project_id !== ui.projectId) { ui.pendingPick = id; switchProject(x.project_id); return; }
+  await pick(id);
 }
 
 async function openHit(h) {
@@ -2052,7 +2057,7 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
-  globalThis.flushQueued?.(s.sessions);
+  globalThis.flushQueued?.([...s.sessions, ...(s.live || []).filter((x) => !s.sessions.some((y) => y.id === x.id))]);
   if (s.core.online) { ui.coreSeen = true; void vscodeOnce(); }
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
@@ -2342,7 +2347,7 @@ document.addEventListener('keydown', watchKeys, true);
 
 /** Ctrl+Alt+V moves between the IDE and the Wall (M8-17a). */
 function viewKeys(e) {
-  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap) return;
+  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap || e.getModifierState?.('AltGraph')) return;
   e.preventDefault();
   e.stopImmediatePropagation();
   homeView.set(ui.view === 'wall' ? 'ide' : 'wall');

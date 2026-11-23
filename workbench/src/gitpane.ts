@@ -179,8 +179,7 @@ export async function ship(git: Run, gh: (args: string[]) => Promise<string>, me
   if (!head) throw new Error('push failed: cannot tell the default branch of origin; set it with git remote set-head origin --auto');
   if (branch.toLowerCase() === head.toLowerCase()) throw new Error(`push failed: ${branch} is the default branch; ship from a feature branch`);
   let commit: string | undefined;
-  if ((await step('commit', () => git(['status', '--porcelain']))).trim()) {
-    if (!(await step('commit', () => git(['diff', '--cached', '--name-only']))).trim()) throw new Error('commit failed: nothing is staged; stage the files to ship first');
+  if ((await step('commit', () => git(['diff', '--cached', '--name-only']))).trim()) {
     const msg = message.trim();
     if (!msg || msg.includes('\0')) throw new Error('commit failed: write a commit message first');
     await step('commit', () => git(['commit', '-F', '-'], msg));
