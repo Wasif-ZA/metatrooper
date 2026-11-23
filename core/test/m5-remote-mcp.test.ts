@@ -140,7 +140,7 @@ test('M5-12f STDIO external writer attaches only under ask approval; ouros-steps
     fixture(db, id, manifest(id, [{ id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] }]));
     const server = { id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] };
     const claude = engine('claude', 'claude-mcp-config-flag') as never;
-    const flags = ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/'), '--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui'];
+    const flags = ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/'), '--allowedTools=mcp__ouros-steps__steps_set', '--allowedTools=mcp__ouros-ui__ouros_ui', '--allowedTools=mcp__ouros-ui__ouros_workspace'];
     const attached = () => Object.keys(JSON.parse(readFileSync(join(dir, 'mcp', 'test-session.json'), 'utf8')).mcpServers);
     for (const ctx of [{ pipeline: true, approval: 'isolated' }, { approval: 'isolated' }]) assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), []);
     for (const ctx of [{ pipeline: true, approval: 'contained' }, { pipeline: true, approval: 'ask' }]) {

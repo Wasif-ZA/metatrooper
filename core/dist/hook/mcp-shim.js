@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.js';
 import { createDecoder, encode } from '../pipe/framing.js';
 import { resolveCommand } from './resolve.js';
-import { STEPS_TOOL, UI_TOOL } from './ouros-tools.js';
+import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.js';
 
                     
                   
@@ -98,13 +98,13 @@ async function serveUi()                {
   const { serveMcp } = await import('./mcp-stdio.js');
   const { findSession } = await import('./workbench-pipe.js');
   const { call } = await import('../pipe/client.js');
-  serveMcp('ouros-ui', [UI_TOOL], async (name, args) => {
+  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
     const fail = (text        ) => ({ content: [{ type: 'text', text }], isError: true });
-    if (name !== 'ouros_ui') return fail(`unknown tool ${name}`);
+    if (name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
-    const out = await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
-    if (out.kind !== 'reply') return fail('the cc core is offline; nothing was drawn');
+    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
+    if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');
     if (out.reply.error) return fail(out.reply.error.message);
     return { content: [{ type: 'text', text: JSON.stringify(out.reply.result) }] };
   });

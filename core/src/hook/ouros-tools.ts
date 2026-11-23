@@ -27,3 +27,17 @@ export const UI_TOOL: ToolDef = {
   },
   annotations: { readOnlyHint: false, destructiveHint: false },
 };
+
+export const WORKSPACE_TOOL: ToolDef = {
+  name: 'ouros_workspace',
+  description: 'Change the layout of the user\'s cc IDE when they ask for it. op set sends a whole layout: {name, asked?: the user\'s words, rail: subset of files|search|git|debug|agents|ext|todo, layout: pane}. A pane is {split: "row"|"col", sizes: number[] (shares, each at least 8), children: pane[] (2 or more)}, {view: "explorer"|"editor"|"agent"|"terminal"|"wall"}, {view: "surface", spec: <a surface id you drew with ouros_ui>} or {view: "kit", title?, part: <a catalogue part>}; at most 4 levels deep. cc checks it; a bad layout is refused, the old one stays, and the reasons come back in last.reasons. The user can undo any change with Ctrl Z and go back to their usual layout with Ctrl Alt 0; the title bar, status bar, gates and inbox always stay. op save {name} names the current layout; op restore {name} applies a saved one.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      op: { type: 'string', enum: ['set', 'save', 'restore'], default: 'set' },
+      workspace: { type: 'object', description: 'The whole layout, for op set.' },
+      name: { type: 'string', description: 'The layout name, for op save and restore.' },
+    },
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};
