@@ -904,7 +904,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('worktree.create', {
     handler: async (p, ctx) => {
-      if (ctx && !ctx.ui && !(typeof p.session_secret === 'string' && p.session_secret && proveSecret(p.session_secret))) throw new RpcError(E.NEEDS_UI, 'worktree.create needs a trusted UI connection (ui.hello) or a live session_secret');
+      if (!ctx?.ui && !(typeof p.session_secret === 'string' && p.session_secret && proveSecret(p.session_secret))) throw new RpcError(E.NEEDS_UI, 'worktree.create needs a trusted UI connection (ui.hello) or a live session_secret');
       const patterns = settings().worktree.preserve;
       validatePreserve(patterns);
       const project = db.prepare('SELECT id, path FROM project WHERE id = ?').get(str(p, 'project_id')) as

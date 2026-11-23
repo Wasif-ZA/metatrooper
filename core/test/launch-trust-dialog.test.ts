@@ -128,6 +128,17 @@ test('4: real engine activity blocks trust phrase false positives', async () => 
   }
 });
 
+test('5b: core events such as core.seen or core.resumed before the first check do not block detection', async () => {
+  // protects=engine-evidence guard fails_when=any non-engine event (the user opening the stuck tile) switches detection off
+  for (const kind of ['core.seen', 'core.resumed', 'term.bell']) {
+    const h = await fixture('claude');
+    try {
+      h.send(kind, {});
+      await detect(h, dialog);
+    } finally { h.close(); }
+  }
+});
+
 test('5: SessionStart alone does not block folder trust detection', async () => {
   // protects=SessionStart exemption fails_when=SessionStart is mistaken for substantive engine activity
   for (const engine of ['claude', 'codex', 'agy']) {
