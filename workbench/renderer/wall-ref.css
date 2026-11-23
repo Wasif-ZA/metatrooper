@@ -41,6 +41,10 @@
 .hag .hname { color: var(--body); }
 .hag:is(.on, :hover, :focus-visible) .hname { color: var(--ink); }
 .hag .hst { color: var(--mute); padding-left: 6px; }
+.hag .hst.hneeds { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--wait); color: #0b0b0c; font-weight: 600; font-size: 11px; }
+.hag-proj { display: flex; justify-content: space-between; padding: 8px 10px 2px 8px; color: var(--body); font-weight: 600; }
+.hag-proj .hgn { color: var(--body); font-weight: 400; }
+.hag-head .hneedsn { margin-left: 6px; color: var(--wait); font-weight: 600; }
 .hag .hnum { color: var(--mute); font-weight: 400; }
 .hag .htask { color: var(--faint); font-weight: 400; }
 .hag:hover { background: var(--canvas); }

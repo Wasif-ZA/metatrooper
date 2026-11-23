@@ -1523,6 +1523,7 @@ async function onClick(e) {
       hideMenu();
       await openFolder();
       return;
+    case 'pick-across': if (!pickAcross(el.dataset.id)) void pick(el.dataset.id); break;
     case 'pick': {
       wall.setList(false);
       if (pickAcross(id)) return;

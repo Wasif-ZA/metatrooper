@@ -37,12 +37,23 @@ const wallSide = (() => {
     const ws = top.map(row).join('') + folds.map(([name, ps]) => `<details class="hgrp" data-grp="${name}"${openGroups.has(name) ? ' open' : ''}><summary>${name} <span class="hgn">${ps.length}</span></summary>${ps.map(row).join('')}</details>`).join('');
     const mine = cur ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)) : [];
     const sel = mine.some((x) => x.id === focused) ? focused : ui.snap.selected;
-    const agents = mine.map((x, i) => {
+    // All agents (M8-F16): this project's first, then every other project with a live agent; only a row waiting on a person carries the orange tag.
+    const agentRow = (x, i, here) => {
       const k = kindOf(x.state);
-      return `<button class="hag${x.id === sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"${x.id === sel ? ' aria-current="true"' : ''}><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname"><span class="hnum">${i + 1}</span> <span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span><span class="hst">${esc(STATE_WORDS[x.state] || x.state)}</span></button>`;
-    }).join('');
+      const on = here && x.id === sel;
+      const needs = `<span class="hst${x.state === 'waiting_for_you' ? ' hneeds' : ''}">${esc(STATE_WORDS[x.state] || x.state)}</span>`;
+      return `<button class="hag${on ? ' on' : ''}" data-action="${here ? 'pick' : 'pick-across'}" data-id="${esc(x.id)}" title="${esc(`${taskOf(x)} (${x.engine_id})`)}"${on ? ' aria-current="true"' : ''}><span class="hg hk-${k}">${GLYPH[k]}</span><span class="hname">${here ? `<span class="hnum">${i + 1}</span> ` : ''}<span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(taskOf(x))}</span></span>${needs}</button>`;
+    };
+    const others = ui.snap.projects.filter((p) => p.id !== ui.projectId).map((p) => [p, live.filter((x) => x.project_id === p.id && x.state !== 'exited' && !ui.pendingHide.has(x.id))]).filter(([, xs]) => xs.length);
+    const group = (p, rows) => `<div class="hag-proj"><span class="hname">${esc(p.name)}</span><span class="hgn">${rows.length}</span></div>`;
+    const agents = [
+      ...(cur && others.length && mine.length ? [group(cur, mine)] : []),
+      ...mine.map((x, i) => agentRow(x, i, true)),
+      ...others.flatMap(([p, xs]) => [group(p, xs), ...xs.map((x, i) => agentRow(x, i, false))]),
+    ].join('');
+    const waiting = typeof needsCount === 'function' ? needsCount() : 0;
     const terms = (cur && typeof shellRows === 'function' ? shellRows() : []).map((x) => `<button class="hag${x.id === ui.shellSel ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}" title="${esc(x.task || '')}"><span class="hg hk-${x.state === 'exited' ? 'idle' : 'work'}">&gt;</span><span class="hname"><span class="heng">${esc(x.engine_id)}</span> <span class="htask">${esc(x.task || '')}</span></span></button>`).join('');
-    const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">agents</div><div class="hag-list">${agents || '<div class="hempty">No agents running</div>'}</div>${terms ? `<div class="hag-head">terminals</div><div class="hag-list">${terms}</div>` : ''}`;
+    const html = `<div class="hws-list">${ws}</div><button class="hnew" data-action="launch-menu" title="Start an agent or a terminal">new</button><div class="hag-head">${others.length ? 'all agents' : 'agents'}${waiting ? ` <span class="hneedsn">${waiting} need${waiting === 1 ? 's' : ''} you</span>` : ''}</div><div class="hag-list">${agents || '<div class="hempty">No agents running</div>'}</div>${terms ? `<div class="hag-head">terminals</div><div class="hag-list">${terms}</div>` : ''}`;
     if (el.dataset.html === html) return;
     const at = el.contains?.(document.activeElement) ? document.activeElement.dataset : null;
     el.dataset.html = html;
