@@ -188,6 +188,7 @@ async function loadGitStatus(st) {
   if (typeof rpc === 'function') void rpc('session.owners', { project_id: st.pid }, true).then((o) => {
     if (st.gitSeq !== seq || !o.result) return;
     st.owners = new Map(o.result.paths.filter((p) => p.owners.length).map((p) => [p.path, p.owners.map((w) => w.title).join(', ')]));
+    st.ownerCount = new Map(o.result.paths.map((p) => [p.path, p.owners.length]));
     bump();
   });
   bump();
@@ -793,6 +794,29 @@ function treeItems(st, rel, changed, dirty = gitDirs(st)) {
 
 const NotBuilt = () => <Badge label="Not built yet" />;
 
+function ChangedGroup({ st }) {
+  useEffect(() => { const t = setInterval(() => void loadGitStatus(st), 2000); return () => clearInterval(t); }, [st]);
+  const files = (st.git && st.git.files) || [];
+  if (!files.length) return null;
+  return (
+    <div className="ou-ide-changed" role="group" aria-label="Changed files">
+      <div className="ou-ide-chhead"><span>Changed</span><span>{files.length}</span></div>
+      {files.map((f) => {
+        const letter = f.conflict ? 'C' : statusLetter(f.index, f.worktree, f.worktree === '.');
+        const many = (st.ownerCount?.get(f.path) || 0) > 1;
+        return (
+          <button key={f.path} type="button" className="ou-ide-hit ou-ide-chrow" title={f.path} onClick={() => void openFile(st, f.path)}>
+            <FileIcon path={f.path} /><span className="ou-ide-name">{base(f.path)}</span>
+            <span className="ou-ide-dir">{st.owners?.get(f.path) || 'not an agent'}</span>
+            {many ? <span className="ou-ide-chmany" title={`Changed by ${st.owners.get(f.path)}`}>{st.ownerCount.get(f.path)} agents</span> : null}
+            <span className="ou-ide-chletter" data-letter={letter}>{letter}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Files({ st, changed }) {
   const p = project();
   const [target, setTarget] = useState(null);
@@ -833,6 +857,7 @@ function Files({ st, changed }) {
         </div>
       ) : null}
       <div className="ou-ide-tree" onKeyDown={(e) => walk(e, '.ou-ide-hit')}>
+        {st.q.trim() ? null : <ChangedGroup st={st} />}
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
             <FileIcon path={h} /><span className={`ou-ide-name ${fileLabelClass(st, h)}`}>{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />

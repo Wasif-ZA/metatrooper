@@ -163,3 +163,11 @@
 @media (prefers-reduced-motion: reduce) {
   .ou-ide-head-actions, .ou-ide-root-actions, .ou-ide-tree .astryx-tree-list-guide { transition: none; }
 }
+.ou-ide-changed { display: flex; flex-direction: column; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--hairline); }
+.ou-ide-chhead { display: flex; justify-content: space-between; padding: 4px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--body); }
+.ou-ide-chrow .ou-ide-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ou-ide-chmany { flex: none; padding: 0 6px; border: 1px solid var(--hairline-strong); border-radius: 999px; color: var(--ink); font-size: 11px; }
+.ou-ide-chletter { flex: none; width: 14px; text-align: center; font: 600 11px var(--mono); color: var(--body); }
+.ou-ide-chletter[data-letter="M"] { color: var(--ou-git-m); }
+.ou-ide-chletter[data-letter="A"], .ou-ide-chletter[data-letter="U"] { color: var(--ou-git-a); }
+.ou-ide-chletter[data-letter="D"] { color: var(--ou-git-d); }
