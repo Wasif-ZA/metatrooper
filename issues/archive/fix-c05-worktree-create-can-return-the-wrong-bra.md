@@ -31,3 +31,5 @@ Read-only audit of core/src, 2026-10-31. Tests at audit time: `node --test "test
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-23: done. Fix 398e1318, tests 6016c95b; full suite green for them on f0eee261 (launch/cc-1119 and main).
