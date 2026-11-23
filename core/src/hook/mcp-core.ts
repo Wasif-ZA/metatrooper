@@ -65,7 +65,7 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
           return { content: [{ type: 'text', text: `saved ${payload.items.length} steps` }] };
         }
         if (name === 'ouros_engine') {
-          const result = await runner.call({ id: ulid(), method: 'engine.run', params: { session_id: session, engine: args.engine, action: args.action, input: args.input, surface: args.surface }, origin: 'cli' }, { ui: false, origin: 'cli' });
+          const result = await runner.call({ id: ulid(), method: 'engine.run', params: { session_id: session, engine: args.engine, action: args.action, input: args.input, surface: args.surface }, origin: 'cli' }, { ui: false, origin: 'cli', session });
           return { content: [{ type: 'text', text: JSON.stringify(result) }] };
         }
         if (name === 'ouros_workspace') {

@@ -159,7 +159,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'profile.undo', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: 'as profile.get; the profile returns to before that change' },
   { name: 'templates.proposals', needsUi: true, params: '{}', result: '{proposals: [{project_id, name, template, surfaces, sessions, kept, why?}]}; per project; a screen drawn with one shape by 3 or more sessions, its differing values as {{gN}} gaps; kept only when replay holds: filling the template with each past screen gives that screen back (M8-06a,b)' },
   { name: 'templates.keep', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{name, project_id?}', result: '{name, file}; saves a proposal the person said yes to into <home>/templates/<project>, where use parts find it; refused when it loses on replay' },
-  { name: 'engine.run', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, engine, action, input?, surface?}', result: '{status: ok | failed, outputs?, error?, bound?, run}; runs one action of an installed, enabled plugin in the session project by the action process contract (plugins.md); a binary the plugin ships runs in the AppContainer box. With `surface` (one this session drew), the action `binds` fill that surface data path (M8-12). An `external` action waits for a real gate (an approval row, surface engine, asked every time, naming the destination) and runs only when approved; -32003 otherwise. Called by the `ouros_engine` MCP tool' },
+  { name: 'engine.run', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, session_secret?, engine, action, input?, surface?}', result: '{status: ok | failed, outputs?, error?, bound?, run}; a caller that is not the UI proves session_id with its session_secret; runs one action of an installed, enabled plugin in the session project by the action process contract (plugins.md); a binary the plugin ships runs in the AppContainer box. With `surface` (one this session drew), the action `binds` fill that surface data path (M8-12). An `external` action waits for a real gate (an approval row, surface engine, asked every time, naming the destination) and runs only when approved; -32003 otherwise. Called by the `ouros_engine` MCP tool' },
   { name: 'workspace.change', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, op?: set | save | restore | example, workspace?, name?}', result: '{project_id, current, usual, undo, saved, examples, last: {applied, reasons, setter, asked, at}}; set checks a whole layout (ouros-spec 6c) and applies it, or leaves the old one and lists the reasons in `last`; save names the current layout; restore applies a saved one; example applies a shipped layout from workbench/ui/src/workspaces. The setter is the calling session, never the `by` inside the layout. Called by the `ouros_workspace` MCP tool' },
   { name: 'workspace.get', params: '{project_id}', result: '{project_id, current, usual, undo, saved, last}; current is null for your usual layout' },
   { name: 'workspace.undo', needsUi: true, errors: [E.VALIDATION], params: '{project_id}', result: 'as workspace.get; the layout before the last change (Ctrl Z)' },
@@ -1078,7 +1078,16 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('profile.undo', { needsUi: true, handler: (p) => undoChange(p.id) });
   m.set('templates.proposals', { needsUi: true, handler: () => ({ proposals: proposeTemplates(db) }) });
   m.set('templates.keep', { needsUi: true, handler: (p) => keepTemplate(db, p.name, p.project_id) });
-  m.set('engine.run', { handler: (p) => runEngine(db, p, approvals) });
+  m.set('engine.run', {
+    handler: (p, ctx) => {
+      // a direct pipe call proves the session it names (B1 review of fa77f07e, point 4)
+      if (!ctx?.ui) {
+        const proven = ctx?.session ?? (typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret)?.session : undefined);
+        if (!proven || proven !== p.session_id) throw new RpcError(E.NEEDS_UI, 'engine.run needs the session_secret of the session it names, or a trusted UI connection');
+      }
+      return runEngine(db, p, approvals);
+    },
+  });
   m.set('workspace.change', { handler: (p) => changeWorkspace(db, p) });
   m.set('workspace.get', { handler: (p) => getWorkspace(str(p, 'project_id')) });
   m.set('workspace.undo', { needsUi: true, handler: (p) => undoWorkspace(str(p, 'project_id')) });

@@ -95,7 +95,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   profile.undo            {id}
   templates.proposals     {}
   templates.keep          {name, project_id?}
-  engine.run              {session_id, engine, action, input?, surface?}
+  engine.run              {session_id, session_secret?, engine, action, input?, surface?}
   workspace.change        {session_id, op?: set | save | restore | example, workspace?, name?}
   workspace.get           {project_id}
   workspace.undo          {project_id}

@@ -106,7 +106,7 @@ async function serveUi()                {
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
     const d = args.data                                       ;
-    const out = name === 'ouros_engine' ? await call('engine.run', { session_id: sessionId, engine: args.engine, action: args.action, input: args.input, surface: args.surface }, { waitMs: 2_147_483_647 })
+    const out = name === 'ouros_engine' ? await call('engine.run', { session_id: sessionId, session_secret: process.env.TROOP_SESSION_SECRET ?? '', engine: args.engine, action: args.action, input: args.input, surface: args.surface }, { waitMs: 2_147_483_647 })
       : name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
       : d && typeof d === 'object' && args.spec === undefined ? await call('ui.data', { session_id: sessionId, surface: args.surface, path: d.path, value: d.value }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
     if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');

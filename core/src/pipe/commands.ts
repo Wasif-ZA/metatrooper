@@ -12,6 +12,8 @@ export interface Request {
 export interface CallContext {
   ui: boolean;
   origin: string;
+  /** A session an in-process caller already proved (the MCP server finds it from the process tree); never taken from params. */
+  session?: string;
 }
 
 export type Handler = (params: Record<string, unknown>, ctx: CallContext) => unknown | Promise<unknown>;
