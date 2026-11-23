@@ -9,6 +9,8 @@ import { getSecret } from '../src/secrets.ts';
 import { importLogins, listLogins, loginOrigin, parseLoginCsv, previewLogins, removeLogin, type LoginRow } from '../src/browser/login-import.ts';
 import { METHODS } from '../src/methods.ts';
 import { NOT_QUEUED, isQueueable } from '../src/pipe/commands.ts';
+import { Approvals } from '../src/approvals.ts';
+import { isUsernameSecret } from '../src/browser/secret-origin.ts';
 
 function fixture() {
   const home = mkdtempSync(join(tmpdir(), 'troop-logins-'));
@@ -152,4 +154,31 @@ test('the login methods need a UI connection and are never queued', () => {
   assert.ok(NOT_QUEUED.has('browser.logins.preview'));
   assert.ok(NOT_QUEUED.has('browser.logins.import'));
   assert.equal(isQueueable('browser.logins.import'), false);
+});
+
+// protects=an imported username goes only to its own origin, and a password never goes outside a password field
+// fails_when=the password check also lets loginuser_ names through for passwords, or the username check is dropped, or origins are not compared
+// no_claim=the typing itself
+test('an imported username may be typed only into its own origin and a password never outside a password field', async () => {
+  const f = fixture();
+  try {
+    importLogins(f.db, [row('https://a.example/x', 'alice', 'first-pass-1')], [{ i: 0 }]);
+    const at = new Date().toISOString();
+    const proj = join(f.home, 'proj');
+    mkdirSync(proj);
+    f.db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', proj, 'p', at, at);
+    f.db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+    f.db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p1', 'e1', 'pty', 'working', ?, ?)").run(at, at);
+    const approvals = new Approvals(f.db, 50);
+    const type = (name: string, target: string, password: boolean) =>
+      approvals.check({ session_id: 's1', surface: 'browser', target, action: 'type', args: { ref: 'e1', text: `{{secret:${name}}}` }, control: { automation_id: 'u', name: 'User', role: 'textbox' }, password });
+    const user = await type('loginuser_a_example', 'https://a.example', false);
+    assert.ok(user.decision !== 'deny' || !/goes only into a password field/.test(user.reason), 'username into a plain field');
+    const pw = await type('login_a_example', 'https://a.example', false);
+    assert.deepEqual(pw, { decision: 'deny', reason: 'secret login_a_example goes only into a password field' });
+    const other = await type('loginuser_a_example', 'https://b.example', false);
+    assert.deepEqual(other, { decision: 'deny', reason: 'secret loginuser_a_example is saved for another origin' });
+    assert.equal(isUsernameSecret('login_foo_user'), false);
+    assert.equal(isUsernameSecret('loginuser_foo'), true);
+  } finally { f.close(); }
 });

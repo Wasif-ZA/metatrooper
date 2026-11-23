@@ -113,3 +113,16 @@ test('a missing engine marks the surface it named', async (t) => {
   assert.deepEqual(after.data.missing_engine, { engine: 'not-installed', action: 'captions' });
   assert.ok(after.seq > before.seq);
 });
+
+test('a successful run clears an install card left by an earlier call', async (t) => {
+  const h = harness(t);
+  const saved = Object.fromEntries(Object.keys(h.env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, h.env); // the clear runs after an await, outside withEnv
+  t.after(() => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  h.show();
+  const get = (): any => withEnv(h.env, () => getSurface(h.db, 'screening'));
+  await assert.rejects(withEnv(h.env, () => runEngine(h.db, { session_id: 'session-a', engine: 'not-installed', action: 'captions', surface: 'screening' })), (e: any) => e.code === -32002);
+  assert.deepEqual(get().data.missing_engine, { engine: 'not-installed', action: 'captions' });
+  assert.equal((await h.run()).status, 'ok');
+  assert.equal(get().data.missing_engine, null);
+});

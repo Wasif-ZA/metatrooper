@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Approvals, uploadProblem } from '../src/approvals.ts';
@@ -96,4 +96,16 @@ test('upload is in the act preset and is a checked tool', () => {
   const tool = TOOLS.find((t) => t.name === 'upload');
   assert.ok(tool);
   assert.deepEqual((tool.inputSchema as { required: string[] }).required, ['ref', 'paths']);
+});
+
+test('the workbench re-checks upload paths before sending', () => {
+  const src = readFileSync(new URL('../../workbench/src/browser/server.ts', import.meta.url), 'utf8');
+  const start = src.indexOf("if (tool === 'upload') {");
+  assert.ok(start >= 0);
+  const block = src.slice(start, src.indexOf('usedUploads.add', start) + 'usedUploads.add'.length);
+  const row = block.indexOf('-32030');
+  const check = block.indexOf('uploadProblem(params.paths');
+  assert.ok(row >= 0 && check > row && block.endsWith('usedUploads.add'), 'uploadProblem after the approval row check, before usedUploads.add');
+  const shim = readFileSync(new URL('../src/hook/mcp-shim.ts', import.meta.url), 'utf8');
+  assert.match(shim, /engine\.run[^\n]*waitMs: 2_147_483_647/);
 });

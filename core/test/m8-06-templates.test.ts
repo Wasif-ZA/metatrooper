@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { buildMethods } from '../src/methods.ts';
 import { schemaFile } from '../src/paths.ts';
 import { proposeTemplates, keepTemplate, lineUp } from '../src/templates.ts';
+import { usedTemplates } from '../src/surfaces.ts';
 
 test("ui.show draws a use part from the person's templates folder", async t => {
   const dir = mkdtempSync(join(tmpdir(), 'm8-06-templates-'));
@@ -139,4 +140,12 @@ test('keeping a proposal saves it where use parts find it', async t => {
   const res = await call('ui.show', { session_id: 'session-4', surface: 'again', zone: 'tab', title: 'Again', catalogue: '1', spec: { type: 'page', children: [{ type: 'use', template: 'run-summary', data }] } });
   assert.deepEqual(res.fellBack, []);
   assert.equal(res.status, 'drawn');
+});
+
+test('ui.get returns only the templates the screen names', () => {
+  const use = (template: string) => ({ type: 'use', template });
+  const all = { a: { type: 'page', children: [use('b')] }, b: { type: 'text', text: 'b' }, c: { type: 'text', text: 'c' }, loop: use('loop') };
+  assert.deepEqual(Object.keys(usedTemplates({ type: 'page', children: [use('a')] }, all)).sort(), ['a', 'b']);
+  assert.deepEqual(Object.keys(usedTemplates(use('loop'), all)), ['loop']);
+  assert.deepEqual(usedTemplates({ type: 'text', text: 'x' }, all), {});
 });
