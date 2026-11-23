@@ -35,3 +35,37 @@ test('a plugin binary whose hash differs from the approved one does not run', (t
   withEnv(env, () => removePlugin(db, 'hash-check'));
   assert.equal(hashRow(), undefined, 'removing the plugin drops its hashes');
 });
+
+function setup(t: any, id: string, arg: string, files: Record<string, string>) {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  const db = withEnv(env, openCoreDb);
+  t.after(() => { db.close(); rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const source = join(isolated.home, `src-${id}`);
+  mkdirSync(source, { recursive: true });
+  for (const [f, body] of Object.entries(files)) writeFileSync(join(source, f), body);
+  writeFileSync(join(source, 'troop-plugin.json'), JSON.stringify({ schema: 1, id, version: '1.0.0', name: id, platforms: ['windows', 'linux', 'macos'], mcp: [{ id: 'x', command: 'node', args: [arg], engines: ['codex'] }] }));
+  return {
+    install: () => withEnv(env, () => installPlugin(db, { source, approved_permissions: [] })),
+    resolve: () => withEnv(env, () => resolveMcpServer(db, id, 'x')),
+    dir: () => (db.prepare('SELECT path FROM plugin WHERE id = ?').get(id) as { path: string }).path,
+  };
+}
+
+test('a changed file the server imports, or a new file in the plugin folder, stops the server', (t) => {
+  const p = setup(t, 'whole-dir', '{{plugin_dir}}/server.js', { 'server.js': 'import "./lib.js";\n', 'lib.js': 'export const a = 1;\n' });
+  p.install();
+  assert.equal(p.resolve().command, 'node');
+  writeFileSync(join(p.dir(), 'lib.js'), 'export const a = 2;\n');
+  assert.throws(p.resolve, (e: any) => e.code === -32003 && /lib\.js/.test(e.message));
+  p.install();
+  p.resolve();
+  writeFileSync(join(p.dir(), 'new.js'), 'export {};\n');
+  assert.throws(p.resolve, (e: any) => e.code === -32003 && /new\.js/.test(e.message));
+});
+
+test('a {{plugin_dir}} argument outside the plugin folder is refused', (t) => {
+  const p = setup(t, 'outside', '{{plugin_dir}}/../evil.js', { 'server.js': 'x\n' });
+  try { p.install(); } catch (e: any) { assert.equal(e.code, -32003, 'install itself refuses'); return; }
+  assert.throws(p.resolve, (e: any) => e.code === -32003 && /evil\.js/.test(e.message));
+});

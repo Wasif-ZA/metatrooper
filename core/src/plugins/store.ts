@@ -338,35 +338,49 @@ function dropEngine(db: DatabaseSync, id: string): boolean {
 }
 
 /** Removes a plugin, its files under ~/.metatrooper/plugins and its secrets; engines that sessions still name keep their row, disabled. */
-/** Files in the plugin folder its stdio MCP servers run (arguments starting with `{{plugin_dir}}`), each with its SHA-256. */
-export function shippedFiles(m: Manifest, dir: string): Record<string, string> {
+/** Every file in the plugin folder with its SHA-256, keyed by its path inside the folder; links and junctions are not followed, .git is left out. */
+// ponytail: hashes the whole folder on each server start; cache by size and mtime if a big local plugin starts slowly.
+export function shippedFiles(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const s of m.mcp ?? []) {
-    for (const a of s.args ?? []) {
-      if (!a.startsWith('{{plugin_dir}}')) continue;
-      const file = path.resolve(dir, '.' + a.slice('{{plugin_dir}}'.length));
-      const rel = path.relative(path.resolve(dir), file);
-      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue;
-      try { out[rel.split(path.sep).join('/')] = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); } catch {}
+  const walk = (d: string, rel: string): void => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isSymbolicLink() || (!rel && e.name === '.git')) continue;
+      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      else if (e.isFile()) out[process.platform === 'win32' ? r.toLowerCase() : r] = crypto.createHash('sha256').update(fs.readFileSync(path.join(d, e.name))).digest('hex');
     }
-  }
+  };
+  walk(dir, '');
   return out;
+}
+
+/** The `{{plugin_dir}}` arguments of a plugin's stdio servers that point outside its folder. */
+export function argsOutside(m: Manifest, dir: string): string[] {
+  const root = fs.realpathSync(dir);
+  return (m.mcp ?? []).flatMap((s) => s.args ?? []).filter((a) => {
+    if (!a.includes('{{plugin_dir}}')) return false;
+    const target = path.resolve(a.replaceAll('{{plugin_dir}}', root));
+    const rel = path.relative(root, target);
+    return rel.startsWith('..') || path.isAbsolute(rel);
+  });
 }
 
 const shippedKey = (id: string) => `plugin_files:${id}`;
 
 /** Records the hashes of the files the user approved at install. */
 export function approveShippedFiles(db: DatabaseSync, plugin: { id: string; manifest: Manifest; path: string }): void {
-  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(shippedKey(plugin.id), JSON.stringify(shippedFiles(plugin.manifest, plugin.path)));
+  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(shippedKey(plugin.id), JSON.stringify(shippedFiles(plugin.path)));
 }
 
 /** Refuses a start when a file the plugin ships differs from the approved hash (M8-14d); a plugin installed before hashes were kept records them on its first start; shipped plugins in plugins/ are not checked. */
 export function checkShippedFiles(db: DatabaseSync, plugin: InstalledPlugin): void {
   if (plugin.source === 'builtin') return;
+  const outside = argsOutside(plugin.manifest, plugin.path);
+  if (outside.length) throw new RpcError(E.VALIDATION, `${plugin.id} points outside its folder: ${outside.join(', ')}`, { outside });
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(shippedKey(plugin.id)) as { value: string } | undefined;
   if (!row) return approveShippedFiles(db, plugin);
   const was = JSON.parse(row.value) as Record<string, string>;
-  const now = shippedFiles(plugin.manifest, plugin.path);
+  const now = shippedFiles(plugin.path);
   const changed = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => was[k] !== now[k]).sort();
   if (changed.length) throw new RpcError(E.VALIDATION, `${changed.join(', ')} in ${plugin.id} changed since you approved it; reinstall the plugin to approve the new files`, { changed });
 }
@@ -382,10 +396,8 @@ export function removePlugin(db: DatabaseSync, id: string): void {
     if (!reservedId(id)) deleteSecrets(db, id);
     db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(nowIso(), id);
     if (kept) db.prepare('UPDATE plugin SET enabled = 0 WHERE id = ?').run(id);
-    else {
-      db.prepare('DELETE FROM plugin WHERE id = ?').run(id);
-      db.prepare('DELETE FROM meta WHERE key = ?').run(shippedKey(id));
-    }
+    else db.prepare('DELETE FROM plugin WHERE id = ?').run(id);
+    db.prepare('DELETE FROM meta WHERE key = ?').run(shippedKey(id));
   });
   const managed = path.resolve(pluginsDir());
   const rel = path.relative(managed, path.resolve(row.path));
