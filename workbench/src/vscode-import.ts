@@ -11,7 +11,16 @@ export function parseJsonc(text: string): unknown {
     if (c === '"') { str = true; out += c; continue; }
     if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; out += '\n'; continue; }
     if (c === '/' && text[i + 1] === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
-    if (c === ',') { let j = i + 1; while (j < text.length && /\s/.test(text[j])) j++; if (text[j] === '}' || text[j] === ']') continue; }
+    if (c === ',') {
+      let j = i + 1;
+      for (;;) {
+        while (j < text.length && /\s/.test(text[j])) j++;
+        if (text[j] === '/' && text[j + 1] === '/') { while (j < text.length && text[j] !== '\n') j++; continue; }
+        if (text[j] === '/' && text[j + 1] === '*') { j += 2; while (j < text.length && !(text[j] === '*' && text[j + 1] === '/')) j++; j += 2; continue; }
+        break;
+      }
+      if (text[j] === '}' || text[j] === ']') continue;
+    }
     out += c;
   }
   try { return JSON.parse(out); } catch { return null; }

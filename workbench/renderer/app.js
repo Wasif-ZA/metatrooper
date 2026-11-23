@@ -463,7 +463,11 @@ async function vscodeOnce() {
   const now = await api.uiSettings().catch(() => null);
   const prev = now && now.ui ? now.ui.theme : null;
   const theme = r.theme && prev === 'dither' && r.theme !== prev ? r.theme : null;
-  if (r.theme && !theme && r.theme !== prev) r.summary.skipped.unshift(`theme ${r.theme}: you already chose a cc theme`);
+  const themeLine = r.summary.applied.find((s) => s.startsWith('theme '));
+  if (themeLine && !theme) {
+    r.summary.applied = r.summary.applied.filter((s) => s !== themeLine);
+    r.summary.skipped.unshift(`${themeLine.replace(/ as .*$/, '')}: ${prev === null ? "cc could not read its own theme" : r.theme === prev ? 'already in use' : 'you already chose a cc theme'}`);
+  }
   if (theme) await setLook(theme);
   writeStore(VSCODE_KEY, { at: new Date().toISOString(), prev, theme, applied: r.summary.applied, skipped: r.summary.skipped });
   toast(`From VS Code: ${r.summary.applied.join('; ') || 'nothing applied'}. ${r.summary.skipped.length} skipped, listed in Settings > Learning.`);
