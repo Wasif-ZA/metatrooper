@@ -19,9 +19,9 @@ Status in scratch: verdict pending (UI research section 2).
 
 ## Acceptance criteria
 
-- [ ] M7-13a. Name `fix-x` creates worktree and branch `fix-x` and launches the session in it.
+- [x] M7-13a. Name `fix-x` creates worktree and branch `fix-x` and launches the session in it. (2026-11-24: B2 READY @4110e9d2, workbench/test/m7-13-branch-at-launch.test.ts 4/4)
 - [x] M7-13b. An empty field behaves exactly as today. (2026-11-24: B2 MET, workbench/test/m8-ax-screens.test.ts "wire-03 blank worktree branch".)
-- [ ] M7-13c. A taken name shows an error and starts nothing.
+- [x] M7-13c. A taken name shows an error and starts nothing. (2026-11-24: B2 READY @4110e9d2, workbench/test/m7-13-branch-at-launch.test.ts 4/4)
 - [x] M7-13d. A row shows the branch, and the dev port once M6-3 detects one. (2026-11-24: B2 MET on Wall rows: app.js tileMeta shows the branch, tile previews show the dev server port, workbench/test/m6-03-preview.test.ts.)
 
 ## Rules that bind every child

@@ -18,8 +18,8 @@ Status in scratch: verdict pending (UI research section 2).
 
 ## Acceptance criteria
 
-- [ ] M7-14a. Queued text is sent exactly once when the state first becomes idle or done.
-- [ ] M7-14b. Editing or clearing it before then sends nothing.
+- [x] M7-14a. Queued text is sent exactly once when the state first becomes idle or done. (2026-11-24: B2 READY @4110e9d2, workbench/test/m7-14-queue-follow-up.test.ts 8/8, fails with 22ad4a93 reverted)
+- [x] M7-14b. Editing or clearing it before then sends nothing. (2026-11-24: B2 READY @4110e9d2, workbench/test/m7-14-queue-follow-up.test.ts 8/8)
 - [ ] M7-14c. A fixture Claude session with 2 running subagents shows "2 running" and drops to 0 on their stops.
 - [ ] M7-14d. The contract table lists the new hook; engines with no signal show no chip.
 

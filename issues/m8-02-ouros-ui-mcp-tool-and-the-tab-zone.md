@@ -15,7 +15,7 @@ The first transport. An agent calls `ouros_ui(surface, zone, spec)`; Ouros valid
 
 As built (D84): the MCP server `ouros-ui` (`core/src/hook/mcp-shim.ts`) offers `ouros_ui`, which calls core `ui.show` (`core/src/surfaces.ts`). Core stores the surface in `ui_surface` and lists it in the snapshot. The workbench fetches it with `ui.get` and opens a tab (`DrawnTabs.jsx`).
 
-- [ ] M8-02a. Claude Code calls `ouros_ui` and a tab opens with the screen.
+- [x] M8-02a. Claude Code calls `ouros_ui` and a tab opens with the screen. (2026-11-24: B2 READY @4110e9d2, workbench/test/m8-02-drawn-tabs.test.ts 3/3: a surface in the snapshot opens one tab)
   Status: PARTIAL. The attach flags and the store are tested. No test opens the tab from the snapshot.
   Verify (passes now): `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="method layer stores" test/m8-02-ui-surface.test.ts` and `... --test-name-pattern="M5-12f STDIO external writer" test/m5-remote-mcp.test.ts`.
   Verify (to write): `workbench/test/m8-02-drawn-tabs.test.ts` test "a new surface in the snapshot opens one tab and a seq bump redraws it".

@@ -41,7 +41,7 @@ Not sized until M8-0.
 
 - [ ] M8-F13a. The switch moves between Home, IDE and Wall, and each keeps its state, as M8-17a does for two.
 - [ ] M8-F13b. No workspace change can remove the switch.
-- [ ] M8-F13c. Text sent from Home starts a session in the chosen project with approval on "Ask me first".
+- [ ] M8-F13c. Text sent from Home starts a session in the chosen project with approval on "Ask me first". (2026-11-24: superseded by spec D89, default contained and ask only as an explicit choice; closed per the orch 00:58, left unticked.)
 - [ ] M8-F13d. A starter whose engine or add-on is missing shows its install card and never a demo result.
 - [ ] M8-F13e. The waiting row on Home matches the inbox count in M8-17c.
 - [ ] M8-F13f. The shipped screen matches `n01-home-anyone.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)

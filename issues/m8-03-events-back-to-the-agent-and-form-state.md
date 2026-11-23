@@ -21,13 +21,13 @@ As built (merge 6a9f83f7): core `ui.event` (`surfaceEvent` in `core/src/surfaces
 - [ ] M8-03b. Fields carry required, disabled, invalid and error states.
   Status: PARTIAL. `parts-c.jsx` field maps `required`, `disabled`, `invalid` and `error` to astryx props. The `field` fixtures in `m8-01-kit-parts.test.ts` set none of them.
   Verify: to write, `workbench/test/m8-01-kit-parts.test.ts` test "field: required, disabled, invalid and error each render their state".
-- [ ] M8-03c. A stale or repeated click is dropped.
+- [x] M8-03c. A stale or repeated click is dropped. (2026-11-24: B1 READY @75f7f8bd, core/test/m8-03-ui-event.test.ts 30/30)
   Status: PARTIAL. Built (`dropped: 'stale'` when seq is old, `dropped: 'repeat'` for the same event at the same seq), untested.
   Verify: to write, `core/test/m8-03-ui-event.test.ts` tests "an old seq is dropped as stale" and "the same event twice at one seq is dropped as repeat".
-- [ ] M8-03d. A click after the session ended lands in the needs-you inbox.
+- [x] M8-03d. A click after the session ended lands in the needs-you inbox. (2026-11-24: B1 READY @75f7f8bd, core/test/m8-03-ui-event.test.ts 30/30)
   Status: PARTIAL. Built for sessions in state `exited`, untested.
   Verify: to write, `core/test/m8-03-ui-event.test.ts` test "a click on an exited session's surface becomes one needs_you row".
-- [ ] M8-03e. A question (`choice` the agent waits on) never resolves by time passing; it waits until answered or withdrawn.
+- [x] M8-03e. A question (`choice` the agent waits on) never resolves by time passing; it waits until answered or withdrawn. (2026-11-24: B1 READY @75f7f8bd: withdraw 6aec7a2b, core/test/m8-03-ui-event.test.ts 30/30, fails to import with 6aec7a2b reverted)
   Status: PARTIAL. `ui.event` has no timer, but nothing tests it and there is no "withdrawn" path.
   Verify: to write, `core/test/m8-03-ui-event.test.ts` test "a surface with no click stays undelivered after the clock moves a day".
 

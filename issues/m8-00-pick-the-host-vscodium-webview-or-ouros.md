@@ -28,7 +28,7 @@ Decided 2026-11-14 in `spec.md` D84: agent-drawn screens are @astryxdesign/core 
 - [x] M8-00c. A one-page note names how tabs open, how events reach the core, and how the title-bar IDE | WALL switch is drawn in that host. (2026-11-24: contracts/drawn-screens.md, one page: tab opening, ui.event, the IDE | WALL switch.)
   Status: PARTIAL. D84 names how a tab opens (`ouros_ui` to `ui.show`, then `ui.get` on a seq change). The `ui.event` row in `contracts/pipe-protocol.md` names how a click reaches core. Nothing names the IDE | WALL switch.
   Verify: `Select-String spec.md,contracts/pipe-protocol.md -Pattern 'ui\.show|ui\.event|IDE \| WALL'` finds all three in one note.
-- [ ] M8-00d. An agent's `ouros_ui` call opens its screen as a tab over the editor area in cc. (was: a spike opens specs/f-done.json as a tab)
+- [x] M8-00d. An agent's `ouros_ui` call opens its screen as a tab over the editor area in cc. (was: a spike opens specs/f-done.json as a tab) (2026-11-24: B2 READY @4110e9d2, workbench/test/m8-02-drawn-tabs.test.ts 3/3)
   Status: PARTIAL. Built (`workbench/ui/src/kit/DrawnTabs.jsx`, `syncDrawn`), but no test opens the tab. Same gap as M8-02a.
   Verify: to write, `workbench/test/m8-02-drawn-tabs.test.ts` test "a new surface in the snapshot opens one tab and a seq bump redraws it".
 
