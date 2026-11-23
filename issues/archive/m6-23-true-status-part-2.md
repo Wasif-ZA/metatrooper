@@ -184,3 +184,5 @@ Total: 0.25 + 0.25 + 0.25 + 0.75 + 0.25 + 0.75 = 2.5 CC days, against the 2.25 i
 - A needs-you item for every StopFailure; the tile reason and M6-24's rate-limit handling cover it.
 - `session_crons` (never read, as vibeyard does).
 - Title states for `hooks` engines other than the interrupt's idle pattern.
+
+Status 2026-11-24: done, every box ticked. core/test/m6-23-true-status.test.ts 58/58 run by B4 on a8a3b642; suite green on eca8743a. The three live captures in its report (subagent Stop, Escape, opencode) are still owed and listed in status/HAND-RUNS.md.
