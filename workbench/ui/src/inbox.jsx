@@ -395,6 +395,7 @@ const openOnWall = (x) => {
 };
 
 const QUIET_MS = 2 * 3600_000;
+const trustQuestion = (x) => `Trust this folder? ${x.cwd || ''}`.trim();
 const WHAT = { needs: 'asked a question', working: 'working', review: 'waiting for review', failed: 'failed', done: 'finished', blocked: 'blocked' };
 const WORD = { needs: 'Needs you', working: 'Working', review: 'In review', failed: 'Failed', done: 'Done', blocked: 'Blocked' };
 
@@ -669,7 +670,7 @@ export function Inbox() {
       >
         <div className="ou-ny-row-main">
           <span className="ou-ititle"><span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
-          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap"><StatusRing status={st} size={14} /></span>}<span>{who ? `${Ic.engineName(who)} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
+          <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : <span className="ou-ny-avatar-gap"><StatusRing status={st} size={14} /></span>}<span>{who ? `${Ic.engineName(who)} ${isSession && row.reason === 'trust' ? 'asks to trust this folder' : WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
           <StatusRing status={st} />
@@ -758,7 +759,7 @@ export function Inbox() {
         {activeRow.isSession && item.state === 'waiting_for_you' ? (
           <li className="ou-ny-entry ou-ipane-question">
             <div className="ou-ny-entry-head"><Avatar name={engine} /><span className="ou-ny-entry-who">{Ic.engineName(engine)} asked</span><span className="ou-ny-muted">{ago(item.state_at) || ''}</span></div>
-            <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{lastSaid || taskOf(item)}</div>
+            <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{item.reason === 'trust' ? trustQuestion(item) : lastSaid || taskOf(item)}</div>
           </li>
         ) : null}
         {!activeRow.isSession ? <li><DetailNotice key={`notice-${item.id}`} n={item} /></li> : null}

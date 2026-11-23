@@ -25,6 +25,7 @@ import { pruneBrowserAudit } from './events/append.ts';
 import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } from './events/processor.ts';
 import { checkActivity, checkHeldStops, checkPids, checkStalled } from './sessions/watch.ts';
 import { checkFatal } from './sessions/fatal.ts';
+import { checkTrustDialog } from './sessions/trust-dialog.ts';
 import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters, watchTranscripts } from './meter.ts';
 import { readLimits } from './limits.ts';
@@ -173,6 +174,8 @@ async function main(): Promise<void> {
   every(5000, () => checkHeldStops(db));
   let fatalBusy = false;
   every(5000, () => { if (!fatalBusy) { fatalBusy = true; return checkFatal(db).finally(() => { fatalBusy = false; }); } });
+  let trustBusy = false;
+  every(5000, () => { if (!trustBusy) { trustBusy = true; return checkTrustDialog(db).finally(() => { trustBusy = false; }); } });
   every(5000, () => resolveSpentNotices(db));
   every(10_000, () => resolveUncommitted(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));

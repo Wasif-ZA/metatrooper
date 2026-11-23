@@ -1164,6 +1164,7 @@ function pickAcross(id) {
 }
 
 function waitReason(x) {
+  if (x.reason === 'trust') return 'trust this folder?';
   return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
 }
 

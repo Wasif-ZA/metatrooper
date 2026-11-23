@@ -57,7 +57,7 @@ test('worktree.create attaches to existing branch when worktree folder does not 
     execFileSync('git', ['-C', repo, 'branch', 'feat'], { stdio: 'pipe' });
     const shaBefore = execFileSync('git', ['-C', repo, 'rev-parse', 'feat'], { encoding: 'utf8' }).trim();
     // Call worktree.create with existing feat branch.
-    const result = (await m.get('worktree.create')!.handler({ project_id, branch: 'feat' }, { ui: false, origin: 'test' })) as any;
+    const result = (await m.get('worktree.create')!.handler({ project_id, branch: 'feat' }, { ui: true, origin: 'test' })) as any;
     // Verify result flag indicates an existing branch.
     assert.equal(result.existing_branch, true);
     // Verify worktree folder exists and is on feat branch.
@@ -81,7 +81,7 @@ test('worktree.create throws validation error when branch is checked out elsewhe
     const currentBranch = execFileSync('git', ['-C', repo, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
     // Verify worktree.create throws validation error code -32003 with git error message.
     await assert.rejects(
-      () => m.get('worktree.create')!.handler({ project_id, branch: currentBranch }, { ui: false, origin: 'test' }),
+      () => m.get('worktree.create')!.handler({ project_id, branch: currentBranch }, { ui: true, origin: 'test' }),
       (err: any) => {
         assert.equal(err.code, -32003);
         assert.match(err.message, /already|checked out|used by worktree/i);
@@ -101,7 +101,7 @@ test('worktree.create throws invalid params error when base is passed for existi
     execFileSync('git', ['-C', repo, 'branch', 'feat'], { stdio: 'pipe' });
     // Verify worktree.create throws invalid params error code -32602.
     await assert.rejects(
-      () => m.get('worktree.create')!.handler({ project_id, branch: 'feat', base: 'HEAD' }, { ui: false, origin: 'test' }),
+      () => m.get('worktree.create')!.handler({ project_id, branch: 'feat', base: 'HEAD' }, { ui: true, origin: 'test' }),
       (err: any) => {
         assert.equal(err.code, -32602);
         assert.match(err.message, /base only applies to a new branch/);
@@ -118,7 +118,7 @@ test('worktree.create creates worktree for new branch without existing_branch fl
   const { db, m, repo, project_id } = await setupTestContext(home);
   try {
     // Call worktree.create for a new branch named fresh.
-    const result = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: false, origin: 'test' })) as any;
+    const result = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: true, origin: 'test' })) as any;
     // Verify existing_branch is not defined in result.
     assert.equal('existing_branch' in result, false);
     // Verify worktree directory exists and is on branch fresh.
@@ -136,10 +136,10 @@ test('worktree.create returns existing true when worktree folder already exists'
   const { db, m, repo, project_id } = await setupTestContext(home);
   try {
     // Call worktree.create the first time to create the worktree.
-    const first = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: false, origin: 'test' })) as any;
+    const first = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: true, origin: 'test' })) as any;
     assert.equal(first.branch, 'fresh');
     // Call worktree.create a second time with the same branch.
-    const second = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: false, origin: 'test' })) as any;
+    const second = (await m.get('worktree.create')!.handler({ project_id, branch: 'fresh' }, { ui: true, origin: 'test' })) as any;
     // Verify the second call returns existing true and does not throw.
     assert.equal(second.existing, true);
     assert.equal(second.branch, 'fresh');
