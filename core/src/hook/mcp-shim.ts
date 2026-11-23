@@ -1,4 +1,5 @@
 import net from 'node:net';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.ts';
 import { createDecoder, encode } from '../pipe/framing.ts';
@@ -12,6 +13,7 @@ interface Resolved {
   refs: Record<string, string>;
   missing: string[];
   headers?: Record<string, string>;
+  box?: { net: boolean; grants: string[]; project: 'r' | 'w' } | null;
 }
 
 function request(method: string, params: Record<string, unknown>, timeoutMs = 3000): Promise<unknown> {
@@ -136,8 +138,22 @@ async function main(): Promise<void> {
   if (missing.length) return refuse(`set ${missing.join(', ')} for ${pluginId}; MCP server ${serverId} did not start`);
   delete env.TROOP_SESSION_SECRET;
 
-  const resolved = resolveCommand(r.command) ?? [r.command];
+  let resolved = resolveCommand(r.command) ?? [r.command];
   const args = r.args.map((a) => (a === '{{cwd}}' ? process.cwd() : a));
+  if (r.box) {
+    const { boxArgv, containerName } = await import('../plugins/box.ts');
+    const { homeDir } = await import('../paths.ts');
+    const grants = [...r.box.grants, `${r.box.project} ${process.cwd()}`];
+    const tmp = path.join(homeDir(), 'plugin-tmp', containerName(pluginId, [serverId, ...grants].join('|')));
+    try {
+      const b = boxArgv({ name: path.basename(tmp), net: r.box.net, grants }, resolved[0], [...resolved.slice(1), ...args], tmp);
+      resolved = [b.file, ...b.args];
+    } catch (e) {
+      return refuse(`${(e as Error).message}; ${serverId} from ${pluginId} did not start`);
+    }
+    env.TEMP = env.TMP = tmp;
+    args.length = 0;
+  }
   const child = spawn(resolved[0], [...resolved.slice(1), ...args], { stdio: 'inherit', env, windowsHide: true });
   child.on('error', (e) => {
     process.stderr.write(`metatrooper mcp-shim: could not start ${r.command}: ${e.message}\n`);

@@ -360,7 +360,7 @@ export function shippedFiles(dir: string): Record<string, string> {
 /** The `{{plugin_dir}}` arguments of a plugin's stdio servers that point outside its folder. */
 export function argsOutside(m: Manifest, dir: string): string[] {
   const root = fs.realpathSync(dir);
-  return (m.mcp ?? []).flatMap((s) => s.args ?? []).filter((a) => {
+  return (m.mcp ?? []).flatMap((s) => [s.command ?? '', ...(s.args ?? [])]).filter((a) => {
     if (!a.includes('{{plugin_dir}}')) return false;
     const target = path.resolve(a.replaceAll('{{plugin_dir}}', root));
     const rel = path.relative(root, target);

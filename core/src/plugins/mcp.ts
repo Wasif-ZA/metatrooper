@@ -19,6 +19,7 @@ export interface ResolvedServer {
   refs: Record<string, string>;
   missing: string[];
   headers?: Record<string, string>;
+  box?: { net: boolean; grants: string[]; project: 'r' | 'w' } | null;
 }
 
 function pluginServer(db: DatabaseSync, pluginId: string, serverId: string) {
@@ -49,7 +50,8 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
   }
   checkShippedFiles(db, plugin);
   const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
-  const out: ResolvedServer = { command: server.command ?? '', args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
+  const shipped = (server.command ?? '').startsWith('{{plugin_dir}}');
+  const out: ResolvedServer = { command: (server.command ?? '').replaceAll('{{plugin_dir}}', () => plugin.path), args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
   for (const key of server.env_keys ?? []) {
     if (!plugin.permissions.includes(`secrets:${key}`)) {
       out.missing.push(key);
@@ -77,6 +79,9 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
       if (!out.missing.includes('CC_PLUGIN_DATA')) out.missing.push('CC_PLUGIN_DATA');
     }
   }
+  out.box = shipped && process.platform === 'win32' && plugin.source !== 'builtin'
+    ? { net: plugin.permissions.includes('network') || mcpWrites(server) === 'external', grants: [`r ${plugin.path}`, ...(out.env.CC_PLUGIN_DATA ? [`w ${out.env.CC_PLUGIN_DATA}`] : [])], project: mcpWrites(server) === 'project' ? 'w' : 'r' }
+    : null;
   return out;
 }
 
