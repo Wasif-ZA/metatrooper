@@ -39,3 +39,5 @@ Decided 2026-11-14 in `spec.md` D84: agent-drawn screens are @astryxdesign/core 
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. Host decided in D84 (with the drawbacks of both options), contracts/drawn-screens.md, tab test workbench/test/m8-02-drawn-tabs.test.ts (B2 READY @4110e9d2).

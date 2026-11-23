@@ -30,3 +30,5 @@ Status in scratch: verdict pending (UI research section 2).
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for any fix Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. Tests from B2 READY @4110e9d2 (workbench/test/m7-13-branch-at-launch.test.ts) and MET lines (m8-ax-screens wire-03, m6-03-preview).

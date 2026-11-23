@@ -36,3 +36,5 @@ As built (D84): the MCP server `ouros-ui` (`core/src/hook/mcp-shim.ts`) offers `
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. 02a by workbench/test/m8-02-drawn-tabs.test.ts 3/3 (B2 READY @4110e9d2).
