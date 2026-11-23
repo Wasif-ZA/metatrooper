@@ -22,7 +22,7 @@ Status: open; spread over status ledgers and Known limits.
 
 ## Acceptance criteria
 
-- [ ] M7-20a. Each run is listed with its exact steps, the machine it needs and the criterion it closes.
+- [x] M7-20a. Each run is listed with its exact steps, the machine it needs and the criterion it closes. (2026-11-24: status/HAND-RUNS.md, 41 runs in three tables by machine.)
 - [ ] M7-20b. An item is ticked only with a dated result in its status ledger.
 - [ ] M7-20c. The two Known-limit bugs get a failing test then a fix once their capture exists.
 - [ ] M7-20d. Their Known limits entries are deleted or reworded when the run lands.
