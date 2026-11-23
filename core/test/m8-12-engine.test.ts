@@ -41,7 +41,7 @@ function harness(t: any, action: Record<string, unknown> = {}) {
   const show = (session_id = 'session-a') => showSurface(db, { session_id, surface: 'screening', zone: 'tab', spec });
   const run = (session_id = 'session-a', surface: string | undefined = 'screening') => withEnv(env, () => runEngine(db, { session_id, engine: 'fake-captions', action: 'transcribe', surface }));
   const dir = () => (db.prepare('SELECT path FROM plugin WHERE id = ?').get('fake-captions') as { path: string }).path;
-  return { db, spec, show, run, dir, project };
+  return { db, env, spec, show, run, dir, project };
 }
 
 test('a fake caption engine fills a bound surface and the surface seq of its parts is unchanged', async (t) => {
@@ -95,4 +95,21 @@ test('a surface of another session is not filled', async (t) => {
   const after: any = getSurface(h.db, 'screening');
   assert.equal(after.seq, before.seq);
   assert.deepEqual(after.data, before.data);
+});
+
+test('a missing engine marks the surface it named', async (t) => {
+  const h = harness(t);
+  h.show();
+  const call = (session_id: string, surface?: string) => withEnv(h.env, () => runEngine(h.db, { session_id, engine: 'not-installed', action: 'captions', surface }));
+  const get = (): any => withEnv(h.env, () => getSurface(h.db, 'screening'));
+  const before: any = get();
+  await assert.rejects(call('session-a'), (e: any) => e.code === -32002);
+  assert.deepEqual(get().data.missing_engine, undefined);
+  await assert.rejects(call('session-b', 'screening'), (e: any) => e.code === -32002);
+  assert.deepEqual(get().data.missing_engine, undefined);
+  assert.equal(get().seq, before.seq);
+  await assert.rejects(call('session-a', 'screening'), (e: any) => e.code === -32002);
+  const after = get();
+  assert.deepEqual(after.data.missing_engine, { engine: 'not-installed', action: 'captions' });
+  assert.ok(after.seq > before.seq);
 });
