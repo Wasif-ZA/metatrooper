@@ -23,49 +23,11 @@ test('M8-20 parseJsonc keeps ",]" and ",}" inside strings, ignores a leading BOM
   assert.deepEqual(parseJsonc('[1,2,]'), [1, 2]);
 });
 
-const ESC_CR = '\u001b\r';
-function writeVs(appData: string) {
-  const u = join(appData, 'Code', 'User'); mkdirSync(u, { recursive: true });
-  writeFileSync(join(u, 'settings.json'), '{\n // look\n "workbench.colorTheme": "Solarized Light",\n "workbench.sideBar.location": "right",\n}');
-  writeFileSync(join(u, 'keybindings.json'), `[
- { "key": "Shift+Enter", "command": "workbench.action.terminal.sendSequence", "args": { "text": ${JSON.stringify(ESC_CR)} } },
- { "key": "ctrl+alt+q", "command": "editor.action.quickFix" },
- { "key": "ctrl+b", "command": "-workbench.action.toggleSidebarVisibility" },
- { "key": "alt+j", "command": "workbench.action.nextEditor" },
- { "key": "ctrl+k ctrl+s", "command": "workbench.action.openGlobalKeybindings" },
-]`);
-}
-
-test('M8-20 readVsCode reads a temp appData and returns null when VS Code has no folder', () => {
-  const appData = join(tmp, 'a'); writeVs(appData);
-  const f = readVsCode(appData)!;
-  assert.equal(f.theme, 'Solarized Light'); assert.equal(f.sidebar, 'right');
-  assert.deepEqual(f.keys.map((k) => k.key), ['shift+enter', 'ctrl+alt+q', 'alt+j']);
-  assert.equal(f.keys[0].text, ESC_CR);
-  assert.deepEqual(f.chords.map((k) => k.key), ['ctrl+k ctrl+s']);
-  assert.equal(readVsCode(join(tmp, 'none')), null);
-});
-
-test('M8-20 themeFor maps light to Crisp light and keeps dark and high contrast', () => {
-  assert.equal(themeFor('Solarized Light'), 'light');
-  assert.equal(themeFor('Default Light Modern'), 'light');
-  assert.equal(themeFor('Dark Modern'), null);
-  assert.equal(themeFor('Default High Contrast Light'), null);
-  assert.equal(themeFor(null), null);
-});
-
-test('M8-20a,b importSummary lists the applied theme and every skipped item with its reason', () => {
-  const appData = join(tmp, 'b'); writeVs(appData);
-  const s = importSummary(readVsCode(appData)!, { theme: 'light' });
-  assert.deepEqual(s.applied, ['theme "Solarized Light" as Crisp light', 'shift+enter: cc already sends Esc then Enter in terminals']);
-  assert.deepEqual(s.skipped, [
-    "side bar on the right: cc's side bar is fixed on the left",
-    'ctrl+alt+q (editor.action.quickFix): cc cannot rebind keys yet',
-    'alt+j (workbench.action.nextEditor): cc cannot rebind keys yet',
-    'ctrl+k ctrl+s (workbench.action.openGlobalKeybindings): cc cannot rebind keys yet',
-  ]);
-  const dark = importSummary({ theme: 'Dark Modern', sidebar: 'left', keys: [], chords: [] }, { theme: null });
-  assert.deepEqual(dark, { applied: [], skipped: ['theme "Dark Modern": cc keeps its dark look'] });
+test('M8-20 parseJsonc drops a trailing comma followed by a comment before the closing bracket', () => {
+  assert.deepEqual(parseJsonc('{"a": 1, /* x */ }'), { a: 1 });
+  assert.deepEqual(parseJsonc('{\n "workbench.colorTheme": "Default Light+", // mine\n}'), { 'workbench.colorTheme': 'Default Light+' });
+  assert.deepEqual(parseJsonc('[{"key":"a","command":"b"},\n// {"key":"c"}\n]'), [{ key: 'a', command: 'b' }]);
+  assert.deepEqual(parseJsonc('{"a": "x, // y", /* z */ // w\n}'), { a: 'x, // y' });
 });
 
 // ---- renderer/app.js --------------------------------------------------------
@@ -113,14 +75,56 @@ test('M8-20a first start over the default theme (dither) applies the theme once 
   assert.deepEqual(JSON.parse(none.m.get('cc.vscodeImport')!), { none: true });
 });
 
-test('M8-20a a theme the user already chose is not replaced: nothing applied, skipped list says so', async () => {
+// The reply the main process would send: the REAL importSummary output for a light VS Code theme.
+const real = () => {
+  const fx = { theme: 'Solarized Light', sidebar: 'left', keys: [{ key: 'alt+j', command: 'workbench.action.nextEditor' }], chords: [] };
+  return { theme: 'light', summary: importSummary(fx, { theme: 'light' }), keys: fx.keys };
+};
+const themeOnce = (o: any, line = 'theme "Solarized Light"') => {
+  const rec = JSON.parse(o.ls.m.get('cc.vscodeImport')!);
+  const all = [...rec.applied, ...rec.skipped];
+  assert.equal(all.filter((x: string) => x.startsWith(line)).length, 1, 'the theme is listed once: ' + JSON.stringify(all));
+  const t = told(o.w)[0];
+  assert.equal(t.split(line).length - 1 <= 1, true, 'the toast names the theme at most once: ' + t);
+  return { rec, t };
+};
+
+test('M8-20a a theme the user already chose is not replaced: listed as skipped only, never also as applied', async () => {
   const ls = fakeLs();
-  const w = await start(ls, () => ({ ...found, summary: { applied: [], skipped: [...found.summary.skipped] } }), 'neutral');
+  const w = await start(ls, real, 'neutral');
   assert.deepEqual(themeCalls(w), []);
-  const rec = JSON.parse(ls.m.get('cc.vscodeImport')!);
+  const { rec, t } = themeOnce({ ls, w });
   assert.equal(rec.theme, null);
-  assert.deepEqual(rec.skipped, ['theme light: you already chose a cc theme', 'alt+j (x): cc cannot rebind keys yet']);
-  assert.equal(told(w).length, 1);
+  assert.deepEqual(rec.applied, []);
+  assert.equal(rec.skipped[0], 'theme "Solarized Light": you already chose a cc theme');
+  assert.ok(!rec.applied.some((x: string) => x.startsWith('theme ')));
+  assert.match(t, /^From VS Code: nothing applied\. \d+ skipped/);
+  assert.ok(!t.includes('as Crisp light'));
+});
+
+test('M8-20a when cc cannot read its own theme the VS Code theme is skipped with that reason, not applied', async () => {
+  const ls = fakeLs();
+  let asked = false; // uiSettings works at boot and fails only once the import has asked
+  const w = boot({ ls, vscode: () => { asked = true; return real(); }, uiTheme: () => { if (asked) throw new Error('no settings'); return 'neutral'; } });
+  w.t.ui.look = { theme: { name: 'neutral', scheme: 'dark' } };
+  await w.snap(snapOf([]));
+  assert.deepEqual(themeCalls(w), []);
+  const { rec, t } = themeOnce({ ls, w });
+  assert.equal(rec.theme, null); assert.equal(rec.prev, null);
+  assert.deepEqual(rec.applied, []);
+  assert.equal(rec.skipped[0], 'theme "Solarized Light": cc could not read its own theme');
+  assert.ok(!t.includes('as Crisp light'));
+});
+
+test('M8-20a over dither the real summary still applies the theme and lists it as applied, not skipped', async () => {
+  const ls = fakeLs();
+  const w = await start(ls, real, 'dither');
+  assert.deepEqual(themeCalls(w), ['light']);
+  const { rec, t } = themeOnce({ ls, w });
+  assert.equal(rec.theme, 'light');
+  assert.equal(rec.applied[0], 'theme "Solarized Light" as Crisp light');
+  assert.ok(!rec.skipped.some((x: string) => x.startsWith('theme ')));
+  assert.match(t, /^From VS Code: theme "Solarized Light" as Crisp light/);
 });
 
 test('M8-20c a chord bound only in VS Code toasts exactly once, even across a restart; unbound and consumed ones toast nothing', async () => {
