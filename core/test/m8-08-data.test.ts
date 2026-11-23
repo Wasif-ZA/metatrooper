@@ -72,3 +72,19 @@ test('nested paths create objects and a flat spec with a missing child draws a s
   assert.equal(flat.root.children[0].type, 'spinner');
   assert.deepEqual(flat.fellBack, []);
 });
+
+test('ui.show names child ids not sent yet in waiting', async t => {
+  const h = harness(t);
+  const res: any = h.show({ root: 'r', parts: { r: { type: 'page', children: ['later', 'txt'] }, txt: { type: 'text', text: 'hi' } } });
+  assert.equal(res.status, 'drawn');
+  assert.deepEqual(res.waiting, ['later']);
+  const full: any = h.show({ root: 'r', parts: { r: { type: 'page', children: ['txt'] }, txt: { type: 'text', text: 'hi' } } });
+  assert.equal(full.status, 'drawn');
+  assert.ok(!('waiting' in full));
+});
+
+test('a bind on type is never resolved', async t => {
+  const out = expand({ type: 'page', children: [{ type: { bind: '/t' }, text: 'x' }] }, 'tab', { t: 'text' });
+  assert.notEqual(out.root.children[0].type, 'text');
+  assert.equal(out.fellBack.length, 1);
+});
