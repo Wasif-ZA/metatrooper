@@ -188,8 +188,9 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         owned.push({ id: paneId } as PaneRow);
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
-      if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, 'an agent may drive only its own agent panes, not a user pane; to use the user\'s sign-in, ask them to lend the site (navigate with signed_in: true)');
-      if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
+      const own = owned.length ? `your panes: ${owned.map((r) => r.id).join(', ')}` : 'leave pane_id out of navigate and cc opens your own pane';
+      if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, `an agent may drive only its own agent panes, not a user pane (${own}); to use the user's sign-in, ask them to lend the site (navigate with signed_in: true)`);
+      if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, `pane not owned by the calling session (${own})`);
       if (tool === 'outcome') {
         const status = typeof params.status === 'string' ? params.status : '';
         if (!CHECKED.has(String(params.tool)) || !/^error -?\d{1,6}$/.test(status)) return fail(id, -32602, 'outcome takes a checked tool (click, type, select or key) and an error status');
