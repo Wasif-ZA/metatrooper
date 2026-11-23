@@ -199,19 +199,6 @@ async function gitStage(st, paths, unstage = false) {
   await loadGitStatus(st);
 }
 
-async function gitShip(st) {
-  if (st.shipping) return;
-  st.shipping = true;
-  bump();
-  let r;
-  try { r = await api.git(st.pid, 'ship', st.commitMsg.trim()); } catch (e) { r = { error: String(e) }; }
-  st.shipping = false;
-  if (r && r.error) { toast(r.error, true); bump(); return; }
-  st.commitMsg = '';
-  toast(r && r.url ? `Pushed and opened ${r.url}` : 'Pushed');
-  await loadGitStatus(st);
-}
-
 async function gitCommit(st) {
   const msg = st.commitMsg.trim();
   if (!msg || st.committing) return;
@@ -953,7 +940,6 @@ function SourceControl({ st }) {
   const { staged, unstaged } = gitFiles(st);
   const canCommit = staged.length > 0 && !st.committing;
   const commit = () => { if (st.commitMsg.trim()) void gitCommit(st); else message.current?.focus(); };
-  const shipIt = () => { if (st.commitMsg.trim() || !(staged.length + unstaged.length)) void gitShip(st); else message.current?.focus(); };
   const fold = st.scFold || (st.scFold = {});
   const toggle = (k) => { fold[k] = !fold[k]; bump(); };
 
@@ -965,7 +951,6 @@ function SourceControl({ st }) {
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
           <Button size="sm" variant="primary" label={st.committing ? 'Committing' : 'Commit'} icon={<Sc.CheckIcon size={14} />} tooltip="Commit staged changes" isDisabled={!canCommit} onClick={commit} />
-          <Button size="sm" variant="secondary" label={st.shipping ? 'Shipping' : 'Commit, push, open PR'} tooltip="Commit (every change when nothing is staged), push this branch and open a pull request; stops at the first step that fails" isDisabled={Boolean(st.shipping || st.committing)} onClick={shipIt} />
         </div>
       </div>
       <div className="ou-ide-tree">
