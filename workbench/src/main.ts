@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
 import { usdFor } from '../../core/src/meter.ts';
+import { importSummary, readVsCode, themeFor } from './vscode-import.ts';
 import path from 'node:path';
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -674,6 +675,13 @@ function handlers(): void {
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
+  });
+  // M8-20: what the user's VS Code settings say; the renderer applies the theme once and shows one summary.
+  on('vscodeImport', () => {
+    const found = readVsCode(app.getPath('appData'));
+    if (!found) return null;
+    const theme = themeFor(found.theme);
+    return { theme, summary: importSummary(found, { theme }), keys: found.keys.map((k) => ({ key: k.key, command: k.command })) };
   });
   on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);

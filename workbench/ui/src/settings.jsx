@@ -17,11 +17,13 @@ import { marked } from 'marked';
 export const settingsStore = createStore({ data: null, section: 'general' });
 
 const NAV = [
-  { title: 'App', ids: ['general'] },
+  { title: 'App', ids: ['general', 'learning'] },
   { title: 'Agents', ids: ['reliability', 'savings', 'safety', 'automations'] },
   { title: 'Extend', ids: ['addons', 'notify'] },
   { title: 'System', ids: ['advanced', 'licences'] },
 ];
+
+const vscodeRecord = () => { try { return JSON.parse(localStorage.getItem('cc.vscodeImport') || 'null'); } catch { return null; } };
 
 const SECTIONS = [
   { id: 'general', label: 'General', note: 'How agents ask, and how cc looks.', groups: [
@@ -86,6 +88,11 @@ const SECTIONS = [
     { run: () => api.openLogs(), button: 'Open', label: 'Logs folder' },
   ] }] },
   { id: 'licences', label: 'Licences and trademarks', note: 'Third-party software in cc, and the trademarks of the engines it runs.', groups: [], body: Notices },
+  { id: 'learning', label: 'Learning', note: 'What cc took from your old editor. Each import can be undone.', groups: [{ title: 'From VS Code', rows: [
+    { label: 'Applied', read: () => { const r = vscodeRecord(); return !r ? 'Not checked yet' : r.none ? 'No VS Code settings found' : r.undone ? 'Undone' : (r.applied || []).join('; ') || 'Nothing'; } },
+    { label: 'Skipped', read: () => { const r = vscodeRecord(); return r && !r.none && (r.skipped || []).length ? r.skipped.join('; ') : 'Nothing'; } },
+    { run: () => { void undoVscodeImport().then(() => settingsView.close()); }, button: 'Undo', label: 'Undo the VS Code import', hint: 'Puts your theme back as it was before the import.' },
+  ] }] },
 ];
 
 export function Notices() {
@@ -118,6 +125,7 @@ const NAV_ICON = {
   advanced: Sc.TerminalIcon,
   automations: Ic.ScheduleIcon,
   licences: Ic.LearnIcon,
+  learning: Ic.LearnIcon,
 };
 const navIcon = (id, size = 16) => { const Icon = NAV_ICON[id]; return <Icon size={size} />; };
 

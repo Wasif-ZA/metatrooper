@@ -448,6 +448,54 @@ function applyLook(look) {
   globalThis.setUiScheme?.();
 }
 
+/** M8-20: on the first start, takes the theme from VS Code and shows one summary; each start, learns VS Code's own keys so a chord only VS Code knows says so once. */
+const VSCODE_KEY = 'cc.vscodeImport';
+const VSCODE_TOLD = 'cc.vscodeTold';
+const readStore = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const writeStore = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+async function vscodeOnce() {
+  if (ui.vscodeAsked || typeof api.vscodeImport !== 'function') return;
+  ui.vscodeAsked = true;
+  const r = await api.vscodeImport().catch(() => null);
+  ui.vscodeKeys = new Map(((r && r.keys) || []).filter((k) => /\b(ctrl|alt)\b/.test(k.key)).map((k) => [chordOf(k.key.split('+')), k.command]));
+  if (readStore(VSCODE_KEY)) return;
+  if (!r) { writeStore(VSCODE_KEY, { none: true }); return; }
+  const prev = ui.look && ui.look.theme ? ui.look.theme.name : null;
+  const theme = r.theme && r.theme !== prev ? r.theme : null;
+  if (theme) await setLook(theme);
+  writeStore(VSCODE_KEY, { at: new Date().toISOString(), prev, theme, applied: r.summary.applied, skipped: r.summary.skipped });
+  toast(`From VS Code: ${r.summary.applied.join('; ') || 'nothing applied'}. ${r.summary.skipped.length} skipped, listed in Settings > Learning.`);
+}
+
+/** Undoes the VS Code import: puts the theme back as it was. */
+async function undoVscodeImport() {
+  const rec = readStore(VSCODE_KEY);
+  if (!rec || rec.none || rec.undone) return;
+  if (rec.theme && rec.prev) await setLook(rec.prev);
+  writeStore(VSCODE_KEY, { ...rec, undone: true });
+  toast('VS Code import undone.');
+}
+
+const chordOf = (parts) => {
+  const mods = ['ctrl', 'shift', 'alt', 'meta'].filter((m) => parts.includes(m));
+  const key = parts.filter((p) => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).join('+');
+  return [...mods, key].join('+');
+};
+
+function vscodeChord(e) {
+  if (e.defaultPrevented || !(e.ctrlKey || e.altKey) || !ui.vscodeKeys || !ui.vscodeKeys.size) return;
+  const key = String(e.key || '').toLowerCase();
+  if (['control', 'shift', 'alt', 'meta'].includes(key)) return;
+  const chord = chordOf([...(e.ctrlKey ? ['ctrl'] : []), ...(e.shiftKey ? ['shift'] : []), ...(e.altKey ? ['alt'] : []), ...(e.metaKey ? ['meta'] : []), key]);
+  const command = ui.vscodeKeys.get(chord);
+  if (!command) return;
+  const told = readStore(VSCODE_TOLD) || [];
+  if (told.includes(chord)) return;
+  writeStore(VSCODE_TOLD, [...told, chord]);
+  toast(`${chord} did "${command}" in VS Code. cc has no key for it yet.`);
+}
+document.addEventListener('keydown', vscodeChord);
+
 async function setLook(id) {
   const theme = await api.setTheme(id);
   if (!theme || theme.error) { if (theme) toast(theme.error, true); return; }
@@ -2005,7 +2053,7 @@ api.onOpenNeedsYou((id) => {
 api.onSnapshot(async (s) => {
   ui.snap = s;
   globalThis.flushQueued?.(s.sessions);
-  if (s.core.online) ui.coreSeen = true;
+  if (s.core.online) { ui.coreSeen = true; void vscodeOnce(); }
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
     if (!x || LIVE_STATES.includes(x.state)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
