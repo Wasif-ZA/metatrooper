@@ -29,6 +29,7 @@ import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
+import { Verdict } from './verdict.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -196,6 +197,19 @@ async function gitStage(st, paths, unstage = false) {
   let r;
   try { r = await api.git(st.pid, unstage ? 'unstage-paths' : 'stage-paths', paths); } catch (e) { r = { error: String(e) }; }
   if (r && r.error) { toast(r.error, true); return; }
+  await loadGitStatus(st);
+}
+
+async function gitShip(st) {
+  if (st.shipping) return;
+  st.shipping = true;
+  bump();
+  let r;
+  try { r = await api.git(st.pid, 'ship', st.commitMsg.trim()); } catch (e) { r = { error: String(e) }; }
+  st.shipping = false;
+  if (r && r.error) { toast(r.error, true); bump(); return; }
+  st.commitMsg = '';
+  toast(r && r.url ? `Pushed and opened ${r.url}` : 'Pushed');
   await loadGitStatus(st);
 }
 
@@ -1027,6 +1041,34 @@ const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid &&
   .sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')));
 const agentName = (id) => ui.snap.sessions.find((x) => x.id === id)?.engine_id || 'the agent';
 
+function ReviewHeader({ st, tab }) {
+  if (!st.git || st.git.error) return null;
+  const { staged, unstaged } = gitFiles(st);
+  const ownerId = (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path);
+  const owner = ownerId ? ui.snap.sessions.find((x) => x.id === ownerId) : null;
+  const settled = owner && (owner.state === 'done' || owner.state === 'idle');
+  const blocked = unstaged.length > 0 && !staged.length;
+  const n = staged.length;
+  const title = n ? `${n} staged ${n === 1 ? 'file' : 'files'} to ship` : blocked ? 'Nothing staged to ship' : 'Nothing to commit';
+  const sub = [`Branch ${st.git.branch || '(none)'}`, unstaged.length ? `${unstaged.length} not staged, left out` : ''].filter(Boolean).join(', ');
+  const go = () => {
+    if (n && !st.commitMsg.trim()) { st.side = 'changes'; bump(); toast('Write a commit message in Source Control first.', true); return; }
+    void gitShip(st);
+  };
+  return (
+    <div className="ou-ide-ship" data-part="shipbar">
+      <div className="ou-ide-shipm">
+        <b>{title}</b>
+        <em>{sub}</em>
+        <div className="ou-ide-shipck">{settled ? <Verdict x={owner} /> : null}{settled ? null : <span>{owner ? 'The agent is still working; nothing checked yet.' : 'No check has run on these files.'}</span>}</div>
+      </div>
+      <div className="ou-ide-shipa">
+        <Button size="sm" variant="primary" label={st.shipping ? 'Shipping' : 'Commit, push, open PR'} tooltip={blocked ? 'Stage the files to ship first; only staged files are committed' : 'Commit the staged files, push this branch and open a pull request; stops at the first step that fails'} isDisabled={Boolean(st.shipping || st.committing || blocked)} onClick={go} />
+      </div>
+    </div>
+  );
+}
+
 function DiffView({ st, tab }) {
   const ref = useRef(null);
   const view = useRef(null);
@@ -1477,7 +1519,7 @@ export function Ide() {
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== leftActive || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
           {!leftActive ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
-            : (changed.has(leftActive.path) || leftActive.gitDiff) && leftActive.mode === 'changes' ? <DiffView st={st} tab={leftActive} />
+            : (changed.has(leftActive.path) || leftActive.gitDiff) && leftActive.mode === 'changes' ? <div className="ou-ide-review"><ReviewHeader st={st} tab={leftActive} /><div className="ou-ide-reviewbody"><DiffView st={st} tab={leftActive} /></div></div>
               : leftActive.error ? <EmptyState isCompact title={leftActive.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, leftActive.path)} /></>} />
                 : leftActive.image ? <div className="ou-ide-image"><img src={leftActive.image} alt={leftActive.path} /></div>
                   : leftActive.pdf ? <EmptyState title="PDF" description="PDFs open in your PDF reader." actions={<Button size="sm" variant="primary" label="Open outside" onClick={() => void openOutside(st, leftActive.path)} />} />
