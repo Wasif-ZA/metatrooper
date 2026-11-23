@@ -17,7 +17,8 @@ import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { proveSecret } from './sessions/secret.ts';
-import { parseChat } from './sessions/chat.ts';
+import { parseChat, parseEngineChat } from './sessions/chat.ts';
+import { engineFile } from './meter.ts';
 import { buildHandoff, gatherHandoff, handoffTranscript } from './sessions/handoff.ts';
 import { preserveFiles, validatePreserve } from './sessions/preserve.ts';
 import { gitAsync } from './sessions/owners.ts';
@@ -733,7 +734,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 500) throw new RpcError(E.INVALID_PARAMS, 'limit must be a whole number from 1 to 500');
       const row = db.prepare('SELECT state, engine_id, cwd FROM session WHERE id = ?').get(id) as { state: string; engine_id: string; cwd: string | null } | undefined;
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
-      const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(id) as { t: unknown } | undefined)?.t;
+      const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(id) as { t: unknown } | undefined)?.t ?? engineFile(id);
       const source = typeof transcript === 'string' && transcript.toLowerCase().endsWith('.jsonl') ? 'transcript' : 'none';
       let lines: string[] = [];
       if (source === 'transcript') {
@@ -757,7 +758,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const permission = row.state === 'waiting_for_you'
         ? db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS tool_use_id FROM event WHERE session_id = ? AND kind = 'claude.PermissionRequest' ORDER BY seq DESC LIMIT 1").get(id) as { tool_use_id: unknown } | undefined
         : undefined;
-      const { items, waiting } = parseChat(lines, row.state, row.cwd, typeof permission?.tool_use_id === 'string' ? permission.tool_use_id : null);
+      const { items, waiting } = row.engine_id === 'claude'
+        ? parseChat(lines, row.state, row.cwd, typeof permission?.tool_use_id === 'string' ? permission.tool_use_id : null)
+        : parseEngineChat(lines, row.state);
       const secrets = knownSecretValues();
       return { session_id: id, engine_id: row.engine_id, source, waiting, items: items.slice(-limit).map((item) => item.kind === 'tool'
         ? { ...item, id: scrub(item.id, secrets), name: scrub(item.name, secrets), label: scrub(item.label, secrets), ...(item.file === undefined ? {} : { file: scrub(item.file, secrets) }),

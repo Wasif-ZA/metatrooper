@@ -441,7 +441,7 @@ export function Inbox() {
   const targetSession = targetSessionId ? byId(targetSessionId) : null;
   const { text: sessionText, error: sessionTextError } = useSessionText(ui.view === 'inbox' ? targetSession?.id : null, targetSession?.last_line || null);
   const lastSaid = useRpcResult('session.chat', { session_id: targetSession?.id, limit: 20 }, ui.view === 'inbox' && targetSession?.state === 'waiting_for_you' ? `${targetSession.id} ${targetSession.state_at}` : null, (res) => {
-    const last = (res?.result?.items || []).at(-1);
+    const last = (res?.result?.items || []).filter((i) => i.kind !== 'user').at(-1);
     return { value: last ? (last.kind === 'tool' ? last.label : last.text) : null, error: false };
   }).value;
   const handoff = useRpcResult('session.handoff', { session_id: targetSession?.id }, ui.view === 'inbox' ? targetSession?.id : null, (res) => ({ value: res && res.result ? res.result.handoff || null : null, error: false })).value;

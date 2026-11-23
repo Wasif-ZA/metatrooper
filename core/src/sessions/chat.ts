@@ -1,4 +1,5 @@
 import { posix, win32 } from 'node:path';
+import { agyRequest } from '../gate.ts';
 
 export interface ToolItem {
   kind: 'tool';
@@ -106,6 +107,37 @@ export function parseChat(lines: string[], state: string, cwd: string | null = n
   const last = items.at(-1);
   const waiting = state === 'waiting_for_you' && last?.kind === 'tool' && last.status === 'running'
     && last.name !== 'AskUserQuestion' && permissionToolUseId === last.id;
+  if (waiting) last.status = 'waiting';
+  return { items, waiting };
+}
+
+/** Codex rollout or agy transcript lines as chat items: user turns, agent replies, and tool calls (the last one marked waiting while the session waits). */
+export function parseEngineChat(lines: string[], state: string): { items: Item[]; waiting: boolean } {
+  const items: Item[] = [];
+  for (const line of lines) {
+    let entry: Record<string, unknown>;
+    try { entry = record(JSON.parse(line)); } catch { continue; }
+    const p = record(entry.payload);
+    if (entry.type === 'response_item' && p.type === 'message' && (p.role === 'assistant' || p.role === 'user')) {
+      const text = (Array.isArray(p.content) ? p.content : []).map(record).filter((c) => c.type === 'output_text' || c.type === 'input_text').map((c) => string(c.text)).join('').trim();
+      if (text && !text.startsWith('<')) items.push({ kind: p.role === 'assistant' ? 'text' : 'user', text });
+    } else if (entry.type === 'response_item' && p.type === 'function_call') {
+      items.push({ kind: 'tool', id: string(p.call_id), name: string(p.name), label: `Used ${string(p.name)}`, status: 'running' });
+    } else if (entry.type === 'response_item' && p.type === 'function_call_output') {
+      const tool = items.findLast((i): i is ToolItem => i.kind === 'tool' && i.id === string(p.call_id));
+      if (tool) tool.status = 'ok';
+    } else if (entry.type === 'USER_INPUT' && typeof entry.content === 'string') {
+      items.push({ kind: 'user', text: agyRequest(entry.content).trim() });
+    } else if (entry.type === 'PLANNER_RESPONSE') {
+      for (const prev of items) if (prev.kind === 'tool' && prev.status === 'running') prev.status = 'ok';
+      if (typeof entry.content === 'string' && entry.content.trim()) items.push({ kind: 'text', text: entry.content.trim() });
+      for (const call of Array.isArray(entry.tool_calls) ? entry.tool_calls.map(record) : []) {
+        items.push({ kind: 'tool', id: `${String(entry.step_index ?? '')}:${string(call.name)}`, name: string(call.name), label: `Wants to use ${string(call.name)}`, status: 'running' });
+      }
+    }
+  }
+  const last = items.at(-1);
+  const waiting = state === 'waiting_for_you' && last?.kind === 'tool' && last.status === 'running';
   if (waiting) last.status = 'waiting';
   return { items, waiting };
 }

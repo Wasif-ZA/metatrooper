@@ -192,6 +192,11 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
 
 const agyFiles = new Map<string, string>();
 
+/** The Codex rollout or agy transcript the core linked to a session, if any. */
+export function engineFile(sessionId: string): string | null {
+  return codexFiles.get(sessionId) ?? agyFiles.get(sessionId) ?? null;
+}
+
 export function noteAgySession(sessionId: string, file: string): void {
   agyFiles.set(sessionId, file);
 }
