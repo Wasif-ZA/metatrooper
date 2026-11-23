@@ -20,7 +20,14 @@ export async function runEngine(db: DatabaseSync, p: Record<string, unknown>, ap
   const row = sessionId ? db.prepare('SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as { path: string } | undefined : undefined;
   if (!row) throw new RpcError(E.NOT_FOUND, 'session not found; ouros_engine can only be called from a cc session');
   const plugin = typeof p.engine === 'string' ? loadPlugin(db, p.engine) : null;
-  if (!plugin) throw new RpcError(E.NOT_FOUND, `no installed, enabled plugin called ${String(p.engine)}`);
+  if (!plugin) {
+    // M8-12c: the screen that needed it shows a calm install card instead of a broken part
+    const name = typeof p.engine === 'string' ? p.engine.slice(0, 64) : '';
+    if (typeof p.surface === 'string' && name) {
+      try { setSurfaceData(db, { session_id: sessionId, surface: p.surface, path: '/missing_engine', value: { engine: name, action: typeof p.action === 'string' ? p.action.slice(0, 64) : '' } }); } catch {}
+    }
+    throw new RpcError(E.NOT_FOUND, `no installed, enabled plugin called ${String(p.engine)}; the screen shows an install card`);
+  }
   const blocked = plugin.source === 'builtin' ? null : blockReason(plugin.id, plugin.version);
   if (blocked) throw new RpcError(E.VALIDATION, `${plugin.id} ${plugin.version} is on cc's block list: ${blocked}`);
   const action = (plugin.manifest.actions ?? []).find((a) => a.id === p.action);

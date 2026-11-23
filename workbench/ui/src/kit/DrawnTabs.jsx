@@ -36,6 +36,17 @@ export async function syncDrawn() {
 const SAID = { session: 'sent to the agent', held: 'queued: the agent gets it with its next prompt', inbox: 'the session has ended or has no terminal; kept in Needs you' };
 const DROP = { stale: 'not sent: the agent redrew this screen', repeat: 'not sent: already sent' };
 
+/** M8-12c: a calm card naming the engine a screen needs and where to get it; the screen below still draws what it can. */
+export function InstallCard({ missing }) {
+  if (!missing || typeof missing.engine !== 'string' || !missing.engine) return null;
+  return (
+    <div className="ou-drawn-install" role="note">
+      <Text>{`This screen needs the ${missing.engine} engine${missing.action ? ` to ${missing.action}` : ''}, which is not installed.`}</Text>
+      <Button size="sm" variant="secondary" label="Open Add-ons" onClick={() => homeView?.set?.('addons')} />
+    </div>
+  );
+}
+
 /** Sends a click on a drawn screen to core with the seq the tab drew; the reply line shows under the tab bar. */
 async function send(t, e) {
   const out = await api.call('ui.event', { surface: t.id, seq: t.seq, event: e.event, context: e.context });
@@ -64,6 +75,7 @@ export function DrawnTabs({ pid }) {
         <Button size="sm" variant="ghost" label="Back to files" onClick={() => { st.active = null; bump(); }} />
         <Text className="ou-drawn-who" color="secondary" size="sm">{`drawn by session ${cur.session.slice(-6)}${cur.said ? ` · ${cur.said}` : ''}`}</Text>
       </div>
+      <InstallCard missing={cur.data?.missing_engine} />
       <Drawn key={`${cur.id}:${cur.seq}`} spec={cur.spec} data={cur.data} templates={cur.templates} onEvent={(e) => send(cur, e)} />
     </div>
   );
