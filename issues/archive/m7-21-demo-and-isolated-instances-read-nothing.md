@@ -38,3 +38,5 @@ Status: bug confirmed in code 2026-10-31.
 2. The trust dialog defaults to "No, exit" on Enter: reproduced; the cursor sits on "No, exit". It is Claude Code's own
    dialog, and Wasif's Q2 answer (2026-11-24) says leave it and answer in the terminal. Closed as won't fix.
 3. Codex rows garble after a resize: moved to M7-8 (rows 6 and 11; criteria M7-08e and M7-08j). Closed here.
+
+Status 2026-11-24: done. 21a,b by engineHome() and core/test/m7-21-demo-limits.test.ts (3/3 pass on a8a3b642, run by B4); 21c,d by B3 on the orch1124 board, 00:39.
