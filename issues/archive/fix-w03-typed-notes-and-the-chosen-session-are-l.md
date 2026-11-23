@@ -32,3 +32,5 @@ Read-only audit of workbench, 2026-10-31. `npm test`: 282 tests, 244 pass, 0 fai
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked; each box names its test. Run by B4 on a8a3b642 with its own npm ci; full suite green on eca8743a (M).

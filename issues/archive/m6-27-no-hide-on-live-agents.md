@@ -33,3 +33,5 @@ The tile x and the list row x render only when the session's state is not `start
 ## Rules
 
 Never commit, push or open PRs from an agent; hand back the command. Edit only your own lines in files other sessions have uncommitted changes in. No em dashes.
+
+Status 2026-11-24: done, every box ticked; each box names its test. Run by B4 on a8a3b642 with its own npm ci; full suite green on eca8743a (M).
