@@ -118,15 +118,16 @@ export function expand(spec, zone = 'tab', data = {}) {
   try { flat = flatten(spec); } catch { flat = { root: 'p1', parts: { p1: null } }; }
   const { root, parts } = flat;
   const fellBack = [];
+  const waiting = [];
   let n = 0;
   const fail = (id, f) => { fellBack.push({ part: String(id).slice(0, 40), type: f.name, why: f.why }); return f; };
   const build = (id, depth) => {
     if (typeof id !== 'string') return fail(id, fallback(null, `no part with id ${JSON.stringify(String(id).slice(0, 40))}`));
-    if (!Object.hasOwn(parts, id)) return { type: 'spinner', text: 'Loading' };
+    if (!Object.hasOwn(parts, id)) { waiting.push(id.slice(0, 40)); return { type: 'spinner', text: 'Loading' }; }
     if (++n > MAX_PARTS) return n === MAX_PARTS + 1 ? fail(id, fallback(null, `screen too big: over ${MAX_PARTS} parts`)) : DROP;
     const sent = parts[id];
-    const bound = isObj(sent) && Object.values(sent).some(isBind);
-    const raw = bound ? Object.fromEntries(Object.entries(sent).map(([k, v]) => [k, isBind(v) ? atPointer(data, v.bind) : v])) : sent;
+    const bound = isObj(sent) && Object.entries(sent).some(([k, v]) => k !== 'type' && isBind(v));
+    const raw = bound ? Object.fromEntries(Object.entries(sent).map(([k, v]) => [k, k !== 'type' && isBind(v) ? atPointer(data, v.bind) : v])) : sent;
     if (bound && Object.values(raw).some((v) => v === undefined)) return { type: 'spinner', text: 'Waiting for data' };
     const c = check(raw);
     if (c !== raw) return fail(id, c);
@@ -160,5 +161,5 @@ export function expand(spec, zone = 'tab', data = {}) {
   };
   const top = build(root, 0);
   if (z.max && top?.type === 'page') top.children = top.children.slice(0, z.max);
-  return { root: top, fellBack };
+  return { root: top, fellBack, ...(waiting.length ? { waiting } : {}) };
 }

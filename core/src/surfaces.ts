@@ -9,7 +9,7 @@ import { KIT, VERSION, expand, flatten, isFallback } from '../../workbench/ui/sr
 export const MAX_SPEC_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9._-]{1,64}$/;
 
-export interface UiResult { surface: string; status: 'drawn' | 'partly' | 'rejected'; fellBack: Array<{ part: string; type: string; why: string }> }
+export interface UiResult { surface: string; status: 'drawn' | 'partly' | 'rejected'; fellBack: Array<{ part: string; type: string; why: string }>; waiting?: string[] }
 
 /** Stores or replaces a screen an agent session drew; the workbench opens it as a tab. Only the session that drew a surface may redraw it. */
 export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiResult {
@@ -28,14 +28,14 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;
   if (owner && owner.session_id !== sessionId) throw new RpcError(E.VALIDATION, 'that surface belongs to another session; pick a different surface id');
-  const { root, fellBack } = expand(spec, 'tab', readData(surface));
+  const { root, fellBack, waiting = [] } = expand(spec, 'tab', readData(surface));
   const status = isFallback(root) ? 'rejected' : fellBack.length ? 'partly' : 'drawn';
   db.prepare(
     `INSERT INTO ui_surface (id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at)
      VALUES (?, ?, ?, 'tab', ?, ?, ?, ?, (SELECT coalesce(max(seq), 0) + 1 FROM ui_surface), ?)
      ON CONFLICT(id) DO UPDATE SET title = excluded.title, catalogue = excluded.catalogue, spec = excluded.spec, status = excluded.status, seq = excluded.seq, updated_at = excluded.updated_at`,
   ).run(surface, sessionId, row.project_id, title, catalogue, text, status, nowIso());
-  return { surface, status, fellBack };
+  return { surface, status, fellBack, ...(waiting.length ? { waiting } : {}) };
 }
 
 export function getSurface(db: DatabaseSync, id: string): Record<string, unknown> {
