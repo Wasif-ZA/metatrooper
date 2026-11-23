@@ -6,6 +6,56 @@ import path from 'node:path';
 
 const CODEX_ID = '0199aaaa-1111-2222-3333-444455556666';
 
+for (const age of [60_000, 1000]) {
+  // protects=FIX-C8a
+  test(`FIX-C8 a ${age / 1000}s old unlinked Codex session ${age === 60_000 ? 'retries at ten seconds' : 'tries every second'}`, async (ctx) => {
+    const t = await setup();
+    try {
+      const dir = path.join(t.home, '.codex', 'sessions');
+      fs.mkdirSync(dir, { recursive: true });
+      const now = Date.now();
+      const id = `c8-unlinked-${age}`;
+      t.addSession(id, 'codex', now - age);
+      const spy = ctx.mock.method(fs, 'readdirSync');
+      const walks = () => spy.mock.calls.filter((call) => String(call.arguments[0]) === dir).length;
+      for (let second = 0; second < 10; second++) {
+        t.checkActivity(t.db, now + second * 1000);
+        assert.equal(walks(), age === 60_000 ? 1 : second + 1, `walks at +${second}s`);
+        assert.equal(t.native(id), null);
+      }
+      t.checkActivity(t.db, now + 10_000);
+      assert.equal(walks(), age === 60_000 ? 2 : 11);
+    } finally {
+      ctx.mock.restoreAll();
+      t.db.prepare('DELETE FROM session').run();
+      t.checkActivity(t.db);
+      t.done();
+      fs.rmSync(t.home, { recursive: true, force: true });
+    }
+  });
+}
+
+// protects=FIX-C8b
+test('FIX-C8 a rollout appearing for a young session links on the next one-second call', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '11', '23');
+    fs.mkdirSync(dir, { recursive: true });
+    const now = Date.now();
+    t.addSession('c8-early', 'codex', now - 1000);
+    t.checkActivity(t.db, now);
+    assert.equal(t.native('c8-early'), null);
+    fs.writeFileSync(path.join(dir, `rollout-early-${CODEX_ID}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: path.join(t.home, 'proj') } }) + '\n');
+    t.checkActivity(t.db, now + 1000);
+    assert.equal(t.native('c8-early'), CODEX_ID);
+  } finally {
+    t.db.prepare('DELETE FROM session').run();
+    t.checkActivity(t.db);
+    t.done();
+    fs.rmSync(t.home, { recursive: true, force: true });
+  }
+});
+
 async function setup() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-native-'));
   const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
