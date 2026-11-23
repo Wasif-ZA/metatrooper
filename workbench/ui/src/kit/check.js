@@ -9,6 +9,16 @@ export { KIT, VERSION } from './catalogue.js';
 export const MAX_DEPTH = 12;
 export const MAX_PARTS = 1500;
 export const MAX_ROWS = 200;
+export const PAGE_ROWS = 50;
+// Zones (ouros-spec section 4): parts each zone holds (null: any), how many top-level parts it draws, and buttons per part.
+export const ZONES = {
+  tab: { parts: null },
+  panel: { parts: null },
+  tile: { parts: null },
+  inbox: { parts: ['text', 'choice', 'gate'], max: 1, actions: 1 },
+  status: { parts: ['text', 'kbd', 'time'], max: 1, actions: 0 },
+  phone: { parts: null, oneColumn: true },
+};
 // Parts Draw.jsx has a component for; every other catalogue part expands to the plain-text box until its batch lands.
 export const DRAWN = ['page', 'section', 'header', 'text', 'table', 'buttons', ...A, ...B, ...C, ...D, ...E];
 
@@ -81,8 +91,17 @@ export function flatten(spec) {
   return { root: add(spec, 0), parts };
 }
 
-/** Turns a spec (nested or flat) into a checked nested tree of parts ready to draw, plus fellBack: what became text and why. Limits and state live in this call. */
-export function expand(spec) {
+const FIRST = ['title', 'text', 'question', 'label', 'name', 'path'];
+/** The one line a part folds to outside its zone. */
+export function firstLine(p) {
+  const k = FIRST.find((x) => TYPES.str(p[x]));
+  const line = k ? String(p[k]) : p.type === 'table' && Array.isArray(p.rows?.[0]) ? p.rows[0].filter(TYPES.str).join(' Â· ') : p.type;
+  return line.slice(0, 120);
+}
+
+/** Turns a spec (nested or flat) into a checked nested tree of parts ready to draw for `zone`, plus fellBack: what became text and why. Limits and state live in this call. */
+export function expand(spec, zone = 'tab') {
+  const z = ZONES[zone] ?? ZONES.tab;
   let flat;
   try { flat = flatten(spec); } catch { flat = { root: 'p1', parts: { p1: null } }; }
   const { root, parts } = flat;
@@ -97,9 +116,13 @@ export function expand(spec) {
     if (c !== raw) return fail(id, c);
     if (depth >= MAX_DEPTH) return fail(id, fallback(raw, 'nested too deep'));
     if (!DRAWN.includes(raw.type)) return fail(id, fallback(raw, 'not drawn yet'));
+    if (z.parts && raw.type !== 'page' && !z.parts.includes(raw.type)) return { folded: true, name: raw.type, line: firstLine(raw) };
     const str = (x, what) => (TYPES.str(x) ? String(x) : (fail(id, fallback(x, `bad ${what}`)), '?'));
     const out = { ...raw };
     const kids = (a) => (Array.isArray(a) ? a.slice(0, MAX_PARTS + 1).map((x) => (typeof x === 'string' ? build(x, depth + 1) : fail(id, fallback(x, 'bad child')))).filter((x) => x !== DROP) : []);
+    if (z.oneColumn && raw.type === 'columns') return { type: 'page', children: (Array.isArray(raw.children) ? raw.children.slice(0, 12) : []).flatMap((c) => kids(Array.isArray(c) ? c : [c])) };
+    if (z.oneColumn && raw.type === 'grid') out.cols = 1;
+    if (z.actions !== undefined && Array.isArray(raw.actions)) out.actions = raw.actions.slice(0, z.actions);
     if (CHILDREN.has(raw.type)) {
       out.children = raw.type === 'columns' && Array.isArray(raw.children) && raw.children.some(Array.isArray)
         ? raw.children.slice(0, 12).map((col) => kids(Array.isArray(col) ? col : [col]))
@@ -109,7 +132,7 @@ export function expand(spec) {
     } else if (raw.type === 'header' && raw.tabs) {
       out.tabs = raw.tabs.slice(0, 12).map((t) => str(t, 'tab'));
     } else if (raw.type === 'buttons') {
-      out.actions = raw.actions.slice(0, 12).map((a) => (isObj(a) && TYPES.str(a.label) ? { label: String(a.label), primary: a.primary === true, ...(TYPES.str(a.event) ? { event: String(a.event) } : {}) } : fail(id, fallback(a, 'bad button'))));
+      out.actions = out.actions.slice(0, 12).map((a) => (isObj(a) && TYPES.str(a.label) ? { label: String(a.label), primary: a.primary === true, ...(TYPES.str(a.event) ? { event: String(a.event) } : {}) } : fail(id, fallback(a, 'bad button'))));
     } else if (raw.type === 'table') {
       const cols = raw.cols.slice(0, 20).map((x) => str(x, 'column'));
       const cell = (x) => (x == null ? '' : TYPES.str(x) ? String(x) : isObj(x) && typeof x.ref === 'string' ? build(x.ref, depth + 1) : fail(id, fallback(x, 'bad cell')));
@@ -119,5 +142,7 @@ export function expand(spec) {
     }
     return out;
   };
-  return { root: build(root, 0), fellBack };
+  const top = build(root, 0);
+  if (z.max && top?.type === 'page') top.children = top.children.slice(0, z.max);
+  return { root: top, fellBack };
 }
