@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
 import path from 'node:path';
-import { execFile, execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
 import { installPlan, toolPath } from './agent-install.ts';
 import { cleanReport, ISSUE_PREFIX, issueUrl, localIso } from './report-issue.ts';
@@ -35,7 +35,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, ship, showAt, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { formatComment } from './editor-comment.js';
@@ -569,13 +569,8 @@ function handlers(): void {
     }
     let error: string | undefined;
     let commit: string | undefined;
-    let url: string | undefined;
     try {
-      if (op === 'ship') {
-        if (demo) throw new Error('Commit, push, open PR is off in the demo');
-        const gh = (args: string[]) => new Promise<string>((resolve, reject) => execFile('gh', args, { cwd: project.path, encoding: 'utf8', windowsHide: true, timeout: 60000 }, (err, out, errOut) => (err ? reject(Object.assign(err, { stderr: /ENOENT/.test(String(err.message)) ? 'GitHub CLI (gh) is not installed or not on PATH' : errOut })) : resolve(out))));
-        ({ commit, url } = await ship(git, gh, typeof arg === 'string' ? arg : ''));
-      } else if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
+      if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
     } catch (e) {
       error = why(e);
     } finally {
@@ -586,7 +581,7 @@ function handlers(): void {
       const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
       try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
-      return { ...view, groups, error, commit, url };
+      return { ...view, groups, error, commit };
     } catch (e) {
       return { error: why(e) };
     }
