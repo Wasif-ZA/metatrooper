@@ -87,7 +87,7 @@ export function changeWorkspace(db: DatabaseSync, p: Record<string, unknown>): R
   } else if (op === 'set') ws = p.workspace;
   else throw new RpcError(E.INVALID_PARAMS, 'op must be set, save, restore or example');
   const text = JSON.stringify(ws ?? null);
-  const reasons = Buffer.byteLength(text, 'utf8') > MAX_BYTES ? ['the layout is over 256 KB'] : checkWorkspace(ws, (id) => Boolean(db.prepare('SELECT 1 FROM ui_surface WHERE id = ?').get(id)));
+  const reasons = Buffer.byteLength(text, 'utf8') > MAX_BYTES ? ['the layout is over 256 KB'] : checkWorkspace(ws, (id) => Boolean(db.prepare('SELECT 1 FROM ui_surface WHERE id = ? AND project_id = ?').get(id, who.project)));
   const asked = ws && typeof (ws as Workspace).asked === 'string' ? String((ws as Workspace).asked).slice(0, 300) : '';
   if (!reasons.length) {
     s.history = [...s.history, s.current].slice(-HISTORY);

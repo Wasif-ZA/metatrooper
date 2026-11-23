@@ -8,6 +8,7 @@ import { getSecret, getSecretAsync } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { headerSecretNames, mcpWrites, type McpSpec } from './manifest.ts';
+import { blockReason } from './blocklist.ts';
 import { checkShippedFiles, listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
 const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
@@ -25,6 +26,8 @@ export interface ResolvedServer {
 function pluginServer(db: DatabaseSync, pluginId: string, serverId: string) {
   const plugin = loadPlugin(db, pluginId);
   if (!plugin) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+  const blocked = plugin.source === 'builtin' ? null : blockReason(plugin.id, plugin.version);
+  if (blocked) throw new RpcError(E.VALIDATION, `${plugin.id} ${plugin.version} is on cc's block list: ${blocked}`);
   const server = (plugin.manifest.mcp ?? []).find((s) => s.id === serverId);
   if (!server) throw new RpcError(E.NOT_FOUND, `MCP server ${serverId} not found in ${pluginId}`);
   return { plugin, server };

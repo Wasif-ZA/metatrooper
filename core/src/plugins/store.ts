@@ -340,16 +340,16 @@ function dropEngine(db: DatabaseSync, id: string): boolean {
   return true;
 }
 
-/** Removes a plugin, its files under ~/.metatrooper/plugins and its secrets; engines that sessions still name keep their row, disabled. */
-/** Every file in the plugin folder with its SHA-256, keyed by its path inside the folder; links and junctions are not followed, .git is left out. */
+/** Every file in the plugin folder with its SHA-256, keyed by its path inside the folder; a link or junction is recorded as "link" and never followed; .git is left out. */
 // ponytail: hashes the whole folder on each server start; cache by size and mtime if a big local plugin starts slowly.
 export function shippedFiles(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
   const walk = (d: string, rel: string): void => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const r = rel ? `${rel}/${e.name}` : e.name;
-      if (e.isSymbolicLink() || (!rel && e.name === '.git')) continue;
-      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      if (!rel && e.name === '.git') continue;
+      if (e.isSymbolicLink()) out[process.platform === 'win32' ? r.toLowerCase() : r] = 'link';
+      else if (e.isDirectory()) walk(path.join(d, e.name), r);
       else if (e.isFile()) out[process.platform === 'win32' ? r.toLowerCase() : r] = crypto.createHash('sha256').update(fs.readFileSync(path.join(d, e.name))).digest('hex');
     }
   };
@@ -362,7 +362,10 @@ export function argsOutside(m: Manifest, dir: string): string[] {
   const root = fs.realpathSync(dir);
   return (m.mcp ?? []).flatMap((s) => [s.command ?? '', ...(s.args ?? [])]).filter((a) => {
     if (!a.includes('{{plugin_dir}}')) return false;
-    const target = path.resolve(a.replaceAll('{{plugin_dir}}', root));
+    let target = path.resolve(a.replaceAll('{{plugin_dir}}', root));
+    const rest: string[] = [];
+    while (!fs.existsSync(target) && path.dirname(target) !== target) { rest.unshift(path.basename(target)); target = path.dirname(target); }
+    target = path.join(fs.realpathSync(target), ...rest);
     const rel = path.relative(root, target);
     return rel.startsWith('..') || path.isAbsolute(rel);
   });
@@ -384,10 +387,13 @@ export function checkShippedFiles(db: DatabaseSync, plugin: InstalledPlugin): vo
   if (!row) return approveShippedFiles(db, plugin);
   const was = JSON.parse(row.value) as Record<string, string>;
   const now = shippedFiles(plugin.path);
+  const links = Object.keys(now).filter((k) => now[k] === 'link');
+  if (links.length) throw new RpcError(E.VALIDATION, `${plugin.id} has links in its folder, which cc does not run: ${links.join(', ')}`, { links });
   const changed = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => was[k] !== now[k]).sort();
   if (changed.length) throw new RpcError(E.VALIDATION, `${changed.join(', ')} in ${plugin.id} changed since you approved it; reinstall the plugin to approve the new files`, { changed });
 }
 
+/** Removes a plugin, its files under ~/.metatrooper/plugins and its secrets; engines that sessions still name keep their row, disabled. */
 export function removePlugin(db: DatabaseSync, id: string): void {
   const row = db.prepare('SELECT path FROM plugin WHERE id = ?').get(id) as { path: string } | undefined;
   if (!row) throw new RpcError(E.NOT_FOUND, 'plugin not found');

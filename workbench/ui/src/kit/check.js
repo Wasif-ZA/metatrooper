@@ -107,7 +107,7 @@ const FIRST = ['title', 'text', 'question', 'label', 'name', 'path'];
 /** The one line a part folds to outside its zone. */
 export function firstLine(p) {
   const k = FIRST.find((x) => TYPES.str(p[x]));
-  const line = k ? String(p[k]) : p.type === 'table' && Array.isArray(p.rows?.[0]) ? p.rows[0].filter(TYPES.str).join(' Â· ') : p.type;
+  const line = k ? String(p[k]) : p.type === 'table' && Array.isArray(p.rows?.[0]) ? p.rows[0].filter(TYPES.str).join(' · ') : p.type;
   return line.slice(0, 120);
 }
 
