@@ -33,8 +33,13 @@ export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
 const bumpHome = () => homeStore.set({ tick: homeStore.get().tick + 1 });
 const sendFollowUp = async (x, t) => {
-  try { if (!(await troop.termInput(x.id, t + '\r'))) { toast(`${NOT_SENT} The queued message was: ${t}`, true); return false; } echoSend(x.id, t); toast(`Sent the queued message to ${engineName(x.engine_id)}`); return true; }
-  catch (err) { toast(String(err?.message || err), true); return false; }
+  try {
+    const r = await rpc('session.send', { session_id: x.id, text: t }, true);
+    if (!r || !r.result) { toast(`Not sent: ${r?.error?.message || 'the agent did not take it'}. The message was: ${t}`, true); return false; }
+    echoSend(x.id, t);
+    toast(`Sent the queued message to ${engineName(x.engine_id)}`);
+    return true;
+  } catch (err) { toast(String(err?.message || err), true); return false; }
   finally { bumpHome(); }
 };
 globalThis.flushQueued = (sessions) => flushQueued(sessions, sendFollowUp);
@@ -327,7 +332,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   const waitingText = queuedText(x.id);
   const working = isWorking(x);
   const enqueue = () => { if (!draft.trim()) return; setQueued(x.id, draft); setDraft(''); bumpHome(); };
-  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t) await sendFollowUp(x, t); };
+  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t && !(await sendFollowUp(x, t))) { setQueued(x.id, t); bumpHome(); } };
   const editQueued = () => { if (!isWorking(x)) return; setDraft(queuedText(x.id)); setQueued(x.id, ''); bumpHome(); };
   const clearQueued = () => { setQueued(x.id, ''); bumpHome(); };
   const open = openList.includes(x.id);
@@ -375,7 +380,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
             </span>
           </div>
         ) : queue ? (
-          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t); } }} width="100%" /></div>
+          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t).then((ok) => { if (!ok) setDraft(t); }); } }} width="100%" /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">

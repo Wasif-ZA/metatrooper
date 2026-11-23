@@ -3,6 +3,7 @@ import path from 'node:path';
 
 /** Parses VS Code's JSON with comments and trailing commas; null when it does not parse. */
 export function parseJsonc(text: string): unknown {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   let out = '';
   for (let i = 0, str = false; i < text.length; i++) {
     const c = text[i];
@@ -10,9 +11,10 @@ export function parseJsonc(text: string): unknown {
     if (c === '"') { str = true; out += c; continue; }
     if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; out += '\n'; continue; }
     if (c === '/' && text[i + 1] === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
+    if (c === ',') { let j = i + 1; while (j < text.length && /\s/.test(text[j])) j++; if (text[j] === '}' || text[j] === ']') continue; }
     out += c;
   }
-  try { return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1')); } catch { return null; }
+  try { return JSON.parse(out); } catch { return null; }
 }
 
 export interface VsKey { key: string; command: string; text?: string }

@@ -460,8 +460,10 @@ async function vscodeOnce() {
   ui.vscodeKeys = new Map(((r && r.keys) || []).filter((k) => /\b(ctrl|alt)\b/.test(k.key)).map((k) => [chordOf(k.key.split('+')), k.command]));
   if (readStore(VSCODE_KEY)) return;
   if (!r) { writeStore(VSCODE_KEY, { none: true }); return; }
-  const prev = ui.look && ui.look.theme ? ui.look.theme.name : null;
-  const theme = r.theme && r.theme !== prev ? r.theme : null;
+  const now = await api.uiSettings().catch(() => null);
+  const prev = now && now.ui ? now.ui.theme : null;
+  const theme = r.theme && prev === 'dither' && r.theme !== prev ? r.theme : null;
+  if (r.theme && !theme && r.theme !== prev) r.summary.skipped.unshift(`theme ${r.theme}: you already chose a cc theme`);
   if (theme) await setLook(theme);
   writeStore(VSCODE_KEY, { at: new Date().toISOString(), prev, theme, applied: r.summary.applied, skipped: r.summary.skipped });
   toast(`From VS Code: ${r.summary.applied.join('; ') || 'nothing applied'}. ${r.summary.skipped.length} skipped, listed in Settings > Learning.`);
@@ -471,7 +473,10 @@ async function vscodeOnce() {
 async function undoVscodeImport() {
   const rec = readStore(VSCODE_KEY);
   if (!rec || rec.none || rec.undone) return;
-  if (rec.theme && rec.prev) await setLook(rec.prev);
+  const now = await api.uiSettings().catch(() => null);
+  const current = now && now.ui ? now.ui.theme : null;
+  if (rec.theme && (!rec.prev || current !== rec.theme)) { toast(rec.prev ? 'Not undone: you changed the theme after the import.' : 'Not undone: the theme before the import is not known.', true); return; }
+  if (rec.theme) await setLook(rec.prev);
   writeStore(VSCODE_KEY, { ...rec, undone: true });
   toast('VS Code import undone.');
 }
@@ -1051,8 +1056,8 @@ function historyItems(q) {
 async function openHistory(x) {
   let id = x.id;
   if (x.state === 'exited') {
-    const r = await rpc('session.resume', { session_id: x.id });
-    if (!r.result) return;
+    const r = await rpc('session.resume', { session_id: x.id }, true);
+    if (!r.result) { toast(`Could not resume: ${r.error?.message || 'unknown error'}`, true); return; }
     id = r.result.session_id;
   }
   if (x.project_id && x.project_id !== ui.projectId) { ui.pendingPick = id; switchProject(x.project_id); return; }
