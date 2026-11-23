@@ -152,7 +152,18 @@ function Control({ row, data }) {
   const v = valueOf(data, row.key);
   if (row.select) return <Selector label={row.label} isLabelHidden width={220} options={row.select.map(([value, label]) => ({ value, label }))} value={v} onChange={(x) => write(row.key, x)} />;
   if (typeof v === 'boolean') return <Switch size="sm" label={row.label} isLabelHidden value={v} onChange={(x) => write(row.key, x)} />;
-  return <NumberInput label={row.label} isLabelHidden value={v} min={row.min} max={row.max} step={row.step || 1} units={row.unit} isIntegerOnly width={row.unit ? 190 : 110} onChange={(n) => { if (Number.isInteger(n) && n >= row.min && n <= row.max && n !== v) write(row.key, n); }} />;
+  return <NumberRow row={row} v={v} />;
+}
+
+function NumberRow({ row, v }) {
+  const [bad, setBad] = useState(false);
+  const onChange = (n) => {
+    const ok = Number.isInteger(n) && n >= row.min && n <= row.max;
+    setBad(!ok);
+    if (ok && n !== v) write(row.key, n);
+  };
+  return <NumberInput label={row.label} isLabelHidden value={v} min={row.min} max={row.max} step={row.step || 1} units={row.unit} isIntegerOnly width={row.unit ? 190 : 110}
+    status={bad ? { type: 'error', message: `Use a whole number from ${row.min} to ${row.max}; not saved.` } : undefined} onChange={onChange} />;
 }
 
 function Row({ row, data }) {
