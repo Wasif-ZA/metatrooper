@@ -5,6 +5,7 @@ import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } f
 import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
+import { usdFor } from '../../core/src/meter.ts';
 import path from 'node:path';
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -652,6 +653,24 @@ function handlers(): void {
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
       return await sessionChanges(gitIn(cwd), await diffBase(sessionId, scope, cwd));
+    } catch (e) {
+      return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
+    }
+  });
+  // M8-F17b: what a second-model review of this session's changes would cost, as an estimate: the diff plus each changed file once, about 4 characters a token, priced at the input rate of the model that engine last used here.
+  on('reviewEstimate', async (sessionId: unknown, engineId: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd || typeof engineId !== 'string') return { error: 'this session has no folder recorded' };
+    try {
+      const g = gitIn(cwd);
+      const base = await diffBase(sessionId, undefined, cwd);
+      const changes = await sessionChanges(g, base);
+      let chars = (await g(['diff', base]).catch(() => '')).length;
+      for (const f of new Set([...changes.files.map((x) => x.path), ...changes.untracked])) { try { chars += fs.statSync(path.join(cwd, f)).size; } catch {} }
+      const tokens = Math.ceil(chars / 4);
+      const row = db()?.prepare('SELECT u.model FROM usage u JOIN session s ON s.id = u.session_id WHERE s.engine_id = ? AND u.model IS NOT NULL ORDER BY u.rowid DESC LIMIT 1').get(engineId) as { model: string } | undefined;
+      const model = row?.model ?? null;
+      return { tokens, model, usd: usdFor(model, tokens, 0, 0, 0), estimate: true };
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }

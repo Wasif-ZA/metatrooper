@@ -413,6 +413,25 @@ async function write(method, params, apply, undo, failText) {
 }
 
 // Properties starts closed while the Needs you area is at most 1100px wide (where the CSS floats it), until the button is used.
+/** What a review by this engine would cost, shown before it starts and labelled an estimate (M8-F17b). */
+export function reviewCostText(r, engineId) {
+  if (!r || r.error) return `${engineId} review: cost not known (estimate)`;
+  const tokens = `${Math.max(1, Math.round(r.tokens / 1000))}k tokens`;
+  if (r.usd == null) return `${engineId} review: about ${tokens}, no price known (estimate)`;
+  return `${engineId} review: about ${r.usd < 0.01 ? 'under $0.01' : `$${r.usd.toFixed(2)}`} (estimate)`;
+}
+
+function ReviewCost({ sessionId, engineId }) {
+  const [r, setR] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    setR(undefined);
+    if (typeof api?.reviewEstimate === 'function') void Promise.resolve(api.reviewEstimate(sessionId, engineId)).then((x) => { if (live) setR(x || null); }, () => { if (live) setR(null); });
+    return () => { live = false; };
+  }, [sessionId, engineId]);
+  return <span className="ou-ny-muted" data-review-cost={engineId}>{r === undefined ? `${engineId} review: estimating` : reviewCostText(r, engineId)}</span>;
+}
+
 export function Inbox() {
   const { collapsed = [], selectedId, props: propsOpen = (globalThis.document?.querySelector?.('.ou-inbox')?.clientWidth || globalThis.innerWidth) > 1100, filter = 'all', engine: engineFilter = '', project: projectFilter = '' } = inboxStore.use();
   const [addingLabel, setAddingLabel] = useState(false);
@@ -843,7 +862,8 @@ export function Inbox() {
             {(() => {
               const second = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== sessionObj.engine_id);
               if (!second.length) return <span className="ou-ny-muted" data-no-second="1">No second engine installed</span>;
-              return addPicker('Add reviewer', second.filter((e) => !reviewers.some((r) => r.who === e.id)).map((e) => ({ value: e.id, label: e.id })), (id) => setReviews([...reviewers.map((r) => r.who), id], approvers.map((r) => r.who)));
+              const open = second.filter((e) => !reviewers.some((r) => r.who === e.id));
+              return <>{addPicker('Add reviewer', open.map((e) => ({ value: e.id, label: e.id })), (id) => setReviews([...reviewers.map((r) => r.who), id], approvers.map((r) => r.who)))}{open.map((e) => <ReviewCost key={e.id} sessionId={sessionObj.id} engineId={e.id} />)}</>;
             })()}
           </div>
         ) : none())}
