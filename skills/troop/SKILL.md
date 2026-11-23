@@ -83,7 +83,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   shell.list              {}
   shell.open              {kind, project_id}
   shell.close             {shell_id}
-  worktree.create         {project_id, branch?, base?: "HEAD"}  (stable)
+  worktree.create         {project_id, branch?, base?: "HEAD", session_secret?}  (stable)
   ui.show                 {session_id, surface, title?, zone?: "tab", catalogue?, spec}
   ui.get                  {surface}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
