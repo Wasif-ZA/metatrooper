@@ -375,7 +375,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
             </span>
           </div>
         ) : queue ? (
-          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}, Enter queues it`} value={draft} onChange={setDraft} onEnter={enqueue} width="100%" /></div>
+          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t); } }} width="100%" /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">

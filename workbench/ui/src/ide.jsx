@@ -19,7 +19,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { applyPatch, editorState, ext, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
+import { applyPatch, editorState, ext, openEditor, openDiff, patchSides, preloadMonaco, onProblems, editorLook, setEditorLook } from './editor.js';
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
@@ -1370,6 +1370,9 @@ export function ideCommands(cmd = defaultCmd) {
   out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
   if (t) out.push(cmd('IDE', 'Delete file', () => { st.ask = { kind: 'delete', path: t.path }; bump(); }));
   out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
+  const look = editorLook();
+  for (const [name, label] of [['quiet', 'Quiet'], ['default', 'Default'], ['all', 'Everything']]) if (name !== look) out.push(cmd('Appearance', `Appearance: ${label}`, () => { setEditorLook(name); toast(`Look: ${label}`); }));
+  if (look !== 'default') out.push(cmd('Appearance', 'Appearance: Reset to Default', () => { setEditorLook('default'); toast('Look: Default'); }));
   if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
   if (t && canPreview(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => void showPreview(st, t.path)));
   if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
