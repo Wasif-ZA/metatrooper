@@ -81,6 +81,9 @@ function AgentChat({ x }) {
   return <div className="ou-hm-center ou-ws-agent"><Chat x={x} chat={chat} /></div>;
 }
 
+/** True when the layout shows the given built-in view somewhere. */
+export const hasView = (node, view) => (node?.split ? node.children.some((c) => hasView(c, view)) : node?.view === view);
+
 /** Draws one pane of a checked layout; built-in views come from the IDE, kit and surface panes are drawn from the catalogue only. */
 export function Pane({ node, views, pid }) {
   if (node.split) {
