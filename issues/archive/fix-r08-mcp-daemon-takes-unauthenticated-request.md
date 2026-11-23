@@ -1,18 +1,18 @@
-# FIX-R4: Read hook sets permissionDecision allow on every rewrite
+# FIX-R8: MCP daemon takes unauthenticated requests on loopback
 
 From the 2026-10-31 audit of router, plugins, sandbox, release. Severity: Medium. Effort: S unless the fix says otherwise.
 
 ## Where
 
-- router/metarouter/hook.py:34-50, 76-87
+- router/metarouter/mcp_daemon.py:25-29, 54-63
 
 ## What goes wrong
 
-Rewriting a Read (an image, or a file of 12,000 bytes or more with no limit) also returns `permissionDecision: allow`, which may skip Claude Code's permission prompt for a file outside allowed folders. The Bash side sets no decision on purpose. Not run against Claude Code; check its hook docs first.
+Any local process can send tools/call with any cwd, or stop, and run his configured MCP servers with their credentials. The browse daemon already requires a token (browse/daemon.py:39, 93).
 
 ## Fix
 
-Return only updatedInput from the Read branch.
+Generate a token at start, keep it in the user-only state file, require it on every request.
 
 ## Audit
 
@@ -20,9 +20,8 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 
 ## Acceptance criteria
 
-- [ ] FIX-R4a. Read hook output has no permissionDecision.
-- [ ] FIX-R4b. The 300-line limit and image shrink still apply.
-- [ ] FIX-R4c. test_hook.py asserts no decision.
+- [ ] FIX-R8a. A request with no or a wrong token is refused and spawns nothing.
+- [ ] FIX-R8b. mcp stop and normal calls work through the token.
 
 ## Rules
 
@@ -31,3 +30,5 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: obsolete. mcp_daemon.py was removed in aeb72989 (ROUTER-01); nothing left to fix or test. Boxes left unticked.

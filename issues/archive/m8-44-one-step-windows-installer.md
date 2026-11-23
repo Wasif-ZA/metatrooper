@@ -37,7 +37,7 @@ Not sized until M8-0.
 ## Acceptance criteria
 
 - [ ] M8-44a. M5-01a to M5-01d pass under the Ouros name, on the host M8-0 picked.
-- [ ] M8-44b. His D72 and D50 call is recorded in the `spec.md` D-list with its drawback.
+- [x] M8-44b. His D72 and D50 call is recorded in the `spec.md` D-list with its drawback. (2026-11-24: D90.)
 - [ ] M8-44c. The clean-machine test in D67 is run on a second real Windows PC and recorded here.
 
 ## Rules that bind every child
@@ -46,3 +46,5 @@ Not sized until M8-0.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained. electron-builder has the M5-D12 exception.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: closed, not doing. Wasif's Q3 answer (D90): no installer; testers get the unsigned zip only. M8-44b is met by D90. M8-44a and M8-44c are not doing: there is no installer to run M5-01a to d against or to take to a second PC (D67 waits for one).

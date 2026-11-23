@@ -50,3 +50,5 @@ Config 0.75 + bundling with node-pty unpacked 0.5 + name, icon, per-user path 0.
 ## Hand-back
 
 A fresh Windows account or VM with Smart App Control on, to run M5-01a.
+
+Status 2026-11-24: closed, not doing, folded into M8-44 and closed with it under D90 (Wasif's Q3: no installer, testers get the unsigned zip). The WIP stays on branch agent/m5-1 if an installer comes back.
