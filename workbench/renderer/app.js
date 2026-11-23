@@ -225,6 +225,7 @@ function renderBrowser() {
       ${st.loading ? '<button class="ib" data-action="pane-act" data-act="stop" title="Stop" aria-label="Stop loading">&times;</button>' : '<button class="ib" data-action="pane-act" data-act="reload" title="Reload (Ctrl+R)" aria-label="Reload">&#8635;</button>'}
       ${browserChrome.urlField(st.url || pane.url || '', ui.urlDraft, st.zoom)}
       <button class="tb" data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
+      <button class="tb${ui.design ? ' on' : ''}" data-action="pane-design" aria-pressed="${ui.design ? 'true' : 'false'}" title="Design mode: point at an element, say what to change, send, then point at the next one (Esc ends)">Design</button>
       <button class="ib" data-action="pane-menu" title="Before, After, Compare, Find, Driven by, Close" aria-label="Pane menu">&#8943;</button>
     </div>` : '';
   const find = pane && ui.find && !ui.comment ? `<div class="toolbar findbar">
@@ -318,7 +319,7 @@ function reportPaneBounds() {
 
 async function startComment() {
   if (!ui.paneId) return;
-  toast('Click the element you want to comment on.');
+  toast(ui.design ? 'Design mode: click the element to change. Esc ends.' : 'Click the element you want to comment on.');
   const pick = { pane: ui.paneId };
   ui.picking = pick;
   try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) { ui.picking = null; reportPaneBounds(); } }
@@ -1874,6 +1875,11 @@ async function onClick(e) {
       void api.paneAct(ui.paneId, 'permission', { id: el.dataset.id, allow: el.dataset.allow === '1' });
       render();
       return;
+    case 'pane-design':
+      ui.design = !ui.design;
+      render();
+      if (ui.design && !ui.comment && !ui.picking) await startComment();
+      return;
     case 'pane-comment':
       await startComment();
       return;
@@ -1888,6 +1894,7 @@ async function onClick(e) {
     case 'comment-cancel':
       clearDrafts('comment-note', 'comment-session');
       ui.comment = null;
+      ui.design = false;
       render();
       return;
     case 'comment-send': {
@@ -1901,6 +1908,7 @@ async function onClick(e) {
         clearDrafts('comment-note', 'comment-session');
         ui.comment = null;
         render();
+        if (ui.design) void startComment();
       });
       return;
     }
@@ -2089,7 +2097,7 @@ document.addEventListener('keydown', (e) => {
     void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });
     return;
   }
-  if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); return; }
+  if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; ui.design = false; reportPaneBounds(); render(); return; }
   if (e.key === 'Escape' && document.querySelector('#frameIconMenu, #frameIconPick, #frameGhPanel')) return;
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
   const active = document.activeElement;
