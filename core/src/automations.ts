@@ -9,7 +9,7 @@ export type CheckResult = { code: number | null; timedOut?: boolean; error?: str
 export type AutomationDeps = {
   now: () => number;
   runCheck: (argv: string[], cwd: string, timeoutMs: number) => Promise<CheckResult>;
-  launch: (a: { project_id: string; engine_id: string; prompt: string; approval: string }) => Promise<{ session_id: string }> | { session_id: string };
+  launch: (a: { project_id: string; engine_id: string; prompt: string; approval?: string }) => Promise<{ session_id: string }> | { session_id: string };
   readFile: (absPath: string) => Buffer;
   send?: (session_id: string, text: string) => void;
   followUp?: (a: { project_id: string; engine_id: string; cwd: string | null; parent_id: string; prompt: string }) => Promise<{ session_id: string }> | { session_id: string };
@@ -96,7 +96,7 @@ async function runOne(db: DatabaseSync, deps: AutomationDeps, a: Row, now: numbe
   };
   const launch = async (exit: number | null) => {
     try {
-      const { session_id } = await deps.launch({ project_id: a.project_id, engine_id: a.engine_id, prompt: a.prompt, approval: a.approval || 'ask' });
+      const { session_id } = await deps.launch({ project_id: a.project_id, engine_id: a.engine_id, prompt: a.prompt, ...(a.approval ? { approval: a.approval } : {}) });
       return await run('woke', exit, null, session_id);
     } catch (e) { return await run('failed', exit, `launch failed: ${(e as Error).message}`, null); }
   };

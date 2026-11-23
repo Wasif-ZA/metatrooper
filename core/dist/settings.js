@@ -149,15 +149,13 @@ export function settings()           {
   try { mtime = fs.statSync(settingsFile()).mtimeMs; } catch {}
   if (cache && cache.mtime === mtime) return cache.value;
   let raw                          = {};
-  let parsed = false;
   if (mtime >= 0) {
     try {
       const v = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-      if (v && typeof v === 'object' && !Array.isArray(v)) { raw = v; parsed = true; }
+      if (v && typeof v === 'object' && !Array.isArray(v)) raw = v;
     } catch {}
   }
   const value = merge(DEFAULTS, raw)            ;
-  if (mtime >= 0 && !parsed) value.sessions.approval = 'ask';
   cache = { mtime, value };
   return value;
 }
