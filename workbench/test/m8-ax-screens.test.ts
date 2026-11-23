@@ -615,11 +615,12 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
   const groups = h.all(hasClass('ou-navgroup'));
   assert.deepEqual(groups.map(textContent), ['App', 'Agents', 'Extend', 'System']);
-  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced', 'Licences and trademarks']]);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Learning'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced', 'Licences and trademarks']]);
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
-  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced', 'Licences and trademarks']);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Learning', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced', 'Licences and trademarks']);
   assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
-  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function')); assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
+  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function'));
+  assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
   assert.equal(h.one((n: any) => n.props.keys === 'Ctrl+Esc').type.name, 'Kbd');

@@ -125,7 +125,7 @@ const NAV_ICON = {
   advanced: Sc.TerminalIcon,
   automations: Ic.ScheduleIcon,
   licences: Ic.LearnIcon,
-  learning: Ic.LearnIcon,
+  learning: Sc.ArchiveIcon,
 };
 const navIcon = (id, size = 16) => { const Icon = NAV_ICON[id]; return <Icon size={size} />; };
 
