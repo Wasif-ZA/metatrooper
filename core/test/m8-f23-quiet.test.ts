@@ -80,7 +80,7 @@ test('a batch admitted at 21:59:59.9 rechecks the clock before sending after 22:
   // protects=586b7a54 each send checks elapsed time even when the tick began outside quiet hours
   const hook = await withFakeWebhook();
   try {
-    setSink(db, { id: 'boundary-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    setSink(db, { id: 'boundary-hook', kind: 'ntfy', dest: hook.url, kinds: ['gate'], enabled: true });
     insertGate(db, 'boundary-first');
     insertGate(db, 'boundary-second');
     const base = Date.now();
@@ -115,7 +115,7 @@ test('M8-F23b a quiet tick keeps a gate pending and a morning tick delivers it o
   // protects=M8-F23b: quiet hours preserve the waiting PC row for one morning delivery.
   const hook = await withFakeWebhook();
   try {
-    setSink(db, { id: 'quiet-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    setSink(db, { id: 'quiet-hook', kind: 'ntfy', dest: hook.url, kinds: ['gate'], enabled: true });
     const id = 'f23-quiet-gate';
     insertGate(db, id);
     const row = () => db.prepare('SELECT notified_at, resolved_at, kind, text FROM needs_you WHERE id = ?').get(id);
@@ -130,7 +130,7 @@ test('M8-F23b a quiet tick keeps a gate pending and a morning tick delivers it o
 
     await notifyTick(db, new Date(2026, 0, 16, 8, 0));
     assert.equal(hook.bodies.length, 1);
-    assert.ok(hook.bodies[0].includes(`metatrooper://needs-you/${id}`));
+    assert.equal(hook.bodies[0], `cc (approval needed): Waiting gate ${id}`);
     const delivered = row();
     assert.ok(delivered);
     assert.equal(delivered.resolved_at, null);
@@ -141,6 +141,70 @@ test('M8-F23b a quiet tick keeps a gate pending and a morning tick delivers it o
     assert.equal(hook.bodies.length, 1);
     assert.deepEqual(row(), delivered);
   } finally { await hook.close(); }
+}));
+
+test('Q9b a webhook sink still sends at 23:30 with Never at night on', () => withNotifyDb(true, async (db) => {
+  const hook = await withFakeWebhook();
+  try {
+    setSink(db, { id: 'q9b-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    const id = 'q9b-night-gate';
+    insertGate(db, id);
+
+    await notifyTick(db, new Date(2026, 0, 15, 23, 30));
+    assert.equal(hook.bodies.length, 1);
+    const body = JSON.parse(hook.bodies[0]);
+    assert.equal(body.id, id);
+    assert.equal(body.text, `cc (approval needed): Waiting gate ${id}`);
+    assert.equal(body.link, `metatrooper://needs-you/${id}`);
+    const row = db.prepare('SELECT notified_at FROM needs_you WHERE id = ?').get(id);
+    assert.ok(row);
+    assert.equal(typeof row.notified_at, 'string');
+    assert.ok(Number.isFinite(Date.parse(row.notified_at as string)));
+  } finally { await hook.close(); }
+}));
+
+test('Q9b one gate with an ntfy and a webhook sink at night: webhook gets it now, ntfy only at 07:00, row notified once both are done', () => withNotifyDb(true, async (db) => {
+  const phone = await withFakeWebhook();
+  try {
+    const hook = await withFakeWebhook();
+    try {
+      setSink(db, { id: 'q9b-phone', kind: 'ntfy', dest: phone.url, kinds: ['gate'], enabled: true });
+      setSink(db, { id: 'q9b-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+      const id = 'q9b-mixed-gate';
+      insertGate(db, id);
+      const row = () => db.prepare('SELECT notified_at FROM needs_you WHERE id = ?').get(id)!;
+      const deliveries = () => db.prepare(`SELECT s.id, COALESCE(d.state, 'pending') AS state, COALESCE(d.tries, 0) AS tries
+        FROM notify_sink s LEFT JOIN notify_delivery d ON d.sink_id = s.id AND d.needs_you_id = ?
+        ORDER BY s.id`).all(id).map(r => [r.id, r.state, r.tries]);
+
+      await notifyTick(db, new Date(2026, 0, 15, 23, 30));
+      assert.equal(hook.bodies.length, 1);
+      assert.equal(JSON.parse(hook.bodies[0]).id, id);
+      assert.equal(phone.bodies.length, 0);
+      assert.deepEqual(deliveries(), [['q9b-hook', 'done', 1], ['q9b-phone', 'pending', 0]]);
+      assert.equal(row().notified_at, null);
+
+      await notifyTick(db, new Date(2026, 0, 16, 6, 59));
+      assert.equal(hook.bodies.length, 1);
+      assert.equal(phone.bodies.length, 0);
+      assert.deepEqual(deliveries(), [['q9b-hook', 'done', 1], ['q9b-phone', 'pending', 0]]);
+      assert.equal(row().notified_at, null);
+
+      await notifyTick(db, new Date(2026, 0, 16, 7, 0));
+      assert.equal(hook.bodies.length, 1);
+      assert.deepEqual(phone.bodies, [`cc (approval needed): Waiting gate ${id}`]);
+      assert.deepEqual(deliveries(), [['q9b-hook', 'done', 1], ['q9b-phone', 'done', 1]]);
+      const delivered = row();
+      assert.equal(typeof delivered.notified_at, 'string');
+      assert.ok(Number.isFinite(Date.parse(delivered.notified_at as string)));
+
+      await notifyTick(db, new Date(2026, 0, 16, 7, 0));
+      assert.equal(hook.bodies.length, 1);
+      assert.equal(phone.bodies.length, 1);
+      assert.deepEqual(deliveries(), [['q9b-hook', 'done', 1], ['q9b-phone', 'done', 1]]);
+      assert.deepEqual(row(), delivered);
+    } finally { await hook.close(); }
+  } finally { await phone.close(); }
 }));
 
 test('M8-F23b disabling quiet hours permits a 23:30 gate delivery', () => withNotifyDb(false, async (db) => {
