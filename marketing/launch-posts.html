@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cc launch posts</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #151516;
+      --paper: #f1f1ef;
+      --orange-dark: #ff7a1a;
+      --orange-light: #c45200;
+      --bg: var(--paper);
+      --fg: var(--ink);
+      --accent: var(--orange-light);
+      --surface: #fff;
+      --border: #b8b8b4;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: var(--ink);
+      --fg: var(--paper);
+      --accent: var(--orange-dark);
+      --surface: #242426;
+      --border: #565658;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: var(--ink);
+        --fg: var(--paper);
+        --accent: var(--orange-dark);
+        --surface: #242426;
+        --border: #565658;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 "Cascadia Mono", Consolas, monospace; overflow-wrap: anywhere; }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--fg); padding: .5rem .75rem; }
+    button:hover, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    a { color: inherit; }
+    .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1rem max(1rem, calc((100vw - 1180px)/2)); border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: .75rem; margin-right: auto; font-weight: 700; font-size: 1.2rem; }
+    .brand svg { width: 48px; height: 48px; flex: none; }
+    .intro { max-width: 1180px; padding: 1.5rem 1rem 0; margin: auto; }
+    .intro h1 { margin: 0 0 .25rem; font-size: clamp(1.5rem, 4vw, 2.2rem); }
+    .intro p { margin: .25rem 0 1rem; }
+    .layout { max-width: 1180px; margin: auto; padding: 1rem; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; align-items: start; }
+    nav { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding: .75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    nav strong { display: block; margin-bottom: .5rem; }
+    nav a { display: block; padding: .3rem .4rem; border-radius: 4px; text-decoration: none; }
+    nav a:hover { color: var(--accent); }
+    main { min-width: 0; }
+    section { scroll-margin-top: 1rem; margin-bottom: 2.5rem; }
+    section h2 { margin: 0 0 .75rem; font-size: 1.2rem; }
+    .post { min-width: 0; padding: 1rem; margin: .75rem 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .post pre { margin: 0 0 .75rem; padding: .75rem; min-height: 5rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; outline-color: var(--accent); font: inherit; }
+    .post-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+    .count.over { color: var(--accent); font-weight: 700; }
+    .comment-label { display: block; margin-top: .75rem; }
+    textarea { display: block; width: 100%; min-height: 6rem; resize: vertical; padding: .75rem; margin-top: .35rem; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    .status { min-height: 1.5em; color: var(--accent); }
+    @media (max-width: 680px) {
+      .layout { display: block; }
+      nav { top: 0; z-index: 2; max-height: 8rem; margin-bottom: 1.5rem; padding: .5rem; box-shadow: 0 3px 8px #0002; }
+      nav strong { margin: 0 .4rem .25rem; }
+      nav .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      nav a { font-size: .8rem; }
+      section { scroll-margin-top: 9rem; }
+      .topbar { gap: .5rem; }
+    }
+  
+    .note { margin: 0 0 .75rem; padding: .6rem .8rem; border-left: 3px solid var(--accent); background: var(--surface); font-size: .9rem; }
+    .post-label { margin: 0 0 .4rem; font-weight: 700; font-size: .9rem; }
+    .readfirst { max-width: 1180px; margin: 0 auto; padding: 0 1rem; }
+    .readfirst ul { margin: .25rem 0 0; padding-left: 1.2rem; }
+    .brand svg > rect:first-child { stroke: var(--border); stroke-width: 1.5; }
+    @media (max-width: 680px) { nav { position: static; max-height: none; } }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cc">
+  <rect width="64" height="64" rx="14" fill="#151516"/>
+  <rect x="24" y="8" width="32" height="22" rx="4" fill="none" stroke="#f1f1ef" stroke-opacity=".45" stroke-width="3"/>
+  <rect x="17" y="15" width="32" height="22" rx="4" fill="#151516" stroke="#f1f1ef" stroke-opacity=".75" stroke-width="3"/>
+  <rect x="8" y="23" width="40" height="33" rx="5" fill="#ff7a1a"/>
+  <g transform="translate(13 32) scale(.7) translate(-12 -21)" stroke="#151516">
+    <g fill="none" stroke-width="6" stroke-linejoin="miter"><path d="M24 21H12V43H24"/><path d="M40 21H28V43H40"/></g>
+    <rect x="44" y="37" width="9" height="6" fill="#151516" stroke="none"/>
+  </g>
+</svg><span>cc launch posts</span></div>
+    <button id="copy-all" type="button">Copy all</button>
+    <button id="theme-toggle" type="button" aria-label="Switch colour theme">Theme</button>
+  </header>
+  <div class="intro">
+    <h1>Launch posts, ready to paste</h1>
+    <p>Windows only. Install from source. Pre-release (0.1.0). Every claim is checked against README.md.</p>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </div>
+  <div class="readfirst"><p class="note"><strong>Read first.</strong> Nothing here has been posted or sent. Drafted 2026-11-18; platform rules checked the same day, so recheck before posting.</p><ul class="note">
+    <li>r/commandline is on hold: its rules appear to bar generative-AI projects.</li>
+    <li>r/ChatGPTCoding takes promotion only in its weekly self-promotion thread.</li>
+    <li>r/ClaudeAI needs one bracket filled in by you: how Claude helped build cc.</li>
+    <li>The assets/ouros PNGs are redesign mockups, not the cc window. Capture real screens for Product Hunt and the video.</li>
+    <li>Text is editable in place. Counts turn orange over the limit.</li></ul></div>
+  <div class="layout">
+    <nav aria-label="Table of contents"><strong>Contents</strong><div class="links"><a href="#show-hn">Show HN</a><a href="#r-claudeai">r/ClaudeAI</a><a href="#r-chatgptcoding">r/ChatGPTCoding</a><a href="#r-commandline">r/commandline</a><a href="#x-thread">X thread</a><a href="#linkedin">LinkedIn</a><a href="#product-hunt">Product Hunt</a><a href="#devto">dev.to article</a><a href="#github-release">GitHub release note</a><a href="#video-script">60-second demo video</a><a href="#community-blurb">Discord and Slack blurb</a><a href="#newsletter-email">Newsletter editor email (DRAFT, do not send)</a></div></nav>
+    <main>
+<section id="show-hn"><h2>Show HN</h2><p class="note">Link the repo URL. Title is capped at 80 characters. HN guidelines ask for no AI-written or AI-edited comments: rewrite the first comment in your own words before posting, and stay around to answer.</p><div class="post" data-limit="80"><p class="post-label">Title</p><pre class="body" contenteditable="true" aria-label="Show HN: Title">Show HN: cc, an IDE that shows which coding agent needs you</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="4000"><p class="post-label">First comment</p><pre class="body" contenteditable="true" aria-label="Show HN: First comment">I built cc because I ran three coding agents in three terminals and kept losing track of which one was waiting on me. I also kept pasting screenshots back and forth so an agent could see what it built.
+
+cc puts each agent in a terminal it owns and shows you which one needs you. It runs the official CLIs you install and sign in to yourself, such as Claude Code, Codex and Gemini. It never signs in for you and never reads their login tokens. cc is not affiliated with Anthropic, OpenAI or Google.
+
+What works today:
+
+- The wall. Every agent is a live terminal tile. When one asks a question or waits for a permission, its tile turns orange and moves to the big slot.
+- Terminals that survive. A background service owns them, so closing or crashing the window does not stop the agents. When the core starts again, it resumes the live sessions, at most 3 at a time.
+- An editor around the terminals. Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message.
+- Browser use. Agents drive browser panes inside the window. Password fields, send-like buttons and the first input on a new site stop for your approval.
+- Computer use on Windows. Agents act only on windows you give them, with their own visible cursor. Ctrl+Alt+Q pauses all agent input.
+
+The limits. It is Windows only. There is no installer, so you run it from a clone with Node 24.16 or newer. It is pre-release (0.1.0). There is no sandbox for agents&#x27; code yet. The repo and the troop command still use the old name, MetaTrooper.
+
+It is local only: no account and no telemetry. The core is AGPL-3.0.
+
+The feedback I would like most:
+
+1. Does the waiting tile moving to the big slot help, or get in the way?
+2. Do the browser and desktop approvals stop in the right places?
+3. Which step of the source install fails on your machine?
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="Show HN notes"></textarea></label></section>
+<section id="r-claudeai"><h2>r/ClaudeAI</h2><p class="note">Text post with the Showcase flair. Rule 7 allows a project showcase only if the post says how Claude helped build it, the project is free to try, and the tone is not marketing. README.md does not say how Claude helped, so fill in the bracket yourself, and only with what is true. A bare link post was removed in a recent mod notice.</p><div class="post" data-limit="300"><p class="post-label">Title</p><pre class="body" contenteditable="true" aria-label="r/ClaudeAI: Title">I built cc: a Windows IDE that runs Claude Code sessions side by side and shows which one needs you</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="40000"><p class="post-label">Body</p><pre class="body" contenteditable="true" aria-label="r/ClaudeAI: Body">I run several Claude Code sessions at once. I kept missing the one that had stopped to ask me something. I also kept pasting screenshots so Claude could see what it built. So I built cc. It is free and open source (AGPL-3.0 core).
+
+[FILL IN: two or three sentences on how Claude Code helped you build cc. Rule 7 asks for this. Write only what is true.]
+
+What it does:
+
+- Each session runs in a terminal tile on a wall. When Claude asks a question or waits for a permission, its tile turns orange and moves to the big slot.
+- Status comes from Claude Code&#x27;s own hooks, so each tile says working, waiting for you, done or exited.
+- A background service owns the terminals. Close or crash the window and the sessions keep going.
+- An editor sits around the tiles. Files Claude changed are marked. A comment on a line of a diff goes to that session as your next message.
+- Claude can drive browser panes in the window. Password fields, send-like buttons and the first input on a new site stop for your approval.
+
+What to know first:
+
+- It runs the official claude CLI that you install and sign in to yourself. It never reads your login tokens.
+- Launching Claude Code from the window installs cc&#x27;s hooks into ~/.claude/settings.json. `node core/cli.ts hooks uninstall` takes them out and leaves the rest of the file as it was.
+- Windows only, tested on Windows 11.
+- No installer yet. You clone the repo and run it from source with Node 24.16 or newer.
+- Pre-release, version 0.1.0. Some IDE parts are marked &quot;Not built yet&quot;.
+
+Local only: no account, no telemetry. cc is not affiliated with Anthropic, OpenAI or Google.
+
+Repo: https://github.com/Wasif-ZA/metatrooper
+
+I would like to hear where the wall gets in your way.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="r/ClaudeAI notes"></textarea></label></section>
+<section id="r-chatgptcoding"><h2>r/ChatGPTCoding</h2><p class="note">Rule 5 sends self-promotion to the weekly self-promotion thread. Post this as a reply there, not as a new post. Say you built it. Codex could not confirm the thread&#x27;s weekday, so find the current thread first.</p><div class="post" data-limit="10000"><p class="post-label">Reply in the weekly self-promotion thread</p><pre class="body" contenteditable="true" aria-label="r/ChatGPTCoding: Reply in the weekly self-promotion thread">I built cc, a Windows IDE for running Codex, Claude Code and other CLI agents side by side. Disclosure: it is my project. It is free and open source (AGPL-3.0 core).
+
+The problem it solves: with several agents in several terminals, I lost track of which one was waiting on me.
+
+- Every agent is a live terminal tile. The one waiting for you turns orange and moves to the big slot.
+- Codex reports its status through its notify setting, so its tile says working, waiting for you, done or exited.
+- `troop launch codex --worktree &lt;branch&gt;` starts an agent in its own git worktree.
+- A background service owns the terminals. Closing the window does not stop the agents.
+- An editor sits around the tiles. A comment on a diff line goes to that agent as your next message.
+
+Limits: Windows only. No installer, so you run it from source with Node 24.16 or newer. Pre-release (0.1.0). No sandbox for agents&#x27; code yet.
+
+It runs the official CLIs you sign in to yourself. cc is not affiliated with Anthropic, OpenAI or Google.
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="r/ChatGPTCoding notes"></textarea></label></section>
+<section id="r-commandline"><h2>r/commandline</h2><p class="note">HOLD. Codex found that r/commandline&#x27;s rules bar projects that interact with generative AI, apart from popular ones, and bar new projects with a short history. cc does not look eligible. Ask the moderators before posting. Rule 4 also asks for a disclosure when much of a project&#x27;s code is AI-generated; fill in the bracket only if you post.</p><div class="post" data-limit="300"><p class="post-label">Title</p><pre class="body" contenteditable="true" aria-label="r/commandline: Title">cc: a Windows background service that keeps coding agent terminals alive, driven from a CLI</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="40000"><p class="post-label">Body</p><pre class="body" contenteditable="true" aria-label="r/commandline: Body">I built cc to run CLI coding agents in terminals that outlive the window. The core is a background service that owns each terminal. You drive it from a CLI.
+
+[FILL IN if posting: the AI-code disclosure that Rule 4 asks for.]
+
+From a clone, `troop` means `node core/cli.ts`:
+
+    troop start                                   # start the core in the background
+    troop ping                                    # check it is up
+    troop launch claude --project &lt;path&gt; --prompt &quot;&lt;text&gt;&quot;
+    troop launch codex --worktree &lt;branch&gt;        # agent in its own git worktree
+    troop sessions [--all]                        # list sessions
+    troop owners [path]                           # which session owns each changed file
+    troop stop
+
+Add --json to any command for one line of JSON.
+
+- Close or crash the window and every agent keeps working.
+- When the core starts again, it resumes the live sessions, at most 3 at a time, with each engine&#x27;s own resume flag.
+- Other tools can drive the core over a named pipe (\\.\pipe\metatrooper) with JSON-RPC. No TCP port.
+
+Limits: Windows only. No installer, so you run it from source with Node 24.16 or newer. Pre-release (0.1.0). The command and repo still use the old name, MetaTrooper.
+
+AGPL-3.0 core. No account, no telemetry. cc is not affiliated with Anthropic, OpenAI or Google.
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="r/commandline notes"></textarea></label></section>
+<section id="x-thread"><h2>X thread</h2><p class="note">Seven posts, each under 280 characters. X counts any link as 23 characters, so the counter here runs slightly high on post 7.</p><div class="post" data-limit="280"><p class="post-label">1/7</p><pre class="body" contenteditable="true" aria-label="X thread: 1/7">I ran three coding agents in three terminals and kept losing track of which one was waiting on me.
+
+So I built cc: an IDE where every agent gets a terminal, and the one that needs you comes to you. 🧵</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">2/7</p><pre class="body" contenteditable="true" aria-label="X thread: 2/7">Every agent is a live terminal tile on a wall.
+
+When one asks a question or waits for a permission, its tile turns orange and moves to the big slot. Finished agents fold to one-line bars.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">3/7</p><pre class="body" contenteditable="true" aria-label="X thread: 3/7">A background service owns the terminals.
+
+Close or crash the window and every agent keeps working. When the core starts again, it resumes the live sessions and the wall comes back in the same layout.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">4/7</p><pre class="body" contenteditable="true" aria-label="X thread: 4/7">An editor sits around the tiles.
+
+Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">5/7</p><pre class="body" contenteditable="true" aria-label="X thread: 5/7">Agents can drive browser panes and the Windows app windows you give them.
+
+Password fields, send-like buttons and the first input on a new site stop for your approval. Ctrl+Alt+Q pauses all agent input.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">6/7</p><pre class="body" contenteditable="true" aria-label="X thread: 6/7">The honest limits: Windows only. No installer, so you run it from source. Pre-release, version 0.1.0.
+
+It runs the official Claude Code, Codex and Gemini CLIs you sign in to yourself. cc is not affiliated with Anthropic, OpenAI or Google.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><p class="post-label">7/7</p><pre class="body" contenteditable="true" aria-label="X thread: 7/7">Local only. No account, no telemetry. AGPL-3.0 core.
+
+Try it from source and tell me where the wall gets in your way:
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="X thread notes"></textarea></label></section>
+<section id="linkedin"><h2>LinkedIn</h2><p class="note">Limit is 3,000 characters. The first two lines show before &quot;see more&quot;, so they carry the point.</p><div class="post" data-limit="3000"><p class="post-label">Post</p><pre class="body" contenteditable="true" aria-label="LinkedIn: Post">I built cc: an IDE where every coding agent gets its own terminal, and the one that needs you comes to you.
+It is open source, local only, and in pre-release.
+
+Running several coding agents at once has a simple problem. You lose track of which one is waiting on you.
+
+cc puts every agent in a terminal tile. When an agent asks a question or waits for a permission, its tile turns orange and moves to the big slot.
+
+A background service owns the terminals. Closing the window does not stop the agents.
+
+An editor sits around the tiles. Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message.
+
+Agents can also drive browser panes and the Windows app windows you give them. Password fields, send-like buttons and new sites stop for your approval first.
+
+The honest limits: Windows only. No installer yet, so you run it from source with Node 24.16 or newer. Pre-release, version 0.1.0.
+
+No account, no telemetry. AGPL-3.0 core.
+
+cc runs the official Claude Code, Codex and Gemini CLIs you sign in to yourself. cc is not affiliated with Anthropic, OpenAI or Google.
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="LinkedIn notes"></textarea></label></section>
+<section id="product-hunt"><h2>Product Hunt</h2><p class="note">Name up to 40 characters, tagline 60, description 500, first maker comment up to 5,000 and pinned at launch. Gallery: at least one image, 1270 x 760 recommended. Do not ask for upvotes. The PNGs in assets/ouros/ are redesign mockups (title bar says OUROS, demo data), not the cc window: capture the five gallery images from the real window before launch.</p><div class="post" data-limit="40"><p class="post-label">Name</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Name">cc</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="60"><p class="post-label">Tagline</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Tagline">An IDE built around your coding agents</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="500"><p class="post-label">Description</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Description">cc runs Claude Code, Codex and other CLI agents side by side, each in a terminal that keeps going when the window closes. The agent that needs you comes to the big slot. Agents can drive a browser and the Windows apps you give them, and risky actions stop for you first. Windows only, install from source, pre-release. Not affiliated with Anthropic, OpenAI or Google.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="5000"><p class="post-label">First maker comment</p><pre class="body" contenteditable="true" aria-label="Product Hunt: First maker comment">Hi, I am the maker of cc.
+
+I ran three coding agents in three terminals and kept losing track of which one was waiting on me. I also kept pasting screenshots back and forth so an agent could see what it built. cc is my answer to both.
+
+- Every agent is a live terminal tile. The one waiting for you turns orange and moves to the big slot.
+- A background service owns the terminals, so the agents keep working if the window closes or crashes.
+- An editor sits around the tiles. A comment on a line of a diff goes to that agent as your next message.
+- Agents can drive browser panes in the window, and the Windows app windows you give them. Password fields, send-like buttons and new sites stop for your approval.
+
+It is local only: no account, no telemetry. The core is AGPL-3.0.
+
+The honest limits: Windows only. No installer yet, so you clone the repo and run it from source with Node 24.16 or newer. Pre-release, version 0.1.0.
+
+cc runs the official CLIs you install and sign in to yourself. cc is not affiliated with Anthropic, OpenAI or Google.
+
+I would most like to hear where the wall gets in your way, and which install step fails for you.
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="200"><p class="post-label">Gallery 1: Wall</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Gallery 1: Wall">The wall: every agent is a live terminal tile. The one waiting for you turns orange and moves to the big slot.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="200"><p class="post-label">Gallery 2: IDE</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Gallery 2: IDE">The IDE: file tree, tabs, editor and terminal. Files an agent changed are marked.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="200"><p class="post-label">Gallery 3: Diff comment</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Gallery 3: Diff comment">A comment on a line of a diff goes to that agent as your next message, with the file and line range.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="200"><p class="post-label">Gallery 4: Browser approval</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Gallery 4: Browser approval">Browser use: a password field or a send-like button stops at an approval card. Approve once, for this session, or reject.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="200"><p class="post-label">Gallery 5: Give window</p><pre class="body" contenteditable="true" aria-label="Product Hunt: Gallery 5: Give window">Computer use on Windows: an agent acts only on the window you give it, with its own visible cursor.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="Product Hunt notes"></textarea></label></section>
+<section id="devto"><h2>dev.to article</h2><p class="note">About 900 words. Saved as a draft (published: false). Tags are capped at four. dev.to&#x27;s front matter also has an ai_disclosure_level field: set it to match how this was written.</p><div class="post" data-limit="20000"><p class="post-label">Article</p><pre class="body" contenteditable="true" aria-label="dev.to article: Article">---
+title: I lost track of which coding agent was waiting on me, so I built cc
+published: false
+description: An IDE for running CLI coding agents side by side on Windows. Pre-release, install from source.
+tags: opensource, ai, windows, productivity
+---
+
+I ran three coding agents in three terminals. That part worked. The trouble was me.
+
+One agent would stop to ask a question. Its terminal sat behind the other two. I did not see it until I went looking. Meanwhile the other two kept going, and I kept switching windows to check on them.
+
+There was a second problem. When an agent built something visual, it could not see the result. So I took screenshots and pasted them back in, over and over.
+
+Terminal tabs were not made for this. So I built cc: an IDE built around your coding agents.
+
+## The idea
+
+cc puts every agent in a terminal it owns and shows you which one needs you. Around them sits an editor, so you can read and change what they wrote without leaving the window.
+
+I wanted three things:
+
+1. See every agent at once.
+2. Have the agent that needs me come to me.
+3. Keep the agents running if I close the window.
+
+Everything else grew from those.
+
+## The wall
+
+The wall is the centre of cc. Every agent is a live terminal tile.
+
+When an agent asks a question or waits for a permission, its tile turns orange and moves to the big slot. You do not scan tabs to find it. It comes to you.
+
+It also does not steal your keys. If you were just typing in the big tile, it waits 3 seconds before it moves anything. Finished agents fold to one-line bars.
+
+Each tile says `working`, `waiting for you`, `done` or `exited`. Claude Code reports this through its hooks, and Codex through its notify setting. Other engines show a simpler status taken from their process.
+
+The wall keys use Alt, so a focused terminal keeps every Ctrl key. Alt+arrow moves between tiles. Alt+J jumps to the session that has waited longest. Ctrl+K searches sessions, commands and the text in every live terminal.
+
+## Terminals that survive
+
+A background service, the core, owns the terminals. The window is only a view onto them.
+
+Close or crash the window and every agent keeps working. When the core starts again, it resumes the sessions that were live, at most 3 at a time, with each engine&#x27;s own resume flag. The wall comes back in the same layout.
+
+## An editor around the agents
+
+Agents write code, so I need to read it without switching apps. The IDE screen has a file tree, tabs, a code editor, search, source control, Problems and a terminal.
+
+Files an agent changed carry a mark. You can open each one as a diff. A comment on a line of a diff goes to that agent as your next message, with the file and line range. That one feature replaced a lot of copying and pasting for me.
+
+## Letting agents see and act
+
+This was the screenshot problem. In cc, agents can drive browser panes inside the window through an MCP server. There is no remote debugging port and no browser extension.
+
+Giving an agent a browser needs guard rails. Typing into a password field, typing text that looks like a credential, and clicking a control named like Send, Submit, Pay, Delete or Publish all stop at an approval card. The first input on a new site asks first too. Only the window can approve, never an agent.
+
+On Windows, agents can also act on app windows you give them. You pick Give window on the agent&#x27;s tile. Each agent has its own visible cursor, and your real pointer never moves. Ctrl+Alt+Q pauses all agent input, browser and desktop, at once.
+
+## Privacy
+
+The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside cc. There is no account and no telemetry.
+
+cc runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads their login tokens. cc is not affiliated with Anthropic, OpenAI or Google.
+
+## The honest limits
+
+- **Windows only.** It was tested on Windows 11.
+- **Install from source.** There is no installer yet.
+- **Pre-release.** This is version 0.1.0. Some IDE parts are marked &quot;Not built yet&quot; in the UI.
+- **No sandbox for agents&#x27; code yet.** Agents and the commands they run use your machine with your permissions. The ask mode and approvals are the guard rails.
+- **The old name is still around.** The repo, the `troop` command and the `~/.metatrooper/` folder still say MetaTrooper.
+
+## Try it
+
+You need Windows 10 or 11, Node 24.16 or newer, and at least one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
+
+```bash
+git clone https://github.com/Wasif-ZA/metatrooper
+cd metatrooper/core &amp;&amp; npm ci
+cd ../workbench &amp;&amp; npm ci
+cd ..
+node core/cli.ts start
+node core/cli.ts ping
+cd workbench &amp;&amp; npm run dev
+```
+
+Two things happen on first run. Launching Claude Code from the window installs cc&#x27;s hooks into `~/.claude/settings.json`, and `node core/cli.ts hooks uninstall` takes them out again. The core keeps its state in `~/.metatrooper/troop.db`.
+
+If the wall gets in your way, or an install step fails, open an issue: https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="dev.to article notes"></textarea></label></section>
+<section id="github-release"><h2>GitHub release note</h2><p class="note">Tag v0.1.0 and tick &quot;Set as a pre-release&quot;. The version comes from the root package.json.</p><div class="post" data-limit="125000"><p class="post-label">Release note</p><pre class="body" contenteditable="true" aria-label="GitHub release note: Release note"># cc v0.1.0 (pre-release)
+
+The first public pre-release of cc: an IDE built around your coding agents.
+
+cc runs Claude Code, Codex and other CLI agents side by side, each in a terminal that keeps going. One place tells you who needs you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.
+
+**Windows only. Install from source. Local only: no account, no telemetry.**
+
+cc is not affiliated with or endorsed by Anthropic, OpenAI or Google.
+
+## Highlights
+
+- **The wall.** Every agent is a live terminal tile. The one waiting for you turns orange and moves to the big slot. Wall keys use Alt, so a focused terminal keeps every Ctrl key.
+- **Terminals that survive.** A background service owns the terminals. Close or crash the window and every agent keeps working. When the core starts again, it resumes live sessions, at most 3 at a time.
+- **The IDE.** File tree, tabs, editor, search, source control, Problems and a terminal. Files an agent changed are marked. A comment on a line of a diff goes to that agent as your next message.
+- **Browser use.** Agents drive browser panes in the window. Password fields, credential-looking text, send-like buttons and new sites stop at an approval card.
+- **Computer use (Windows).** Agents act only on windows you give them, through UI Automation, with their own visible cursor. Ctrl+Alt+Q pauses all agent input.
+- **Public API.** Other tools drive the core over a named pipe with JSON-RPC.
+
+## Requirements
+
+- Windows 10 or 11 (tested on Windows 11).
+- Node 24.16 or newer (tested on 24.18).
+- At least one agent CLI installed and signed in: `claude`, `codex`, `gemini` or `agy`.
+- A network connection for the first run.
+
+## Install from source
+
+There is no installer yet.
+
+```bash
+git clone https://github.com/Wasif-ZA/metatrooper
+cd metatrooper/core &amp;&amp; npm ci
+cd ../workbench &amp;&amp; npm ci
+cd ..
+node core/cli.ts start          # starts the core in the background
+node core/cli.ts ping           # checks the core is up
+node core/cli.ts skills install # optional: copies the bundled agent skills
+cd workbench &amp;&amp; npm run dev     # opens the window; needs a desktop session
+```
+
+## Before you run it
+
+- Launching Claude Code from the window installs cc&#x27;s hooks into `~/.claude/settings.json`. `node core/cli.ts hooks uninstall` takes them out again and leaves the rest of the file byte for byte.
+- The core keeps its state in `~/.metatrooper/troop.db`. A newer core migrates it, after which an older build cannot open it.
+- On first run the window asks how agents should start: ask before each tool call (the default) or auto mode in worktrees.
+- The repo, the `troop` command, the `~/.metatrooper/` folder and the package names still use the old name MetaTrooper.
+
+## Known limits
+
+- No sandbox for agents&#x27; code yet. Agents and the commands they run use your machine with your permissions.
+- Grants and approvals do not stop a hostile program running as you.
+- The send-button rule is English only.
+- Apps without a UI Automation tree give the agent screenshots only.
+- Take-over is close to instant, not instant.
+- Some IDE parts are not built. The UI marks them &quot;Not built yet&quot;.
+
+Full lists: the Known limits section of the README.
+
+## Uninstall
+
+Run `node core/cli.ts hooks uninstall --codex`, stop the core with `node core/cli.ts stop`, and delete the clone. Delete `~/.metatrooper/` too if you want your history gone.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="GitHub release note notes"></textarea></label></section>
+<section id="video-script"><h2>60-second demo video</h2><p class="note">Every shot is a screen from README.md: Wall, IDE, browser pane approval card, Give window, Needs you. The end card carries the limits and the not-affiliated line because the video shows Claude Code and Codex.</p><div class="post" data-limit="20000"><p class="post-label">Script and shot list</p><pre class="body" contenteditable="true" aria-label="60-second demo video: Script and shot list">60-second demo. Record from the real window, not the assets/ouros mockups. About 140 words of voiceover.
+
+0:00 to 0:07 | WALL
+On screen: four agent tiles working. One tile turns orange and moves to the big slot.
+Voiceover: I run several coding agents at once. In cc, the one that needs me comes to me.
+
+0:07 to 0:14 | WALL, close-up on the orange tile
+On screen: the tile says &quot;waiting for you&quot;. Type an answer. The tile goes back to &quot;working&quot;.
+Voiceover: Each tile says working, waiting for you, done or exited.
+
+0:14 to 0:22 | IDE
+On screen: file tree with changed files marked. Open one as a diff. Comment on a line.
+Voiceover: An editor sits around the agents. A comment on a diff line goes to that agent as my next message.
+
+0:22 to 0:31 | BROWSER PANE with APPROVAL CARD
+On screen: an agent clicks into a password field. The approval card shows a redacted crop. Click Reject.
+Voiceover: Agents can drive a browser pane. Password fields and send buttons stop for me first.
+
+0:31 to 0:40 | GIVE WINDOW
+On screen: pick Give window on a tile and choose an app. The agent&#x27;s cursor glides to a button. Press Ctrl+Alt+Q.
+Voiceover: On Windows, an agent acts only on a window I give it. Ctrl+Alt+Q pauses everything.
+
+0:40 to 0:47 | NEEDS YOU
+On screen: the list of questions and approvals across agents, with a filter applied.
+Voiceover: Every question and approval waits in one list.
+
+0:47 to 0:53 | Close the window, reopen it, WALL
+On screen: the window closes. It reopens and the tiles are still working.
+Voiceover: The terminals live in a background service, so closing the window stops nothing.
+
+0:53 to 1:00 | END CARD
+On screen: the cc icon (assets/logos/cc-icon.svg), the repo URL, and &quot;Windows only. Install from source. Pre-release.&quot; Small print: not affiliated with Anthropic, OpenAI or Google.
+Voiceover: cc is free and open source. Windows only, pre-release, install from source.</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="60-second demo video notes"></textarea></label></section>
+<section id="community-blurb"><h2>Discord and Slack blurb</h2><p class="note">Under 500 characters, well inside Discord&#x27;s 2,000. Check each server&#x27;s self-promotion channel rules first.</p><div class="post" data-limit="500"><p class="post-label">Blurb</p><pre class="body" contenteditable="true" aria-label="Discord and Slack blurb: Blurb">I built cc, an open source IDE for running Claude Code, Codex and other CLI agents side by side. The agent that needs you comes to the big slot, and the terminals keep going if the window closes.
+
+Limits: Windows only, install from source, pre-release (0.1.0). cc is not affiliated with Anthropic, OpenAI or Google.
+
+https://github.com/Wasif-ZA/metatrooper</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="Discord and Slack blurb notes"></textarea></label></section>
+<section id="newsletter-email"><h2>Newsletter editor email (DRAFT, do not send)</h2><p class="note">Three drafts, one per newsletter. Each is under 150 words. Find each editor&#x27;s submission route first: some take a form rather than email. Replace [Name].</p><div class="post" data-limit="1500"><p class="post-label">TLDR</p><pre class="body" contenteditable="true" aria-label="Newsletter editor email (DRAFT, do not send): TLDR">Subject: cc: an open source IDE for running coding agents side by side
+
+Hi [Name],
+
+I built cc, an open source IDE for running CLI coding agents, such as Claude Code and Codex, side by side.
+
+Each agent gets a terminal that a background service owns, so closing the window stops nothing. The agent waiting on you turns orange and moves to the big slot. Agents can drive a browser pane and Windows apps you give them, and risky actions stop for approval.
+
+Honest limits: Windows only, install from source (no installer), pre-release 0.1.0. Local only, no account, no telemetry. AGPL-3.0 core. cc is not affiliated with Anthropic, OpenAI or Google.
+
+Repo: https://github.com/Wasif-ZA/metatrooper
+
+Happy to answer questions.
+
+Thanks,
+Wasif</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="1500"><p class="post-label">Console.dev</p><pre class="body" contenteditable="true" aria-label="Newsletter editor email (DRAFT, do not send): Console.dev">Subject: Dev tool for review: cc, an IDE for CLI coding agents (pre-release)
+
+Hi [Name],
+
+Console reviews dev tools, so here are the facts first: AGPL-3.0 core, Windows only, pre-release.
+
+I built cc, an open source IDE for running CLI coding agents, such as Claude Code and Codex, side by side.
+
+Each agent gets a terminal that a background service owns, so closing the window stops nothing. The agent waiting on you turns orange and moves to the big slot. Agents can drive a browser pane and Windows apps you give them, and risky actions stop for approval.
+
+Honest limits: Windows only, install from source (no installer), pre-release 0.1.0. Local only, no account, no telemetry. AGPL-3.0 core. cc is not affiliated with Anthropic, OpenAI or Google.
+
+Repo: https://github.com/Wasif-ZA/metatrooper
+
+Happy to answer questions.
+
+Thanks,
+Wasif</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="1500"><p class="post-label">Changelog</p><pre class="body" contenteditable="true" aria-label="Newsletter editor email (DRAFT, do not send): Changelog">Subject: Open source: cc, terminals for coding agents that outlive the window
+
+Hi [Name],
+
+I built cc, an open source IDE for running CLI coding agents, such as Claude Code and Codex, side by side.
+
+Each agent gets a terminal that a background service owns, so closing the window stops nothing. The agent waiting on you turns orange and moves to the big slot. Agents can drive a browser pane and Windows apps you give them, and risky actions stop for approval.
+
+Honest limits: Windows only, install from source (no installer), pre-release 0.1.0. Local only, no account, no telemetry. AGPL-3.0 core. cc is not affiliated with Anthropic, OpenAI or Google.
+
+Repo: https://github.com/Wasif-ZA/metatrooper
+
+Happy to answer questions.
+
+Thanks,
+Wasif</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Your notes on this section<textarea aria-label="Newsletter editor email (DRAFT, do not send) notes"></textarea></label></section>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const status = document.getElementById('status');
+      try {
+        const saved = localStorage.getItem('cc-launch-theme');
+        if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+      } catch (_) { /* Storage may be unavailable. */ }
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = dark ? 'light' : 'dark';
+        try { localStorage.setItem('cc-launch-theme', root.dataset.theme); } catch (_) { /* Theme still works for this page. */ }
+      });
+      async function copy(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* Try the fallback. */ }
+        }
+        const field = document.createElement('textarea');
+        field.value = text;
+        field.style.position = 'fixed';
+        field.style.left = '-9999px';
+        document.body.appendChild(field);
+        field.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) { /* Report below. */ }
+        field.remove();
+        return ok;
+      }
+      function postText(post) { return post.querySelector('.body').innerText.replace(/\n$/, ''); }
+      function updateCount(post) {
+        const count = post.querySelector('.count');
+        const limit = Number(post.dataset.limit);
+        const length = postText(post).length;
+        count.textContent = `${length} / ${limit}`;
+        count.classList.toggle('over', length > limit);
+      }
+      document.querySelectorAll('.post').forEach(post => {
+        updateCount(post);
+        post.querySelector('.body').addEventListener('input', () => updateCount(post));
+        post.querySelector('button').addEventListener('click', async () => {
+          status.textContent = await copy(postText(post)) ? 'Copied post.' : 'Copy failed. Select the text and copy it manually.';
+        });
+      });
+      document.querySelectorAll('section').forEach(section => {
+        const field = section.querySelector('textarea');
+        const key = `cc-launch-comment-${section.id}`;
+        try { field.value = localStorage.getItem(key) || ''; } catch (_) { /* Notes stay editable. */ }
+        field.addEventListener('input', () => {
+          try { localStorage.setItem(key, field.value); } catch (_) { /* Notes stay editable. */ }
+        });
+      });
+      document.getElementById('copy-all').addEventListener('click', async () => {
+        const all = Array.from(document.querySelectorAll('section'), section => {
+          const heading = section.querySelector('h2').textContent;
+          const posts = Array.from(section.querySelectorAll('.post'), p => `[${p.querySelector('.post-label').textContent}]
+${postText(p)}`);
+          return `${heading}\n\n${posts.join('\n\n')}`;
+        }).join('\n\n');
+        status.textContent = await copy(all) ? 'Copied all posts.' : 'Copy failed. Select the text and copy it manually.';
+      });
+    })();
+  </script>
+</body>
+</html>

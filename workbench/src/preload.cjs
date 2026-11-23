@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('troop', {
   setApproval: (value) => ipcRenderer.invoke('setApproval', value),
   fsList: (projectId, rel) => ipcRenderer.invoke('fsList', projectId, rel),
   fsFind: (projectId, query) => ipcRenderer.invoke('fsFind', projectId, query),
+  commandsList: (projectId, engineId) => ipcRenderer.invoke('commandsList', projectId, engineId),
   fsRead: (projectId, rel) => ipcRenderer.invoke('fsRead', projectId, rel),
   fsImage: (projectId, rel) => ipcRenderer.invoke('fsImage', projectId, rel),
   fsFileUrl: (projectId, rel) => ipcRenderer.invoke('fsFileUrl', projectId, rel),

@@ -22,12 +22,17 @@ export function ownerGroups(changes: GitFile[], owned: OwnedPath[]): OwnerGroup[
   };
   for (const f of changes) {
     const o = by.get(f.path);
-    if (o && o.shared) put('shared', 'Shared, stage by hand', o.owners.map((x) => x.title).join(', '), false, f);
+    if (o && o.shared) put('shared', 'Shared, stage by hand', sharedBy(o.owners), false, f);
     else if (o && o.owners.length) put(`owner:${o.owners[0].id}`, o.owners[0].title, o.owners[0].state, true, f);
     else put('unclaimed', 'No owner', '', true, f);
   }
   const rank = (g: OwnerGroup) => (g.key === 'shared' ? 1 : g.key === 'unclaimed' ? 2 : 0);
   return [...groups.values()].sort((a, b) => rank(a) - rank(b));
+}
+
+function sharedBy(owners: OwnedPath['owners']): string {
+  const titles = [...new Set(owners.map((x) => x.title))];
+  return titles.length > 3 ? `${titles.length} sessions` : titles.join(', ');
 }
 
 export const GIT_SAFE_ENV = { GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.fsmonitor', GIT_CONFIG_VALUE_0: 'false' };

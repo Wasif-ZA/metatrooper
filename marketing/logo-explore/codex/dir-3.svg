@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="three parallel terminal prompts, one active">
+  <rect width="64" height="64" rx="13" fill="#151516"/>
+  <path d="m12 14 8 7-8 7m0 8 8 7-8 7m16-36 8 7-8 7" fill="none" stroke="#f1f1ef" stroke-width="4.5" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="m36 36 8 7-8 7" fill="none" stroke="#ff7a1a" stroke-width="4.5" stroke-linecap="square" stroke-linejoin="miter"/>
+  <rect x="23" y="26" width="8" height="4" fill="#f1f1ef"/>
+  <rect x="23" y="48" width="8" height="4" fill="#f1f1ef"/>
+  <rect x="47" y="26" width="7" height="4" fill="#f1f1ef"/>
+  <rect x="47" y="48" width="7" height="4" fill="#ff7a1a"/>
+</svg>

@@ -339,9 +339,9 @@ function renderHandback() {
   if (!h) return `<div class="panel">${bar}<p class="empty">Loading.</p></div>`;
   if (h.error) return `<div class="panel">${bar}<p class="empty">${esc(h.error)}</p></div>`;
   const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
-  const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<button class="chip ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added} -${f.deleted}</span></button>`).join('');
+  const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}" title="${esc(f.path)}">${esc(f.path)}</button><span class="meta">+${f.added} -${f.deleted}</span></div>`).join('');
   return `<div class="panel">${bar}
-    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. cc never commits; it gives you the command to run yourself.</p>'}
+    ${h.files.length ? `<div class="log stat">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. cc never commits; it gives you the command to run yourself.</p>'}
     ${texts ? `<h3>Comment on a line</h3><div class="toolbar">${texts}</div>${renderDiff()}` : ''}
     ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
     ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -741,7 +741,15 @@ function loadSessionDiff(sel) {
 /** Every agent with changes, as chips over one file list; a file opens that agent's own diff. */
 function renderAllChanges(sel) {
   const gits = ui.snap.git || {};
-  const agents = ui.snap.sessions.filter((x) => gits[x.id] && (gits[x.id].added || gits[x.id].deleted));
+  const changed = ui.snap.sessions.filter((x) => gits[x.id] && (gits[x.id].added || gits[x.id].deleted));
+  const byRoot = new Map();
+  for (const x of changed) {
+    const k = gits[x.id].root || x.id;
+    const g = byRoot.get(k);
+    if (!g) byRoot.set(k, { ...x, all: [x] });
+    else { g.all.push(x); if (sel && sel.id === x.id) Object.assign(g, x, { all: g.all }); }
+  }
+  const agents = [...byRoot.values()];
   ui.allDiff = ui.allDiff || {};
   for (const x of agents) {
     const c = ui.allDiff[x.id];
@@ -751,7 +759,7 @@ function renderAllChanges(sel) {
     }
   }
   const sum = agents.reduce((a, x) => [a[0] + gits[x.id].added, a[1] + gits[x.id].deleted], [0, 0]);
-  const chips = `<div class="toolbar"><button class="chip ${sel && !ui.diffAll ? '' : 'on'}" data-action="diff-all">All changes <span class="meta">+${sum[0]} -${sum[1]}</span></button>${agents.map((x) => `<button class="chip ${sel && !ui.diffAll && sel.id === x.id ? 'on' : ''}" data-action="pick" data-id="${esc(x.id)}">${esc(x.engine_id)} <span class="meta">+${gits[x.id].added} -${gits[x.id].deleted}</span></button>`).join('')}<span class="grow"></span><button class="btn sm" data-action="tab" data-tab="handback">Hand back</button></div>`;
+  const chips = `<div class="toolbar"><button class="chip ${sel && !ui.diffAll ? '' : 'on'}" data-action="diff-all">All changes <span class="meta">+${sum[0]} -${sum[1]}</span></button>${agents.map((x) => `<button class="chip ${sel && !ui.diffAll && x.all.some((y) => y.id === sel.id) ? 'on' : ''}" data-action="pick" data-id="${esc(x.id)}" title="${esc(x.all.map(sessionLabel).join('\n'))}">${esc(x.engine_id)}${x.all.length > 1 ? ` ×${x.all.length}` : ''} <span class="meta">+${gits[x.id].added} -${gits[x.id].deleted}</span></button>`).join('')}<span class="grow"></span><button class="btn sm" data-action="tab" data-tab="handback">Hand back</button></div>`;
   if (sel && !ui.diffAll) return chips;
   const files = agents.flatMap((x) => {
     const d = ui.allDiff[x.id] && ui.allDiff[x.id].data;

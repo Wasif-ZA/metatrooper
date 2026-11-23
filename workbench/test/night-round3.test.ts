@@ -91,7 +91,7 @@ test('d8c614e8 Wall header keeps Diff, Hand back and More in one row and toggles
   const row = markup.match(/<div class="ou-ah r1"[^>]*>([^]*?)<\/div>\s*<div class="r2">/)![1];
   assert.equal((markup.match(/class="ou-ah r1"/g) || []).length, 1);
   assert.match(row, /<span class="ou-ah-acts"><span class="act"><button class="btn" data-action="open-panel" data-tab="diff"[^>]*>Diff<\/button><button class="btn" data-action="open-panel" data-tab="handback"[^>]*>Hand back<\/button><\/span>/);
-  assert.match(row, /<details class="tile-more"><summary class="tx" aria-label="More actions" title="More actions">\.\.\.<\/summary><menu><span class="tile-previews"><\/span><span class="tile-desk"><\/span><button class="pb" data-action="pair"[^>]*>Pair<\/button><\/menu><\/details>/);
+  assert.match(row, /<details class="tile-more"><summary class="tx" aria-label="More actions" title="More actions">\.\.\.<\/summary><menu><button class="btn mdiff" data-action="open-panel" data-tab="diff"[^>]*>Diff<\/button><span class="tile-previews"><\/span><span class="tile-desk"><\/span><button class="pb" data-action="pair"[^>]*>Pair<\/button><\/menu><\/details>/);
   const label = new Function('selected', [fn('escapeAttr', terminal, '  '), fn('deskHtml', terminal, '  '), fn('label', terminal, '  '), 'return label;'].join('\n'))(null);
   const parts = new Map<string, any>();
   const get = (selector: string) => {

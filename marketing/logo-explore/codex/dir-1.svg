@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cc wall: one agent needs attention">
+  <rect width="64" height="64" rx="13" fill="#151516"/>
+  <rect x="9" y="9" width="31" height="31" rx="3" fill="#ff7a1a"/>
+  <rect x="44" y="9" width="11" height="14" rx="2" fill="#f1f1ef"/>
+  <rect x="44" y="27" width="11" height="13" rx="2" fill="#f1f1ef"/>
+  <rect x="9" y="44" width="14" height="11" rx="2" fill="#f1f1ef"/>
+  <rect x="27" y="44" width="13" height="11" rx="2" fill="#f1f1ef"/>
+  <rect x="44" y="44" width="11" height="11" rx="2" fill="#f1f1ef"/>
+  <path d="M17 24h11m-5.5-5.5 5.5 5.5-5.5 5.5" fill="none" stroke="#151516" stroke-width="3.5" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

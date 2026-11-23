@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cc launch drafts</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #151516;
+      --paper: #f1f1ef;
+      --orange-dark: #ff7a1a;
+      --orange-light: #c45200;
+      --bg: var(--paper);
+      --fg: var(--ink);
+      --accent: var(--orange-light);
+      --surface: #fff;
+      --border: #b8b8b4;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: var(--ink);
+      --fg: var(--paper);
+      --accent: var(--orange-dark);
+      --surface: #242426;
+      --border: #565658;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: var(--ink);
+        --fg: var(--paper);
+        --accent: var(--orange-dark);
+        --surface: #242426;
+        --border: #565658;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 "Cascadia Mono", Consolas, monospace; overflow-wrap: anywhere; }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--fg); padding: .5rem .75rem; }
+    button:hover, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    a { color: inherit; }
+    .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1rem max(1rem, calc((100vw - 1180px)/2)); border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: .75rem; margin-right: auto; font-weight: 700; font-size: 1.2rem; }
+    .brand svg { width: 48px; height: 48px; flex: none; }
+    .intro { max-width: 1180px; padding: 1.5rem 1rem 0; margin: auto; }
+    .intro h1 { margin: 0 0 .25rem; font-size: clamp(1.5rem, 4vw, 2.2rem); }
+    .intro p { margin: .25rem 0 1rem; }
+    .layout { max-width: 1180px; margin: auto; padding: 1rem; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; align-items: start; }
+    nav { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding: .75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    nav strong { display: block; margin-bottom: .5rem; }
+    nav a { display: block; padding: .3rem .4rem; border-radius: 4px; text-decoration: none; }
+    nav a:hover { color: var(--accent); }
+    main { min-width: 0; }
+    section { scroll-margin-top: 1rem; margin-bottom: 2.5rem; }
+    section h2 { margin: 0 0 .75rem; font-size: 1.2rem; }
+    .post { min-width: 0; padding: 1rem; margin: .75rem 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .post pre { margin: 0 0 .75rem; padding: .75rem; min-height: 5rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; outline-color: var(--accent); font: inherit; }
+    .post-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+    .count.over { color: var(--accent); font-weight: 700; }
+    .comment-label { display: block; margin-top: .75rem; }
+    textarea { display: block; width: 100%; min-height: 6rem; resize: vertical; padding: .75rem; margin-top: .35rem; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    .status { min-height: 1.5em; color: var(--accent); }
+    @media (max-width: 680px) {
+      .layout { display: block; }
+      nav { top: 0; z-index: 2; max-height: 8rem; margin-bottom: 1.5rem; padding: .5rem; box-shadow: 0 3px 8px #0002; }
+      nav strong { margin: 0 .4rem .25rem; }
+      nav .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      nav a { font-size: .8rem; }
+      section { scroll-margin-top: 9rem; }
+      .topbar { gap: .5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cc">
+        <rect width="64" height="64" rx="14" fill="#151516"/>
+        <g fill="none" stroke="#f1f1ef" stroke-width="6" stroke-linecap="round">
+          <path d="M42.1 46.1A20 20 0 1 1 42.1 17.9"/>
+          <path d="M34.4 38.4A9 9 0 1 1 34.4 25.6"/>
+        </g>
+        <circle cx="46" cy="32" r="4.5" fill="#ff7a1a"/>
+      </svg>
+      <span>cc drafts</span>
+    </div>
+    <button id="copy-all" type="button">Copy all</button>
+    <button id="theme-toggle" type="button" aria-label="Switch color theme">Theme</button>
+  </header>
+  <div class="intro">
+    <h1>Launch post shell</h1>
+    <p>Windows only. Install from source. Pre-release.</p>
+    <p>Edit each placeholder in place. Counts use draft caps. Check the platform before posting.</p>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </div>
+  <div class="layout">
+    <nav aria-label="Table of contents"><strong>Contents</strong><div class="links">
+      <a href="#show-hn">Show HN</a><a href="#r-claudeai">r/ClaudeAI</a><a href="#r-chatgptcoding">r/ChatGPTCoding</a><a href="#r-commandline">r/commandline</a><a href="#x-thread">X thread</a><a href="#linkedin">LinkedIn</a><a href="#product-hunt">Product Hunt</a><a href="#devto">DEV</a><a href="#github-release">GitHub release</a><a href="#video-script">Video script</a><a href="#community-blurb">Community blurb</a><a href="#newsletter-email">Newsletter email</a>
+    </div></nav>
+    <main>
+      <section id="show-hn"><h2>Show HN</h2><div class="post" data-limit="80"><pre class="body" contenteditable="true" aria-label="Show HN draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="Show HN comments"></textarea></label></section>
+      <section id="r-claudeai"><h2>r/ClaudeAI</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="r/ClaudeAI draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="r/ClaudeAI comments"></textarea></label></section>
+      <section id="r-chatgptcoding"><h2>r/ChatGPTCoding</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="r/ChatGPTCoding draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="r/ChatGPTCoding comments"></textarea></label></section>
+      <section id="r-commandline"><h2>r/commandline</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="r/commandline draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="r/commandline comments"></textarea></label></section>
+      <section id="x-thread"><h2>X thread</h2><div class="post" data-limit="280"><pre class="body" contenteditable="true" aria-label="X thread post 1">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><pre class="body" contenteditable="true" aria-label="X thread post 2">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><div class="post" data-limit="280"><pre class="body" contenteditable="true" aria-label="X thread post 3">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="X thread comments"></textarea></label></section>
+      <section id="linkedin"><h2>LinkedIn</h2><div class="post" data-limit="3000"><pre class="body" contenteditable="true" aria-label="LinkedIn draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="LinkedIn comments"></textarea></label></section>
+      <section id="product-hunt"><h2>Product Hunt</h2><div class="post" data-limit="500"><pre class="body" contenteditable="true" aria-label="Product Hunt description draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="Product Hunt comments"></textarea></label></section>
+      <section id="devto"><h2>DEV</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="DEV draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="DEV comments"></textarea></label></section>
+      <section id="github-release"><h2>GitHub release</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="GitHub release draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="GitHub release comments"></textarea></label></section>
+      <section id="video-script"><h2>Video script</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="Video script draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="Video script comments"></textarea></label></section>
+      <section id="community-blurb"><h2>Community blurb</h2><div class="post" data-limit="2000"><pre class="body" contenteditable="true" aria-label="Community blurb draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="Community blurb comments"></textarea></label></section>
+      <section id="newsletter-email"><h2>Newsletter email</h2><div class="post" data-limit="10000"><pre class="body" contenteditable="true" aria-label="Newsletter email draft">PLACEHOLDER</pre><div class="post-tools"><button type="button">Copy</button><span class="count"></span></div></div><label class="comment-label">Comments<textarea aria-label="Newsletter email comments"></textarea></label></section>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const status = document.getElementById('status');
+      try {
+        const saved = localStorage.getItem('cc-launch-theme');
+        if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+      } catch (_) { /* Storage may be unavailable. */ }
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = dark ? 'light' : 'dark';
+        try { localStorage.setItem('cc-launch-theme', root.dataset.theme); } catch (_) { /* Theme still works for this page. */ }
+      });
+      async function copy(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* Try the fallback. */ }
+        }
+        const field = document.createElement('textarea');
+        field.value = text;
+        field.style.position = 'fixed';
+        field.style.left = '-9999px';
+        document.body.appendChild(field);
+        field.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) { /* Report below. */ }
+        field.remove();
+        return ok;
+      }
+      function postText(post) { return post.querySelector('.body').innerText.replace(/\n$/, ''); }
+      function updateCount(post) {
+        const count = post.querySelector('.count');
+        const limit = Number(post.dataset.limit);
+        const length = postText(post).length;
+        count.textContent = `${length} / ${limit}`;
+        count.classList.toggle('over', length > limit);
+      }
+      document.querySelectorAll('.post').forEach(post => {
+        updateCount(post);
+        post.querySelector('.body').addEventListener('input', () => updateCount(post));
+        post.querySelector('button').addEventListener('click', async () => {
+          status.textContent = await copy(postText(post)) ? 'Copied post.' : 'Copy failed. Select the text and copy it manually.';
+        });
+      });
+      document.querySelectorAll('section').forEach(section => {
+        const field = section.querySelector('textarea');
+        const key = `cc-launch-comment-${section.id}`;
+        try { field.value = localStorage.getItem(key) || ''; } catch (_) { /* Notes stay editable. */ }
+        field.addEventListener('input', () => {
+          try { localStorage.setItem(key, field.value); } catch (_) { /* Notes stay editable. */ }
+        });
+      });
+      document.getElementById('copy-all').addEventListener('click', async () => {
+        const all = Array.from(document.querySelectorAll('section'), section => {
+          const heading = section.querySelector('h2').textContent;
+          const posts = Array.from(section.querySelectorAll('.post'), postText);
+          return `${heading}\n\n${posts.join('\n\n')}`;
+        }).join('\n\n');
+        status.textContent = await copy(all) ? 'Copied all posts.' : 'Copy failed. Select the text and copy it manually.';
+      });
+    })();
+  </script>
+</body>
+</html>
