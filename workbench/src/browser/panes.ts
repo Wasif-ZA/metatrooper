@@ -266,6 +266,7 @@ export class PaneManager {
   private shown: string | null = null;
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
   private guarded = new Set<string>();
+  private spare = new Map<string, string[]>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
   /** Error page data: URL to the URL that failed, so going back or forward to an error entry restores errorFor. */
@@ -340,7 +341,7 @@ export class PaneManager {
   /** The pane's partition: every request (frames, workers, WebSockets) passes the address policy, downloads and permissions follow the pane kind. Agent-opened panes get an in-memory partition of their own. */
   private guardPartition(row: PaneRow): Electron.Session {
     const agent = row.id.startsWith(AGENT_PANE) && !row.lent;
-    const partition = agent ? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
+    const partition = agent ? this.spare.get(row.project_id)?.pop() ?? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
     const ses = electronSession.fromPartition(partition);
     if (this.guarded.has(partition)) return ses;
     this.guarded.add(partition);
@@ -832,7 +833,18 @@ export class PaneManager {
     if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
     pane.view.webContents.close();
-    if (id.startsWith(AGENT_PANE) && !pane.row.lent) void ses.clearStorageData().catch(() => {});
+    if (!id.startsWith(AGENT_PANE) || pane.row.lent) return;
+    const partition = [...this.guarded].find((p) => electronSession.fromPartition(p) === ses);
+    if (partition) this.guarded.delete(partition);
+    ses.webRequest.onBeforeRequest(null);
+    ses.webRequest.onBeforeSendHeaders?.(null);
+    ses.webRequest.onHeadersReceived?.(null);
+    ses.removeAllListeners?.('will-download');
+    ses.setPermissionCheckHandler?.(null);
+    ses.setPermissionRequestHandler?.(null);
+    void ses.clearStorageData().then(() => {
+      if (partition && ![...this.panes.values()].some((p) => !p.view.webContents.isDestroyed() && p.view.webContents.session === ses)) this.spare.set(pane.row.project_id, [...(this.spare.get(pane.row.project_id) ?? []), partition]);
+    }, () => {});
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */
