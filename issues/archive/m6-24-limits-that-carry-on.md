@@ -17,3 +17,5 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: High. Effort: 1.0 CC d
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. core/test/m6-24-limits.test.ts 11/11 run by B4 on a8a3b642.

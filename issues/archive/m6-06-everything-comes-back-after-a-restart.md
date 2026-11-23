@@ -21,3 +21,5 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 4.0 
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. core/test/m6-06-restart.test.ts 10/10 run by B4 on a8a3b642. The workbench re-layout half of 06a has no automated test (see 06a).

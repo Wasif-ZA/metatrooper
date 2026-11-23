@@ -46,3 +46,5 @@ Not sized until M8-0.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. core/test/m8-47-cli-drive.test.ts 11/11 run by B4 on a8a3b642.
