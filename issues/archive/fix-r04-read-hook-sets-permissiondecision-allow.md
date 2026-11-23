@@ -1,18 +1,18 @@
-# FIX-R3: A timed-out MCP tools/call is replayed on a fresh server
+# FIX-R4: Read hook sets permissionDecision allow on every rewrite
 
 From the 2026-10-31 audit of router, plugins, sandbox, release. Severity: Medium. Effort: S unless the fix says otherwise.
 
 ## Where
 
-- router/metarouter/mcp.py:281-316; mcp_daemon.py:60-70, 137-153
+- router/metarouter/hook.py:34-50, 76-87
 
 ## What goes wrong
 
-call_tool falls back to a new Session on ConnectionError, TimeoutError or OSError, including a 60 s timeout after the daemon already sent the call, or a server that crashed after acting. Send, create, delete and spend tools run twice.
+Rewriting a Read (an image, or a file of 12,000 bytes or more with no limit) also returns `permissionDecision: allow`, which may skip Claude Code's permission prompt for a file outside allowed folders. The Bash side sets no decision on purpose. Not run against Claude Code; check its hook docs first.
 
 ## Fix
 
-Fall back only when the daemon could not be reached; never replay a call already written.
+Return only updatedInput from the Read branch.
 
 ## Audit
 
@@ -20,9 +20,9 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 
 ## Acceptance criteria
 
-- [ ] FIX-R3a. A fake server sleeping over 60 s on tools/call is invoked exactly once.
-- [ ] FIX-R3b. A server that exits after acting is invoked once and the error returned.
-- [ ] FIX-R3c. An unreachable daemon still falls back once.
+- [ ] FIX-R4a. Read hook output has no permissionDecision.
+- [ ] FIX-R4b. The 300-line limit and image shrink still apply.
+- [ ] FIX-R4c. test_hook.py asserts no decision.
 
 ## Rules
 
@@ -31,3 +31,5 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the failing test first for any fix Claude builds.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: obsolete. The Read branch of router/metarouter/hook.py was removed in aeb72989 (ROUTER-01); the hook now handles Bash only (hook.py:45). Boxes left unticked.
