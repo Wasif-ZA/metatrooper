@@ -919,6 +919,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
+        const held = (await gitAsync(dir, ['rev-parse', '--abbrev-ref', 'HEAD'], 60_000, {}, false).then((r) => String(r), () => '')).trim();
+        if (held !== branch) throw new RpcError(E.VALIDATION, `the worktree folder for ${branch} already holds ${held || 'no branch'}; pick another branch name`);
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
         return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted, existing: true };
       }
