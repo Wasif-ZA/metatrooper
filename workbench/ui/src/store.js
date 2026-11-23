@@ -6,6 +6,6 @@ export function createStore(state) {
   return {
     get: () => state,
     set(patch) { state = { ...state, ...patch }; for (const fn of subs) fn(); },
-    use: () => useSyncExternalStore((fn) => { subs.add(fn); return () => subs.delete(fn); }, () => state),
+    use: () => useSyncExternalStore((fn) => { subs.add(fn); return () => subs.delete(fn); }, () => state, () => state),
   };
 }
