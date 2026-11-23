@@ -1270,7 +1270,8 @@ async function refreshThumbs() {
     dot.style.background = d.colour;
   }
 }
-setInterval(() => { void refreshThumbs().catch(() => {}); }, 500);
+let thumbsBusy = false;
+setInterval(() => { if (thumbsBusy) return; thumbsBusy = true; void refreshThumbs().catch(() => {}).finally(() => { thumbsBusy = false; }); }, 500);
 
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
