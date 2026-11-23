@@ -21,14 +21,18 @@ async function withNotifyDb<T>(quietAtNight: boolean | undefined, run: (db: Data
   }
   const oldHome = process.env.METATROOPER_HOME;
   const oldFake = process.env.METATROOPER_FAKE_DPAPI;
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
   process.env.METATROOPER_HOME = home;
   process.env.METATROOPER_FAKE_DPAPI = '1';
+  // Fake DPAPI is only available off Windows; keep these fixtures independent of PowerShell.
+  if (process.platform === 'win32') Object.defineProperty(process, 'platform', { value: 'linux' });
   const db = new DatabaseSync(':memory:');
   try {
     db.exec(readFileSync(schemaFile, 'utf8'));
     return await run(db);
   } finally {
     db.close();
+    Object.defineProperty(process, 'platform', platform);
     if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;
     if (oldFake === undefined) delete process.env.METATROOPER_FAKE_DPAPI; else process.env.METATROOPER_FAKE_DPAPI = oldFake;
     rmSync(home, { recursive: true, force: true });
@@ -156,6 +160,24 @@ test('Q9b a webhook sink still sends at 23:30 with Never at night on', () => wit
     assert.equal(body.id, id);
     assert.equal(body.text, `cc (approval needed): Waiting gate ${id}`);
     assert.equal(body.link, `metatrooper://needs-you/${id}`);
+    const row = db.prepare('SELECT notified_at FROM needs_you WHERE id = ?').get(id);
+    assert.ok(row);
+    assert.equal(typeof row.notified_at, 'string');
+    assert.ok(Number.isFinite(Date.parse(row.notified_at as string)));
+  } finally { await hook.close(); }
+}));
+
+test('Q9b a slack-webhook sink still sends at 23:30 with Never at night on', () => withNotifyDb(true, async (db) => {
+  const hook = await withFakeWebhook();
+  try {
+    setSink(db, { id: 'q9b-slack', kind: 'slack-webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    const id = 'q9b-slack-night-gate';
+    insertGate(db, id);
+
+    await notifyTick(db, new Date(2026, 0, 15, 23, 30));
+    assert.equal(hook.bodies.length, 1);
+    const body = JSON.parse(hook.bodies[0]);
+    assert.equal(body.text, `cc (approval needed): Waiting gate ${id}\nmetatrooper://needs-you/${id}`);
     const row = db.prepare('SELECT notified_at FROM needs_you WHERE id = ?').get(id);
     assert.ok(row);
     assert.equal(typeof row.notified_at, 'string');
