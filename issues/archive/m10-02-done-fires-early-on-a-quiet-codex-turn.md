@@ -19,3 +19,5 @@ A Codex turn end now depends on `notify` alone. Low risk: cc always passes `noti
 
 - [x] M10-02a. A Codex session whose rollout file is quiet for more than 20 s mid-turn stays working until `notify` reports the turn end (`core/test/fix-done-quiet.test.ts`).
 - [x] M10-02b. The test fails on the code before 5b0cd8c9.
+
+Status 2026-11-24: done, every box ticked. Archived by B4 (cc run 2026-11-24); 5b0cd8c9, core/test/fix-done-quiet.test.ts.
