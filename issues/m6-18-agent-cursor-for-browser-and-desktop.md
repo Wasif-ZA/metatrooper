@@ -164,3 +164,5 @@ Revert the merge. No schema or core protocol change; `cursor.glide` keeps its pa
 - Streaming cursors to another screen or recording them (M7 idea mine, agent-cursor 13).
 - `reveal {ref}` flashing a cursor on an element (M7-2).
 - Showing typed text anywhere.
+
+Status 2026-11-24 (B4): M6-18d needs two displays at 100% and 150%; it is listed with steps in status/HAND-RUNS.md. The other boxes were not rechecked this run. Open.
