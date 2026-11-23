@@ -22,3 +22,5 @@ remaining options are Certum Open Source Code Signing (cloud, from EUR 49 a year
 - M5-02a. `Get-AuthenticodeSignature` reports `Valid` for every `.exe`, `.node` and `.dll` under the install folder
   and for the installer.
 - M5-02b. With Smart App Control on, the installer and the installed app both start (same run as M5-01a).
+
+Status 2026-11-24: closed, not doing. D90 (Wasif's Q3): nothing is code-signed and no money goes on a certificate; testers get the unsigned zip. D50 still binds: no unsigned installer is published.
