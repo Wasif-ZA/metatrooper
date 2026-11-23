@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile, execFileSync } from 'node:child_process';
@@ -246,6 +247,7 @@ function installPrepared(db: DatabaseSync, req: InstallRequest, p: Prepared): { 
         up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
       }
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(now, m.id);
+      approveShippedFiles(db, { id: m.id, manifest: m, path: finalDir });
     }); } catch (e) { placed.undo(); throw e; }
     placed.done();
 
@@ -336,6 +338,39 @@ function dropEngine(db: DatabaseSync, id: string): boolean {
 }
 
 /** Removes a plugin, its files under ~/.metatrooper/plugins and its secrets; engines that sessions still name keep their row, disabled. */
+/** Files in the plugin folder its stdio MCP servers run (arguments starting with `{{plugin_dir}}`), each with its SHA-256. */
+export function shippedFiles(m: Manifest, dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of m.mcp ?? []) {
+    for (const a of s.args ?? []) {
+      if (!a.startsWith('{{plugin_dir}}')) continue;
+      const file = path.resolve(dir, '.' + a.slice('{{plugin_dir}}'.length));
+      const rel = path.relative(path.resolve(dir), file);
+      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue;
+      try { out[rel.split(path.sep).join('/')] = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); } catch {}
+    }
+  }
+  return out;
+}
+
+const shippedKey = (id: string) => `plugin_files:${id}`;
+
+/** Records the hashes of the files the user approved at install. */
+export function approveShippedFiles(db: DatabaseSync, plugin: { id: string; manifest: Manifest; path: string }): void {
+  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(shippedKey(plugin.id), JSON.stringify(shippedFiles(plugin.manifest, plugin.path)));
+}
+
+/** Refuses a start when a file the plugin ships differs from the approved hash (M8-14d); a plugin installed before hashes were kept records them on its first start; shipped plugins in plugins/ are not checked. */
+export function checkShippedFiles(db: DatabaseSync, plugin: InstalledPlugin): void {
+  if (plugin.source === 'builtin') return;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(shippedKey(plugin.id)) as { value: string } | undefined;
+  if (!row) return approveShippedFiles(db, plugin);
+  const was = JSON.parse(row.value) as Record<string, string>;
+  const now = shippedFiles(plugin.manifest, plugin.path);
+  const changed = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => was[k] !== now[k]).sort();
+  if (changed.length) throw new RpcError(E.VALIDATION, `${changed.join(', ')} in ${plugin.id} changed since you approved it; reinstall the plugin to approve the new files`, { changed });
+}
+
 export function removePlugin(db: DatabaseSync, id: string): void {
   const row = db.prepare('SELECT path FROM plugin WHERE id = ?').get(id) as { path: string } | undefined;
   if (!row) throw new RpcError(E.NOT_FOUND, 'plugin not found');
@@ -347,7 +382,10 @@ export function removePlugin(db: DatabaseSync, id: string): void {
     if (!reservedId(id)) deleteSecrets(db, id);
     db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(nowIso(), id);
     if (kept) db.prepare('UPDATE plugin SET enabled = 0 WHERE id = ?').run(id);
-    else db.prepare('DELETE FROM plugin WHERE id = ?').run(id);
+    else {
+      db.prepare('DELETE FROM plugin WHERE id = ?').run(id);
+      db.prepare('DELETE FROM meta WHERE key = ?').run(shippedKey(id));
+    }
   });
   const managed = path.resolve(pluginsDir());
   const rel = path.relative(managed, path.resolve(row.path));

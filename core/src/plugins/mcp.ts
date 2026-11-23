@@ -8,7 +8,7 @@ import { getSecret, getSecretAsync } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { headerSecretNames, mcpWrites, type McpSpec } from './manifest.ts';
-import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
+import { checkShippedFiles, listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
 const CODEX_ENV_VARS = ['TROOP_SESSION_ID', 'METATROOPER_HOME', 'METATROOPER_PIPE_PREFIX'];
 
@@ -47,6 +47,7 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
     }
     return out;
   }
+  checkShippedFiles(db, plugin);
   const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
   const out: ResolvedServer = { command: server.command ?? '', args: (server.args ?? []).map((arg) => arg.replaceAll('{{plugin_dir}}', () => plugin.path)), env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
   for (const key of server.env_keys ?? []) {
