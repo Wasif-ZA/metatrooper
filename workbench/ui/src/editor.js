@@ -202,7 +202,14 @@ export function openDiff(parent, sides, path, hooks = {}) {
       e.onDidScrollChange(() => hooks.onMove?.());
       e.onDidLayoutChange(() => hooks.onMove?.());
     }
-    ed.onDidUpdateDiff(() => hooks.onMove?.());
+    const blame = hooks.blame ? ed.getModifiedEditor().createDecorationsCollection() : null;
+    ed.onDidUpdateDiff(() => {
+      if (blame) {
+        const value = hooks.blame();
+        blame.set((ed.getLineChanges() || []).filter((c) => c.modifiedEndLineNumber > 0).map((c) => ({ range: new m.Range(c.modifiedStartLineNumber, 1, c.modifiedEndLineNumber, 1), options: { isWholeLine: true, linesDecorationsClassName: 'cc-agent-line', hoverMessage: { value } } })));
+      }
+      hooks.onMove?.();
+    });
     hooks.onMove?.();
   }, () => {});
   return {

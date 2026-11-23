@@ -1041,6 +1041,15 @@ const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid &&
   .sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')));
 const agentName = (id) => ui.snap.sessions.find((x) => x.id === id)?.engine_id || 'the agent';
 
+const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000)); return Number.isNaN(m) ? 'at an unknown time' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+
+function blameOf(tab) {
+  if (tab.gitDiff) return null;
+  const id = ownerOf(tab.path, tab.owner);
+  const x = id ? ui.snap.sessions.find((y) => y.id === id) : null;
+  return x ? `Changed by ${x.engine_id}, run ${x.run_id || x.id}, started ${ago(x.started_at)}` : null;
+}
+
 function ReviewHeader({ st, tab }) {
   if (!st.git || st.git.error) return null;
   const { staged, unstaged } = gitFiles(st);
@@ -1091,6 +1100,7 @@ function DiffView({ st, tab }) {
     const h = openDiff(ref.current, sides, tab.path, {
       onLine: (at) => setDraft({ ...at, text: '', error: null, busy: false, to: (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path) || agentsIn(st.pid)[0]?.id || null }),
       onMove: () => setMoved((n) => n + 1),
+      ...(blameOf(tab) ? { blame: () => blameOf(tab) } : {}),
     });
     view.current = h;
     return () => { view.current = null; h.dispose(); };

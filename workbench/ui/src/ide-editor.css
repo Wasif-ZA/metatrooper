@@ -16,3 +16,4 @@
 .ou-ide-shipm em { font-style: normal; color: var(--body); }
 .ou-ide-shipck { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--body); }
 .ou-ide-shipa { flex: none; display: flex; gap: 6px; }
+.cc-agent-line { border-left: 2px solid var(--body); margin-left: 3px; }
