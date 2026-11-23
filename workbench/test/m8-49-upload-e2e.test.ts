@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer as createHttp } from 'node:http';
 import { createServer as createNet } from 'node:net';
-import { existsSync, openSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, openSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync, rmSync, symlinkSync, linkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
@@ -337,6 +337,117 @@ test('M8-49e upload outside the project returns an error and sends nothing', opt
     assert.match(String(reply.content[0].text), /outside the project folder/);
     for (const status of ['waiting', 'approved', 'rejected', 'expired']) assert.equal(h.approvals(s.sid, status).length, 0, `an approval row is ${status}`);
     assert.match(JSON.stringify(r.steps.out.reply), /out=\[\]/, 'a file reached the page');
+  } finally {
+    srv.close();
+    await h.done();
+  }
+});
+
+const readerPage = `<!doctype html><html><head><title>reader</title></head><body>
+<input id="f" type="file" multiple aria-label="files">
+<div id="out"></div><div id="res"></div>
+<script>document.getElementById('f').addEventListener('change', (e) => { document.getElementById('out').textContent = Array.from(e.target.files).map((x) => x.name).join('|'); });</script>
+</body></html>`;
+
+// protects=a project file swapped for a link to an outside file after the card shows is not sent
+// fails_when=the call succeeds or the page shows a file
+// no_claim=the page-level copy (later tests)
+test('M8-49 a project file swapped for a link after the card shows sends nothing', options, async (t) => {
+  const h: Harness = await boot();
+  const srv = await served(fileInputPage);
+  try {
+    const [a] = projectFiles(h);
+    const outside = join(h.iso.home, 'outside.txt');
+    writeFileSync(outside, 'secret');
+    const s = await h.session(srv.url, 'debug', srv.port);
+    await h.openWorkbench();
+    const snap = await s.job([['snap', 'browser.snapshot', { pane_id: s.pane }]]);
+    const ref = refOf(String(snap.steps.snap.reply.result?.text ?? ''), 'files');
+    const pending = s.job([['up', 'mcp.call', { name: 'upload', arguments: { pane_id: s.pane, ref, paths: [a] } }], outText(s)]);
+    pending.catch(() => {});
+    let row: { id: string } | undefined;
+    for (let i = 0; i < 600 && !row; i++) { row = h.approvals(s.sid, 'waiting')[0]; if (!row) await sleep(100); }
+    assert.ok(row, 'no card');
+    rmSync(a);
+    let kind = 'symlink';
+    try { symlinkSync(outside, a, 'file'); } catch { kind = 'hard link'; try { linkSync(outside, a); } catch { t.skip('no symlink or hard link here'); return; } }
+    assert.ok((await h.pipe.request('approval.resolve', { approval_id: row.id, decision: 'approve' })).result);
+    const r = await pending;
+    const reply = r.steps.up.reply.result;
+    assert.equal(reply.isError, true, `${kind}: ${JSON.stringify(reply)}`);
+    assert.match(JSON.stringify(r.steps.out.reply), /out=\[\]/, 'a file reached the page');
+  } finally {
+    srv.close();
+    await h.done();
+  }
+});
+
+// protects=an approval spent once is refused again because the database row says so, not only memory
+// fails_when=the meta row upload_used:<id> is missing, the replay reaches the page, or it still fails with the row removed (the refusal was something else)
+// no_claim=a workbench restart (the row is read from the database on each call)
+test('M8-49 a used upload approval is recorded in the database and refused a second time', options, async () => {
+  const h: Harness = await boot();
+  const srv = await served(fileInputPage);
+  try {
+    const [a, b] = projectFiles(h);
+    const s = await h.session(srv.url, 'debug', srv.port);
+    await h.openWorkbench();
+    const snap = await s.job([['snap', 'browser.snapshot', { pane_id: s.pane }]]);
+    const ref = refOf(String(snap.steps.snap.reply.result?.text ?? ''), 'files');
+    const { result, asked } = await approveUntilDone(h, s.sid, s.job([['up', 'mcp.call', { name: 'upload', arguments: { pane_id: s.pane, ref, paths: [a, b] } }], outText(s)]));
+    assert.notEqual(result.steps.up.reply.result.isError, true);
+    const id = asked[0].id;
+    const meta = () => {
+      const db = new DatabaseSync(join(h.iso.home, 'troop.db'));
+      try { return db.prepare('SELECT key FROM meta WHERE key = ?').all(`upload_used:${id}`).length; } finally { db.close(); }
+    };
+    assert.equal(meta(), 1, 'the used approval is not in the database');
+    // the control as the core stored it, so the replay hashes exactly like the approved call
+    const cdb = new DatabaseSync(join(h.iso.home, 'troop.db'));
+    let control: object;
+    try { control = JSON.parse(String((cdb.prepare('SELECT control FROM approval WHERE id = ?').get(id) as { control: string }).control)); } finally { cdb.close(); }
+    const expect = { ...control, origin: new URL(srv.url).origin, hidden: false, password: false };
+    const replay = { pane_id: s.pane, ref, paths: [a, b], expect, approval_id: id };
+    const clear: Step = ['clear', 'browser.evaluate', { pane_id: s.pane, expression: `(document.getElementById('out').textContent = '', 'cleared')` }];
+    const r = await s.job([clear, ['again', 'browser.upload', replay], outText(s)]);
+    assert.equal(r.steps.again.reply.error?.code, -32030, JSON.stringify(r.steps.again.reply));
+    assert.match(JSON.stringify(r.steps.out.reply), /out=\[\]/, 'the replay reached the page');
+    // positive control: with the row gone the same call is accepted, so the refusal above was the row
+    const db = new DatabaseSync(join(h.iso.home, 'troop.db'));
+    try { db.prepare('DELETE FROM meta WHERE key = ?').run(`upload_used:${id}`); } finally { db.close(); }
+    const ok = await s.job([['again', 'browser.upload', replay], outText(s)]);
+    assert.equal(ok.steps.again.reply.error, undefined, JSON.stringify(ok.steps.again.reply));
+    assert.match(JSON.stringify(ok.steps.out.reply), /out=\[alpha\.txt\|beta\.txt\]/);
+  } finally {
+    srv.close();
+    await h.done();
+  }
+});
+
+// protects=the page gets a copy: same name and content, still readable after the project file is rewritten
+// fails_when=the page cannot read the file after the original changes (it holds the original), or name or content differ
+// no_claim=the path given to DOM.setFileInputFiles is not visible to the page; the rewrite is the observable proxy
+test('M8-49 the page reads a copy of the approved file', options, async () => {
+  const h: Harness = await boot();
+  const srv = await served(readerPage);
+  try {
+    const [a] = projectFiles(h);
+    const s = await h.session(srv.url, 'debug', srv.port);
+    await h.openWorkbench();
+    const snap = await s.job([['snap', 'browser.snapshot', { pane_id: s.pane }]]);
+    const ref = refOf(String(snap.steps.snap.reply.result?.text ?? ''), 'files');
+    const { result } = await approveUntilDone(h, s.sid, s.job([['up', 'mcp.call', { name: 'upload', arguments: { pane_id: s.pane, ref, paths: [a] } }], outText(s)]));
+    assert.notEqual(result.steps.up.reply.result.isError, true);
+    assert.match(JSON.stringify(result.steps.out.reply), /out=\[alpha\.txt\]/);
+    writeFileSync(a, 'rewritten after the approval, longer than before');
+    const read = `(document.getElementById('f').files[0].text().then((t) => { document.getElementById('res').textContent = 'res=[' + t + ']'; }, (e) => { document.getElementById('res').textContent = 'res=[err ' + e.name + ']'; }), 'started')`;
+    await s.job([['read', 'browser.evaluate', { pane_id: s.pane, expression: read }]]);
+    let text = '';
+    for (let i = 0; i < 20 && !/res=\[.+\]/.test(text); i++) {
+      await sleep(250);
+      text = JSON.stringify((await s.job([['res', 'browser.evaluate', { pane_id: s.pane, expression: `'got:' + document.getElementById('res').textContent` }]])).steps.res.reply);
+    }
+    assert.match(text, /got:res=\[alpha\]/, text);
   } finally {
     srv.close();
     await h.done();
