@@ -35,7 +35,7 @@ export function workspaceKey(e) {
   const ws = wsStore.get().ws;
   if (!ws) return false;
   if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === '0' || e.code === 'Digit0')) { e.preventDefault(); void usualLayout(); return true; }
-  if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z' && ws.last && ws.undo && !editable(e.target)) { e.preventDefault(); void undoLayout(); return true; }
+  if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z' && ws.last?.applied && wsStore.get().seenAt !== ws.last.at && ws.undo && !editable(e.target)) { e.preventDefault(); void undoLayout(); return true; }
   return false;
 }
 
