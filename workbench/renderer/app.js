@@ -907,6 +907,7 @@ const KEYS = [
   { keys: 'Ctrl+,', does: 'Settings', where: 'anywhere' },
   { keys: 'Alt+J', does: 'Jump to the agent that has waited longest', where: 'anywhere' },
   { keys: 'Ctrl+Alt+W', does: 'Open or close the watch layout', where: 'anywhere' },
+  { keys: 'Ctrl+Alt+V', does: 'Switch between the IDE and the Wall', where: 'anywhere' },
   { keys: 'Esc', does: 'Close the open panel or popover', where: 'anywhere' },
   { keys: 'Shift+Enter', does: 'New line without sending', where: 'agent tile' },
   { keys: 'Ctrl+C with a selection', does: 'Copy', where: 'tile' },
@@ -2260,6 +2261,15 @@ function watchKeys(e) {
   render();
 }
 document.addEventListener('keydown', watchKeys, true);
+
+/** Ctrl+Alt+V moves between the IDE and the Wall (M8-17a). */
+function viewKeys(e) {
+  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  homeView.set(ui.view === 'wall' ? 'ide' : 'wall');
+}
+document.addEventListener('keydown', viewKeys, true);
 
 function wallKeys(e) {
   if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;
