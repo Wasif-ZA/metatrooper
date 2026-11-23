@@ -966,7 +966,7 @@ function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
   const keys = KEYS.map((k) => ({ group: 'Keys', label: k.does, meta: `${k.keys} · ${k.where}`, stay: true, run() {} }));
   const all = ui.keysView ? keys.filter((x) => !q || `${x.label} ${x.meta}`.toLowerCase().includes(q))
-    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
+    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...historyItems(q), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -988,6 +988,23 @@ function scrollbackItems(q) {
   });
 }
 
+/** Sessions past the snapshot's newest ones whose task matches the query; picking an exited one resumes it (M7-12a). */
+function historyItems(q) {
+  const shown = new Set(ui.snap.sessions.map((x) => x.id));
+  return q ? (ui.historyHits || []).filter((x) => !shown.has(x.id)).map((x) => ({
+    group: 'History',
+    label: String(x.title || x.prompt || x.id).replace(/\s+/g, ' ').slice(0, 120),
+    meta: `${x.engine_id} · ${String(x.started_at || '').slice(0, 10)}${x.hidden ? ' · hidden' : ''}`,
+    run: () => openHistory(x),
+  })) : [];
+}
+
+async function openHistory(x) {
+  if (x.state !== 'exited') { await pick(x.id); return; }
+  const r = await rpc('session.resume', { session_id: x.id });
+  if (r.result) await pick(r.result.session_id);
+}
+
 async function openHit(h) {
   if (h.session_id.startsWith('sh_')) selectShell(h.session_id); else await pick(h.session_id);
   await termView.reveal(h.session_id, h.line, h.text);
@@ -1000,6 +1017,8 @@ function searchScrollback() {
   if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
     const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
     if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
+    const h = await rpc('session.history', { query: q, limit: 20 }, true);
+    if (h.result && document.getElementById('palette-input').value.trim() === q) { ui.historyHits = h.result.sessions; renderPalette(); }
   }, 100);
 }
 
@@ -1011,6 +1030,7 @@ function openPalette() {
     input.value = '';
     ui.paletteAt = 0;
     ui.scrollHits = [];
+    ui.historyHits = [];
     wall.openSearch();
     renderPalette();
   }
