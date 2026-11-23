@@ -4,14 +4,61 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, harness, root } from './helpers.ts';
+import { buildGenerated, client, harness, root, withEnv } from './helpers.ts';
 import { BUILT_IN } from '../src/engines/registry.ts';
 import { sandboxRefusal } from '../src/sandbox/checks.ts';
+import { dockerArgv } from '../src/sandbox/launch.ts';
+import { RpcError } from '../src/pipe/errors.ts';
 
 before(buildGenerated);
 
 const claude = BUILT_IN.find(engine => engine.id === 'claude')!;
 const fakeDocker = (dir: string, status: number) => writeFileSync(join(dir, 'image'), `process.exit(${status});\n`);
+
+for (const [name, segment] of [['comma', 'work,tree'], ['quote', 'work"tree']]) {
+  // protects=FIX-C9: Docker CSV metacharacters in worktree paths raise a validation RpcError naming the path.
+  test(`FIX-C9 dockerArgv refuses a worktree path containing a ${name}`, () => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'sandbox-mount-refusal-'));
+    try {
+      const worktree = join(dir, segment);
+      const common = join(dir, 'repo', '.git');
+      const engine = { ...claude, sandbox: { ...claude.sandbox, logins: [] } };
+      withEnv({ METATROOPER_HOME: join(dir, 'home') }, () => {
+        assert.throws(() => dockerArgv('session-fix-c9', engine, worktree, {
+          gitdir: join(common, 'worktrees', 'wt'), common,
+        }, []), (error: unknown) => {
+          assert.ok(error instanceof RpcError);
+          assert.equal(error.code, -32003);
+          assert.ok(error.message.includes(worktree), error.message);
+          return true;
+        });
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
+
+// protects=FIX-C9: a normal worktree source survives parsing the --mount CSV fields.
+test('FIX-C9 dockerArgv preserves a normal worktree source through a CSV split', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'sandbox-mount-normal-'));
+  try {
+    const worktree = join(dir, 'work tree');
+    const common = join(dir, 'repo', '.git');
+    const engine = { ...claude, sandbox: { ...claude.sandbox, logins: [] } };
+    const argv = withEnv({ METATROOPER_HOME: join(dir, 'home') }, () => dockerArgv(
+      'session-fix-c9', engine, worktree, { gitdir: join(common, 'worktrees', 'wt'), common }, [],
+    ));
+    const mountIndex = argv.indexOf('--mount');
+    assert.ok(mountIndex >= 0);
+    const fields = argv[mountIndex + 1].split(',');
+    assert.equal(fields[0], 'type=bind');
+    const sources = fields.filter(field => field.startsWith('source='));
+    assert.deepEqual(sources, [`source=${worktree.split(String.fromCharCode(92)).join('/')}`]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('sandboxRefusal rejects ask paths and projects outside worktrees', () => {
   const home = mkdtempSync(join(os.tmpdir(), 'sandbox-refusal-'));
