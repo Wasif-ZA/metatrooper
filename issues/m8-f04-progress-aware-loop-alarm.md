@@ -25,7 +25,7 @@ Corrected 2026-11-05: loop alarms are table stakes. Cline, Gemini CLI and OpenHa
 
 - [ ] M8-F4a. Same call 3 times with no new output: nudge (Pause, Rewind, Try another way, Not a loop).
 - [ ] M8-F4b. stop at 5.
-- [x] M8-F4c. declared polling of a long run is exempt. (2026-11-24: B1 READY @e323023a, e3647ee3: BashOutput and TaskOutput polls skip the loop alarm; core/test/m8-rel-wiring.test.ts 35/35, 3 fail reverted)
+- [ ] M8-F4c. declared polling of a long run is exempt.
 - [ ] M8-F4d. false alarms are counted.
 - [ ] M8-F4e. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 

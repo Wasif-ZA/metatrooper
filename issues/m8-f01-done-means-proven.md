@@ -24,9 +24,9 @@ Corrected 2026-11-05: that last claim is too strong. Claude Code `/goal` and Sto
 
 ## Acceptance criteria
 
-- [x] M8-F1a. A run ends as Done, Checks passed or Needs your review. (2026-11-24: B1 READY @e4681669, core/test/m8-f01-done.test.ts 6/6)
-- [x] M8-F1b. Done is bound to the revision, command, environment and the task's acceptance check, and is cleared by any later edit. (2026-11-24: B1 READY @e4681669, core/test/m8-f01-done.test.ts 6/6, clearing by a later edit)
-- [x] M8-F1c. A claim with no matching run is marked unverified. (2026-11-24: B1 READY @e4681669, core/test/m8-f01-done.test.ts 6/6)
+- [ ] M8-F1a. A run ends as Done, Checks passed or Needs your review.
+- [ ] M8-F1b. Done is bound to the revision, command, environment and the task's acceptance check, and is cleared by any later edit.
+- [ ] M8-F1c. A claim with no matching run is marked unverified.
 - [ ] M8-F1d. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
