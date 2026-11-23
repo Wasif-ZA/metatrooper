@@ -840,7 +840,11 @@ export function Inbox() {
           <div className="ou-ny-chips-wrap">
             {reviewers.map(reviewChip)}
             {!reviewers.length ? none() : null}
-            {addPicker('Add reviewer', (s.engines || []).filter((e) => e.light !== 'red' && !reviewers.some((r) => r.who === e.id)).map((e) => ({ value: e.id, label: e.id })), (id) => setReviews([...reviewers.map((r) => r.who), id], approvers.map((r) => r.who)))}
+            {(() => {
+              const second = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== sessionObj.engine_id);
+              if (!second.length) return <span className="ou-ny-muted" data-no-second="1">No second engine installed</span>;
+              return addPicker('Add reviewer', second.filter((e) => !reviewers.some((r) => r.who === e.id)).map((e) => ({ value: e.id, label: e.id })), (id) => setReviews([...reviewers.map((r) => r.who), id], approvers.map((r) => r.who)));
+            })()}
           </div>
         ) : none())}
         {prop('Approvers', sessionObj?.id ? (
