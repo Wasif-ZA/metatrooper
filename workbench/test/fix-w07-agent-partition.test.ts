@@ -17,7 +17,7 @@ if (process.env.FIX_W07_AGENT_PARTITION_FIXTURE !== '1') {
     assert.ifError(result.error);
     assert.equal(result.signal, null);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /^# pass 3$/m);
+    assert.match(result.stdout, /^# pass 4$/m);
     assert.match(result.stdout, /^# fail 0$/m);
   });
 } else {
@@ -43,7 +43,12 @@ if (process.env.FIX_W07_AGENT_PARTITION_FIXTURE !== '1') {
       },
       setPermissionCheckHandler(handler: Handler) { calls.permissionCheck.push(handler); },
       setPermissionRequestHandler(handler: Handler) { calls.permissionRequest.push(handler); },
-      clearStorageData() { this.clearCalls++; return Promise.resolve(); },
+      clearStorageData() { this.clearCalls++; return this.gate('storage'); },
+      clearCache() { this.cacheCalls++; return this.gate('cache'); },
+      clearAuthCache() { this.authCalls++; return this.gate('auth'); },
+      cacheCalls: 0, authCalls: 0,
+      gates: {} as Record<string, Promise<void>>,
+      gate(name: string) { return this.gates[name] ?? Promise.resolve(); },
     });
   }
   const partitions = new Map<string, ReturnType<typeof makeSession>>();
@@ -77,22 +82,25 @@ if (process.env.FIX_W07_AGENT_PARTITION_FIXTURE !== '1') {
       let closed = false;
       const pane = {
         row,
-        view: { webContents: {
-          session: ses, isDestroyed: () => closed, close() { closed = true; },
-        } },
+        view: { webContents: Object.assign(new EventEmitter(), {
+          session: ses, isDestroyed: () => closed, close() {},
+          kill() { closed = true; this.emit('destroyed'); },
+        }) },
         overlay: { webContents: { isDestroyed: () => true } },
         dbg: { detach() {} }, popups: new Set(),
       };
       internal.panes.set(id, pane);
       const partition = [...partitions].find(([, value]) => value === ses)![0];
-      return { id, ses, partition };
+      return { id, ses, partition, pane };
     }
+    const flush = async () => { for (let n = 0; n < 5; n++) await new Promise((r) => setImmediate(r)); };
     async function close(id: string) {
+      const pane = internal.panes.get(id);
       internal.destroy(id);
-      // Let destroy's clearStorageData().then(...) return the partition to spare.
-      await Promise.resolve();
+      pane.view.webContents.kill();
+      await flush();
     }
-    return { internal, open, close };
+    return { internal, open, close, flush };
   }
 
   test('five sequential agent panes reuse one partition and leave no guards', async () => {
@@ -165,5 +173,48 @@ if (process.env.FIX_W07_AGENT_PARTITION_FIXTURE !== '1') {
       assert.notEqual(agent.ses, pane.ses);
       await h.close(agent.id);
     }
+  });
+
+  test('guards stay on and the partition is not reused until page, popup and every cache clear are done', async () => {
+    const h = harness();
+    const pane = h.open('bp_agent_gated');
+    const deferred = () => { let go!: () => void; const p = new Promise<void>((r) => { go = r; }); return { p, go }; };
+    const gates = { storage: deferred(), cache: deferred(), auth: deferred() };
+    pane.ses.gates = { storage: gates.storage.p, cache: gates.cache.p, auth: gates.auth.p };
+    let popupClosed = false;
+    const popup = Object.assign(new EventEmitter(), { isDestroyed: () => popupClosed });
+    pane.pane.popups.add({ isDestroyed: () => false, close() {}, webContents: popup });
+    const spare = () => [...(h.internal.spare as Map<string, string[]>).values()].flat();
+    const guardsOn = () => Object.values(pane.ses.calls).every((c) => c.length === 1 && typeof c[0] === 'function')
+      && pane.ses.listenerCount('will-download') === 1 && h.internal.guarded.has(pane.partition);
+
+    h.internal.destroy(pane.id);
+    await h.flush();
+    assert.ok(guardsOn(), 'guards stay while the page is not destroyed');
+    assert.equal(spare().length, 0);
+
+    pane.pane.view.webContents.kill();
+    await h.flush();
+    assert.ok(guardsOn(), 'a still-open popup keeps the guards');
+    assert.equal(pane.ses.clearCalls, 0);
+    assert.equal(spare().length, 0);
+
+    popupClosed = true; popup.emit('destroyed');
+    await h.flush();
+    assert.ok(!guardsOn(), 'guards removed once page and popup are gone');
+    assert.equal(h.internal.guarded.size, 0);
+    assert.equal(pane.ses.calls.onBeforeRequest[1], null);
+    assert.equal(pane.ses.listenerCount('will-download'), 0);
+    assert.deepEqual([pane.ses.clearCalls, pane.ses.cacheCalls, pane.ses.authCalls], [1, 1, 1]);
+    assert.equal(spare().length, 0, 'not reused while clears are pending');
+
+    gates.storage.go(); gates.cache.go();
+    await h.flush();
+    assert.equal(spare().length, 0, 'not reused until the auth cache clear resolves');
+
+    gates.auth.go();
+    await h.flush();
+    assert.deepEqual(spare(), [pane.partition]);
+    assert.equal(h.open('bp_agent_next').partition, pane.partition);
   });
 }

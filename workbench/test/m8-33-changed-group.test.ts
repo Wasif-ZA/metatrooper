@@ -21,15 +21,19 @@ const text = (n: any): string => Array.isArray(n) ? n.map(text).join('') : n && 
 
 function groupHarness(files: any[], owners: Record<string, string> = {}, counts: Record<string, number> = {}) {
   const effects: Array<() => any> = [];
-  const intervals: Array<{ fn: () => void; ms: number }> = [];
+  const timers = new Map<number, { fn: () => void; ms: number }>();
+  let nextTimer = 0;
   const cleared: any[] = [];
   const loads: any[] = [];
+  const doc: any = { hidden: false };
+  const pending: Array<() => void> = [];
   const deps = {
     h: (type: any, props: any, ...children: any[]) => ({ type, props: props || {}, children }),
     useEffect: (fn: () => any) => { effects.push(fn); },
-    setInterval: (fn: () => void, ms: number) => { intervals.push({ fn, ms }); return intervals.length; },
-    clearInterval: (t: any) => { cleared.push(t); },
-    loadGitStatus: (st: any) => { loads.push(st); },
+    setTimeout: (fn: () => void, ms: number) => { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
+    clearTimeout: (t: any) => { cleared.push(t); timers.delete(t); },
+    globalThis: { document: doc },
+    loadGitStatus: (st: any) => { loads.push(st); return new Promise<void>((r) => pending.push(r)); },
     openFile: () => {}, FileIcon: 'FileIcon', base: (p: string) => p.split('/').pop(),
     statusLetter: build(['statusLetter'], {}, 'statusLetter'),
   };
@@ -37,21 +41,40 @@ function groupHarness(files: any[], owners: Record<string, string> = {}, counts:
   const st: any = { git: { files }, owners: new Map(Object.entries(owners)), ownerCount: new Map(Object.entries(counts)) };
   const render = () => { effects.length = 0; return ChangedGroup({ st }); };
   const rows = (root: any) => flat(root).filter((n) => n.type === 'button');
-  return { st, render, rows, effects, intervals, cleared, loads };
+  return { st, render, rows, effects, timers, cleared, loads, doc, pending };
 }
 
-test('M8-33a: the effect polls loadGitStatus every 2000 ms and clears the timer on cleanup', () => {
+const tick = () => new Promise((r) => setImmediate(r));
+test('M8-33a: polling is a 2000 ms timeout chained after each load, skipped while hidden, stopped on cleanup', async () => {
   const h = groupHarness([{ path: 'a.txt', index: '.', worktree: 'M' }]);
   h.render();
   assert.equal(h.effects.length, 1);
   const cleanup = h.effects[0]();
-  assert.equal(h.intervals.length, 1);
-  assert.equal(h.intervals[0].ms, 2000);
-  h.intervals[0].fn();
+  assert.equal(h.timers.size, 1);
+  assert.equal([...h.timers.values()][0].ms, 2000);
+  const fire = () => { const [id, t] = [...h.timers][0]; h.timers.delete(id); t.fn(); };
+  fire();
+  await tick();
   assert.deepEqual(h.loads, [h.st]);
-  assert.equal(h.cleared.length, 0);
+  assert.equal(h.timers.size, 0, 'no next timer while the load is pending');
+  h.pending[0]();
+  await tick();
+  assert.equal(h.timers.size, 1, 'next timer scheduled after the load resolves');
+  assert.equal([...h.timers.values()][0].ms, 2000);
+  assert.equal(h.loads.length, 1);
+  h.doc.hidden = true;
+  fire();
+  await tick();
+  assert.equal(h.loads.length, 1, 'hidden window skips the load');
+  assert.equal(h.timers.size, 1, 'but keeps polling');
+  h.doc.hidden = false;
+  fire();
+  await tick();
   cleanup();
-  assert.deepEqual(h.cleared, [1]);
+  h.pending[1]();
+  await tick();
+  assert.equal(h.timers.size, 0, 'cleanup stops polling even with a load in flight');
+  assert.ok(h.cleared.length >= 1);
 });
 
 test('M8-33a: a file that appears in st.git.files shows as a row on the next render', () => {

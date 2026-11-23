@@ -82,3 +82,22 @@ test('M7-14a: home.jsx sends t + CR and wires flushQueued to sendFollowUp', () =
   assert.ok(src.slice(i, i + 250).includes("troop.termInput(x.id, t + '" + String.fromCharCode(92) + "r')"));
   assert.match(src, /globalThis\.flushQueued = \(sessions\) => flushQueued\(sessions, sendFollowUp\);/);
 });
+
+test('M7-14c: the queue box has its own draft; the answer box keeps answer', () => {
+  const src = read('../ui/src/home.jsx');
+  assert.match(src, /const \[draft, setDraft\] = useState\(''\);/);
+  assert.match(src, /label="Queue a follow-up"[^\n]*value=\{draft\} onChange=\{setDraft\} onEnter=\{enqueue\}/);
+  assert.match(src, /const enqueue = \(\) => \{ if \(!draft\.trim\(\)\) return; setQueued\(x\.id, draft\); setDraft\(''\);/);
+  assert.match(src, /const editQueued = \(\) => \{ if \(!isWorking\(x\)\) return; setDraft\(queuedText/);
+  assert.doesNotMatch(src, /label="Queue a follow-up"[^\n]*value=\{answer\}/);
+  assert.match(src, /value=\{answer\}[^\n]*onChange=\{setAnswer\}/);
+});
+
+test('M7-14c: Send now and Edit are disabled and return early when the agent is not working', () => {
+  const src = read('../ui/src/home.jsx');
+  assert.match(src, /const working = isWorking\(x\);/);
+  assert.match(src, /label="Send now" isDisabled=\{!working\}/);
+  assert.match(src, /label="Edit" isDisabled=\{!working\}/);
+  assert.match(src, /const sendNow = async \(\) => \{ if \(!isWorking\(x\)\) return;/);
+  assert.match(src, /const editQueued = \(\) => \{ if \(!isWorking\(x\)\) return;/);
+});
