@@ -28,7 +28,7 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;
   if (owner && owner.session_id !== sessionId) throw new RpcError(E.VALIDATION, 'that surface belongs to another session; pick a different surface id');
-  const { root, fellBack, waiting = [] } = expand(spec, 'tab', readData(surface), loadTemplates());
+  const { root, fellBack, waiting = [] } = expand(spec, 'tab', readData(surface), loadTemplates(row.project_id));
   const status = isFallback(root) ? 'rejected' : fellBack.length ? 'partly' : 'drawn';
   db.prepare(
     `INSERT INTO ui_surface (id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at)
@@ -41,12 +41,15 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
 export function getSurface(db: DatabaseSync, id: string): Record<string, unknown> {
   const r = db.prepare('SELECT id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at FROM ui_surface WHERE id = ?').get(id) as (Record<string, unknown> & { spec: string }) | undefined;
   if (!r) throw new RpcError(E.NOT_FOUND, 'surface not found');
-  return { ...r, spec: JSON.parse(r.spec), data: readData(id), templates: loadTemplates() };
+  return { ...r, spec: JSON.parse(r.spec), data: readData(id), templates: loadTemplates(String(r.project_id)) };
 }
 
-/** The person's templates (ouros-spec 6a): <home>/templates/<name>.json, each a saved screen with {{gaps}}; at most 200, 256 KB each. */
-export function loadTemplates(): Record<string, unknown> {
-  const dir = path.join(homeDir(), 'templates');
+/** The folder of one project's templates; templates and assets belong to one workspace (M8-09d). */
+export const templatesDir = (projectId: string) => path.join(homeDir(), 'templates', projectId.replace(/[^A-Za-z0-9_-]/g, '_'));
+
+/** One project's templates (ouros-spec 6a): <home>/templates/<project>/<name>.json, each a saved screen with {{gaps}}; at most 200, 256 KB each. */
+export function loadTemplates(projectId: string): Record<string, unknown> {
+  const dir = templatesDir(projectId);
   const out: Record<string, unknown> = {};
   let names: string[] = [];
   try { names = fs.readdirSync(dir).filter((f) => /^[A-Za-z0-9._-]{1,64}\.json$/.test(f)).sort().slice(0, 200); } catch { return out; }

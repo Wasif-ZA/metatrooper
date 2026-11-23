@@ -5,6 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { homeDir } from './paths.ts';
 import { fillTemplate } from '../../workbench/ui/src/kit/check.js';
+import { templatesDir } from './surfaces.ts';
 
 // M8-06a,b: a screen the person's agents draw again and again becomes a proposed template (ouros-spec 6a "Your templates").
 // Screens from 3 or more sessions with one structure are lined up; leaves that differ become {{gN}} gaps. A proposal is
@@ -41,17 +42,17 @@ export function replayHolds(template: unknown, specs: unknown[], values: Array<R
   return specs.every((s, i) => isDeepStrictEqual(fillTemplate(template, values[i]), s));
 }
 
-export interface Proposal { name: string; template: unknown; surfaces: string[]; sessions: number; kept: boolean; why?: string }
+export interface Proposal { project_id: string; name: string; template: unknown; surfaces: string[]; sessions: number; kept: boolean; why?: string }
 
 /** Proposed templates from the stored screens: one per shape drawn by PROPOSE_AT or more sessions; `kept` only when replay holds. */
 export function proposeTemplates(db: DatabaseSync): Proposal[] {
-  const groups = new Map<string, Array<{ id: string; session: string; title: string; spec: unknown }>>();
-  for (const r of db.prepare('SELECT id, session_id, title, spec FROM ui_surface ORDER BY seq').all() as Array<{ id: string; session_id: string; title: string; spec: string }>) {
+  const groups = new Map<string, Array<{ id: string; session: string; title: string; spec: unknown; project: string }>>();
+  for (const r of db.prepare('SELECT id, session_id, project_id, title, spec FROM ui_surface ORDER BY seq').all() as Array<{ id: string; session_id: string; project_id: string; title: string; spec: string }>) {
     let spec: unknown;
     try { spec = JSON.parse(r.spec); } catch { continue; }
-    const key = JSON.stringify(shapeOf(spec));
+    const key = `${r.project_id}\n${JSON.stringify(shapeOf(spec))}`;
     const g = groups.get(key) ?? [];
-    g.push({ id: r.id, session: r.session_id, title: r.title, spec });
+    g.push({ id: r.id, session: r.session_id, title: r.title, spec, project: r.project_id });
     groups.set(key, g);
   }
   const out: Proposal[] = [];
@@ -62,18 +63,18 @@ export function proposeTemplates(db: DatabaseSync): Proposal[] {
     const { template, values } = lineUp(specs);
     const name = g[0].title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'screen';
     const kept = replayHolds(template, specs, values);
-    out.push({ name, template, surfaces: g.map((x) => x.id), sessions, kept, ...(kept ? {} : { why: 'filling the template did not give every past screen back' }) });
+    out.push({ project_id: g[0].project, name, template, surfaces: g.map((x) => x.id), sessions, kept, ...(kept ? {} : { why: 'filling the template did not give every past screen back' }) });
   }
   return out;
 }
 
 /** Keeps a proposal the person said yes to, only when replay still holds for it now. */
-export function keepTemplate(db: DatabaseSync, name: unknown): { name: string; file: string } {
+export function keepTemplate(db: DatabaseSync, name: unknown, projectId?: unknown): { name: string; file: string } {
   if (typeof name !== 'string' || !/^[a-z0-9-]{1,40}$/.test(name)) throw new RpcError(E.INVALID_PARAMS, 'name must be 1 to 40 lower-case letters, digits or dashes');
-  const p = proposeTemplates(db).find((x) => x.name === name);
+  const p = proposeTemplates(db).find((x) => x.name === name && (typeof projectId !== 'string' || x.project_id === projectId));
   if (!p) throw new RpcError(E.NOT_FOUND, `no proposed template called ${name}`);
   if (!p.kept) throw new RpcError(E.VALIDATION, `${name} lost on replay: ${p.why}`);
-  const file = path.join(homeDir(), 'templates', `${name}.json`);
+  const file = path.join(templatesDir(p.project_id), `${name}.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(p.template, null, 1));
   return { name, file };

@@ -18,8 +18,8 @@ test("ui.show draws a use part from the person's templates folder", async t => {
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
     rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
-  const tpl = join(dir, 'templates');
-  mkdirSync(tpl);
+  const tpl = join(dir, 'templates', 'project');
+  mkdirSync(tpl, { recursive: true });
   const summary = { type: 'page', children: [{ type: 'text', text: 'Run {{name}}' }, { type: 'log', lines: '{{lines}}' }] };
   writeFileSync(join(tpl, 'run-summary.json'), JSON.stringify(summary));
   writeFileSync(join(tpl, 'wrapped.json'), JSON.stringify({ spec: { type: 'text', text: 'w' } }));
@@ -117,7 +117,7 @@ test('a template that loses on replay is dropped', async t => {
   const { proposals } = await call('templates.proposals', {});
   assert.equal(proposals[0].kept, false);
   await assert.rejects(call('templates.keep', { name: 'lossy' }), (e: any) => e.code === -32003);
-  assert.equal(existsSync(join(dir, 'templates', 'lossy.json')), false);
+  assert.equal(existsSync(join(dir, 'templates', 'project', 'lossy.json')), false);
 });
 
 test('keeping a proposal saves it where use parts find it', async t => {
@@ -125,7 +125,7 @@ test('keeping a proposal saves it where use parts find it', async t => {
   for (let i = 1; i <= 3; i++) await show(i, `run-${i}`, 'Run summary', runSummary(i));
   const kept = keepTemplate(db, 'run-summary');
   assert.equal(kept.name, 'run-summary');
-  const file = join(dir, 'templates', 'run-summary.json');
+  const file = join(dir, 'templates', 'project', 'run-summary.json');
   assert.equal(existsSync(file), true);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).children[0], { type: 'text', text: '{{g1}}' });
 
