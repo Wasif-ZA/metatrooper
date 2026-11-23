@@ -52,6 +52,9 @@ export const DEFAULTS = {
     done_needs_check: true,
     checks: {}                          ,
   },
+  notify: {
+    quiet_at_night: true,
+  },
   worktree: {
     preserve: []            ,
     npm_ci: true,

@@ -73,6 +73,10 @@ export function nextState(current: string, event: StateEvent, waited: string | n
       return 'exited';
     case 'core.stalled':
       return current !== 'starting' ? null : p.prompt === false ? 'idle' : 'waiting_for_you';
+    case 'core.trust-dialog':
+      return current === 'done' ? null : 'waiting_for_you';
+    case 'core.trust-cleared':
+      return current === 'waiting_for_you' ? 'idle' : null;
     case 'core.seen':
       return current === 'done' ? 'idle' : null;
     case 'term.bell':

@@ -5,6 +5,7 @@ import { E, RpcError } from './pipe/errors.ts';
 import { notifyText } from './redact.ts';
 import { deleteSecret, getSecretAsync, setSecret } from './secrets.ts';
 import { nowIso, ulid } from './time.ts';
+import { settings } from './settings.ts';
 
 export const NOTIFY_PLUGIN = 'core-notify';
 export const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'] as const;
@@ -125,9 +126,15 @@ interface Delivery {
 
 let busy = false;
 
-/** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind. */
-export async function notifyTick(db: DatabaseSync): Promise<void> {
-  if (busy) return;
+/** True from 22:00 to 07:00 local time when notify.quiet_at_night is on. */
+export function quietNow(at = new Date()): boolean {
+  const h = at.getHours();
+  return settings().notify.quiet_at_night && (h >= 22 || h < 7);
+}
+
+/** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind; during quiet hours nothing is sent and rows wait until 07:00. */
+export async function notifyTick(db: DatabaseSync, now = new Date()): Promise<void> {
+  if (busy || quietNow(now)) return;
   busy = true;
   try {
     const sinks = db.prepare('SELECT * FROM notify_sink WHERE enabled = 1').all() as unknown as SinkRow[];

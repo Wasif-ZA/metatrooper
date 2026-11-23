@@ -220,6 +220,10 @@ function conv(s: SessionRow): { session_id?: string } {
 }
 
 /** Every 1 s: codex and agy sessions get core.activity working/quiet from their session files. */
+/** When each unlinked session last looked for its session file; after 30 s unlinked it looks at most every 10 s. */
+const lastLinkTry = new Map<string, number>();
+export const LINK_BACKOFF = { after_ms: 30_000, every_ms: 10_000 };
+
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
     .prepare(
@@ -230,12 +234,16 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
     .all() as unknown as SessionRow[];
   const open = new Set(rows.map((s) => s.id));
   for (const id of activity.keys()) if (!open.has(id)) activity.delete(id);
+  for (const id of lastLinkTry.keys()) if (!open.has(id)) lastLinkTry.delete(id);
   for (const s of rows) {
     let a = activity.get(s.id);
     const prev = a;
     // A Codex resume or clear relinks the session to another conversation, so its rollout file changes too.
     if (a?.file && s.engine_id === 'codex' && s.native_id && !a.file.endsWith(s.native_id + '.jsonl')) a = undefined;
     if (!a || !a.file) {
+      const tried = lastLinkTry.get(s.id);
+      if (tried !== undefined && now - Date.parse(s.started_at) > LINK_BACKOFF.after_ms && now - tried < LINK_BACKOFF.every_ms) continue;
+      lastLinkTry.set(s.id, now);
       let file: string | null = null;
       try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;

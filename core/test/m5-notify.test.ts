@@ -35,6 +35,7 @@ function withFakeWebhook(onRequest: (body: string) => void, status = 204, header
 function withNotifyDb<T>(run: (db: DatabaseSync, home: string) => Promise<T> | T): Promise<T> {
   const isolated = isolation();
   const env = { ...isolated.env, METATROOPER_FAKE_DPAPI: '1' };
+  writeFileSync(join(isolated.home, 'settings.json'), JSON.stringify({ notify: { quiet_at_night: false } }));
   const oldHome = process.env.METATROOPER_HOME;
   const oldFake = process.env.METATROOPER_FAKE_DPAPI;
   process.env.METATROOPER_HOME = isolated.home;
@@ -75,6 +76,7 @@ async function withCore(fn: (home: string, prefix: string) => Promise<void>): Pr
   const isolated = isolation();
   const env = { ...isolated.env, METATROOPER_FAKE_DPAPI: '1', METATROOPER_ENGINES: join(isolated.home, 'engines.json') };
   writeFileSync(env.METATROOPER_ENGINES, '[]');
+  writeFileSync(join(isolated.home, 'settings.json'), JSON.stringify({ notify: { quiet_at_night: false } }));
   let core = await startCore({ ...isolated, env });
   try { await fn(isolated.home, isolated.prefix); }
   finally { await teardownCore(core, isolated); rmSync(isolated.home, { recursive: true, force: true }); }
@@ -162,6 +164,7 @@ test('M5-15e queued rows survive a core restart and are delivered exactly once',
   const isolated = isolation();
   const env = { ...isolated.env, METATROOPER_FAKE_DPAPI: '1', METATROOPER_ENGINES: join(isolated.home, 'engines.json') };
   writeFileSync(env.METATROOPER_ENGINES, '[]');
+  writeFileSync(join(isolated.home, 'settings.json'), JSON.stringify({ notify: { quiet_at_night: false } }));
   let core = await startCore({ ...isolated, env });
   const received = await withFakeWebhook(() => {});
   try {
@@ -203,7 +206,7 @@ test('Delivery rules mark old rows skipped and failed deliveries with the prescr
     const { notifyTick } = await import('../src/notify.ts');
     const db = new DatabaseSync(join(home, 'troop.db'));
     try {
-      await notifyTick(db);
+      await notifyTick(db, new Date(2026, 0, 1, 12));
       const skipped = db.prepare('SELECT notified_at FROM needs_you WHERE id=?').get(staleId) as { notified_at: string };
       assert.match(skipped.notified_at, /^\d{4}-\d\d-\d\dT.* skipped$/);
       const failed = db.prepare('SELECT notified_at FROM needs_you WHERE id=?').get(failedId) as { notified_at: string | null };

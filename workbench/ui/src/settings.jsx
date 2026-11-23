@@ -76,7 +76,8 @@ const SECTIONS = [
     { run: () => { settingsView.close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
   ] }] },
   { id: 'notify', label: 'Notifications', note: 'Where cc tells you when an agent needs you.', groups: [{ rows: [
-    { run: () => openSinks(), button: 'Manage', label: 'Slack, ntfy and webhooks', hint: 'Where "needs you" and "run failed" get sent.' },
+    { run: () => openSinks(), button: 'Manage', label: 'Slack, ntfy and webhooks', hint: 'Where "needs you" and "run failed" get sent. Each one sends the alert through that outside service.' },
+    { key: 'notify.quiet_at_night', label: 'Never at night', hint: 'Quiet from 22:00 to 07:00. Waiting items still show here and go out after 07:00.' },
   ] }] },
   { id: 'advanced', label: 'Advanced', note: 'Worktrees and logs.', groups: [{ title: 'Worktrees', rows: [
     { key: 'worktree.npm_ci', label: 'Install dependencies in each new worktree' },

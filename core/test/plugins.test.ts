@@ -1,11 +1,13 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, root, sleep, startCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
+import { buildGenerated, client, isolation, pluginRepo, root, sleep, startCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
 import { validate } from '../src/jsonschema.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
 import { actionEnv, BASE_ENV, runAction } from '../src/plugins/actions.ts';
@@ -64,6 +66,65 @@ function allFilesContain(dir: string, needle: string): string[] {
   };
   walk(dir);
   return hits;
+}
+
+function fileHashes(dir: string, prefix = ''): Array<[string, string]> {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry): Array<[string, string]> => {
+    const rel = prefix + entry.name;
+    const file = join(dir, entry.name);
+    return entry.isDirectory() ? fileHashes(file, rel + '/') : [[rel, createHash('sha256').update(readFileSync(file)).digest('hex')]];
+  }).sort(([a], [b]) => a.localeCompare(b));
+}
+
+for (const failWrite of [true, false]) {
+  // protects=FIX-C6a,FIX-C6b,FIX-C6c
+  test(`FIX-C6 ${failWrite ? 'failed upgrade restores every v1 file and removes temporary folders' : 'successful upgrade installs v2 and removes the old copy'}`, async () => {
+    const fixtures = fixtureDir();
+    const id = 'c6-upgrade';
+    try {
+      for (const version of ['v1', 'v2']) {
+        const repo = join(fixtures, version, `${id}-repo`);
+        mkdirSync(join(repo, 'nested'), { recursive: true });
+        writeFileSync(join(repo, 'nested/payload.bin'), Buffer.from(version === 'v1' ? [0, 1, 255, 10] : [0, 2, 254, 13]));
+        script(repo, `${version}-only.txt`, version);
+      }
+      const v1 = pluginRepo(join(fixtures, 'v1'), id, { platforms: PLATFORMS, description: 'version one' });
+      const v2 = pluginRepo(join(fixtures, 'v2'), id, { platforms: PLATFORMS, version: '2.0.0', description: 'version two' });
+      await withCore(async (h) => {
+        const c = await ui(h);
+        const db = new DatabaseSync(join(h.home, 'troop.db'));
+        try {
+          const install = (repo: string) => c.request('plugin.install', { source: pathToFileURL(repo).href, approved_permissions: [] });
+          const first = await install(v1);
+          assert.equal(first.result?.plugin_id, id, JSON.stringify(first.error));
+          const target = join(h.home, 'plugins', id);
+          const before = fileHashes(target);
+          assert.ok(before.length > 0);
+          if (failWrite) db.exec(`CREATE TRIGGER c6_fail_v2 BEFORE INSERT ON plugin WHEN NEW.id = '${id}' AND NEW.version = '2.0.0' BEGIN SELECT RAISE(ABORT, 'C6 forced transaction failure'); END`);
+          const upgraded = await install(v2);
+          if (failWrite) {
+            assert.ok(upgraded.error, JSON.stringify(upgraded));
+            assert.match(JSON.stringify(upgraded.error), /C6 forced transaction failure/);
+            assert.deepEqual(fileHashes(target), before);
+          } else {
+            assert.equal(upgraded.result?.plugin_id, id, JSON.stringify(upgraded.error));
+            assert.notDeepEqual(fileHashes(target), before);
+            const payloads = (dir: string) => fileHashes(dir).filter(([name]) => !name.startsWith('.git/'));
+            assert.deepEqual(payloads(target), payloads(v2));
+            assert.equal(JSON.parse(readFileSync(join(target, 'troop-plugin.json'), 'utf8')).version, '2.0.0');
+            assert.equal(JSON.parse(readFileSync(join(target, 'troop-plugin.json'), 'utf8')).description, 'version two');
+          }
+          assert.equal((db.prepare('SELECT version FROM plugin WHERE id = ?').get(id) as { version: string }).version, failWrite ? '1.0.0' : '2.0.0');
+          assert.deepEqual(readdirSync(join(h.home, 'plugins')).filter((name) => name.startsWith(`${id}.old-`) || name.startsWith('.staging-')), []);
+        } finally {
+          db.close();
+          c.close();
+        }
+      });
+    } finally {
+      rmSync(fixtures, { recursive: true, force: true });
+    }
+  });
 }
 
 test('the schema validator covers the keywords the manifest schema uses', () => {

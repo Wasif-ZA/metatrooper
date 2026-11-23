@@ -60,7 +60,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id, json_extract(payload, '$.tool_name') AS tool FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   // A hook ask (approval, permission or input prompt), plugin wait or title wait written at or after the current wait began (state_at): terminal output is not an answer to it.
-  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input')) OR (kind IN ('opencode.state', 'core.title-state') AND json_extract(payload, '$.state') = 'waiting')) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
+  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest', 'core.trust-dialog') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input')) OR (kind IN ('opencode.state', 'core.title-state') AND json_extract(payload, '$.state') = 'waiting')) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
   const setStateAt = db.prepare('UPDATE session SET state_at = ? WHERE id = ?');
   const hookKinds = spoolKinds();
   const newerHook = db.prepare(`SELECT 1 FROM event WHERE session_id = ? AND seq < ? AND julianday(at) > julianday(?) AND kind IN (${hookKinds.map(() => '?').join(', ')}) LIMIT 1`);
@@ -225,6 +225,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
 
 /** The reason a session waits, for the waits whose cause the core knows; null otherwise. */
 function waitReason(kind: string, p: Record<string, unknown>): string | null {
+  if (kind === 'core.trust-dialog') return 'trust';
   if (kind === 'claude.StopFailure') return `stopped: ${typeof p.error_type === 'string' && /^[a-z_]{1,40}$/.test(p.error_type) ? p.error_type : 'error'}`;
   if (kind === 'opencode.state' && p.why === 'permission') return 'permission';
   if (kind === 'opencode.state' && p.why === 'error') return 'stopped: error';

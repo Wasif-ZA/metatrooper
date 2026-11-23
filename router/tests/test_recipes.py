@@ -1,5 +1,6 @@
 from conftest import agent_result
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,36 @@ def test_replace_regex_uses_regular_expressions(tmp_path, capsys):
     assert exit_code == 0
     assert target.read_text(encoding="utf-8") == "id[12], id[345]\n"
     assert "2 replacements" in result["out"]
+
+
+# protects=FIX-R9a: an empty literal exits 2 without changing any file bytes.
+def test_replace_empty_literal_exits_two_and_keeps_identical_bytes(capsys):
+    target = Path("empty-literal.txt")
+    original = b"caf\xc3\xa9\r\nsecond line\n"
+    target.write_bytes(original)
+
+    exit_code, result = invoke(capsys, "run", "replace", target, "", "inserted")
+
+    assert target.read_bytes() == original
+    assert exit_code == 2
+    assert "old is empty" in result["out"]
+
+
+# protects=FIX-R9b: regex mode retains re.subn behavior for empty matches.
+@pytest.mark.parametrize("pattern", ["", r"x*"])
+def test_replace_empty_match_regex_is_not_refused(capsys, pattern):
+    target = Path("empty-match.txt")
+    original = "ab\r\n"
+    target.write_bytes(original.encode("utf-8"))
+    expected, count = re.subn(pattern, "_", original)
+
+    exit_code, result = invoke(
+        capsys, "run", "replace", target, pattern, "_", "--regex"
+    )
+
+    assert exit_code == 0
+    assert target.read_bytes() == expected.encode("utf-8")
+    assert result["out"].startswith(f"{count} replacements in ")
 
 
 def test_replace_old_and_new_files_support_backslashes_and_newlines(capsys):

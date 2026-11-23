@@ -160,6 +160,13 @@
           "items": { "type": "string", "minLength": 3, "maxLength": 200 },
           "description": "Fixed strings, matched case-insensitively as substrings of the last 20 screen lines of a working session; one frozen for 60 s raises a failed item."
         },
+        "trust_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 3, "maxLength": 200 },
+          "description": "Fixed strings of the engine's first-run folder trust question, matched case-insensitively against the last 20 screen lines of a session the engine has not yet reported on; a match moves it to waiting_for_you with reason trust."
+        },
         "state_plugin": { "type": "string", "pattern": "^plugins/[A-Za-z0-9_.-]+\\.js$", "description": "A state plugin under engines/ that reports through core/event.js; launch sets TROOP_NODE and TROOP_EVENT_JS." }
       },
       "allOf": [

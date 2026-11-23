@@ -357,7 +357,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   if (repo.code) return repo.code;
   let target = repo.id!;
   if (job.worktree) {
-    const wt = await rpc('worktree.create', { project_id: repo.id, branch: job.worktree }, json);
+    const wt = await rpc('worktree.create', { project_id: repo.id, branch: job.worktree, ...(process.env.TROOP_SESSION_SECRET ? { session_secret: process.env.TROOP_SESSION_SECRET } : {}) }, json);
     if (wt.code) return wt.code;
     if (!wt.result) {
       console.error('--worktree needs the core running: start it with `troop start`');

@@ -141,7 +141,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
   { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND, E.VALIDATION], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
-  { name: 'worktree.create', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
+  { name: 'worktree.create', stable: true, errors: [E.NEEDS_UI, E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD", session_secret?}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS). Needs a trusted UI connection or the `session_secret` of a live session (sent by `troop launch --worktree` from `TROOP_SESSION_SECRET`), -32012 otherwise; the folder is made under the worktrees folder and trusted for every engine, so a lane or side task started in it never stops at a trust question' },
   { name: 'ui.show', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, title?, zone?: "tab", catalogue?, spec}', result: '{surface, status: drawn | partly | rejected, fellBack: [{part, type, why}]}; stores or replaces the screen `session_id` drew and the workbench opens it as a tab. Every part is checked against the catalogue; a bad one is drawn as plain text and listed in `fellBack`. -32003 when another session owns `surface`; -32602 for a bad id, a zone other than `tab`, or a spec over 256 KB. Called by the `ouros_ui` MCP tool' },
   { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at}; -32002 when it does not exist' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
@@ -903,7 +903,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('worktree.create', {
-    handler: async (p) => {
+    handler: async (p, ctx) => {
+      if (!ctx?.ui && !(typeof p.session_secret === 'string' && p.session_secret && proveSecret(p.session_secret))) throw new RpcError(E.NEEDS_UI, 'worktree.create needs a trusted UI connection (ui.hello) or a live session_secret');
       const patterns = settings().worktree.preserve;
       validatePreserve(patterns);
       const project = db.prepare('SELECT id, path FROM project WHERE id = ?').get(str(p, 'project_id')) as
@@ -918,6 +919,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
+        const held = (await gitAsync(dir, ['rev-parse', '--abbrev-ref', 'HEAD'], 60_000, {}, false).then((r) => String(r), () => '')).trim();
+        if (held !== branch) throw new RpcError(E.VALIDATION, `the worktree folder for ${branch} already holds ${held || 'no branch'}; pick another branch name`);
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
         return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted, existing: true };
       }

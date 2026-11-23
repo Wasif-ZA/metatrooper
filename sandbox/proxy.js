@@ -7,14 +7,16 @@ const ALLOW = new Set((process.env.ALLOW || '').split(',').map((h) => h.trim().t
 const LOG = process.env.DENY_LOG || '/logs/egress-denied.log';
 const PORT = Number(process.env.PORT || 3128);
 
+const V4_BLOCKED = [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 3]];
+const V6_BLOCKED = [['::', 96], ['64:ff9b::', 96], ['2002::', 16], ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8]];
+const blocked = new net.BlockList();
+for (const [base, bits] of V4_BLOCKED) blocked.addSubnet(base, bits, 'ipv4');
+for (const [base, bits] of V6_BLOCKED) blocked.addSubnet(base, bits, 'ipv6');
+
+/** True for private, loopback, link-local, site-local, benchmark, multicast and unspecified addresses, and for IPv6 forms that embed an IPv4 address (mapped, NAT64, 6to4). */
 export function isPrivate(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
-  }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return isPrivate(v.slice(7));
-  return v === '::' || v === '::1' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe8') || v.startsWith('fe9') || v.startsWith('fea') || v.startsWith('feb') || v.startsWith('ff');
+  const type = net.isIP(ip);
+  return type === 0 || blocked.check(ip, type === 4 ? 'ipv4' : 'ipv6');
 }
 
 function deny(host, why) {

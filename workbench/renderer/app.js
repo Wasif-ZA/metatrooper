@@ -841,6 +841,14 @@ async function openNeedsYou(id, fallback = true) {
 const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'];
 const SINK_DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret', 'approval'];
 const SINK_ALL_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'uncommitted', 'approval', 'other'];
+const SINK_THIRD_PARTY = {
+  ntfy: 'Alerts go through ntfy (ntfy.sh unless you name your own server), a third party.',
+  'slack-webhook': 'Alerts go through Slack, a third party.',
+  'discord-webhook': 'Alerts go through Discord, a third party.',
+  'teams-workflow': 'Alerts go through Microsoft Teams, a third party.',
+  webhook: 'Alerts go to the server at that address, outside cc.',
+  command: 'Alerts go to the program you name, and on to wherever it sends them.',
+};
 const SINK_DEST_HINT = {
   ntfy: 'https://ntfy.sh/your-topic',
   'slack-webhook': 'Slack incoming webhook URL',
@@ -869,6 +877,7 @@ function renderSinks() {
   const form = e ? `<div class="sink-form">
       <label>Kind <select id="sink-kind"${e.id ? ' disabled' : ''}>${SINK_KINDS.map((k) => `<option${k === kind ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
       <label>Name <input id="sink-name" value="${esc(e.name || '')}" placeholder="${esc(kind)}"></label>
+      <p class="meta" id="sink-third">${esc(SINK_THIRD_PARTY[kind])}</p>
       <label>Destination <input id="sink-dest" type="password" autocomplete="off" placeholder="${esc(e.id ? 'Enter it again; it is never shown' : SINK_DEST_HINT[kind])}"></label>
       <div class="sink-kinds">${SINK_ALL_KINDS.map((k) => `<label><input type="checkbox" class="sink-k" value="${k}"${e.kinds.includes(k) ? ' checked' : ''}> ${k}</label>`).join('')}</div>
       <label><input type="checkbox" id="sink-on"${e.enabled ? ' checked' : ''}> Enabled</label>
@@ -1164,6 +1173,7 @@ function pickAcross(id) {
 }
 
 function waitReason(x) {
+  if (x.reason === 'trust') return 'trust this folder?';
   return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
 }
 
@@ -1260,7 +1270,8 @@ async function refreshThumbs() {
     dot.style.background = d.colour;
   }
 }
-setInterval(() => { void refreshThumbs().catch(() => {}); }, 500);
+let thumbsBusy = false;
+setInterval(() => { if (thumbsBusy) return; thumbsBusy = true; void refreshThumbs().catch(() => {}).finally(() => { thumbsBusy = false; }); }, 500);
 
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
@@ -1901,6 +1912,7 @@ function onInput(e) {
   }
   if (el.id === 'sink-kind') {
     document.getElementById('sink-dest').placeholder = SINK_DEST_HINT[el.value];
+    document.getElementById('sink-third').textContent = SINK_THIRD_PARTY[el.value];
     return;
   }
   if (el.dataset.action === 'project-pick') {

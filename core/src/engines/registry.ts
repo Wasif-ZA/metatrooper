@@ -46,6 +46,8 @@ export interface EngineSpec {
   state_titles?: { working?: string; waiting?: string; idle?: string };
   /** Fixed strings matched case-insensitively against the last screen lines of a working session. */
   fatal_patterns?: string[];
+  /** Screen text of the engine's first-run "trust this folder?" question, matched case-insensitively. */
+  trust_patterns?: string[];
   /** A state plugin file under engines/, run by the engine itself. */
   state_plugin?: string;
 }
@@ -79,6 +81,7 @@ export const BUILT_IN: EngineSpec[] = [
     // Captured from Claude Code 2.1.299: idle titles start with U+2733, working ones with a spinning half circle.
     state_titles: { idle: '^\\u2733 ' },
     fatal_patterns: ['Credit balance is too low', 'Invalid API key'],
+    trust_patterns: ['Yes, I trust this folder'],
   },
   {
     id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', model_arg: '-m', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
@@ -89,6 +92,7 @@ export const BUILT_IN: EngineSpec[] = [
     state_source: 'notify', mcp_attach: { kind: 'codex-config', path: '~/.codex/config.toml' },
     roles: ['plan', 'worker', 'review', 'verify'], cost_rank: 2, usage_source: 'codex-session',
     trust: { kind: 'toml-table', file: '~/.codex/config.toml', at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'windows-lower' },
+    trust_patterns: ['Trust this folder?'],
   },
   {
     id: 'agy', command: 'agy', ask_near_paths: true, prompt_arg: '--prompt-interactive', model_arg: '--model', version_cmd: ['agy', '--version'],
@@ -101,6 +105,7 @@ export const BUILT_IN: EngineSpec[] = [
     roles: ['review', 'visual-check'], cost_rank: 1, usage_source: 'none',
     print_args: ['--print', '{prompt}', '--print-timeout', '0', '--output-format', 'text'],
     trust: { kind: 'json-list', file: '~/.gemini/antigravity-cli/settings.json', at: ['trustedWorkspaces'], path_style: 'windows' },
+    trust_patterns: ['Yes, I trust this folder'],
     settings: { file: '~/.gemini/antigravity-cli/settings.json', set: { toolPermission: 'proceed-in-sandbox' } },
   },
 ];

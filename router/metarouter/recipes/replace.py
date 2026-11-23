@@ -66,6 +66,8 @@ def run(args):
         return {"exit": 2, "out": "--count must be 0 (all) or more"}
     if old is None or new is None:
         return {"exit": 2, "out": "need old and new, as arguments or --old-file/--new-file"}
+    if not a.regex and old == "":
+        return {"exit": 2, "out": "old is empty; give the text to replace"}
     path = Path(a.file)
     if not path.is_file():
         return {"exit": 1, "out": f"no such file: {a.file}"}

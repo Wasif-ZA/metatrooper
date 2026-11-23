@@ -11,6 +11,7 @@ Use the `troop` CLI to work with Ouros's core. Always pass `--json` and read the
 
 1. `troop launch <engine> [--model <name>] --project <path> --prompt <text> --json` starts an agent and returns its `session_id`.
    Example: `troop launch codex --project . --worktree fix-login --prompt "fix the login test" --json`.
+   For a lane or side task, always pass `--worktree <branch>`: the core makes the worktree and marks it trusted for every engine, so the agent does not stop at a "trust this folder?" question. A plain `--project` folder the engine has not trusted waits for you with reason `trust`.
 2. `troop launch --jobs <jobs.json> --json` starts several at once from `[{"engine","worktree","prompt","model"}, ...]`.
 3. `troop sessions --json` lists sessions and their state (`working`, `waiting_for_you`, `done`, `idle`, `exited`).
 4. `troop owners --json` lists the project's uncommitted files and the session that owns each.
@@ -82,7 +83,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   shell.list              {}
   shell.open              {kind, project_id}
   shell.close             {shell_id}
-  worktree.create         {project_id, branch?, base?: "HEAD"}  (stable)
+  worktree.create         {project_id, branch?, base?: "HEAD", session_secret?}  (stable)
   ui.show                 {session_id, surface, title?, zone?: "tab", catalogue?, spec}
   ui.get                  {surface}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}

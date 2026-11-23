@@ -58,6 +58,8 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists. At core start, every `pty` session the last core left open gets one with `pid` null before any event is processed, then is resumed (`core/src/sessions/resume-all.ts`) |
 | `core.resumed` | core | `{"from": session id}`: written on the new session by `session.resume`; the workbench reads it as `resumed_from` to put the new session in the old one's tile. Never changes state |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
+| `core.trust-dialog` | core | `{}`: the session's last 20 screen lines show its engine's `trust_patterns` (the engine's "trust this folder?" question) and the engine has sent nothing since launch but a SessionStart (5 s check) |
+| `core.trust-cleared` | core | `{}`: a session waiting with reason `trust` no longer shows that question (5 s check) |
 | `core.stalled` | core | `{}`: the session is still `starting` 15 s after launch (5 s check); the engine is sitting on a trust prompt, a login, or an empty input box |
 | `core.claim` | core | `{repo, turn_base, from, at, files: [{path, owners: [session ids], shared}]}`: written processed at each `claude.Stop` and `claude.SessionEnd` for the files changed in that turn (`git diff --name-only <turn_base>`, plus untracked files modified since the turn's `UserPromptSubmit`). Paths are relative to `repo`. A file another session also changed in an overlapping turn goes to the session whose Edit, Write or MultiEdit hook named it; with no such hint, or when an earlier live owner's change is still uncommitted, both are listed and `shared` is true (M4-11) |
 | `core.limit-hit` | core | `{"window": str or null, "resets_at": ts or null, "after": int}`: written while processing a `claude.StopFailure` whose `error_type` is `rate_limit`; `after` is that event's `seq`. `window` and `resets_at` come from the Claude `limit_reading` rows whose reset is still ahead: the latest reset among windows at 100% or more, else the fullest window's (M6-24) |
@@ -127,11 +129,13 @@ The core processes events in `seq` order and sets `session.state`:
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
-| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a `claude.Notification` of class `permission` or `input`) written at or after the time the wait began, whether before or after a bell: terminal output does not answer it |
+| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, `core.trust-dialog`, or a `claude.Notification` of class `permission` or `input`) written at or after the time the wait began, whether before or after a bell: terminal output does not answer it |
 | `core.process-gone` (5 s check; not for `external` sessions) | `exited` |
 | `claude.SessionEnd` on an `external` session | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |
 | `core.seen` while `done` | `idle` |
+| `core.trust-dialog` unless `done` or `exited` | `waiting_for_you`, reason `trust` |
+| `core.trust-cleared` while `waiting_for_you` | `idle` |
 
 A Claude permission wait is held on one tool call: the `tool_use_id` of the last `claude.PermissionRequest`, or, with
 no PermissionRequest since the last prompt or Stop, of the last `claude.PreToolUse` before the last permission

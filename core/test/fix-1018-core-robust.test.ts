@@ -124,7 +124,7 @@ test('h-a-notify a sink with unreadable kinds or a bad command dest is skipped a
   setSink(db, { id: 'c-good', kind: 'webhook', dest: `http://127.0.0.1:${(web.address() as net.AddressInfo).port}/hook`, kinds: ['gate'] });
   const at = new Date().toISOString();
   for (const id of ['g1', 'g2']) db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'gate', ?, 'fixture')").run(id, at, id);
-  await notifyTick(db);
+  await notifyTick(db, new Date(2026, 0, 1, 12));
   assert.deepEqual(bodies.map((b) => JSON.parse(b).id).sort(), ['g1', 'g2']);
 });
 
