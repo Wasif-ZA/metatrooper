@@ -12,7 +12,7 @@ import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 import { scrubbedCaption } from '../cursor-glide.ts';
 import { exportTest, type Step } from '../../../core/src/browser/export-test.ts';
-import { actionHash } from '../../../core/src/approvals.ts';
+import { actionHash, uploadProblem } from '../../../core/src/approvals.ts';
 
 const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'upload', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
@@ -210,6 +210,10 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         const { expect: _e, approval_id: _a, ...args } = params;
         const want = actionHash({ session_id: sessionId, surface: 'browser', target: origin || 'about:blank', action: 'upload', args, control: null });
         if (!row || row.action_hash !== want || !(Date.now() - Date.parse(row.decided_at) < 120_000)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
+        // the paths are checked again here: a folder in the project could have become a link since the approval
+        const proj = db.prepare('SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as { path: string } | undefined;
+        const moved = proj ? uploadProblem(params.paths, proj.path) : 'this session has no project';
+        if (moved) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, `not sent: ${moved}`); }
         usedUploads.add(ap);
       }
       try {
