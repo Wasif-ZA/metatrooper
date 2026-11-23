@@ -12,7 +12,7 @@ import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
 import { ensureEngineSetup, sessionHookArgs, sessionHookEnv } from '../hooks/install.ts';
 import { engineVersion } from '../engines/health.ts';
-import { canonicalPath, isAskPath, nearAskPath } from '../project.ts';
+import { canonicalPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
 import { spoolDir } from '../sandbox/spool.ts';
@@ -43,11 +43,9 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
   return { argv, promptDelivered: false };
 }
 
-/** The approval a session in this folder starts with: ask in or around a `sessions.ask_paths` folder for every engine (D46), and anywhere under a tree holding one for engines with ask_near_paths (D48). */
-export function folderApproval(dir: string, approval?: string, engine?: EngineSpec, askPaths: unknown[] = settings().sessions.ask_paths): string {
-  if (isAskPath(dir, askPaths)) return 'ask';
-  if (engine?.ask_near_paths && nearAskPath(dir, askPaths)) return 'ask';
-  return approval ?? 'ask';
+/** The approval a session starts with: the one asked for, else contained. No folder turns a launch into ask (D89, replacing D46 and D48); ask is only ever an explicit choice. */
+export function folderApproval(_dir: string, approval?: string): string {
+  return approval ?? 'contained';
 }
 
 export const METAROUTER_BLOCK = `## Tools
@@ -95,7 +93,7 @@ export function launchSession(
   const host = opts.host ?? 'pty';
   const blockers = opts.blockerIds ?? [];
   const argvPrompt = blockers.length ? undefined : opts.prompt;
-  const approval = folderApproval(dir, opts.approval, opts.engine);
+  const approval = folderApproval(dir, opts.approval);
   let setup: string[] | null = null;
   let argv: string[];
   let promptDelivered: boolean;

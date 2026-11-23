@@ -84,7 +84,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust_patterns: ['Yes, I trust this folder'],
   },
   {
-    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', model_arg: '-m', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
+    id: 'codex', command: 'codex', prompt_arg: 'positional', model_arg: '-m', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
     install: 'npm install -g @openai/codex', login: 'codex login',
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
     sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
@@ -95,7 +95,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust_patterns: ['Trust this folder?'],
   },
   {
-    id: 'agy', command: 'agy', ask_near_paths: true, prompt_arg: '--prompt-interactive', model_arg: '--model', version_cmd: ['agy', '--version'],
+    id: 'agy', command: 'agy', prompt_arg: '--prompt-interactive', model_arg: '--model', version_cmd: ['agy', '--version'],
     install: 'Antigravity from antigravity.google, with agy on PATH', login: 'agy, then sign in',
     approval_profiles: { edits: ['--mode', 'accept-edits'], contained: ['--mode', 'accept-edits', '--sandbox'] },
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
