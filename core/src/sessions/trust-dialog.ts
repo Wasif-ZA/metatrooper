@@ -18,8 +18,11 @@ export async function checkTrustDialog(db: DatabaseSync, read: (id: string, n: n
     if (lines === null) continue;
     const text = lines.join('\n').toLowerCase();
     const shown = patterns.some((p) => text.includes(p.toLowerCase()));
+    // The session may have moved while the screen was read; decide on its state now.
+    const now = db.prepare('SELECT state, wait_reason FROM session WHERE id = ?').get(s.id) as { state: string; wait_reason: string | null } | undefined;
+    if (!now || now.state === 'done' || now.state === 'exited') continue;
     const raised = (lastTrust.get(s.id) as { kind: string } | undefined)?.kind === 'core.trust-dialog';
     if (shown && !raised) appendEvent('core.trust-dialog', s.id, {}, db);
-    else if (!shown && raised && s.wait_reason === 'trust') appendEvent('core.trust-cleared', s.id, {}, db);
+    else if (!shown && raised && now.wait_reason === 'trust') appendEvent('core.trust-cleared', s.id, {}, db);
   }
 }

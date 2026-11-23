@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
 import path from 'node:path';
-import { execFile, execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
 import { installPlan, toolPath } from './agent-install.ts';
 import { cleanReport, ISSUE_PREFIX, issueUrl, localIso } from './report-issue.ts';
@@ -35,7 +35,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, ship, showAt, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { formatComment } from './editor-comment.js';
@@ -300,7 +300,7 @@ function appendLine(envName: string, value: unknown): void {
 }
 
 /** The settings the Settings page may write. */
-const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback', 'reliability.loop_alarm', 'reliability.loop_nudge_at', 'reliability.loop_stop_at', 'reliability.token_limit', 'reliability.done_needs_check', 'agent_cursor.mode', 'agent_cursor.idle_fade_ms', 'agent_cursor.show_in_recordings', 'ui.toast_ms', 'ui.error_toast_ms']);
+const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback', 'reliability.loop_alarm', 'reliability.loop_nudge_at', 'reliability.loop_stop_at', 'reliability.token_limit', 'reliability.done_needs_check', 'agent_cursor.mode', 'agent_cursor.idle_fade_ms', 'agent_cursor.show_in_recordings', 'ui.toast_ms', 'ui.error_toast_ms', 'notify.quiet_at_night']);
 
 /** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
 async function writeSetting(key: string, value: unknown): Promise<string | null> {
@@ -569,13 +569,8 @@ function handlers(): void {
     }
     let error: string | undefined;
     let commit: string | undefined;
-    let url: string | undefined;
     try {
-      if (op === 'ship') {
-        if (demo) throw new Error('Commit, push, open PR is off in the demo');
-        const gh = (args: string[]) => new Promise<string>((resolve, reject) => execFile('gh', args, { cwd: project.path, encoding: 'utf8', windowsHide: true, timeout: 60000 }, (err, out, errOut) => (err ? reject(Object.assign(err, { stderr: /ENOENT/.test(String(err.message)) ? 'GitHub CLI (gh) is not installed or not on PATH' : errOut })) : resolve(out))));
-        ({ commit, url } = await ship(git, gh, typeof arg === 'string' ? arg : ''));
-      } else if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
+      if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
     } catch (e) {
       error = why(e);
     } finally {
@@ -586,7 +581,7 @@ function handlers(): void {
       const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
       try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
-      return { ...view, groups, error, commit, url };
+      return { ...view, groups, error, commit };
     } catch (e) {
       return { error: why(e) };
     }
@@ -736,7 +731,7 @@ function handlers(): void {
     const s = settings();
     const alarms = db()?.prepare("SELECT value FROM meta WHERE key = 'loop_false_alarms'").get() as { value: string } | undefined;
     const defaults = Object.fromEntries([...PAGE_KEYS].map((k) => [k, k.split('.').reduce<unknown>((o, p) => (o as Record<string, unknown>)[p], DEFAULTS)]));
-    return { defaults, reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme, toast_ms: s.ui.toast_ms, error_toast_ms: s.ui.error_toast_ms } };
+    return { defaults, reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, notify: s.notify, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme, toast_ms: s.ui.toast_ms, error_toast_ms: s.ui.error_toast_ms } };
   });
   on('setSetting', async (key: unknown, value: unknown) => {
     if (typeof key !== 'string' || !PAGE_KEYS.has(key)) return { error: 'not a Settings page key' };

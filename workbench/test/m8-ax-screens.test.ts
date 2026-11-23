@@ -165,7 +165,7 @@ test('Settings exposes all nine sections and only writable keys', () => {
   const main = readFileSync(join(wb, 'src/main.ts'), 'utf8');
   const pageKeys = vm.runInNewContext(/const PAGE_KEYS = new Set\((\[[^;]+\])\)/.exec(main)![1]);
   const keys = [...source.matchAll(/key: '([a-z_]+\.[a-z_]+)'/g)].map(m => m[1]);
-  assert.equal(keys.length, 22);
+  assert.equal(keys.length, 23);
   for (const key of keys) assert.ok(key === 'sessions.approval' || pageKeys.includes(key), key);
 });
 
@@ -659,7 +659,7 @@ test('settingsPage returns every literal PAGE_KEYS default independently of curr
     'worktree.npm_ci': true, 'worktree.stale_days': 7, 'terminal.font_size': 13, 'terminal.scrollback': 10000,
     'reliability.loop_alarm': true, 'reliability.loop_nudge_at': 3, 'reliability.loop_stop_at': 5, 'reliability.token_limit': 0, 'reliability.done_needs_check': true,
     'agent_cursor.mode': 'snappy', 'agent_cursor.idle_fade_ms': 5000, 'agent_cursor.show_in_recordings': false,
-    'ui.toast_ms': 3500, 'ui.error_toast_ms': 7000,
+    'ui.toast_ms': 3500, 'ui.error_toast_ms': 7000, 'notify.quiet_at_night': false,
   });
   assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
 });

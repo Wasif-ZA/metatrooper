@@ -53,7 +53,7 @@ export const DEFAULTS = {
     checks: {}                          ,
   },
   notify: {
-    quiet_at_night: true,
+    quiet_at_night: false,
   },
   worktree: {
     preserve: []            ,

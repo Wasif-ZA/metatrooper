@@ -7,15 +7,18 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { schemaFile } from '../src/paths.ts';
 import { notifyTick, quietNow, setSink } from '../src/notify.ts';
+import { DEFAULTS } from '../src/settings.ts';
 
 let settingsTime = 1_800_000_000;
 
-async function withNotifyDb<T>(quietAtNight: boolean, run: (db: DatabaseSync) => Promise<T> | T): Promise<T> {
+async function withNotifyDb<T>(quietAtNight: boolean | undefined, run: (db: DatabaseSync) => Promise<T> | T): Promise<T> {
   const home = mkdtempSync(join(tmpdir(), 'metatrooper-f23-'));
   const file = join(home, 'settings.json');
-  writeFileSync(file, JSON.stringify({ notify: { quiet_at_night: quietAtNight } }));
-  // Each fixture gets a distinct mtime for the settings cache.
-  utimesSync(file, ++settingsTime, settingsTime);
+  if (quietAtNight !== undefined) {
+    writeFileSync(file, JSON.stringify({ notify: { quiet_at_night: quietAtNight } }));
+    // Each fixture gets a distinct mtime for the settings cache.
+    utimesSync(file, ++settingsTime, settingsTime);
+  }
   const oldHome = process.env.METATROOPER_HOME;
   const oldFake = process.env.METATROOPER_FAKE_DPAPI;
   process.env.METATROOPER_HOME = home;
@@ -58,6 +61,41 @@ function insertGate(db: DatabaseSync, id: string): void {
   db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'gate', ?, ?)")
     .run(id, new Date().toISOString(), `gate-${id}`, `Waiting gate ${id}`);
 }
+
+test('notifications default to sending at 23:30 without settings.json', () => withNotifyDb(undefined, async (db) => {
+  // protects=586b7a54 night suppression is opt-in in DEFAULTS and in a fresh home
+  assert.equal(DEFAULTS.notify.quiet_at_night, false);
+  const hook = await withFakeWebhook();
+  try {
+    setSink(db, { id: 'default-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    insertGate(db, 'default-night');
+    await notifyTick(db, new Date(2026, 0, 15, 23, 30));
+    assert.equal(hook.bodies.length, 1);
+    assert.match(hook.bodies[0], /default-night/);
+    assert.equal(typeof db.prepare('SELECT notified_at FROM needs_you WHERE id = ?').get('default-night')!.notified_at, 'string');
+  } finally { await hook.close(); }
+}));
+
+test('a batch admitted at 21:59:59.9 rechecks the clock before sending after 22:00', (t) => withNotifyDb(true, async (db) => {
+  // protects=586b7a54 each send checks elapsed time even when the tick began outside quiet hours
+  const hook = await withFakeWebhook();
+  try {
+    setSink(db, { id: 'boundary-hook', kind: 'webhook', dest: hook.url, kinds: ['gate'], enabled: true });
+    insertGate(db, 'boundary-first');
+    insertGate(db, 'boundary-second');
+    const base = Date.now();
+    let calls = 0;
+    const clock = t.mock.method(Date, 'now', () => base + (calls++ === 0 ? 0 : 200));
+    try {
+      await notifyTick(db, new Date(2026, 0, 15, 21, 59, 59, 900));
+    } finally { clock.mock.restore(); }
+    assert.ok(calls > 1, 'clock advances after tick admission');
+    assert.equal(hook.bodies.length, 0);
+    assert.deepEqual(db.prepare('SELECT notified_at FROM needs_you ORDER BY rowid').all().map(r => r.notified_at), [null, null]);
+    await notifyTick(db, new Date(2026, 0, 16, 7));
+    assert.equal(hook.bodies.length, 2, 'deferred batch remains deliverable');
+  } finally { await hook.close(); }
+}));
 
 test('M8-F23b quietNow uses the local 22:00 inclusive and 07:00 exclusive boundaries', () => withNotifyDb(true, () => {
   // protects=M8-F23b: quiet hours span local midnight with exact start and end boundaries.

@@ -135,6 +135,8 @@ export function quietNow(at = new Date()): boolean {
 /** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind; during quiet hours nothing is sent and rows wait until 07:00. */
 export async function notifyTick(db: DatabaseSync, now = new Date()): Promise<void> {
   if (busy || quietNow(now)) return;
+  const started = Date.now();
+  const quietAtSend = () => quietNow(new Date(now.getTime() + Date.now() - started));
   busy = true;
   try {
     const sinks = db.prepare('SELECT * FROM notify_sink WHERE enabled = 1').all() as unknown as SinkRow[];
@@ -153,7 +155,7 @@ export async function notifyTick(db: DatabaseSync, now = new Date()): Promise<vo
       if (!targets.length) { mark.run(`${nowIso()} no-sink`, row.id); continue; }
       const states = await Promise.all(targets.map(async (sink) => {
         const d = (get.get(row.id, sink.id) as Delivery | undefined) ?? { state: 'pending', tries: 0, next_at: 0 };
-        if (d.state !== 'pending' || Date.now() < d.next_at) return d.state;
+        if (d.state !== 'pending' || Date.now() < d.next_at || quietAtSend()) return d.state;
         let failed: string | null;
         try {
           failed = await deliver(sink, row);

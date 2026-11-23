@@ -24,7 +24,10 @@ async function fixture(engine = 'claude') {
   const trustedFile = join(iso.home, 'trusted.json');
   writeFileSync(trustedFile, JSON.stringify({ trusted: [] }));
   // Every trust destination is absolute and inside this fixture, including project.open's registry.
-  const engines: EngineSpec[] = BUILT_IN.map((e) => ({ ...e,
+  const specs: EngineSpec[] = engine === 'opencode'
+    ? [...BUILT_IN, JSON.parse(readFileSync(join(root, 'engines/opencode.json'), 'utf8'))]
+    : BUILT_IN;
+  const engines: EngineSpec[] = specs.map((e) => ({ ...e,
     trust: { kind: 'json-list', file: trustedFile, at: ['trusted'], path_style: 'posix' },
   }));
   const enginesFile = join(iso.home, 'engines.json');
@@ -304,3 +307,59 @@ test('12: CLI launch forwards TROOP_SESSION_SECRET to worktree.create', async ()
     rmSync(iso.home, { recursive: true, force: true });
   }
 });
+
+test('6a: permission arriving during an awaited screen read survives trust clearing', async () => {
+  // protects=0e612af4 re-read the current wait reason after awaiting the screen
+  const h = await fixture('opencode');
+  try {
+    syncEngines(h.db, h.engines.map(e => e.id === 'opencode' ? { ...e, trust_patterns: ['Yes, I trust this folder'] } : e));
+    await detect(h);
+    await checkTrustDialog(h.db, async () => {
+      await Promise.resolve();
+      h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 1 });
+      assert.deepEqual(h.row(), { state: 'waiting_for_you', wait_reason: 'permission' });
+      return ['Ready for your prompt'];
+    });
+    processEvents(h.db);
+    assert.deepEqual(h.row(), { state: 'waiting_for_you', wait_reason: 'permission' });
+    assert.equal(h.count('core.trust-cleared'), 0);
+  } finally { h.close(); }
+});
+
+test('6b: the processor ignores a direct trust clear during a permission wait', async () => {
+  // protects=0e612af4 processor independently guards against stale trust clears
+  const h = await fixture('opencode');
+  try {
+    syncEngines(h.db, h.engines.map(e => e.id === 'opencode' ? { ...e, trust_patterns: ['Yes, I trust this folder'] } : e));
+    await detect(h);
+    h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 1 });
+    const before = h.row();
+    assert.deepEqual(before, { state: 'waiting_for_you', wait_reason: 'permission' });
+    appendEvent('core.trust-cleared', h.id, {}, h.db);
+    processEvents(h.db);
+    assert.equal(h.count('core.trust-cleared'), 1);
+    assert.deepEqual(h.row(), before);
+  } finally { h.close(); }
+});
+
+for (const state of ['done', 'exited']) {
+  test(`6c: a session becoming ${state} during a screen read gets no trust event`, async () => {
+    // protects=0e612af4 terminal states reached during read cannot acquire or clear trust
+    for (const alreadyWaiting of [false, true]) {
+      const h = await fixture();
+      try {
+        if (alreadyWaiting) await detect(h);
+        const events = () => h.count('core.trust-dialog') + h.count('core.trust-cleared');
+        const before = events();
+        await checkTrustDialog(h.db, async () => {
+          await Promise.resolve();
+          h.db.prepare('UPDATE session SET state = ? WHERE id = ?').run(state, h.id);
+          return alreadyWaiting ? ['Ready'] : dialog();
+        });
+        processEvents(h.db);
+        assert.equal(events(), before);
+        assert.equal(h.row().state, state);
+      } finally { h.close(); }
+    }
+  });
+}

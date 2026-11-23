@@ -30,6 +30,7 @@ interface SessionRow {
   pid: number | null;
   run_id: string | null;
   state_at: string;
+  wait_reason: string | null;
 }
 
 /** Applies unprocessed events in seq order: links sessions, records pids, and moves session state. */
@@ -38,7 +39,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     .prepare('SELECT seq, at, session_id, kind, payload FROM event WHERE processed = 0 ORDER BY seq LIMIT ?')
     .all(limit) as unknown as EventRow[];
   if (rows.length === 0) return 0;
-  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at FROM session WHERE id = ?');
+  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at, wait_reason FROM session WHERE id = ?');
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ?, wait_reason = ? WHERE id = ?');
   const logState = db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)');
   const setReason = db.prepare('UPDATE session SET wait_reason = ? WHERE id = ?');
@@ -158,7 +159,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
-        const ignored = (ev.kind === 'core.activity' && payload.state === 'quiet' && specOf(s.engine_id).source === 'notify')
+        // A trust clear ends only a trust wait; a permission or other wait that began meanwhile stays.
+        const ignored = (ev.kind === 'core.trust-cleared' && s.wait_reason !== 'trust') || (ev.kind === 'core.activity' && payload.state === 'quiet' && specOf(s.engine_id).source === 'notify')
           || (ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq));
         // A hook event that happened before one already applied (it waited on the lock, or came through the spool) moves no state: state follows event time, not arrival (D16).
         const late = spoolKind(ev.kind) && Boolean(newerHook.get(ev.session_id, ev.seq, ev.at, ...hookKinds));

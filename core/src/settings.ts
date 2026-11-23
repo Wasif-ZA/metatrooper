@@ -52,7 +52,7 @@ export const DEFAULTS = {
     checks: {} as Record<string, string>,
   },
   notify: {
-    quiet_at_night: true,
+    quiet_at_night: false,
   },
   worktree: {
     preserve: [] as string[],
