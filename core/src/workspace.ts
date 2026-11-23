@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { homeDir } from './paths.ts';
+import { homeDir, repoDir } from './paths.ts';
 import { nowIso } from './time.ts';
 
 // The workspace as data (ouros-spec section 6c): an agent sets a layout, cc checks it, the old one stays one key away.
 export const VIEWS = ['explorer', 'editor', 'agent', 'terminal', 'wall', 'kit', 'surface'];
 export const RAIL = ['files', 'search', 'git', 'debug', 'agents', 'ext', 'todo'];
 const HISTORY = 20;
+export const EXAMPLES = path.join(repoDir, 'workbench', 'ui', 'src', 'workspaces');
+export const exampleNames = (): string[] => { try { return fs.readdirSync(EXAMPLES).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch { return []; } };
 const MAX_BYTES = 256 * 1024;
 
 export type Workspace = { name: string; by?: string; asked?: string; rail: string[]; layout: unknown };
@@ -53,7 +55,7 @@ function store(projectId: string, s: State): void {
   fs.renameSync(`${f}.tmp`, f);
 }
 
-const view = (projectId: string, s: State) => ({ project_id: projectId, current: s.current, usual: s.current === null, undo: s.history.length, saved: Object.keys(s.saved).sort(), last: s.last });
+const view = (projectId: string, s: State) => ({ project_id: projectId, current: s.current, usual: s.current === null, undo: s.history.length, saved: Object.keys(s.saved).sort(), examples: exampleNames(), last: s.last });
 
 function sessionOf(db: DatabaseSync, p: Record<string, unknown>): { id: string; engine: string; project: string } {
   const id = typeof p.session_id === 'string' ? p.session_id : '';
@@ -62,7 +64,7 @@ function sessionOf(db: DatabaseSync, p: Record<string, unknown>): { id: string; 
   return { id, engine: row.engine_id, project: row.project_id };
 }
 
-/** `ouros_workspace`: op set (a whole layout), save (name the current one) or restore (a saved one). A refused layout leaves the old one and says why. */
+/** `ouros_workspace`: op set (a whole layout), save (name the current one), restore (a saved one) or example (a shipped layout). A refused layout leaves the old one and says why. */
 export function changeWorkspace(db: DatabaseSync, p: Record<string, unknown>): ReturnType<typeof view> {
   const who = sessionOf(db, p);
   const s = load(who.project);
@@ -79,8 +81,11 @@ export function changeWorkspace(db: DatabaseSync, p: Record<string, unknown>): R
   if (op === 'restore') {
     if (typeof p.name !== 'string' || !Object.hasOwn(s.saved, p.name)) throw new RpcError(E.NOT_FOUND, `no saved layout called "${String(p.name)}"`);
     ws = s.saved[p.name];
+  } else if (op === 'example') {
+    if (typeof p.name !== 'string' || !exampleNames().includes(p.name)) throw new RpcError(E.NOT_FOUND, `no example layout called "${String(p.name)}"; examples: ${exampleNames().join(', ')}`);
+    ws = JSON.parse(fs.readFileSync(path.join(EXAMPLES, `${p.name}.json`), 'utf8'));
   } else if (op === 'set') ws = p.workspace;
-  else throw new RpcError(E.INVALID_PARAMS, 'op must be set, save or restore');
+  else throw new RpcError(E.INVALID_PARAMS, 'op must be set, save, restore or example');
   const text = JSON.stringify(ws ?? null);
   const reasons = Buffer.byteLength(text, 'utf8') > MAX_BYTES ? ['the layout is over 256 KB'] : checkWorkspace(ws, (id) => Boolean(db.prepare('SELECT 1 FROM ui_surface WHERE id = ?').get(id)));
   const asked = ws && typeof (ws as Workspace).asked === 'string' ? String((ws as Workspace).asked).slice(0, 300) : '';

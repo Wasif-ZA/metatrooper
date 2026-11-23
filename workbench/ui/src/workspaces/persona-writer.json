@@ -1,0 +1,212 @@
+{
+ "name": "Writing room",
+ "by": "claude",
+ "place": "salt-road : chapter 7",
+ "asked": "Help me edit chapter 7 of my novel. Keep my voice; just tighten it.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   17,
+   59,
+   24
+  ],
+  "children": [
+   {
+    "view": "kit",
+    "title": "Chapters",
+    "part": {
+     "type": "tree",
+     "nodes": [
+      {
+       "label": "The Salt Road",
+       "children": [
+        {
+         "label": "1 · Arrival",
+         "right": "4.1k",
+         "state": "ok"
+        },
+        {
+         "label": "2 · The Net Sheds",
+         "right": "5.3k",
+         "state": "ok"
+        },
+        {
+         "label": "3 · Tomas",
+         "right": "4.8k",
+         "state": "ok"
+        },
+        {
+         "label": "4 · Spring Tide",
+         "right": "6.0k",
+         "state": "ok"
+        },
+        {
+         "label": "5 · The Chapel",
+         "right": "5.5k",
+         "state": "ok"
+        },
+        {
+         "label": "6 · Letters",
+         "right": "4.2k",
+         "state": "ok"
+        },
+        {
+         "label": "7 · Low Tide",
+         "right": "3.9k"
+        },
+        {
+         "label": "8 · (not started)",
+         "right": ""
+        }
+       ]
+      },
+      {
+       "label": "Notes",
+       "children": [
+        {
+         "label": "characters.md",
+         "right": ""
+        },
+        {
+         "label": "island map.png",
+         "right": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "manuscript",
+     "book": "The Salt Road · a novel",
+     "draft": "Draft 2",
+     "words": 33800,
+     "target": 80000,
+     "title": "Chapter 7 · Low Tide",
+     "paras": [
+      {
+       "text": "The ferry left without her. Ines watched it shrink against the grey until it was only a smudge, and then not even that, and she understood that the island had decided to keep her one more night."
+      },
+      {
+       "text": "She walked back up the slipway past the shuttered café, the net sheds, the chapel with its door tied shut with blue rope.",
+       "changed": true,
+       "note": "Tightened: cut \"slowly\" and \"old\". Reads faster into the next beat.",
+       "by": "claude"
+      },
+      {
+       "text": "Tomas was waiting at the top, as if he had known. Maybe he had. On the island everyone knew the tides better than the clocks.",
+       "note": "Tomas has a limp in ch. 3. Mention it here?",
+       "by": "claude"
+      },
+      {
+       "text": "It was not raining, exactly. The air was just wet, and it was everywhere.",
+       "cut": true,
+       "note": "Same image as ch. 2, page 3. Suggest cutting.",
+       "by": "claude"
+      },
+      {
+       "text": "\"You'll want soup,\" he said, and it was not a question."
+      },
+      {
+       "text": "They walked along the sea wall without speaking. Below them the tide had pulled out so far that the harbour floor lay open, ribbed and shining, the boats tilted on their sides like sleeping animals."
+      }
+     ]
+    }
+   },
+   {
+    "split": "col",
+    "sizes": [
+     64,
+     36
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Keep my voice; just tighten it.",
+       "say": "I'm only cutting words and flagging repeats, never rewriting your sentences. 3 suggestions so far in chapter 7; each is a margin note you can accept or ignore.",
+       "log": [
+        [
+         "read chapters 1 to 7",
+         "34k words"
+        ],
+        [
+         "listed repeated images",
+         "4 found"
+        ],
+        [
+         "suggested cuts",
+         "ch. 7, 3 so far"
+        ],
+        [
+         "checked names and places",
+         "12 of 12"
+        ],
+        [
+         "checked Tomas's limp",
+         "ch. 3 and 7"
+        ],
+        [
+         "[x] chapter 7, first half",
+         "done"
+        ],
+        [
+         "[ ] chapter 7, second half",
+         "reading"
+        ],
+        [
+         "[ ] your call: limp",
+         "ch. 7 para 3"
+        ]
+       ],
+       "now": [
+        "Reading the rest of chapter 7",
+        ""
+       ],
+       "hint": "Ask about a passage",
+       "strip": [
+        "auto · reading",
+        "3 notes",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Chapter 7 checks",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "check",
+         "label": "Names and places match earlier chapters",
+         "state": "done",
+         "value": "12 of 12"
+        },
+        {
+         "type": "check",
+         "label": "No image repeated from earlier",
+         "state": "needs",
+         "value": "1 repeat"
+        },
+        {
+         "type": "check",
+         "label": "Tomas's limp stays consistent",
+         "state": "open",
+         "value": "your call"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

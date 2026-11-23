@@ -29,6 +29,7 @@ import './ide-panel.css';
 import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
+import { Pane, WorkspaceBanner, wsStore } from './workspace.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -1386,6 +1387,7 @@ function RightGroup({ st, right, changed }) {
 
 export function Ide() {
   ideStore.use();
+  const { ws } = wsStore.use();
   const { open: panel, tab: bottom } = cur ? paneOf(cur) : { open: true, tab: 'terminal' };
   const setPanel = (v) => cur && setPane(cur, v);
   const setBottom = (v) => cur && setPane(cur, paneOf(cur).open, v);
@@ -1435,8 +1437,7 @@ export function Ide() {
     { label: 'Open in VS Code', onClick: () => void openInVsCode(st, tp) },
   ];
 
-  return (
-    <div className="ou-ide" key={st.pid}>
+  const explorer = (
       <aside className="ou-ide-side">
         {rail ? createPortal(views, rail) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
         <div className="ou-ide-pane">
@@ -1457,7 +1458,8 @@ export function Ide() {
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
         </div>
       </aside>
-      <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
+  );
+  const editor = (
         <div className="ou-ide-groups">
         <DrawnTabs pid={st.pid} />
         <div className="ou-ide-group" data-focused={st.focus !== 1} onMouseDownCapture={() => { if (st.focus === 1) { st.focus = 0; bump(); } }}>
@@ -1492,6 +1494,28 @@ export function Ide() {
         </div>
         {right.length ? <RightGroup st={st} right={right} changed={changed} /> : null}
         </div>
+  );
+  const layout = ws && ws.project_id === st.pid ? ws.current : null;
+  if (layout) {
+    const allow = new Set((layout.rail || []).map((r) => (r === 'git' ? 'changes' : r)));
+    rail?.querySelectorAll('[data-ide-side]').forEach((b) => { b.hidden = !allow.has(b.dataset.ideSide); });
+    return (
+      <div className="ou-ide ou-ide-ws" key={st.pid}>
+        <WorkspaceBanner />
+        <div className="ou-ws-root"><Pane node={layout.layout} pid={st.pid} views={{ explorer, editor: <section className="ou-ide-main ou-ide-folded">{editor}</section>, terminal: <Terminal key={`${st.pid}:${gen}`} pid={st.pid} onKind={setShellName} />, wall: <EmptyState isCompact title="The Wall" actions={<Button size="sm" label="Open the Wall" onClick={() => homeView?.set?.('wall')} />} /> }} /></div>
+        <StatusBar st={st} active={active} problems={problems} onProblems={showProblems} />
+        <Asks st={st} />
+      </div>
+    );
+  }
+  rail?.querySelectorAll('[data-ide-side]').forEach((b) => { b.hidden = false; });
+
+  return (
+    <div className="ou-ide" key={st.pid}>
+      <WorkspaceBanner />
+      {explorer}
+      <section className={panel ? (max ? 'ou-ide-main ou-ide-pmax' : 'ou-ide-main') : 'ou-ide-main ou-ide-folded'}>
+        {editor}
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
             <TabList size="sm" role="tablist" aria-label="Panel" value={bottom} onChange={(v) => { setBottom(v); setPanel(true); }}>

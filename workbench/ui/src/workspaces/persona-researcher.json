@@ -1,0 +1,281 @@
+{
+ "name": "Research desk",
+ "by": "claude",
+ "place": "green-roofs : literature review",
+ "asked": "I'm writing a review on green roofs and summer heat. Find the evidence and check every claim against its source.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   22,
+   52,
+   26
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     81,
+     19
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "title": "Sources",
+      "part": {
+       "type": "sources",
+       "items": [
+        {
+         "title": "Field trial of extensive green roofs, 3 summers. Okafor, Lindqvist et al. 2024 · Urban Ecology Letters",
+         "url": "doi 10.5555/uel.2024.0318",
+         "quote": "the top floor ran 2.1 to 3.4 degrees cooler"
+        },
+        {
+         "title": "Substrate depth and roof cooling, a meta-analysis. Brandt and Moreau 2023 · Building and Climate",
+         "url": "doi 10.5555/bc.2023.1142",
+         "quote": "deeper substrate gave more cooling"
+        },
+        {
+         "title": "Drought survival of sedum cover. Haddad, Ruiz and Sato 2022 · Plant Systems",
+         "url": "doi 10.5555/ps.2022.0907",
+         "quote": "kept most of its cooling through a 20 day dry spell"
+        },
+        {
+         "title": "City heat island survey. Northvale City Council 2023 · technical report",
+         "url": "report HI-23-04, 34 pp",
+         "quote": "roof surfaces reached 71 degrees"
+        },
+        {
+         "title": "Green roof upkeep costs in 12 cities. Mbeki and Tran 2021 · Journal of Urban Works",
+         "url": "doi 10.5555/juw.2021.0215",
+         "quote": "annual upkeep averaged 4 dollars per square metre"
+        },
+        {
+         "title": "Membrane ageing under planted roofs. Kowalczyk 2020 · Roofing Science Review",
+         "url": "doi 10.5555/rsr.2020.0461",
+         "quote": "no leaks were found after 11 years"
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Selected: claim 5",
+      "part": {
+       "type": "kv",
+       "rows": [
+        [
+         "claim",
+         "sedum keeps cooling 20 days"
+        ],
+        [
+         "searched",
+         "p. 1 to 34, no match"
+        ],
+        [
+         "closest",
+         "p. 22, street level"
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "citations",
+     "title": "review/draft.md",
+     "summary": "4 sections",
+     "check": "quote check, round 2",
+     "claims": [
+      {
+       "heading": "How much cooler"
+      },
+      {
+       "id": "c01",
+       "text": "On hot days the top floor ran about 2 to 3 degrees lower than under a bare roof.",
+       "cites": [
+        {
+         "src": "Roofs 2024",
+         "quote": "p. 6"
+        }
+       ]
+      },
+      {
+       "id": "c02",
+       "text": "The largest measured gap came during a heat wave, at 2.9 degrees in mid afternoon.",
+       "cites": [
+        {
+         "src": "Roofs 2024",
+         "quote": "p. 2"
+        }
+       ]
+      },
+      {
+       "id": "c03",
+       "text": "On days above 32 degrees the top floor ran 2.1 to 3.4 degrees cooler.",
+       "cites": [
+        {
+         "src": "Roofs 2024",
+         "quote": "p. 11",
+         "state": "rebound"
+        }
+       ],
+       "note": "first pointed at the wrong quote; now the right one"
+      },
+      {
+       "heading": "What changes the effect"
+      },
+      {
+       "id": "c04",
+       "text": "Deeper substrate gave more cooling on every hot day of the trial.",
+       "cites": [
+        {
+         "src": "Substrate 2023",
+         "quote": "p. 3",
+         "state": "normalised"
+        }
+       ]
+      },
+      {
+       "id": "c05",
+       "text": "Sedum cover kept most of its cooling through a 20 day dry spell.",
+       "cites": [
+        {
+         "src": "Sedum 2022",
+         "quote": "p. 14"
+        },
+        {
+         "src": "City survey",
+         "quote": "p. 8",
+         "state": "missing"
+        }
+       ]
+      },
+      {
+       "heading": "What the review cannot say"
+      },
+      {
+       "id": "c06",
+       "text": "Most trials ran on roofs under 10 years old, so long-term performance is unknown.",
+       "cites": [
+        {
+         "src": "Roofs 2024",
+         "quote": "p. 12"
+        }
+       ]
+      },
+      {
+       "id": "c07",
+       "text": "Cooling at street level is much smaller than at roof level.",
+       "cites": [
+        {
+         "src": "City survey",
+         "quote": "p. 22"
+        }
+       ]
+      },
+      {
+       "heading": "What it costs"
+      },
+      {
+       "id": "c08",
+       "text": "Upkeep averaged 4 dollars per square metre a year.",
+       "cites": [
+        {
+         "src": "Upkeep 2021",
+         "quote": "p. 9"
+        }
+       ]
+      },
+      {
+       "id": "c09",
+       "text": "No membrane leaks were found after 11 years.",
+       "cites": [
+        {
+         "src": "Membrane 2020",
+         "quote": "p. 7"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "split": "col",
+    "sizes": [
+     64,
+     36
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Check every claim against its source.",
+       "say": "Every quote in the draft was searched for in the source PDF. 8 of 9 claims hold. One quote for claim 5 is not in the survey it cites; I can drop that citation or find another.",
+       "log": [
+        [
+         "read 18 sources",
+         "6 cited so far"
+        ],
+        [
+         "checked 10 quotes",
+         "9 found"
+        ],
+        [
+         "fixed 1 citation",
+         "claim 3"
+        ],
+        [
+         "tidied quotes",
+         "claim 4"
+        ],
+        [
+         "[x] claims 1 to 4",
+         "all hold"
+        ],
+        [
+         "[x] claims 6 to 9",
+         "all hold"
+        ],
+        [
+         "[ ] claim 5, second quote",
+         "your call"
+        ]
+       ],
+       "hint": "Ask about a claim",
+       "strip": [
+        "auto · checking",
+        "1 quote missing",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "digest",
+       "title": "1 quote not found",
+       "facts": "claim 5 · city heat survey",
+       "note": "The survey never says this. Drop the citation, or look for another source?",
+       "actions": [
+        {
+         "label": "Find another source",
+         "primary": true
+        },
+        {
+         "label": "Drop it"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

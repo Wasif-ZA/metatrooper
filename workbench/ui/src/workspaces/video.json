@@ -1,0 +1,349 @@
+{
+ "name": "Video edit day",
+ "by": "claude",
+ "place": "studio-tour : final cut",
+ "asked": "I'm cutting the studio tour video today. Give me a big preview and the timeline, hide the code stuff.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "col",
+  "sizes": [
+   54,
+   46
+  ],
+  "children": [
+   {
+    "split": "row",
+    "sizes": [
+     17,
+     50,
+     33
+    ],
+    "children": [
+     {
+      "split": "col",
+      "sizes": [
+       60,
+       40
+      ],
+      "children": [
+       {
+        "view": "kit",
+        "title": "Footage",
+        "part": {
+         "type": "tree",
+         "nodes": [
+          {
+           "label": "studio-tour",
+           "children": [
+            {
+             "label": "A-cam wheel.mp4",
+             "right": "4:12",
+             "state": "ok"
+            },
+            {
+             "label": "B-cam glaze.mp4",
+             "right": "2:40",
+             "state": "ok"
+            },
+            {
+             "label": "voiceover.wav",
+             "right": "6:05",
+             "state": "ok"
+            },
+            {
+             "label": "music-bed.mp3",
+             "right": "3:30"
+            }
+           ]
+          },
+          {
+           "label": "edit",
+           "children": [
+            {
+             "label": "final.timeline",
+             "right": "6:12"
+            },
+            {
+             "label": "captions.srt",
+             "right": "88"
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "view": "kit",
+        "title": "Clip",
+        "part": {
+         "type": "kv",
+         "rows": [
+          [
+           "name",
+           "B-cam glaze.mp4"
+          ],
+          [
+           "length",
+           "2:40"
+          ],
+          [
+           "format",
+           "1920x1080, 30 fps"
+          ],
+          [
+           "used",
+           "9 of 31 shots"
+          ],
+          [
+           "audio",
+           "none, voiceover only"
+          ]
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "screening",
+       "length": 372,
+       "playhead": 250,
+       "time": "4:10",
+       "total": "6:12",
+       "caption": "the kiln does the rest",
+       "meta": "final.mp4, 1920x1080, 30 fps",
+       "tabs": [
+        {
+         "label": "rough",
+         "on": false
+        },
+        {
+         "label": "final",
+         "on": true
+        },
+        {
+         "label": "9:16",
+         "on": false
+        }
+       ],
+       "notes": [
+        {
+         "at": "1:20",
+         "sec": 80,
+         "by": "AI",
+         "src": "check",
+         "text": "Clay shot cut early; moved to 1:23",
+         "state": "fixed"
+        },
+        {
+         "at": "4:10",
+         "sec": 250,
+         "by": "AI",
+         "src": "check",
+         "text": "Cut clips a word; sliding it 6 frames",
+         "state": "open",
+         "choices": [
+          "slide the cut 6 frames",
+          "keep the cut"
+         ]
+        }
+       ],
+       "around": {
+        "label": "3 s around 4:10",
+        "range": "4:08.5 to 4:11.5"
+       },
+       "stats": "88 captions · music ducked",
+       "scene": "c"
+      }
+     },
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Let the clay shot run longer, and fix the clipped word at 4:10.",
+       "say": "Moved the clay cut from 1:20 to 1:23. The cut at 4:10 lands mid-word, so I'm sliding it 6 frames later. The final render waits for your yes.",
+       "log": [
+        [
+         "moved the clay cut",
+         "1:20 to 1:23"
+        ],
+        [
+         "captions from the voiceover",
+         "88 lines"
+        ],
+        [
+         "[x] clay shot longer",
+         "done"
+        ],
+        [
+         "[x] captions",
+         "done"
+        ],
+        [
+         "[ ] fix the 4:10 cut",
+         "next"
+        ],
+        [
+         "[ ] render 1080p",
+         "your yes"
+        ]
+       ],
+       "now": [
+        "Rendering a preview",
+        "62%"
+       ],
+       "hint": "Ask for a change while it renders",
+       "strip": [
+        "auto · rendering 0:34",
+        "2 cuts moved",
+        "1 waiting on you"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "cuttimeline",
+     "title": "Timeline",
+     "file": "studio tour, final cut",
+     "length": 372,
+     "playhead": 250,
+     "scale": [
+      "0:00",
+      "1:30",
+      "3:00",
+      "4:30",
+      "6:12"
+     ],
+     "view": {
+      "start": 210,
+      "len": 80
+     },
+     "stats": [
+      "31 cuts",
+      "88 captions",
+      "6:12"
+     ],
+     "foot": "1 cut is waiting on a fix",
+     "tracks": [
+      {
+       "label": "Titles",
+       "sub": "",
+       "kind": "overlay",
+       "items": [
+        {
+         "start": 0,
+         "len": 12,
+         "label": "title card"
+        },
+        {
+         "start": 336,
+         "len": 14,
+         "label": "end card"
+        }
+       ]
+      },
+      {
+       "label": "Video",
+       "sub": "",
+       "kind": "video",
+       "items": [
+        {
+         "start": 0,
+         "len": 80,
+         "label": "A-cam wheel",
+         "scene": "a"
+        },
+        {
+         "start": 80,
+         "len": 90,
+         "label": "B-cam glaze",
+         "scene": "b"
+        },
+        {
+         "start": 170,
+         "len": 110,
+         "label": "A-cam wheel",
+         "scene": "a"
+        },
+        {
+         "start": 280,
+         "len": 92,
+         "label": "B-cam glaze",
+         "scene": "b"
+        }
+       ]
+      },
+      {
+       "label": "Captions",
+       "sub": "",
+       "kind": "caps",
+       "items": [
+        {
+         "start": 4,
+         "len": 60,
+         "label": "this is where it starts"
+        },
+        {
+         "start": 70,
+         "len": 70,
+         "label": "centre the clay first"
+        },
+        {
+         "start": 150,
+         "len": 80,
+         "label": "glaze goes on in one pass"
+        },
+        {
+         "start": 240,
+         "len": 70,
+         "label": "the kiln does the rest"
+        },
+        {
+         "start": 316,
+         "len": 52,
+         "label": "thanks for watching"
+        }
+       ]
+      },
+      {
+       "label": "Voice",
+       "sub": "",
+       "kind": "wave"
+      },
+      {
+       "label": "Music",
+       "sub": "",
+       "kind": "music",
+       "items": [
+        {
+         "start": 0,
+         "len": 372,
+         "label": "music-bed, ducked under the voice"
+        }
+       ]
+      }
+     ],
+     "marks": [
+      {
+       "at": 80,
+       "kind": "flag",
+       "label": "1:20 moved"
+      },
+      {
+       "at": 250,
+       "kind": "flag",
+       "label": "4:10 fixing"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

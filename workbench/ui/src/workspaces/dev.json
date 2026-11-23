@@ -1,0 +1,51 @@
+{
+ "name": "My usual (VS Code)",
+ "rail": [
+  "files",
+  "search",
+  "git",
+  "debug",
+  "agents",
+  "ext",
+  "todo"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   19,
+   81
+  ],
+  "children": [
+   {
+    "view": "explorer"
+   },
+   {
+    "split": "col",
+    "sizes": [
+     72,
+     28
+    ],
+    "children": [
+     {
+      "view": "editor"
+     },
+     {
+      "split": "row",
+      "sizes": [
+       64,
+       36
+      ],
+      "children": [
+       {
+        "view": "agent"
+       },
+       {
+        "view": "terminal"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

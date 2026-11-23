@@ -1,0 +1,398 @@
+{
+ "name": "Data analysis",
+ "by": "claude",
+ "place": "outdoor-co : sales 2026",
+ "asked": "Find out why revenue dipped in March. The orders export is in data/.",
+ "rail": [
+  "files",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   62,
+   38
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     52,
+     48
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "datagrid",
+       "file": "orders-2026.csv",
+       "total": "12,480 rows · 7 columns · showing 1 to 8",
+       "columns": [
+        {
+         "name": "order_id",
+         "type": "text",
+         "empty": 0
+        },
+        {
+         "name": "date",
+         "min": "1 Mar",
+         "max": "31 Mar",
+         "type": "date",
+         "empty": 0,
+         "spread": [
+          20,
+          24,
+          30,
+          28,
+          35,
+          40,
+          38,
+          52,
+          60,
+          58,
+          66,
+          90
+         ]
+        },
+        {
+         "name": "region",
+         "min": "4 values",
+         "max": "",
+         "type": "cat",
+         "empty": 0,
+         "spread": [
+          90,
+          64,
+          40,
+          22
+         ]
+        },
+        {
+         "name": "product",
+         "min": "6 values",
+         "max": "",
+         "type": "cat",
+         "empty": 0,
+         "spread": [
+          70,
+          55,
+          42,
+          30,
+          18,
+          12
+         ]
+        },
+        {
+         "name": "units",
+         "min": "1",
+         "max": "24",
+         "type": "num",
+         "empty": 0,
+         "spread": [
+          80,
+          60,
+          34,
+          20,
+          10,
+          6,
+          3,
+          2
+         ]
+        },
+        {
+         "name": "revenue",
+         "min": "$12",
+         "max": "$12,900",
+         "type": "num",
+         "empty": 41,
+         "sel": true,
+         "spread": [
+          70,
+          88,
+          52,
+          30,
+          18,
+          9,
+          4,
+          2,
+          1,
+          1,
+          1,
+          6
+         ]
+        },
+        {
+         "name": "returned",
+         "min": "6% yes",
+         "max": "",
+         "type": "bool",
+         "empty": 0,
+         "spread": [
+          94,
+          6
+         ]
+        }
+       ],
+       "rows": [
+        [
+         "A-10021",
+         "2026-03-08",
+         "North",
+         "Trail pack 30L",
+         2,
+         178,
+         "no"
+        ],
+        [
+         "A-10022",
+         "2026-03-08",
+         "Coast",
+         "Rain shell",
+         1,
+         129,
+         "no"
+        ],
+        [
+         "A-10023",
+         "2026-03-09",
+         "North",
+         "Camp stove",
+         1,
+         null,
+         "no"
+        ],
+        [
+         "A-10024",
+         "2026-03-09",
+         "Inland",
+         "Trail pack 30L",
+         1,
+         89,
+         "yes"
+        ],
+        [
+         "A-10025",
+         "2026-03-09",
+         "Coast",
+         "Head torch",
+         4,
+         96,
+         "no"
+        ],
+        [
+         "A-10026",
+         "2026-03-10",
+         "North",
+         "Rain shell",
+         1,
+         12900,
+         "no"
+        ],
+        [
+         "A-10027",
+         "2026-03-10",
+         "Islands",
+         "Camp stove",
+         2,
+         118,
+         "no"
+        ],
+        [
+         "A-10028",
+         "2026-03-10",
+         "Inland",
+         "Head torch",
+         1,
+         24,
+         "no"
+        ]
+       ],
+       "marks": [
+        {
+         "row": 5,
+         "col": 5,
+         "note": "100× the usual price"
+        }
+       ],
+       "note": "41 March orders have no revenue: the shop's card terminal was offline 9 to 14 March."
+      }
+     },
+     {
+      "split": "row",
+      "sizes": [
+       50,
+       50
+      ],
+      "children": [
+       {
+        "view": "kit",
+        "part": {
+         "type": "axischart",
+         "title": "Revenue by month",
+         "prefix": "$",
+         "unit": "k",
+         "labels": [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun"
+         ],
+         "values": [
+          42,
+          45,
+          31,
+          47,
+          49,
+          52
+         ],
+         "ghost": [
+          null,
+          null,
+          44,
+          null,
+          null,
+          null
+         ],
+         "mark": 2,
+         "target": 45,
+         "valueLabel": "recorded",
+         "ghostLabel": "gaps filled",
+         "targetLabel": "plan",
+         "h": 330
+        }
+       },
+       {
+        "view": "kit",
+        "part": {
+         "type": "axischart",
+         "title": "March orders with no revenue, by day",
+         "labels": [
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16"
+         ],
+         "values": [
+          0,
+          0,
+          6,
+          8,
+          7,
+          5,
+          9,
+          6,
+          0,
+          0
+         ],
+         "valueLabel": "orders, terminal offline 9 to 14",
+         "h": 330
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     56,
+     44
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Find out why revenue dipped in March.",
+       "say": "Most of the dip is not real. 41 March orders have no revenue, all from 9 to 14 March when the card terminal was offline. Filled in from the payment export, March is $44k, close to normal.",
+       "log": [
+        [
+         "read data/orders-2026.csv",
+         "12,480 rows"
+        ],
+        [
+         "profiled 7 columns",
+         "1 with gaps"
+        ],
+        [
+         "matched gaps to payments.csv",
+         "41 of 41"
+        ],
+        [
+         "found 1 typo",
+         "row 6, cents as dollars"
+        ],
+        [
+         "rebuilt March total",
+         "$31k to $44k"
+        ],
+        [
+         "[x] explain the dip",
+         "done"
+        ],
+        [
+         "[ ] fix the data file",
+         "your yes"
+        ],
+        [
+         "[ ] export the charts",
+         "your yes"
+        ]
+       ],
+       "hint": "Ask a question about the data",
+       "strip": [
+        "auto · done 2m 10s",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "What it found",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "stat",
+         "label": "March as recorded",
+         "value": "$31k",
+         "delta": "31%",
+         "dir": "down",
+         "sub": "vs February"
+        },
+        {
+         "type": "stat",
+         "label": "March, gaps filled",
+         "value": "$44k",
+         "delta": "2%",
+         "dir": "down",
+         "sub": "vs February"
+        },
+        {
+         "type": "buttons",
+         "actions": [
+          {
+           "label": "Fix the data file",
+           "primary": true
+          },
+          {
+           "label": "Export the charts"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}
