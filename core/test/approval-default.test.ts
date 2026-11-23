@@ -14,7 +14,7 @@ const engine = (id: string, argvFile: string, approval_profiles?: Record<string,
   version_cmd: [process.execPath, '--version'], ...(approval_profiles ? { approval_profiles } : {}),
 });
 
-async function runCase(id: string, engineSpec: object, settings?: object) {
+async function runCase(id: string, engineSpec: object, settings?: object, expectedApproval?: string) {
   const isolated = isolation();
   const registry = join(isolated.home, 'engines.json');
   const argvFile = join(isolated.home, `${id}-argv.json`);
@@ -33,6 +33,7 @@ async function runCase(id: string, engineSpec: object, settings?: object) {
       const opened = await pipe.request('project.open', { path: project });
       const launched = await pipe.request('session.launch', { project_id: opened.result.project_id, engine_id: id });
       assert.ok(launched.result?.session_id, JSON.stringify(launched));
+      if (expectedApproval) assert.equal(launched.result.approval, expectedApproval);
     } finally { pipe.close(); }
     return await until(() => {
       try { return JSON.parse(readFileSync(argvFile, 'utf8')) as string[]; } catch { return undefined; }
@@ -52,6 +53,13 @@ test('sessions.approval ask adds no approval argv', async () => {
   assert.deepEqual(await runCase('ask-engine', engine('ask-engine', '', { contained: ['--fake-contained'] }), { sessions: { approval: 'ask' } }), []);
 });
 
-test('engine without contained profile falls back to ask instead of failing', async () => {
+test('engine without contained or edits profiles falls back to ask instead of failing', async () => {
   assert.deepEqual(await runCase('unsupported', engine('unsupported', '')), []);
+});
+
+test('session.launch uses edits when contained is unavailable, ask with neither profile, and preserves explicit settings ask', async () => {
+  // protects= D89: omitted launch approval falls back through usable profiles but respects settings ask.
+  assert.deepEqual(await runCase('edits-only', engine('edits-only', '', { edits: ['--fake-edits'] }), undefined, 'edits'), ['--fake-edits']);
+  assert.deepEqual(await runCase('no-profiles', engine('no-profiles', ''), undefined, 'ask'), []);
+  assert.deepEqual(await runCase('explicit-ask', engine('explicit-ask', '', { contained: ['--fake-contained'], edits: ['--fake-edits'] }), { sessions: { approval: 'ask' } }, 'ask'), []);
 });

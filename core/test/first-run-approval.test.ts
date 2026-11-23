@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setSetting, settings, settingsFile } from '../src/settings.ts';
+import { DEFAULTS, setSetting, settings, settingsFile } from '../src/settings.ts';
 import { withEnv } from './helpers.ts';
 
 test('fresh METATROOPER_HOME defaults sessions.approval to contained', () => {
@@ -17,12 +17,14 @@ test('fresh METATROOPER_HOME defaults sessions.approval to contained', () => {
   }
 });
 
-test('settings.json that exists but does not parse gives sessions.approval ask', () => {
+test('settings.json that exists but does not parse keeps defaults with sessions.approval contained', () => {
   const home = mkdtempSync(join(tmpdir(), 'first-run-appr-'));
   try {
     withEnv({ METATROOPER_HOME: home }, () => {
       writeFileSync(join(home, 'settings.json'), '{"broken json');
-      assert.equal(settings().sessions.approval, 'ask');
+      // protects= D89: broken JSON retains all defaults, including contained approval.
+      assert.deepEqual(settings(), DEFAULTS);
+      assert.equal(settings().sessions.approval, 'contained');
     });
   } finally {
     rmSync(home, { recursive: true, force: true });

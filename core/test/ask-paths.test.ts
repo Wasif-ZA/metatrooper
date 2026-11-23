@@ -48,7 +48,7 @@ async function runCase(id: string, pathKind: 'contains' | 'inside' | 'ordinary' 
       assert.ok(opened.result?.project_id, JSON.stringify(opened));
       const launched = await pipe.request('session.launch', { project_id: opened.result.project_id, engine_id: id, approval: 'contained' });
       assert.ok(launched.result?.session_id, JSON.stringify(launched));
-      if (pathKind !== 'ordinary' && pathKind !== 'near') assert.equal(launched.result.approval, 'ask');
+      assert.equal(launched.result.approval, 'contained');
     } finally { pipe.close(); }
     return await until(() => {
       try { return JSON.parse(readFileSync(argvFile, 'utf8')) as string[]; } catch { return undefined; }
@@ -56,12 +56,12 @@ async function runCase(id: string, pathKind: 'contains' | 'inside' | 'ordinary' 
   } finally { await teardownCore(core, isolated); }
 }
 
-test('a tree holding an ask path asks for Codex and agy while Claude keeps contained approval', async () => {
+test('a tree holding an ask path keeps contained approval for Codex, agy, and Claude', async () => {
   const codex = await runCase('codex-near', 'near', ['--approve-for-me'], true);
-  assert.equal(codex.includes('--approve-for-me'), false);
+  // protects= D89: ask_paths and legacy ask_near_paths do not override contained approval.
+  assert.deepEqual(codex, ['--approve-for-me']);
   const agy = await runCase('agy-near', 'near', ['--mode', 'accept-edits', '--sandbox'], true);
-  assert.equal(agy.includes('accept-edits'), false);
-  assert.equal(agy.includes('--sandbox'), false);
+  assert.deepEqual(agy, ['--mode', 'accept-edits', '--sandbox']);
   const claude = await runCase('claude-near', 'near', ['--permission-mode', 'auto']);
   assert.deepEqual(claude, ['--permission-mode', 'auto']);
 });
@@ -72,23 +72,27 @@ test('ordinary project keeps contained flags for Codex, agy, and Claude', async 
   assert.deepEqual(await runCase('claude-ordinary-all', 'ordinary', ['--permission-mode', 'auto']), ['--permission-mode', 'auto']);
 });
 
-test('folderApproval reads the ask_paths it is given', () => {
+test('folderApproval keeps requested approval or defaults to contained regardless of folder', () => {
+  // protects= D89: folderApproval defaults to contained and preserves every explicit approval.
   const rootDir = join(root, 'work', 'client');
-  const codex = { ask_near_paths: true } as Parameters<typeof folderApproval>[2];
-  assert.equal(folderApproval(join(rootDir, 'repo', 'src', 'deep'), 'contained', codex, [rootDir]), 'ask');
-  assert.equal(folderApproval(join(rootDir, 'repo'), 'contained', {}, [rootDir]), 'ask');
-  assert.equal(folderApproval(join(rootDir, 'repo'), 'contained', {}, []), 'contained');
-  assert.equal(folderApproval(join(root, 'projects', 'app'), 'contained', {}, [rootDir]), 'contained');
+  for (const dir of [rootDir, join(rootDir, 'repo', 'src', 'deep'), join(root, 'projects', 'app')]) {
+    assert.equal(folderApproval(dir), 'contained');
+    for (const approval of ['ask', 'edits', 'contained', 'isolated']) {
+      assert.equal(folderApproval(dir, approval), approval);
+    }
+  }
 });
 
-test('a project holding an ask path forces Claude approval to ask', async () => {
+test('a project holding an ask path keeps Claude approval contained', async () => {
   const argv = await runCase('claude-vault', 'contains', ['--permission-mode', 'auto']);
-  assert.equal(argv.includes('--permission-mode'), false);
+  // protects= D89: a parent of an ask path keeps the requested approval.
+  assert.deepEqual(argv, ['--permission-mode', 'auto']);
 });
 
-test('a project inside an ask path forces Codex approval to ask', async () => {
+test('a project inside an ask path keeps Codex approval contained', async () => {
   const argv = await runCase('codex-inside', 'inside', ['--approve-for-me']);
-  assert.equal(argv.includes('--approve-for-me'), false);
+  // protects= D89: a descendant of an ask path keeps the requested approval.
+  assert.deepEqual(argv, ['--approve-for-me']);
 });
 
 test('ordinary project keeps contained approval flags', async () => {

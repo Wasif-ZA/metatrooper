@@ -142,7 +142,8 @@ test('2. A session launched at ask, resumed: approval ask, no --contained or --e
   }
 });
 
-test('3. A session launched at contained whose project folder is then added to settings sessions.ask_paths, resumed: approval ask', async () => {
+test('3. A session launched at contained whose project folder is then added to settings sessions.ask_paths, resumed: approval contained', async () => {
+  // protects= D89: adding ask_paths after launch preserves contained on resume, argv, and storage.
   const c = await setupCase();
   try {
     const launch = await c.pipe.request('session.launch', {
@@ -162,15 +163,15 @@ test('3. A session launched at contained whose project folder is then added to s
     utimesSync(settingsPath, future, future);
 
     const resumed = await c.pipe.request('session.resume', { session_id: oldId });
-    assert.equal(resumed.result?.approval, 'ask');
+    assert.equal(resumed.result?.approval, 'contained');
     const newId = resumed.result?.session_id;
     assert.ok(newId);
     const newArgv = await c.getArgv(newId);
-    assert.equal(newArgv.includes('--contained'), false);
+    assert.equal(newArgv.includes('--contained'), true);
     assert.equal(newArgv.includes('--edits'), false);
 
     const row = c.db.prepare('SELECT approval FROM session WHERE id = ?').get(newId) as { approval: string | null };
-    assert.equal(row.approval, 'ask');
+    assert.equal(row.approval, 'contained');
   } finally {
     await c.teardown();
   }
