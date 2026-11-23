@@ -68,10 +68,13 @@ test('only type "gate" is rewritten', () => {
   assert.deepEqual(inertGates(o), o);
 });
 
-test('nesting deeper than 64 is left as is, within 64 is rewritten', () => {
+test('nesting deeper than 64 is dropped so a deep gate never survives, within 64 is rewritten', () => {
   const wrap = (g: any, n: number) => { for (let i = 0; i < n; i++) g = { type: 'card', children: [g] }; return g; };
   const dig = (x: any, n: number) => { for (let i = 0; i < n; i++) x = x.children[0]; return x; };
-  assert.deepEqual(dig(inertGates(wrap(gate, 70)), 70), gate);
+  const deep: any = inertGates(wrap(gate, 70));
+  let n = 0; for (let x = deep; x; x = x.children?.[0]) n++;
+  assert.ok(n < 70, 'the chain is cut by a null');
+  assert.ok(!LEAK.test(JSON.stringify(inertGates(wrap(gate, 70)))));
   assert.deepEqual(dig(inertGates(wrap(gate, 20)), 20), inert);
 });
 

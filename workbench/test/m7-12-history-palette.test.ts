@@ -209,3 +209,16 @@ test('M7-12a choosing a History row that is not exited picks it without resuming
   assert.deepEqual(rows(w), ['session.focus']);
   assert.equal(w.calls.find((c) => c.method === 'session.focus')!.params.session_id, 'old2');
 });
+
+for (const [name, row, resumed] of [['exited', { ...old, id: 'oldp2', project_id: 'p2' }, 'new1'], ['live', { ...alive, id: 'liveP2', project_id: 'p2' }, 'liveP2']] as const) {
+  test(`M7-12a choosing a ${name} History row of another project switches project with pendingPick and does not pick it directly`, async () => {
+    const w = boot();
+    const items = await search(w, [row]);
+    await w.click({ palette: String(items.findIndex((x) => x.group === 'History')) });
+    await w.advance(0);
+    assert.equal(w.calls.some((c) => c.method === 'session.resume'), name === 'exited');
+    assert.equal(w.t.ui.projectId, 'p2');
+    assert.equal(w.t.ui.pendingPick, resumed);
+    assert.equal(w.calls.some((c) => c.method === 'session.focus'), false, 'no direct pick');
+  });
+}

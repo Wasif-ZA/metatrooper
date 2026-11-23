@@ -146,3 +146,14 @@ test('M8-17a the keys sheet lists Ctrl+Alt+V right after Ctrl+Alt+W', () => {
   assert.equal(keys[i + 1].keys, 'Ctrl+Alt+V');
   assert.equal(keys[i + 1].does, 'Switch between the IDE and the Wall');
 });
+
+test('M8-17a AltGr+V (Ctrl+Alt with the AltGraph modifier) leaves the view and is not consumed', async () => {
+  // protects=AltGr+V still types its character on layouts that have one
+  // fails_when=the chord switches the view or is swallowed
+  const w = await start('wall');
+  const ev = await w.key('v', { ...V, getModifierState: (m: string) => m === 'AltGraph' });
+  assert.deepEqual(w.views, []);
+  assert.equal(w.t.ui.view, 'wall');
+  assert.equal(ev.defaultPrevented, false);
+  assert.equal(ev.stopped, false);
+});
