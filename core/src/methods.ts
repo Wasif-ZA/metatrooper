@@ -15,7 +15,7 @@ import { cronNext, cronWords, nowIso, ulid } from './time.ts';
 import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
-import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
+import { defaultApproval, heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { proveSecret } from './sessions/secret.ts';
 import { parseChat, parseEngineChat } from './sessions/chat.ts';
 import { engineFile } from './meter.ts';
@@ -325,8 +325,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
       const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
       const fallback = project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : settings().sessions.approval;
-      // No launch falls back to ask (D89): an unusable default becomes contained, then edits; only an engine with neither runs on its own prompts.
-      let approval = requested || [fallback, 'contained', 'edits'].find((a) => a !== 'isolated' && (a === 'ask' ? fallback === 'ask' : Boolean(engine.approval_profiles?.[a]))) || 'ask';
+      let approval = requested || defaultApproval(engine, fallback);
       if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
         throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
       }

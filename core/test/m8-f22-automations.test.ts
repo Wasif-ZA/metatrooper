@@ -1,12 +1,88 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { automationTick, LATE_MS, type AutomationDeps, type CheckResult } from '../src/automations.ts';
 import { buildMethods } from '../src/methods.ts';
 import { schemaFile } from '../src/paths.ts';
+import { BUILT_IN, type EngineSpec } from '../src/engines/registry.ts';
+import { defaultApproval } from '../src/sessions/launch.ts';
+import { buildGenerated, client, isolation, startCore, teardownCore, uiHello } from './helpers.ts';
+
+const approvalEngine: EngineSpec = {
+  id: 'fake-approval-engine', command: process.execPath,
+  version_cmd: [process.execPath, '--version'], state_source: 'process',
+  roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli',
+};
+
+for (const { label, preferred, profiles, expected } of [
+  { label: 'keeps supported contained', preferred: 'contained', profiles: { contained: [], edits: [] }, expected: 'contained' },
+  { label: 'falls back to edits', preferred: 'contained', profiles: { edits: [] }, expected: 'edits' },
+  { label: 'uses ask without profiles', preferred: 'contained', profiles: undefined, expected: 'ask' },
+  { label: 'honors explicit ask', preferred: 'ask', profiles: { contained: [], edits: [] }, expected: 'ask' },
+  { label: 'replaces isolated with contained', preferred: 'isolated', profiles: { isolated: [], contained: [], edits: [] }, expected: 'contained' },
+  { label: 'replaces isolated with edits', preferred: 'isolated', profiles: { isolated: [], edits: [] }, expected: 'edits' },
+]) {
+  // protects=D89_default_approval fails_when=default_ignores_profiles_or_selects_isolated no_claim=real_session_launch
+  test(`defaultApproval ${label}`, () => {
+    assert.equal(defaultApproval({ ...approvalEngine, approval_profiles: profiles }, preferred), expected);
+  });
+}
+
+// protects=D89_M8-F22e fails_when=automation_launch_persists_ask_instead_of_contained no_claim=wall_clock_scheduler_tick
+test('real core automation.run launches a session with contained approval by default', async () => {
+  await buildGenerated();
+  const isolated = isolation();
+  let core: Awaited<ReturnType<typeof startCore>> | undefined;
+  try {
+    const trustedFile = join(isolated.home, 'trusted.json');
+    const registry = join(isolated.home, 'engines.json');
+    const script = join(isolated.home, 'approval-engine.mjs');
+    writeFileSync(trustedFile, JSON.stringify({ trusted: [] }));
+    writeFileSync(script, 'setInterval(() => {}, 1000);');
+    const fake: EngineSpec = {
+      ...approvalEngine, args: [script], prompt_arg: 'positional',
+      approval_profiles: { contained: [] },
+    };
+    writeFileSync(registry, JSON.stringify([...BUILT_IN, fake].map(engine => ({
+      ...engine, trust: { kind: 'json-list', file: trustedFile, at: ['trusted'], path_style: 'posix' },
+    }))));
+    writeFileSync(join(isolated.home, 'settings.json'), JSON.stringify({ sessions: { approval: 'contained' } }));
+    Object.assign(isolated.env, {
+      METATROOPER_ENGINES: registry, METATROOPER_FAKE_DPAPI: '1',
+      METATROOPER_CLAUDE_SETTINGS: join(isolated.home, 'claude-settings.json'),
+      METATROOPER_CODEX_CONFIG: join(isolated.home, 'codex-config.toml'),
+    });
+    core = await startCore(isolated);
+    const ui = await client(isolated.prefix);
+    try {
+      await uiHello(ui, isolated.home);
+      const projectDir = join(isolated.home, 'project');
+      mkdirSync(projectDir);
+      const opened = await ui.request('project.open', { path: projectDir });
+      assert.equal(opened.error, undefined);
+      assert.ok(opened.result?.project_id);
+      const saved = await ui.request('automation.set', {
+        project_id: opened.result.project_id, name: 'Default approval regression',
+        every_min: 60, engine_id: fake.id, prompt: 'Check the project',
+      });
+      assert.equal(saved.error, undefined);
+      assert.ok(saved.result?.id);
+      const ran = await ui.request('automation.run', { id: saved.result.id }, { timeout: 30_000 });
+      assert.equal(ran.error, undefined);
+      assert.equal(ran.result?.outcome, 'woke', ran.result?.detail);
+      assert.ok(ran.result?.session_id);
+      const db = new DatabaseSync(join(isolated.home, 'troop.db'), { readOnly: true });
+      try {
+        const row = db.prepare('SELECT approval FROM session WHERE id = ?').get(ran.result.session_id);
+        assert.ok(row, 'automation must persist its launched session');
+        assert.equal(row.approval, 'contained');
+      } finally { db.close(); }
+    } finally { ui.close(); }
+  } finally { await teardownCore(core, isolated); }
+});
 
 type Run = { id: string; due_at: string; at: string; outcome: string; exit_code: number | null; detail: string | null; session_id: string | null };
 type Listed = { id: string; next_due: string; runs: Run[] };
@@ -47,7 +123,7 @@ async function fixture(t: TestContext, result: CheckResult = { code: 0 }) {
     },
     launch: async a => {
       launches++;
-      assert.deepEqual(a, { project_id: 'p1', engine_id: 'codex', prompt: 'Check the project', approval: 'ask' });
+      assert.deepEqual(a, { project_id: 'p1', engine_id: 'codex', prompt: 'Check the project' }); // D89: no approval sent, session.launch applies the default
       return { session_id: 's1' };
     },
   };
