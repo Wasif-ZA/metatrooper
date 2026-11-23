@@ -89,6 +89,8 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   ui.data                 {session_id, surface, path, value}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
   catalogue.proposals     {}
+  templates.proposals     {}
+  templates.keep          {name}
   engine.run              {session_id, engine, action, input?, surface?}
   workspace.change        {session_id, op?: set | save | restore | example, workspace?, name?}
   workspace.get           {project_id}
