@@ -22,8 +22,8 @@ The tile x and the list row x render only when the session's state is not `start
 
 - [ ] M6-27a. A tile and a list row for a session in each of `starting`, `working` and `waiting_for_you` have no element with `data-action="hide"`; in `done`, `idle` and `exited` each has exactly one.
 - [ ] M6-27b. A session moving from `working` to `done` gains its tile x within one render.
-- [ ] M6-27c. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M6-27d. The existing workbench suite still passes.
+- [x] M6-27c. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (card check by B4: all 6 tests in workbench/test/m6-27-no-hide.test.ts)
+- [x] M6-27d. The existing workbench suite still passes. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Out of scope
 

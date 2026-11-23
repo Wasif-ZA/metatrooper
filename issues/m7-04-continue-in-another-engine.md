@@ -50,7 +50,7 @@ The first two are copied from `spec.md` and must not be reworded here.
 - [x] M7-04e. After Continue, the old session's `limit_resume` is 0, the new session runs in the old `cwd`, and the old tile receives no pasted text when the new session exits. (2026-11-24, B4 on a8a3b642: core/test/m7-04-continue.test.ts 13/13)
 - [x] M7-04f. A source with no readable transcript still writes a valid file with the task, folder, changed files and the "no transcript" line, and launches. (2026-11-24, B4 on a8a3b642: core/test/m7-04-continue.test.ts 13/13)
 - [x] M7-04g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (2026-11-24, B4 on a8a3b642: card check by B4: core/test/m7-04-continue.test.ts and workbench/test/m7-04-continue-button.test.ts)
-- [ ] M7-04h. The existing core and workbench suites still pass.
+- [x] M7-04h. The existing core and workbench suites still pass. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Testing plan
 

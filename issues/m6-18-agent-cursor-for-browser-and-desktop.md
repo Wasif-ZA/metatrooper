@@ -76,7 +76,7 @@ The first four are copied from `spec.md` and must not be reworded here.
 - [ ] M6-18o. Two sessions usually get different colours (a hue hash, stable across restarts, D49), the tile dot and both cursors of one session use the same colour, and the watch thumbnail dot appears in that colour.
 - [ ] M6-18p. Existing tests: M1-23 in `browser-pane.test.ts` still passes with its assertions unchanged (cursor probe before click probe, within 5 px). The "rename during the cursor glide asks" step in `m6-02-approvals-e2e.test.ts` passes unchanged.
 - [ ] M6-18q. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M6-18r. The existing workbench and core suites still pass.
+- [x] M6-18r. The existing workbench and core suites still pass. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Testing plan
 

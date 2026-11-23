@@ -73,7 +73,7 @@ First users meet the wall on 2027-01-19. Today it has defects that make it say s
 - [ ] M6-26j. "Open a browser pane" in the empty browser panel opens one pane; "Choose a project" opens the project picker.
 - [ ] M6-26k. Every `button` in the rendered wall whose trimmed text is empty, "x" or one non-letter character has a non-empty `aria-label`; the Inbox and sinks popovers have `role="dialog"`; Esc with focus in a sinks form input closes it, and Esc with focus in the Inbox closes it.
 - [ ] M6-26l. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M6-26m. The existing workbench and core suites still pass.
+- [x] M6-26m. The existing workbench and core suites still pass. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Testing plan
 

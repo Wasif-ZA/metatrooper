@@ -108,7 +108,7 @@ Each fix reads a signal the engine already gives. No new dependency.
 - [x] M6-23f. A `claude.Stop` payload with a `background_tasks` entry carrying `description: "<marker>"` stores no marker in `event.payload`. (2026-11-24, B4 on a8a3b642: core/test/m6-23-true-status.test.ts 58/58, the M6-23f tests)
 - [x] M6-23g. An engine file whose `state_titles.idle` is `(` loads, logs one line naming the engine and field, and has no interrupt detection. (2026-11-24, B4 on a8a3b642: core/test/m6-23-true-status.test.ts 58/58, the M6-23g tests)
 - [x] M6-23h. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (2026-11-24, B4 on a8a3b642: card check by B4: all tests in core/test/m6-23-true-status.test.ts name protects=, fails_when=, no_claim=)
-- [ ] M6-23i. The existing core and workbench suites still pass. `m6-24-limits.test.ts` passes unchanged.
+- [x] M6-23i. The existing core and workbench suites still pass. `m6-24-limits.test.ts` passes unchanged. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0; core/test/m6-24-limits.test.ts last changed 2026-10-12, before the M6-23 tests (2d009612))
 
 ## Testing plan
 
