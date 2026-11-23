@@ -75,7 +75,7 @@ test('ticked logins save origin-bound secrets and a saved one is kept unless rep
     const out = importLogins(f.db, rows, [{ i: 0 }, { i: 1 }]);
     assert.equal(out.imported, 2);
     assert.equal(getSecret('core-browser', 'login_a_example'), 'first-pass-1');
-    assert.equal(getSecret('core-browser', 'login_a_example_user'), 'alice');
+    assert.equal(getSecret('core-browser', 'loginuser_a_example'), 'alice');
     assert.equal(getSecret('core-browser', 'login_a_example_2'), 'other-pass-2');
     assert.equal(readFileSync(join(f.store, 'login_a_example.origin'), 'utf8').trim(), 'https://a.example');
     assert.deepEqual(listLogins().map((l) => l.name), ['login_a_example', 'login_a_example_2']);
@@ -131,10 +131,10 @@ test('removeLogin removes both secrets and refuses other names', () => {
   const f = fixture();
   try {
     importLogins(f.db, [row('https://a.example', 'alice', 'first-pass-1')], [{ i: 0 }]);
-    for (const bad of ['other_secret', 'login_a_example_user', '../x', 'login_../x', 'login_a/b']) assert.throws(() => removeLogin(bad), /not an imported login/, bad);
+    for (const bad of ['other_secret', 'loginuser_a_example', '../x', 'login_../x', 'login_a/b']) assert.throws(() => removeLogin(bad), /not an imported login/, bad);
     removeLogin('login_a_example');
     assert.equal(getSecret('core-browser', 'login_a_example'), null);
-    assert.equal(getSecret('core-browser', 'login_a_example_user'), null);
+    assert.equal(getSecret('core-browser', 'loginuser_a_example'), null);
     assert.ok(!existsSync(join(f.store, 'login_a_example.origin')));
     assert.deepEqual(listLogins(), []);
   } finally { f.close(); }

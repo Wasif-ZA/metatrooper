@@ -16,7 +16,7 @@ import { settings } from '../../../core/src/settings.ts';
 const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
-import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
+import { BROWSER_SECRETS, browserSecretOrigin, isUsernameSecret, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 import { awaitArrived, planGlide, scrubbedCaption, type Mode } from '../cursor-glide.ts';
 import { sessionColour } from '../colour.ts';
 
@@ -1293,7 +1293,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (!saved) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
     const d = await this.describeControl(pane, { ref, tool: 'type' });
     if (d.origin !== saved) throw new ToolError(-32037, `secret ${name} is saved for another origin; nothing was typed`);
-    if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
+    if (!d.password && !isUsernameSecret(name)) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
     const value = getSecret(BROWSER_SECRETS, name);
     if (!value) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
     // saved again meanwhile: the value read may not be the one saved for the origin checked

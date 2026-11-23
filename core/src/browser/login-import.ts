@@ -13,6 +13,8 @@ export const MAX_CSV_BYTES = 5 * 1024 * 1024;
 export const MAX_ROWS = 5000;
 export const MAX_SECRETS = 500;
 export const PREFIX = 'login_';
+export const USER_PREFIX = 'loginuser_';
+const userName = (name: string) => USER_PREFIX + name.slice(PREFIX.length);
 
 export interface LoginRow { url: string; username: string; password: string }
 export interface PreviewRow { i: number; origin: string | null; username: string; name: string | null; exists: boolean; skip: string | null }
@@ -77,7 +79,7 @@ export function previewLogins(rows: LoginRow[], existing = new Set(savedNames())
   });
 }
 
-/** Saves the ticked rows as browser secrets (password as NAME, username as NAME_user when long enough to scrub); an existing secret is replaced only when ticked to replace. */
+/** Saves the ticked rows as browser secrets (password as login_<host>, username as loginuser_<host> when long enough to scrub); an existing secret is replaced only when ticked to replace. */
 export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ i: number; replace?: boolean }>): { imported: number; origins: string[]; skipped: Array<{ i: number; why: string }> } {
   const plan = previewLogins(rows);
   const skipped: Array<{ i: number; why: string }> = [];
@@ -93,7 +95,7 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
     if (room < (withUser ? 2 : 1)) { skipped.push({ i: p.i, why: `cc keeps at most ${MAX_SECRETS} browser secrets` }); continue; }
     setBrowserSecret(db, p.name!, p.origin!, rows[p.i].password);
     room--;
-    if (withUser) { setBrowserSecret(db, `${p.name}_user`, p.origin!, rows[p.i].username); room--; }
+    if (withUser) { setBrowserSecret(db, userName(p.name!), p.origin!, rows[p.i].username); room--; }
     origins.add(p.origin!);
     imported++;
   }
@@ -105,13 +107,13 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
 /** The imported logins: name and origin, never a value. */
 export function listLogins(): Array<{ name: string; origin: string | null; user: boolean }> {
   const names = savedNames();
-  return names.filter((n) => n.startsWith(PREFIX) && !n.endsWith('_user')).sort().map((name) => ({ name, origin: browserSecretOrigin(name), user: names.includes(`${name}_user`) }));
+  return names.filter((n) => n.startsWith(PREFIX)).sort().map((name) => ({ name, origin: browserSecretOrigin(name), user: names.includes(userName(name)) }));
 }
 
 /** Removes an imported login and its username secret. */
 export function removeLogin(name: string): void {
-  if (!SECRET_NAME.test(name) || !name.startsWith(PREFIX) || name.endsWith('_user')) throw new Error('not an imported login');
-  for (const n of [name, `${name}_user`]) {
+  if (!SECRET_NAME.test(name) || !name.startsWith(PREFIX)) throw new Error('not an imported login');
+  for (const n of [name, userName(name)]) {
     deleteSecret(BROWSER_SECRETS, n);
     fs.rmSync(originFile(n), { force: true });
   }

@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } from './redact.ts';
-import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.ts';
+import { browserSecretOrigin, isUsernameSecret, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.ts';
 import { nowIso, ulid } from './time.ts';
 import { settings } from './settings.ts';
 import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.ts';
@@ -230,7 +230,7 @@ export class Approvals {
       const saved = browserSecretOrigin(name);
       if (!saved) return { decision: 'deny', reason: `there is no browser secret named ${name}` };
       if (saved !== normalOrigin(p.target)) return { decision: 'deny', reason: `secret ${name} is saved for another origin` };
-      if (!p.password) return { decision: 'deny', reason: `secret ${name} goes only into a password field` };
+      if (!p.password && !isUsernameSecret(name)) return { decision: 'deny', reason: `secret ${name} goes only into a password field` };
     }
     const reason = riskReason(p) ?? (this.newOrigin(p) ? 'new origin' : null);
     if (!reason) return { decision: 'allow' };

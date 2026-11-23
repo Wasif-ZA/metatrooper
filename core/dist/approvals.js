@@ -5,7 +5,7 @@ import path from 'node:path';
                                                 
 import { E, RpcError } from './pipe/errors.js';
 import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } from './redact.js';
-import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.js';
+import { browserSecretOrigin, isUsernameSecret, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.js';
 import { nowIso, ulid } from './time.js';
 import { settings } from './settings.js';
 import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.js';
@@ -231,7 +231,7 @@ export class Approvals {
       const saved = browserSecretOrigin(name);
       if (!saved) return { decision: 'deny', reason: `there is no browser secret named ${name}` };
       if (saved !== normalOrigin(p.target)) return { decision: 'deny', reason: `secret ${name} is saved for another origin` };
-      if (!p.password) return { decision: 'deny', reason: `secret ${name} goes only into a password field` };
+      if (!p.password && !isUsernameSecret(name)) return { decision: 'deny', reason: `secret ${name} goes only into a password field` };
     }
     const reason = riskReason(p) ?? (this.newOrigin(p) ? 'new origin' : null);
     if (!reason) return { decision: 'allow' };
