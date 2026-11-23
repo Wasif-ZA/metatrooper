@@ -64,7 +64,7 @@ The loop, each day at 17:00 Sydney time:
 - Commit locally. No push, no trailers, no amend or rebase.
 - No em dashes. One-line comments.
 
-Status 2026-11-24 (B4): scope row 4 built. `~/.cache/claude-scratch/ouros-daily/triage.sh` runs
+Status 2026-11-24 (B4): scope row 4 built. `triage.sh` (in the ouros-daily scratch folder, outside the repo) runs
 `gh issue list --repo Wasif-ZA/metatrooper --state open --json number,title,body,createdAt` (public repo per the
 2026-11-17 update; `TRIAGE_REPO` overrides it), and prints new issues (last 24 h) apart from older ones, with the
 first 8 body lines of each. It writes nothing to GitHub. Run on 2026-11-24, it listed 6 open, 0 new. M9-07c needs his

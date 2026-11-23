@@ -71,6 +71,6 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke() 
 [SpikeNative]::GetForegroundWindow(); [SpikeNative]::GetCursorPos([ref]$p)  # before and after every action
 ```
 
-The C# classes and run notes are kept in `~/.cache/claude-scratch/metatrooper-m6-14-spike-2026-10-11/`.
+The C# classes and run notes are kept in a scratch folder outside the repo (m6-14 spike, 2026-10-11).
 
 Status 2026-11-24: archived with its issue file m6-14-computer-use-spike-on-this-laptop-built.md (done).
