@@ -38,3 +38,8 @@ The old-scope issue is `issues/archive/m5-10-public-docs.md`.
 
 - Old-scope images in `assets/` (`parts.png`, `pipe.png`, `feat-*.gif`, `wall-demo.gif`, `wall.png`,
   `wall-list.png`) are no longer referenced by the README. Delete them, or replace them with the M5-11 recordings.
+
+Status 2026-11-24 (b4/cc-1124 on a8a3b642): M5-10c met: the four Known limits links in README.md:356-362 resolve to
+existing headings (grep of each target file). M5-10a: the remaining hits are absence lines ("no installer yet") and
+the cc Pro lines (README.md:76-79, 427-439). cc Pro stays: D87 and D88 in spec.md supersede D57's "no Pro" for Pro,
+after this criterion was written. M5-10b not rerun (needs the core offline; a core is running on this PC). Open.
