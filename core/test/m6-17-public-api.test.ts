@@ -167,6 +167,7 @@ const EXPECTED_NEEDS_UI = new Set([
   'session.stop',
   'session.continue',
   'ui.event',
+  'catalogue.proposals',
   'workspace.undo',
   'workspace.usual',
   'audit.list',

@@ -83,7 +83,7 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
     }
   }
   out.box = shipped && process.platform === 'win32' && plugin.source !== 'builtin'
-    ? { net: plugin.permissions.includes('network') || mcpWrites(server) === 'external', grants: [`r ${plugin.path}`, ...(out.env.CC_PLUGIN_DATA ? [`w ${out.env.CC_PLUGIN_DATA}`] : [])], project: mcpWrites(server) === 'project' ? 'w' : 'r' }
+    ? { net: plugin.permissions.includes('network'), grants: [`r ${plugin.path}`, ...(out.env.CC_PLUGIN_DATA ? [`w ${out.env.CC_PLUGIN_DATA}`] : [])], project: mcpWrites(server) === 'project' ? 'w' : 'r' }
     : null;
   return out;
 }

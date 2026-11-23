@@ -154,6 +154,8 @@ async function main(): Promise<void> {
     } catch (e) {
       return refuse(`${(e as Error).message}; ${serverId} from ${pluginId} did not start`);
     }
+    const keep = new Set(['SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATH', 'PATHEXT', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', ...Object.keys(r.env), ...Object.keys(r.refs)].map((k) => k.toUpperCase()));
+    for (const k of Object.keys(env)) if (!keep.has(k.toUpperCase())) delete env[k];
     env.TEMP = env.TMP = tmp;
     args.length = 0;
   }
