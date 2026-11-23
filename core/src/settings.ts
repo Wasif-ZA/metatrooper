@@ -51,6 +51,9 @@ export const DEFAULTS = {
     done_needs_check: true,
     checks: {} as Record<string, string>,
   },
+  notify: {
+    quiet_at_night: true,
+  },
   worktree: {
     preserve: [] as string[],
     npm_ci: true,
