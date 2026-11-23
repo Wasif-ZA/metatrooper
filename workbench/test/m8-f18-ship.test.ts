@@ -5,11 +5,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
-import { ship, runIn, type Run } from '../src/gitpane.ts';
+import { ship, runIn, gitAct, type Run } from '../src/gitpane.ts';
 
 const prUrl = 'https://example.invalid/pull/18';
 
-function fixture(t: TestContext) {
+function fixture(t: TestContext, defaultBranch = 'main') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'm8-f18-ship-'));
   const saved = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('GIT_')));
   for (const key of Object.keys(saved)) delete process.env[key];
@@ -31,7 +31,8 @@ function fixture(t: TestContext) {
   const at = (cwd: string, args: string[]) => execFileSync('git', args, {
     cwd, encoding: 'utf8', windowsHide: true, timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'],
   }).trim();
-  at(root, ['init', '--bare', '--initial-branch=main', origin]);
+  at(root, ['init', '--bare', `--initial-branch=${defaultBranch}`, origin]);
+  at(origin, ['symbolic-ref', 'HEAD', `refs/heads/${defaultBranch}`]);
   at(root, ['clone', origin, local]);
   const git = (args: string[]) => at(local, args);
   const remote = (args: string[]) => at(origin, args);
@@ -44,8 +45,8 @@ function fixture(t: TestContext) {
   write('deleted.txt', 'delete me\n');
   git(['add', '-A']);
   git(['commit', '-m', 'seed']);
-  git(['push', '--set-upstream', 'origin', 'main']);
-  git(['remote', 'set-head', 'origin', 'main']);
+  git(['push', '--set-upstream', 'origin', defaultBranch]);
+  git(['remote', 'set-head', 'origin', defaultBranch]);
   const base = git(['rev-parse', 'HEAD']);
   const branch = 'feature/ship';
   git(['checkout', '-b', branch]);
@@ -62,9 +63,8 @@ function fakeGh(existing = '', createError?: string) {
   const calls: string[][] = [];
   const run = async (args: string[]) => {
     calls.push([...args]);
-    if (args[0] === 'pr' && args[1] === 'view') {
-      if (existing) return JSON.stringify({ url: existing });
-      throw new Error('no PR exists');
+    if (args[0] === 'pr' && args[1] === 'list') {
+      return JSON.stringify(existing ? [{ url: existing }] : []);
     }
     assert.equal(args[0], 'pr');
     assert.equal(args[1], 'create');
@@ -78,6 +78,7 @@ function fakeGh(existing = '', createError?: string) {
 test('F18c empty message with changes makes no commit, push or PR', async t => {
   const f = fixture(t);
   f.write('first.txt', 'changed\n');
+  f.git(['add', 'first.txt']);
   const gh = fakeGh();
   const before = f.remote(['show-ref']);
   for (const message of ['', ' \t\r\n ']) {
@@ -87,17 +88,19 @@ test('F18c empty message with changes makes no commit, push or PR', async t => {
   }
   assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
   assert.equal(f.remote(['show-ref']), before);
-  assert.equal(f.git(['diff', '--cached', '--name-only']), '');
+  assert.equal(f.git(['diff', '--cached', '--name-only']), 'first.txt');
   assert.ok(!f.calls.some(args => ['add', 'commit', 'push'].includes(args[0])));
   assert.deepEqual(gh.calls, []);
 });
 
 // protects=gitpane.ts ship: add -A fallback, commit stdin, upstream push, explicit PR head/title/body and result.
-test('ship commits every change when nothing is staged and opens a PR', async t => {
+// The former add -A fallback is forbidden; shipping requires an explicit staged selection.
+test('ship commits explicitly staged changes and opens a PR', async t => {
   const f = fixture(t);
   f.write('first.txt', 'changed\n');
   f.write('untracked file.txt', 'new\n');
   fs.unlinkSync(path.join(f.local, 'deleted.txt'));
+  f.git(['add', '-A']);
   const gh = fakeGh();
   const message = 'feat: ship everything\n\nBody line one\nBody line two';
   const result = await ship(f.run, gh.run, message);
@@ -110,8 +113,8 @@ test('ship commits every change when nothing is staged and opens a PR', async t 
   assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), f.git(['rev-parse', 'HEAD']));
   assert.equal(f.git(['rev-parse', '--abbrev-ref', '@{upstream}']), `origin/${f.branch}`);
   assert.deepEqual(gh.calls, [
-    ['pr', 'view', f.branch, '--json', 'url'],
-    ['pr', 'create', '--head', f.branch, '--title', 'feat: ship everything', '--body', 'Body line one\nBody line two'],
+    ['pr', 'list', '--state', 'open', `--head=${f.branch}`, '--limit', '1', '--json', 'url'],
+    ['pr', 'create', `--head=${f.branch}`, '--title', 'feat: ship everything', '--body', 'Body line one\nBody line two'],
   ]);
 });
 
@@ -120,27 +123,150 @@ test('ship commits only staged files and leaves the second file unstaged', async
   const f = fixture(t);
   f.write('first.txt', 'staged\n');
   f.git(['add', 'first.txt']);
+  f.write('first.txt', 'later unstaged edit\n');
   f.write('second.txt', 'unstaged\n');
   await ship(f.run, fakeGh().run, 'selected change');
   assert.equal(f.git(['show', 'HEAD:first.txt']), 'staged');
   assert.equal(f.git(['show', 'HEAD:second.txt']), 'second');
   assert.equal(fs.readFileSync(path.join(f.local, 'second.txt'), 'utf8'), 'unstaged\n');
-  assert.equal(f.git(['diff', '--name-only']), 'second.txt');
+  assert.equal(fs.readFileSync(path.join(f.local, 'first.txt'), 'utf8'), 'later unstaged edit\n');
+  assert.deepEqual(f.git(['diff', '--name-only']).split('\n').sort(), ['first.txt', 'second.txt']);
   assert.equal(f.git(['diff', '--cached', '--name-only']), '');
   assert.ok(!f.calls.some(args => args[0] === 'add'));
 });
 
-for (const mode of ['origin/HEAD', 'fallback main', 'fallback master']) {
+test('dirty tree with nothing staged refuses without a commit, push or PR', async t => {
+  const f = fixture(t);
+  f.write('first.txt', 'unstaged\n');
+  f.write('untracked.txt', 'untracked\n');
+  fs.unlinkSync(path.join(f.local, 'deleted.txt'));
+  const before = f.git(['status', '--porcelain']);
+  const remoteBefore = f.remote(['show-ref']);
+  const gh = fakeGh();
+  await assert.rejects(ship(f.run, gh.run, 'do not stage everything'), {
+    message: 'commit failed: nothing is staged; stage the files to ship first',
+  });
+  assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
+  assert.equal(f.git(['rev-list', '--count', 'HEAD']), '1');
+  assert.equal(f.git(['status', '--porcelain']), before);
+  assert.equal(f.git(['diff', '--cached', '--name-only']), '');
+  assert.equal(f.remote(['show-ref']), remoteBefore);
+  assert.ok(!f.calls.some(args => ['add', 'commit', 'push'].includes(args[0])));
+  assert.deepEqual(gh.calls, []);
+});
+
+test('missing origin/HEAD discovers remote trunk and ships a feature branch', async t => {
+  const f = fixture(t, 'trunk');
+  f.git(['remote', 'set-head', 'origin', '--delete']);
+  assert.throws(() => f.git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']));
+  const gh = fakeGh();
+  assert.deepEqual(await ship(f.run, gh.run, 'feature on trunk'), { commit: undefined, url: prUrl });
+  assert.ok(f.calls.some(args => JSON.stringify(args) === JSON.stringify(['ls-remote', '--symref', 'origin', 'HEAD'])));
+  assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), f.base);
+  assert.equal(f.remote(['rev-parse', 'refs/heads/trunk']), f.base);
+});
+
+test('unknown remote default refuses before commit, push or PR', async t => {
+  const f = fixture(t);
+  f.write('first.txt', 'staged but unsafe to ship\n');
+  f.git(['add', 'first.txt']);
+  const calls: string[][] = [];
+  const unavailableDefault: Run = async (args, input, options) => {
+    calls.push([...args]);
+    if (args[0] === 'symbolic-ref' || args[0] === 'ls-remote') throw new Error('default unavailable');
+    return f.run(args, input, options);
+  };
+  const gh = fakeGh();
+  const before = f.remote(['show-ref']);
+  await assert.rejects(ship(unavailableDefault, gh.run, 'unsafe default'), /push failed: cannot tell the default branch/);
+  assert.deepEqual(calls, [
+    ['rev-parse', '--abbrev-ref', 'HEAD'],
+    ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+    ['ls-remote', '--symref', 'origin', 'HEAD'],
+  ]);
+  assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
+  assert.equal(f.git(['diff', '--cached', '--name-only']), 'first.txt');
+  assert.equal(f.remote(['show-ref']), before);
+  assert.deepEqual(gh.calls, []);
+});
+
+function assertSafePush(calls: string[][], branch: string) {
+  const pushes = calls.filter(args => args[0] === 'push');
+  assert.equal(pushes.length, 1);
+  const args = pushes[0];
+  const refspec = `refs/heads/${branch}:refs/heads/${branch}`;
+  assert.deepEqual(args, ['push', '--set-upstream', 'origin', '--end-of-options', refspec]);
+  assert.ok(args.indexOf('--end-of-options') < args.indexOf(refspec));
+  assert.ok(!args.some(arg => arg.startsWith('--force') || arg === '-f' || arg.startsWith('+')));
+}
+
+test('push puts --end-of-options before a fully qualified non-forcing refspec', async t => {
+  const f = fixture(t);
+  await ship(f.run, fakeGh().run, 'safe push');
+  assertSafePush(f.calls, f.branch);
+  assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), f.base);
+});
+
+test('literal +main branch cannot force-update origin main', async t => {
+  const f = fixture(t);
+  let allowed = false;
+  try {
+    assert.equal(f.git(['check-ref-format', '--branch', '+main']), '+main');
+    allowed = true;
+  } catch (error) {
+    // Only a real Git rejection selects the argument-recording fallback.
+    assert.equal((error as { status?: number }).status, 128);
+  }
+  const mainBefore = f.remote(['rev-parse', 'refs/heads/main']);
+  if (allowed) {
+    f.git(['checkout', '-b', '+main']);
+    f.write('first.txt', 'feature must not replace main\n');
+    f.git(['add', 'first.txt']);
+    await ship(f.run, fakeGh().run, 'literal plus branch');
+    assert.notEqual(f.git(['rev-parse', 'HEAD']), mainBefore);
+    assert.equal(f.remote(['rev-parse', 'refs/heads/+main']), f.git(['rev-parse', 'HEAD']));
+    assertSafePush(f.calls, '+main');
+  } else {
+    const calls: string[][] = [];
+    const plusBranch: Run = async (args, input, options) => {
+      calls.push([...args]);
+      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') return '+main\n';
+      if (args[0] === 'push') return '';
+      return f.run(args, input, options);
+    };
+    await ship(plusBranch, fakeGh().run, 'literal plus branch');
+    assertSafePush(calls, '+main');
+  }
+  assert.equal(f.remote(['rev-parse', 'refs/heads/main']), mainBefore);
+});
+
+test('closed PR is excluded by open-only list and a new PR is created', async t => {
+  const f = fixture(t);
+  // No open PR remains for this branch: gh list returns [], even if a closed PR exists.
+  const gh = fakeGh();
+  assert.deepEqual(await ship(f.run, gh.run, ''), { commit: undefined, url: prUrl });
+  assert.deepEqual(gh.calls, [
+    ['pr', 'list', '--state', 'open', `--head=${f.branch}`, '--limit', '1', '--json', 'url'],
+    ['pr', 'create', `--head=${f.branch}`, '--fill'],
+  ]);
+});
+
+for (const mode of ['origin/HEAD', 'fallback main', 'fallback master', 'fallback trunk', 'case MAIN']) {
   // protects=gitpane.ts ship: refuse origin/HEAD and main/master fallback before side effects (F18d).
+  // Fallback now discovers the remote default with ls-remote, including nonstandard names.
   test(`F18d refuses default branch: ${mode}`, async t => {
-    const f = fixture(t);
-    f.git(['checkout', 'main']);
+    const defaultBranch = mode === 'fallback master' ? 'master' : mode === 'fallback trunk' ? 'trunk' : 'main';
+    const f = fixture(t, defaultBranch);
+    f.git(['checkout', defaultBranch]);
     if (mode !== 'origin/HEAD') f.git(['remote', 'set-head', 'origin', '--delete']);
-    if (mode === 'fallback master') f.git(['branch', '-m', 'master']);
+    if (mode === 'case MAIN') f.git(['branch', '-M', 'MAIN']);
     f.write('first.txt', 'must stay local\n');
     const gh = fakeGh();
     const before = f.remote(['show-ref']);
     await assert.rejects(ship(f.run, gh.run, 'do not ship'), /^Error: push failed: .*default branch/);
+    if (mode !== 'origin/HEAD') {
+      assert.ok(f.calls.some(args => JSON.stringify(args) === JSON.stringify(['ls-remote', '--symref', 'origin', 'HEAD'])));
+    }
     assert.equal(f.remote(['show-ref']), before);
     assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
     assert.ok(!f.calls.some(args => ['add', 'commit', 'push'].includes(args[0])));
@@ -162,6 +288,7 @@ test('F18d non-fast-forward push never overwrites origin and stops before gh', a
   f.at(other, ['push', 'origin', f.branch]);
   const remoteHead = f.remote(['rev-parse', `refs/heads/${f.branch}`]);
   f.write('local.txt', 'local change\n');
+  f.git(['add', 'local.txt']);
   const gh = fakeGh();
   await assert.rejects(ship(f.run, gh.run, 'local only'), /^Error: push failed:/);
   assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), remoteHead);
@@ -179,7 +306,7 @@ test('clean already-pushed branch reuses its PR without a commit or create', asy
   assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
   assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), f.base);
   assert.ok(!f.calls.some(args => ['add', 'commit'].includes(args[0])));
-  assert.deepEqual(gh.calls, [['pr', 'view', f.branch, '--json', 'url']]);
+  assert.deepEqual(gh.calls, [['pr', 'list', '--state', 'open', `--head=${f.branch}`, '--limit', '1', '--json', 'url']]);
 });
 
 // protects=gitpane.ts ship: PR creation failure names the step and uses only stderr's first line.
@@ -235,15 +362,15 @@ function ipcHarness(options: { demo?: boolean; failure?: Error } = {}) {
     demo: options.demo ?? false,
     ship: async (actualGit: Run, gh: (args: string[]) => Promise<string>, message: string) => {
       calls.push({ git: actualGit, message });
-      // This exercises main.ts's gh adapter without spawning any process.
-      const url = await gh(['pr', 'view', 'feature/ship', '--json', 'url']);
+      // Sentinel for accidental restoration of the retired ship/gh IPC path.
+      const url = await gh(['pr', 'list', '--state', 'open', '--head=feature/ship', '--limit', '1', '--json', 'url']);
       return { commit: 'abc1234', url };
     },
     execFile: (file: string, args: string[], opts: unknown, done: Function) => {
       executions.push({ file, args, options: opts });
       done(options.failure ?? null, prUrl, 'first stderr line\nsecond stderr line');
     },
-    gitAct: () => { throw new Error('ship must not dispatch through gitAct'); },
+    gitAct,
     gitViews,
     viewOf: async (dir: string) => { refreshed.push(dir); return { branch: 'feature/ship', changes: [] }; },
     repoOfAsync: async () => null,
@@ -253,32 +380,34 @@ function ipcHarness(options: { demo?: boolean; failure?: Error } = {}) {
 }
 
 // protects=main.ts git ship op: dispatch to ship, pass message/runner, return commit/url, invalidate and refresh view.
-test('git IPC ship returns commit and URL and refreshes the Git view', async () => {
+// 79008ca9 removed the ship IPC op; retain its guards as checks that the retired path has no effects.
+test('retired git IPC ship returns an unknown-action error and refreshes the Git view', async () => {
   const h = ipcHarness();
   const result = await h.call('feat: through IPC');
-  assert.equal(result.commit, 'abc1234');
-  assert.equal(result.url, prUrl);
-  assert.equal(result.error, undefined);
+  assert.equal(result.commit, undefined);
+  assert.equal(result.url, undefined);
+  assert.equal(result.error, 'unknown git action ship');
   assert.equal(result.branch, 'feature/ship');
-  assert.deepEqual(h.calls, [{ git: h.git, message: 'feat: through IPC' }]);
-  assert.deepEqual(h.executions, [{ file: 'gh', args: ['pr', 'view', 'feature/ship', '--json', 'url'],
-    options: { cwd: h.cwd, encoding: 'utf8', windowsHide: true, timeout: 60000 } }]);
+  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.executions, []);
   assert.equal(h.gitViews.has(h.cwd), false);
   assert.deepEqual(h.refreshed, [h.cwd]);
 });
 
 // protects=main.ts git ship op: non-string IPC arguments are normalized to an empty message.
-test('git IPC ship normalizes non-string message arguments', async () => {
+test('retired git IPC ship rejects non-string message arguments without invoking ship', async () => {
   const h = ipcHarness();
-  await h.call({ message: 'not a string' });
-  assert.equal(h.calls[0].message, '');
+  const result = await h.call({ message: 'not a string' });
+  assert.equal(result.error, 'unknown git action ship');
+  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.executions, []);
 });
 
 // protects=main.ts git ship op: demo refuses shipping before invoking ship/gh while still refreshing.
-test('git IPC ship is disabled in the demo', async () => {
+test('retired git IPC ship is also unavailable in the demo', async () => {
   const h = ipcHarness({ demo: true });
   const result = await h.call('demo');
-  assert.equal(result.error, 'Commit, push, open PR is off in the demo');
+  assert.equal(result.error, 'unknown git action ship');
   assert.equal(result.commit, undefined);
   assert.equal(result.url, undefined);
   assert.deepEqual(h.calls, []);
@@ -288,11 +417,13 @@ test('git IPC ship is disabled in the demo', async () => {
 });
 
 // protects=main.ts git ship op: missing gh gets an actionable error and still invalidates/refreshes the view.
-test('git IPC ship reports missing gh without a real CLI invocation', async () => {
+test('retired git IPC ship never invokes gh even when it is missing', async () => {
   const h = ipcHarness({ failure: new Error('spawn gh ENOENT') });
   const result = await h.call('message');
-  assert.equal(result.error, 'GitHub CLI (gh) is not installed or not on PATH');
+  assert.equal(result.error, 'unknown git action ship');
   assert.equal(result.url, undefined);
+  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.executions, []);
   assert.equal(h.gitViews.has(h.cwd), false);
   assert.deepEqual(h.refreshed, [h.cwd]);
 });
