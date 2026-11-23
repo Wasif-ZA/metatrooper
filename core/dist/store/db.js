@@ -44,7 +44,6 @@ export function openCoreDb()               {
     };
     addColumn('session', 'driven_engine', 'TEXT');
     addColumn('session', 'parent_id', 'TEXT REFERENCES session(id)');
-    addColumn('handoff', 'to_session', 'TEXT REFERENCES session(id)');
     db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
     db.exec('CREATE INDEX IF NOT EXISTS event_session_idx ON event (session_id, seq)');
     addColumn('run', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
@@ -70,6 +69,7 @@ export function openCoreDb()               {
   });
   migrate(db);
   tx(db, () => {
+    if (!(db.prepare('PRAGMA table_info(handoff)').all()                           ).some((c) => c.name === 'to_session')) db.exec('ALTER TABLE handoff ADD COLUMN to_session TEXT REFERENCES session(id)');
     for (const column of ['icon', 'cron', 'approval']) {
       if (!(db.prepare('PRAGMA table_info(automation)').all()                           ).some((c) => c.name === column)) db.exec(`ALTER TABLE automation ADD COLUMN ${column} TEXT`);
     }
