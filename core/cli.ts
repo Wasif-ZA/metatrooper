@@ -270,9 +270,10 @@ function emit(json: boolean, result: unknown, text: string): void {
   console.log(json ? JSON.stringify(result) : text);
 }
 
-async function rpc(method: string, params: Record<string, unknown>, json: boolean, quietError?: string): Promise<{ code: number; result?: Record<string, unknown>; error?: string }> {
+async function rpc(method: string, params: Record<string, unknown>, json: boolean, quietError?: string, waitMs?: number): Promise<{ code: number; result?: Record<string, unknown>; error?: string }> {
   const out: CallOutcome = await call(method, params, {
     ui: Boolean(process.stdin.isTTY),
+    ...(waitMs ? { waitMs } : {}),
     onQueued: (id) => { if (!json) console.error(`queued (${id}); it runs when the core starts`); },
   });
   if (out.kind === 'offline') {
@@ -584,7 +585,7 @@ async function main(): Promise<number> {
       if (!Number.isInteger(secs) || secs < 1 || secs > 600) { console.error('--timeout must be a whole number of seconds from 1 to 600'); return 2; }
       const id = resolveSession(a.pos[0]);
       if (!id) return 1;
-      const r = await rpc('session.wait', { session_id: id, states: ['done', 'waiting_for_you', 'idle', 'exited'], timeout_ms: secs * 1000 }, json);
+      const r = await rpc('session.wait', { session_id: id, states: ['done', 'waiting_for_you', 'idle', 'exited'], timeout_ms: secs * 1000 }, json, undefined, secs * 1000 + 10_000);
       if (!r.result) return r.code;
       const res = r.result;
       emit(res, res.timed_out ? `timed out (${res.state})` : res.waiting_on_person ? `waiting on you: ${res.wait_reason ?? ''}` : String(res.state));
