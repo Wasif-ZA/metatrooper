@@ -13,6 +13,7 @@ import {
   currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, reservedId, validateManifest,
   type InstallScreen, type Manifest,
 } from './manifest.ts';
+import { blockReason } from './blocklist.ts';
 import { importFromSource, importFromSourceAsync, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
 
 export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'marketplace-import' | 'registry-import' | 'builtin';
@@ -132,6 +133,8 @@ function checks(db: DatabaseSync, p: Prepared): string[] {
   const m = p.manifest as Manifest;
   const platforms = m.platforms ?? ['windows'];
   if (!platforms.includes(currentPlatform())) errors.push(`/platforms: this plugin does not support ${currentPlatform()}`);
+  const blocked = blockReason(m.id, m.version);
+  if (blocked) errors.push(`${m.id} ${m.version} is on cc's block list: ${blocked}`);
   for (const e of m.engines ?? []) {
     const owner = db.prepare('SELECT plugin_id FROM engine WHERE id = ?').get(e.id) as { plugin_id: string | null } | undefined;
     if (owner && owner.plugin_id !== m.id) errors.push(`/engines: engine id ${e.id} is already used by ${owner.plugin_id ?? 'a built-in engine'}`);

@@ -36,6 +36,15 @@ keeps the core secrets.
    `~/.metatrooper/plugins/`, its folder. An engine a session or step still names keeps its row, and the
    plugin row stays with `enabled = 0`; engines of disabled plugins are never bound, checked or launched.
 
+Block list (M8-14c): `core/src/plugins/blocked.json` ships with cc and changes only by release; cc never fetches it.
+Each entry is `{id, versions?, reason}` (no `versions` blocks every version). A blocked version fails preview and
+install with the reason; at core start an installed one is turned off and a needs-you row says why; `plugin.enable`
+refuses to turn it back on. Shipped plugins in `plugins/` are never blocked.
+
+Shipped files (M8-14d): install records the SHA-256 of every file in the plugin folder (links and `.git` left out). A
+stdio server starts only while they match; a changed or new file, or a `{{plugin_dir}}` argument outside the folder,
+is refused with -32003 naming it. Reinstalling approves the new files.
+
 ## Permissions
 
 | Permission | What it grants | Enforced how (version 1) |

@@ -49,6 +49,7 @@ import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
 import { getSurface, showSurface, surfaceEvent } from './surfaces.ts';
+import { blockReason } from './plugins/blocklist.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -505,6 +506,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('session.limit-resume', {
     handler: (p) => {
       if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const row = db.prepare('SELECT version FROM plugin WHERE id = ?').get(str(p, 'plugin_id')) as { version: string } | undefined;
+      const why = p.on && row ? blockReason(str(p, 'plugin_id'), row.version) : null;
+      if (why) throw new RpcError(E.VALIDATION, `this plugin is on cc's block list: ${why}`);
       const r = db.prepare('UPDATE session SET limit_resume = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'session_id'));
       if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
       return {};
@@ -1007,6 +1011,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('plugin.enable', {
     handler: (p) => {
       if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const row = db.prepare('SELECT version FROM plugin WHERE id = ?').get(str(p, 'plugin_id')) as { version: string } | undefined;
+      const why = p.on && row ? blockReason(str(p, 'plugin_id'), row.version) : null;
+      if (why) throw new RpcError(E.VALIDATION, `this plugin is on cc's block list: ${why}`);
       const r = db.prepare('UPDATE plugin SET enabled = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'plugin_id'));
       if (!r.changes) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       return { enabled: p.on };
