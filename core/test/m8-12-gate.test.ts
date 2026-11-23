@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openCoreDb } from '../src/store/db.ts';
 import { isolation, withEnv, until } from './helpers.ts';
@@ -45,7 +45,7 @@ function harness(t: any, timeoutMs = 60_000) {
   db.prepare('INSERT OR IGNORE INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)').run('fake', '{}', 1, 'local-cli');
   db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('session-a', 'project', 'fake', 'pty', 'idle', at, at);
   const approvals = new Approvals(db, timeoutMs, () => []);
-  const run = () => withEnv(env, () => runEngine(db, { session_id: 'session-a', engine: 'fake-publish', action: 'publish', input: INPUT }, approvals));
+  const run = (input: Record<string, unknown> = INPUT) => withEnv(env, () => runEngine(db, { session_id: 'session-a', engine: 'fake-publish', action: 'publish', input }, approvals));
   const waiting = (n = 1) => until(() => {
     const rows = db.prepare("SELECT * FROM approval WHERE surface = 'engine' AND status = 'waiting'").all() as any[];
     return rows.length >= n ? rows : null;
@@ -125,4 +125,33 @@ test('an old database learns the engine surface', (t) => {
     insert(db);
     assert.equal((db.prepare("SELECT surface FROM approval WHERE id = 'ap_1'").get() as any).surface, 'engine');
   } finally { db.close(); }
+});
+
+test('a plugin file changed while the gate waits runs nothing after approval', async (t) => {
+  const h = harness(t);
+  const pending = h.run();
+  const [row] = await h.waiting();
+  const { path: dir } = h.db.prepare("SELECT path FROM plugin WHERE id = 'fake-publish'").get() as { path: string };
+  appendFileSync(join(dir, 'bin', 'publish.js'), '\n// changed while waiting\n');
+  h.approvals.resolve({ approval_id: row.id, decision: 'approve' });
+  await assert.rejects(pending, (e: any) => e.code === -32003 && /publish\.js/.test(e.message));
+  assert.equal(h.marker(), false);
+});
+
+test('the gate shows what leaves and names the destination', async (t) => {
+  const h = harness(t);
+  const token = 'sk-abcdefghijklmnopqrstuvwxyz123456';
+  const first = h.run({ channel: '#general', text: 'ship v2 today', token });
+  const [row] = await h.waiting();
+  assert.match(row.summary, /#general/);
+  assert.match(row.summary, /ship v2 today/);
+  assert.ok(!row.summary.includes(token));
+  h.approvals.resolve({ approval_id: row.id, decision: 'reject' });
+  await assert.rejects(first, (e: any) => e.code === -32003);
+
+  const second = h.run({ text: 'no destination' });
+  const [again] = await h.waiting();
+  assert.match(again.summary, /a destination the plugin does not name/);
+  h.approvals.resolve({ approval_id: again.id, decision: 'reject' });
+  await assert.rejects(second, (e: any) => e.code === -32003);
 });
