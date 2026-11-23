@@ -37,7 +37,7 @@ Not sized until M8-0.
 ## Acceptance criteria
 
 - [ ] M8-44a. M5-01a to M5-01d pass under the Ouros name, on the host M8-0 picked.
-- [ ] M8-44b. His D72 and D50 call is recorded in the `spec.md` D-list with its drawback.
+- [x] M8-44b. His D72 and D50 call is recorded in the `spec.md` D-list with its drawback. (2026-11-24: D90.)
 - [ ] M8-44c. The clean-machine test in D67 is run on a second real Windows PC and recorded here.
 
 ## Rules that bind every child
