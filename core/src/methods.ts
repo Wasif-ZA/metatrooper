@@ -48,7 +48,7 @@ import { Desktop } from './desktop/driver.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
-import { getSurface, showSurface, surfaceEvent } from './surfaces.ts';
+import { catalogueProposals, getSurface, showSurface, surfaceEvent } from './surfaces.ts';
 import { blockReason } from './plugins/blocklist.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
@@ -147,6 +147,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'ui.show', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, title?, zone?: "tab", catalogue?, spec}', result: '{surface, status: drawn | partly | rejected, fellBack: [{part, type, why}]}; stores or replaces the screen `session_id` drew and the workbench opens it as a tab. Every part is checked against the catalogue; a bad one is drawn as plain text and listed in `fellBack`. -32003 when another session owns `surface`; -32602 for a bad id, a zone other than `tab`, or a spec over 256 KB. Called by the `ouros_ui` MCP tool' },
   { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at}; -32002 when it does not exist' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
+  { name: 'catalogue.proposals', params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
   { name: 'workspace.change', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, op?: set | save | restore, workspace?, name?}', result: '{project_id, current, usual, undo, saved, last: {applied, reasons, setter, asked, at}}; set checks a whole layout (ouros-spec 6c) and applies it, or leaves the old one and lists the reasons in `last`; save names the current layout; restore applies a saved one. The setter is the calling session, never the `by` inside the layout. Called by the `ouros_workspace` MCP tool' },
   { name: 'workspace.get', params: '{project_id}', result: '{project_id, current, usual, undo, saved, last}; current is null for your usual layout' },
   { name: 'workspace.undo', needsUi: true, errors: [E.VALIDATION], params: '{project_id}', result: 'as workspace.get; the layout before the last change (Ctrl Z)' },
@@ -1044,6 +1045,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('ui.show', { handler: (p) => showSurface(db, p) });
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
+  m.set('catalogue.proposals', { handler: () => ({ proposals: catalogueProposals(db) }) });
   m.set('workspace.change', { handler: (p) => changeWorkspace(db, p) });
   m.set('workspace.get', { handler: (p) => getWorkspace(str(p, 'project_id')) });
   m.set('workspace.undo', { needsUi: true, handler: (p) => undoWorkspace(str(p, 'project_id')) });

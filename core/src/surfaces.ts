@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { nowIso, ulid } from './time.ts';
-import { VERSION, expand, isFallback } from '../../workbench/ui/src/kit/check.js';
+import { KIT, VERSION, expand, flatten, isFallback } from '../../workbench/ui/src/kit/check.js';
 
 export const MAX_SPEC_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9._-]{1,64}$/;
@@ -78,4 +78,25 @@ export function surfaceEvent(db: DatabaseSync, p: Record<string, unknown>, typeI
   const at = nowIso();
   db.prepare("INSERT INTO comment (id, at, session_id, kind, body, prompt_at) VALUES (?, ?, ?, 'notice', ?, ?)").run(ulid(), at, r.session_id, line, typed === 'sent' ? at : null);
   return { delivered: true, to: 'session', seq: r.seq, typed: Boolean(typed) };
+}
+
+export const PROPOSAL_AT = 3;
+
+/** M8-10a: unknown parts that 3 or more screens fell back on, each with the props they were sent and the screens that asked. A proposal is only shown; nothing is added to the catalogue. */
+export function catalogueProposals(db: DatabaseSync): Array<{ part: string; props: string[]; surfaces: string[] }> {
+  const by = new Map<string, { props: Set<string>; surfaces: Set<string> }>();
+  for (const r of db.prepare('SELECT id, spec FROM ui_surface ORDER BY id').all() as Array<{ id: string; spec: string }>) {
+    let parts: Record<string, unknown>;
+    try { parts = flatten(JSON.parse(r.spec)).parts as Record<string, unknown>; } catch { continue; }
+    for (const p of Object.values(parts)) {
+      const part = p as Record<string, unknown> | null;
+      if (!part || typeof part.type !== 'string' || Object.hasOwn(KIT, part.type)) continue;
+      const name = part.type.slice(0, 60);
+      const e = by.get(name) ?? { props: new Set<string>(), surfaces: new Set<string>() };
+      for (const k of Object.keys(part)) if (k !== 'type') e.props.add(k.slice(0, 40));
+      e.surfaces.add(r.id);
+      by.set(name, e);
+    }
+  }
+  return [...by].filter(([, e]) => e.surfaces.size >= PROPOSAL_AT).map(([part, e]) => ({ part, props: [...e.props].sort(), surfaces: [...e.surfaces] }));
 }
