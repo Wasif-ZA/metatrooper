@@ -477,7 +477,7 @@ export function Inbox() {
 
   const groups = [
     { key: 'needs', title: 'Needs your answer', status: 'needs', count: waitingSessions.length + approvals.length + needsNotices.length, items: [...waitingSessions.map((x) => [x, true]), ...needsNotices.map((n) => [n, false])] },
-    { key: 'quiet', title: 'Waiting over 2 hours', status: 'needs', count: quietSessions.length, items: quietSessions.map((x) => [x, true]) },
+    ...(quietSessions.length ? [{ key: 'quiet', title: 'Waiting over 2 hours', status: 'needs', count: quietSessions.length, items: quietSessions.map((x) => [x, true]) }] : []),
     { key: 'working', title: 'Working', status: 'working', count: 0, items: workingSessions.map((x) => [x, true]) },
     { key: 'in_review', title: 'In review', status: 'review', count: inReviewNotices.length, items: inReviewNotices.map((n) => [n, false]) },
     { key: 'failed', title: 'Failed', status: 'failed', count: failedNotices.length, items: failedNotices.map((n) => [n, false]) },
