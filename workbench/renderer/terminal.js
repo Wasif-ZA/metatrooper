@@ -95,7 +95,7 @@ const termView = (() => {
     if (!row || !acts?.children || !menu?.append) return;
     if (el.classList.contains('compact-head')) {
       el.classList.remove('compact-head');
-      more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb)'));
+      more.before(...menu.querySelectorAll(':scope > :not(.tile-previews, .tile-desk, .pb, .mdiff)'));
     }
     const narrow = row.scrollWidth > row.clientWidth;
     el.classList.toggle('compact-head', narrow);

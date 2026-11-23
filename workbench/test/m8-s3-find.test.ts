@@ -46,7 +46,7 @@ const mainBytes = readFileSync(new URL('../src/main.ts', import.meta.url));
 function finder() {
   const text = mainBytes.toString('utf8');
   const start = text.indexOf("on('fsFind',");
-  const end = text.indexOf("on('fsRead',", start);
+  const end = text.indexOf("\n  on('", start + 1);
   assert.ok(start >= 0 && end > start, 'fsFind registration exists in main source');
   const calls: any[] = [];
   let handler: any;
