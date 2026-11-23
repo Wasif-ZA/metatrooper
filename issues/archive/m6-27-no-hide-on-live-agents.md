@@ -20,10 +20,10 @@ The tile x and the list row x render only when the session's state is not `start
 
 ## Acceptance criteria
 
-- [ ] M6-27a. A tile and a list row for a session in each of `starting`, `working` and `waiting_for_you` have no element with `data-action="hide"`; in `done`, `idle` and `exited` each has exactly one.
-- [ ] M6-27b. A session moving from `working` to `done` gains its tile x within one render.
-- [ ] M6-27c. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M6-27d. The existing workbench suite still passes.
+- [x] M6-27a. A tile and a list row for a session in each of `starting`, `working` and `waiting_for_you` have no element with `data-action="hide"`; in `done`, `idle` and `exited` each has exactly one. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-27-no-hide.test.ts 6/6)
+- [x] M6-27b. A session moving from `working` to `done` gains its tile x within one render. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-27-no-hide.test.ts 6/6)
+- [x] M6-27c. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (card check by B4: all 6 tests in workbench/test/m6-27-no-hide.test.ts)
+- [x] M6-27d. The existing workbench suite still passes. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Out of scope
 
@@ -33,3 +33,5 @@ The tile x and the list row x render only when the session's state is not `start
 ## Rules
 
 Never commit, push or open PRs from an agent; hand back the command. Edit only your own lines in files other sessions have uncommitted changes in. No em dashes.
+
+Status 2026-11-24: done, every box ticked; each box names its test. Run by B4 on a8a3b642 with its own npm ci; full suite green on eca8743a (M).

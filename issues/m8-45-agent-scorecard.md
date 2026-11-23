@@ -36,10 +36,10 @@ Not sized until M8-0.
 ## Acceptance criteria
 
 - [ ] M8-45a. The read of each named tool is recorded in this file.
-- [ ] M8-45b. A fixture of run records produces the expected table.
-- [ ] M8-45c. A fixture where one engine's pass rate falls raises the flag on that engine only.
+- [x] M8-45b. A fixture of run records produces the expected table. (2026-11-24, B4 on a8a3b642: core/test/m8-45-scorecard.test.ts 6/6)
+- [x] M8-45c. A fixture where one engine's pass rate falls raises the flag on that engine only. (2026-11-24, B4 on a8a3b642: core/test/m8-45-scorecard.test.ts 6/6)
 - [ ] M8-45d. Below a run count fixed at build and written here, the Settings table (Settings > Activity > Agent scorecard) says "not enough runs" and ranks nothing.
-- [ ] M8-45e. Each row shows its run count, so tasks that differ are not read as a fair test.
+- [x] M8-45e. Each row shows its run count, so tasks that differ are not read as a fair test. (2026-11-24, B4 on a8a3b642: core/test/m8-45-scorecard.test.ts 6/6)
 - [ ] M8-45f. The Settings table makes no network call.
 
 ## Rules that bind every child

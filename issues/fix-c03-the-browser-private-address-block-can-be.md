@@ -21,9 +21,9 @@ Read-only audit of core/src, 2026-10-31. Tests at audit time: `node --test "test
 ## Acceptance criteria
 
 - [ ] FIX-C3a. A pane with allow_hosts 127.0.0.1 only in .troop/config.json still blocks http://127.0.0.1:<unowned port>.
-- [ ] FIX-C3b. A host in the settings key is allowed.
-- [ ] FIX-C3c. contracts/browser-tools.md line 206 is updated.
-- [ ] FIX-C3d. m6-02-approvals-e2e.test.ts:100 uses the settings key.
+- [x] FIX-C3b. A host in the settings key is allowed. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/fix-c3-allow-hosts.test.ts 3/3)
+- [x] FIX-C3c. contracts/browser-tools.md line 206 is updated. (2026-11-24: the text now sits at contracts/browser-tools.md:351-352: allow_hosts lives in settings.json, `.troop/config.json` is ignored.)
+- [x] FIX-C3d. m6-02-approvals-e2e.test.ts:100 uses the settings key. (2026-11-24: now line 99, `settings.set` with key `browser.allow_hosts`.)
 
 ## Rules
 

@@ -108,7 +108,7 @@ Each item names its idea in the idea mine (`~/.cache/claude-scratch/metatrooper-
   - `page_call` fails -32039 under `look`;
   - an unknown name lists the 3 names.
 - [ ] M7-01h. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M7-01i. The existing core and workbench suites still pass, M6-11's and M6-12's browser tests among them.
+- [x] M7-01i. The existing core and workbench suites still pass, M6-11's and M6-12's browser tests among them. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Testing plan
 

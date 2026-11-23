@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { logsDir } from './paths.ts';
-import { redactSecretValues } from './redact.ts';
+import { maskTokens, redactSecretValues } from './redact.ts';
 import { knownSecretValues } from './secrets.ts';
 
 export const LOG_MAX_BYTES = 5 * 1024 * 1024;
@@ -13,7 +13,7 @@ export function appendLog(name: string, text: string): void {
     const dir = logsDir();
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, `${name}.log`);
-    const full = Buffer.from(redactSecretValues(text, knownSecretValues()), 'utf8');
+    const full = Buffer.from(maskTokens(redactSecretValues(text, knownSecretValues())), 'utf8');
     const line = full.length > LOG_MAX_BYTES ? full.subarray(full.length - LOG_MAX_BYTES) : full;
     let size = 0;
     try { size = fs.statSync(file).size; } catch {}

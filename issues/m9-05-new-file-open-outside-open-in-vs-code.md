@@ -44,7 +44,7 @@ Row 5 is the measure for the week after: the extensions he still leaves for show
 - [ ] M9-05b. Click a PDF in the tree, press "Open outside". It opens in his PDF app.
 - [ ] M9-05c. Click a `.tex` file, press "Open in VS Code". VS Code opens that project with that file.
 - [ ] M9-05d. `fsOpenOutside` on a `.bat`, a `.lnk`, a path with `..` and a junction that leaves the project: all refused, each with a test.
-- [ ] M9-05e. The log holds one line per "Open in VS Code" use, with the extension and no file text.
+- [x] M9-05e. The log holds one line per "Open in VS Code" use, with the extension and no file text. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-open-outside.test.ts 12/12, openInVsCode logs {at, event, projectId, extension} only)
 - [ ] M9-05f. A mutation run catches the removal of the extension list and of the path guard.
 
 ## Engines

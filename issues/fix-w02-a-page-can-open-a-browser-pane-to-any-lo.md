@@ -21,8 +21,8 @@ Read-only audit of workbench, 2026-10-31. `npm test`: 282 tests, 244 pass, 0 fai
 ## Acceptance criteria
 
 - [ ] FIX-W2a. window.open to 127.0.0.1:PORT from a page gets a blocked page.
-- [ ] FIX-W2b. A URL typed in the URL box still reaches its loopback port.
-- [ ] FIX-W2c. A pane restored after restart is not granted its last page's loopback port.
+- [x] FIX-W2b. A URL typed in the URL box still reaches its loopback port. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/browser-policy.test.ts 3/3, 'M6-03c a user pane loads any loopback port the user typed')
+- [x] FIX-W2c. A pane restored after restart is not granted its last page's loopback port. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/fix-w2-typed-ports.test.ts 1/1)
 - [ ] FIX-W2d. A test covers the window.open path.
 
 ## Rules

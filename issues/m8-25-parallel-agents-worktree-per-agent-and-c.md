@@ -20,8 +20,8 @@ Status in scratch: decided (FEATURES.md #1, top ranked); collisions partial (PAI
 
 ## Acceptance criteria
 
-- [ ] M8-25a. A new agent can start in its own worktree.
-- [ ] M8-25b. A tile shows its branch.
+- [x] M8-25a. A new agent can start in its own worktree. (2026-11-24: B1 MET, core/test/fix-o8-worktree-existing-branch.test.ts 7/7)
+- [x] M8-25b. A tile shows its branch. (2026-11-24: B2 MET m7-13d: tile meta shows the branch, workbench/test/m6-03-preview.test.ts)
 - [ ] M8-25c. A second agent touching the same file shows a warning before either applies.
 - [ ] M8-25d. Local to Worktree handoff keeps uncommitted work.
 

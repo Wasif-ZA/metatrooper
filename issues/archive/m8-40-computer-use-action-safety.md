@@ -33,13 +33,15 @@ Rows 1 and 7 change what a retry or a grant allows. The approval gate stays the 
 
 ## Acceptance criteria
 
-- [ ] M8-40a. A click returning `unverifiable` is refused on the identical retry; a passing assertion or the user's release clears it.
-- [ ] M8-40b. A rejection with text reaches the agent as that text, marked as coming from the user.
-- [ ] M8-40c. A failed assertion returns the actual value, and no model is called to judge it.
-- [ ] M8-40d. A window title holding Unicode tag characters reaches the agent without them, and the removal is logged.
-- [ ] M8-40e. A session granted a pinned record pauses when the title stops matching.
+- [x] M8-40a. A click returning `unverifiable` is refused on the identical retry; a passing assertion or the user's release clears it. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m8-40-action-safety.test.ts 30/30)
+- [x] M8-40b. A rejection with text reaches the agent as that text, marked as coming from the user. (2026-11-24, B4 on a8a3b642: core/test/m8-40-row2.test.ts 10/10 and core/test/overnight-rejection-mcp.test.ts 2/2)
+- [x] M8-40c. A failed assertion returns the actual value, and no model is called to judge it. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m8-40-rows34.test.ts 20/20)
+- [x] M8-40d. A window title holding Unicode tag characters reaches the agent without them, and the removal is logged. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m8-40-action-safety.test.ts 30/30, the M8-40d tests)
+- [x] M8-40e. A session granted a pinned record pauses when the title stops matching. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m8-40e-grant-pin.test.ts 17/17)
 
 ## Rules that bind every child
 
 - Codex writes the tests for any part Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked; each box names its test. Run by B4 on a8a3b642 with its own npm ci; full suite green on eca8743a (M).

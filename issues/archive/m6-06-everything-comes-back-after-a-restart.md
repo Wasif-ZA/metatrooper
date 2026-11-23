@@ -14,10 +14,12 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 4.0 
   M6-06a tests ("killing the core brings 4 live sessions back within 30 s, never more than 3 starting in any 10 s",
   "a second core restart while resumes are still queued resumes the rest", and the two pacing tests). The test kills
   and restarts the core only; the workbench re-layout half is not covered by an automated test.
-- [ ] M6-06b. An engine whose resume fails twice with its `auth_error` output stops being resumed and raises one needs-you item. A session that exited shows its saved last screen.
+- [x] M6-06b. An engine whose resume fails twice with its `auth_error` output stops being resumed and raises one needs-you item. A session that exited shows its saved last screen. (2026-11-24, B4 on a8a3b642: core/test/m6-06-restart.test.ts 10/10, the four M6-06b tests)
 
 ## Rules that bind every child
 
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked. core/test/m6-06-restart.test.ts 10/10 run by B4 on a8a3b642. The workbench re-layout half of 06a has no automated test (see 06a).

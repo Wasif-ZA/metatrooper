@@ -9,10 +9,12 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Medium. Effort: 0.5 CC
 
 ## Acceptance criteria
 
-- [ ] M6-20a. A Claude tile's cost chip equals the session's tokens in `usage`; an engine with no usage shows "usage unknown".
+- [x] M6-20a. A Claude tile's cost chip equals the session's tokens in `usage`; an engine with no usage shows "usage unknown". (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-20-cost-chip.test.ts 3/3)
 
 ## Rules that bind every child
 
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24: done, every box ticked; each box names its test. Run by B4 on a8a3b642 with its own npm ci; full suite green on eca8743a (M).
