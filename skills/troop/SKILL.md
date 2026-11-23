@@ -89,6 +89,10 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   ui.data                 {session_id, surface, path, value}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
   catalogue.proposals     {}
+  profile.get             {}
+  profile.propose         {change: {key: density | theme | reading | hide | show, value}, why?}
+  profile.answer          {id, yes: boolean}
+  profile.undo            {id}
   templates.proposals     {}
   templates.keep          {name}
   engine.run              {session_id, engine, action, input?, surface?}

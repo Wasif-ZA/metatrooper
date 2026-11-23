@@ -53,6 +53,7 @@ import { blockReason } from './plugins/blocklist.ts';
 import { importLogins, listLogins, parseLoginCsv, previewLogins, removeLogin } from './browser/login-import.ts';
 import { runEngine } from './plugins/engine-run.ts';
 import { keepTemplate, proposeTemplates } from './templates.ts';
+import { answerProposal, getProfile, proposeChange, undoChange } from './profile.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -152,6 +153,10 @@ export const METHODS: MethodDecl[] = [
   { name: 'ui.data', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, path, value}', result: '{surface, seq}; sets the value at a JSON pointer in the surface data (M8-08); a prop written {"bind": "/path"} takes it and the screen redraws with no parts resent. Only the session that drew the surface; data stays under 64 KB. Called by the `ouros_ui` MCP tool with `data`' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
   { name: 'catalogue.proposals', needsUi: true, params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
+  { name: 'profile.get', params: '{}', result: '{profile: {density, theme, hide, reading}, pending, waiting, history}; the learned profile (M8-07): one proposal is shown at a time, applied changes newest first' },
+  { name: 'profile.propose', errors: [E.VALIDATION], params: '{change: {key: density | theme | reading | hide | show, value}, why?}', result: 'as profile.get; queues a change, which waits behind the one shown and changes nothing until answered yes; hiding a gate, choice, handback, pipe or layout part is refused' },
+  { name: 'profile.answer', needsUi: true, errors: [E.NOT_FOUND], params: '{id, yes: boolean}', result: 'as profile.get; yes applies the shown proposal and lists it with Undo, no drops it' },
+  { name: 'profile.undo', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: 'as profile.get; the profile returns to before that change' },
   { name: 'templates.proposals', needsUi: true, params: '{}', result: '{proposals: [{name, template, surfaces, sessions, kept, why?}]}; a screen drawn with one shape by 3 or more sessions, its differing values as {{gN}} gaps; kept only when replay holds: filling the template with each past screen gives that screen back (M8-06a,b)' },
   { name: 'templates.keep', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{name}', result: '{name, file}; saves a proposal the person said yes to into <home>/templates, where use parts find it; refused when it loses on replay' },
   { name: 'engine.run', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, engine, action, input?, surface?}', result: '{status: ok | failed, outputs?, error?, bound?, run}; runs one action of an installed, enabled plugin in the session project by the action process contract (plugins.md); a binary the plugin ships runs in the AppContainer box. With `surface` (one this session drew), the action `binds` fill that surface data path (M8-12). An `external` action is refused (-32003) until engine gates exist. Called by the `ouros_engine` MCP tool' },
@@ -1067,6 +1072,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
   m.set('ui.data', { handler: (p) => setSurfaceData(db, p) });
   m.set('catalogue.proposals', { needsUi: true, handler: () => ({ proposals: catalogueProposals(db) }) });
+  m.set('profile.get', { handler: () => getProfile() });
+  m.set('profile.propose', { handler: (p) => proposeChange(p.change, p.why) });
+  m.set('profile.answer', { needsUi: true, handler: (p) => answerProposal(p.id, p.yes) });
+  m.set('profile.undo', { needsUi: true, handler: (p) => undoChange(p.id) });
   m.set('templates.proposals', { needsUi: true, handler: () => ({ proposals: proposeTemplates(db) }) });
   m.set('templates.keep', { needsUi: true, handler: (p) => keepTemplate(db, p.name) });
   m.set('engine.run', { handler: (p) => runEngine(db, p) });

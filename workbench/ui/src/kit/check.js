@@ -113,6 +113,8 @@ export function firstLine(p) {
 
 /** Turns a spec (nested or flat) into a checked nested tree of parts ready to draw for `zone`, plus fellBack: what became text and why. Limits and state live in this call. */
 export const MAX_TEMPLATE_DEPTH = 3;
+/** Parts a learned profile can never hide (ouros-spec 6): gates, questions, hand-back lists, the pipeline bar and layout parts. */
+export const PROTECTED_PARTS = ['gate', 'choice', 'handback', 'pipe', 'page', 'section', 'columns', 'grid', 'fold', 'tabs', 'header'];
 const GAP = /\{\{([A-Za-z_][A-Za-z0-9_]{0,40})\}\}/g;
 const WHOLE_GAP = /^\{\{([A-Za-z_][A-Za-z0-9_]{0,40})\}\}$/;
 /** A template with its gaps filled: a gap that is a whole string takes any JSON value, a gap inside text takes text (ouros-spec 6a). */
@@ -131,7 +133,8 @@ export function fillTemplate(t, values) {
   return walk(t);
 }
 
-export function expand(spec, zone = 'tab', data = {}, templates = {}, useDepth = 0) {
+export function expand(spec, zone = 'tab', data = {}, templates = {}, useDepth = 0, hide = []) {
+  const hidden = new Set((Array.isArray(hide) ? hide : []).filter((t) => !PROTECTED_PARTS.includes(t)));
   const z = ZONES[zone] ?? ZONES.tab;
   let flat;
   try { flat = flatten(spec); } catch { flat = { root: 'p1', parts: { p1: null } }; }
@@ -155,10 +158,11 @@ export function expand(spec, zone = 'tab', data = {}, templates = {}, useDepth =
       // a filled template goes through the same checks as any spec, and templates stop at 3 levels
       if (useDepth >= MAX_TEMPLATE_DEPTH) return fail(id, fallback(raw, `templates nest deeper than ${MAX_TEMPLATE_DEPTH}`));
       if (!isObj(templates) || !Object.hasOwn(templates, raw.template)) return fail(id, fallback(raw, `no template called ${String(raw.template).slice(0, 40)}`));
-      const sub = expand(fillTemplate(templates[raw.template], raw.data), zone, data, templates, useDepth + 1);
+      const sub = expand(fillTemplate(templates[raw.template], raw.data), zone, data, templates, useDepth + 1, hide);
       for (const f of sub.fellBack) fellBack.push({ ...f, part: `${String(id).slice(0, 20)}/${f.part}`.slice(0, 40) });
       return sub.root;
     }
+    if (depth > 0 && hidden.has(raw.type)) return DROP;
     if (!DRAWN.includes(raw.type)) return fail(id, fallback(raw, 'not drawn yet'));
     if (z.parts && raw.type !== 'page' && !z.parts.includes(raw.type)) return { folded: true, name: raw.type, line: firstLine(raw) };
     const str = (x, what) => (TYPES.str(x) ? String(x) : (fail(id, fallback(x, `bad ${what}`)), '?'));
