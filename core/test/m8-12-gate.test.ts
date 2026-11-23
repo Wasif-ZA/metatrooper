@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openCoreDb } from '../src/store/db.ts';
 import { isolation, withEnv, until } from './helpers.ts';
@@ -154,4 +154,28 @@ test('the gate shows what leaves and names the destination', async (t) => {
   assert.match(again.summary, /a destination the plugin does not name/);
   h.approvals.resolve({ approval_id: again.id, decision: 'reject' });
   await assert.rejects(second, (e: any) => e.code === -32003);
+});
+
+test('a plugin reinstalled while the gate waits does not run on the old approval', async (t) => {
+  const h = harness(t);
+  const pending = h.run();
+  const [row] = await h.waiting();
+  const source = join(h.isolated.home, 'src-publish');
+  writeFileSync(join(source, 'bin', 'publish.js'), SCRIPT + '\n// reinstalled\n');
+  const manifestPath = join(source, 'troop-plugin.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  writeFileSync(manifestPath, JSON.stringify({ ...manifest, version: '1.0.1' }));
+  withEnv(h.env, () => installPlugin(h.db, { source, approved_permissions: ['run:write'] }));
+  h.approvals.resolve({ approval_id: row.id, decision: 'approve' });
+  await assert.rejects(pending, (e: any) => e.code === -32003 && /updated while the approval waited/.test(e.message));
+  assert.equal(h.marker(), false);
+});
+
+test('a long input preview says how much more there is', async (t) => {
+  const h = harness(t);
+  const pending = h.run({ channel: '#general', text: 'x'.repeat(400) });
+  const [row] = await h.waiting();
+  assert.match(row.summary, /more characters/);
+  h.approvals.resolve({ approval_id: row.id, decision: 'reject' });
+  await assert.rejects(pending, (e: any) => e.code === -32003);
 });
