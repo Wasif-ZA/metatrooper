@@ -49,6 +49,15 @@ test('wall sidebar lists each live session of the project by number, engine and 
   assert.match(html, /data-action="launch-menu"[^>]*>new</);
 });
 
+test('wall sidebar keeps folders with live agents on top and folds the idle ones into counted groups', () => {
+  const s = { ...snap, projects: [...snap.projects, { id: 'p3', name: 'gamma', path: '/g' }, { id: 'p4', name: 'delta', path: '/d', scratch: true }] };
+  const html = render(s, 'p1');
+  const top = html.slice(0, html.indexOf('<details'));
+  assert.deepEqual([...top.matchAll(/data-id="(\w+)"/g)].map((m) => m[1]), ['p1', 'p2']);
+  assert.match(html, /<details class="hgrp" data-grp="Projects"><summary>Projects <span class="hgn">1<\/span><\/summary><button class="hws" data-action="project" data-id="p3"/);
+  assert.match(html, /<details class="hgrp" data-grp="Scratch"><summary>Scratch <span class="hgn">1<\/span><\/summary><button class="hws" data-action="project" data-id="p4"/);
+});
+
 test('wall sidebar shows no branch for a project whose git status is for another project', () => {
   assert.doesNotMatch(render(snap, 'p1', { project: 'p2', branch: 'dev' }), /hbr/);
 });

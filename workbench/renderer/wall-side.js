@@ -9,20 +9,32 @@ const wallSide = (() => {
   const RANK = ['block', 'done', 'work', 'idle', 'unknown'];
   const worst = (kinds) => RANK.find((k) => kinds.includes(k)) || 'unknown';
 
+  const openGroups = new Set();
+  document.addEventListener?.('toggle', (e) => {
+    const d = e.target;
+    if (!d.matches?.('#hside details.hgrp')) return;
+    if (d.open) openGroups.add(d.dataset.grp); else openGroups.delete(d.dataset.grp);
+  }, true);
+
   function draw() {
     const el = document.getElementById('hside');
     if (!el || !ui.snap) return;
     const cur = project();
     const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
-    const list = [...(cur ? [cur] : []), ...g.projects, ...g.worktrees, ...g.scratch];
     const live = ui.snap.live || [];
-    const ws = list.map((p, i) => {
+    const busy = (p) => live.some((x) => x.project_id === p.id && x.state !== 'exited');
+    const top = [...(cur ? [cur] : []), ...[...g.projects, ...g.worktrees, ...g.scratch].filter(busy)];
+    const folds = [['Projects', g.projects], ['Worktrees', g.worktrees], ['Scratch', g.scratch]].map(([name, ps]) => [name, ps.filter((p) => !busy(p))]).filter(([, ps]) => ps.length);
+    let n = 0;
+    const row = (p) => {
+      const i = n++;
       const on = p.id === ui.projectId;
       const kinds = on ? ui.snap.sessions.filter((x) => x.state !== 'exited').map((x) => kindOf(x.state)) : live.filter((x) => x.project_id === p.id).map((x) => kindOf(x.state));
       const k = kinds.length ? worst(kinds) : null;
       const branch = on && ui.git && ui.git.project === p.id ? ui.git.branch : '';
       return `<button class="hws${on ? ' on' : ''}" data-action="project" data-id="${esc(p.id)}" title="${esc(p.path || p.name)}"${on ? ' aria-current="true"' : ''}><span class="hn">${i + 1}</span><span class="hname">${esc(p.name)}</span>${k ? `<span class="hsdot hk-${k}">●</span>` : ''}${branch ? `<span class="hbr">${esc(branch)}</span>` : ''}</button>`;
-    }).join('');
+    };
+    const ws = top.map(row).join('') + folds.map(([name, ps]) => `<details class="hgrp" data-grp="${name}"${openGroups.has(name) ? ' open' : ''}><summary>${name} <span class="hgn">${ps.length}</span></summary>${ps.map(row).join('')}</details>`).join('');
     const mine = cur ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)) : [];
     const sel = mine.some((x) => x.id === focused) ? focused : ui.snap.selected;
     const agents = mine.map((x, i) => {
