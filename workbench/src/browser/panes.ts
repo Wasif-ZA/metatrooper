@@ -183,6 +183,8 @@ interface Pane {
   dialog: Dialog | null;
   /** Set while an upload waits for the file chooser a click opens (M8-49 row 2). */
   onChooser?: (backendNodeId: number) => void;
+  /** True while an upload runs on this pane: a second one is refused, so choosers and interception never cross. */
+  uploading?: boolean;
   onDialog: ((d: Dialog) => void) | null;
   /** The URL whose load error or crash the pane is showing, or null. */
   errorFor: string | null;
@@ -1359,6 +1361,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (el.result?.value?.child !== false) {
       const own = normalOrigin(String(el.result?.value?.origin ?? ''));
       if (!own) throw new ToolError(-32030, 'not sent: the control is in a frame whose origin cannot be established');
+      if (a.tool === 'upload' && own !== normalOrigin(origin)) throw new ToolError(-32030, 'not sent: upload into a frame from another site is not supported');
       origin = own;
     }
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
@@ -1572,6 +1575,8 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'upload': {
         const files = Array.isArray(a.paths) ? a.paths.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0) : [];
         if (!files.length || files.length !== (a.paths as unknown[]).length) throw new ToolError(-32602, 'paths must be a list of file paths');
+        if (pane.uploading) throw new ToolError(-32030, 'not sent: another upload is still running on this pane');
+        pane.uploading = true;
         return this.answer(pane, session, async () => {
           const node = this.node(pane, a.ref);
           const d = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: node.backendNodeId });
@@ -1597,10 +1602,15 @@ ame, after checking the ref's field is a password field on the origin saved with
               pane.onChooser = undefined;
               await this.cmd(pane, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
             }
+            // the chooser's input must sit on the origin the person approved, not in another frame of the page
+            const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: target });
+            const at = await this.cmd(pane, 'Runtime.callFunctionOn', { objectId: object?.objectId, returnByValue: true, functionDeclaration: 'function () { const w = this.ownerDocument && this.ownerDocument.defaultView; return w ? String(w.origin) : ""; }' });
+            const want = normalOrigin(String(a.expect?.origin ?? ''));
+            if (!want || normalOrigin(String(at.result?.value ?? '')) !== want) throw new ToolError(-32030, 'not sent: the file chooser opened in a frame from another site');
           }
           await this.cmd(pane, 'DOM.setFileInputFiles', { files, backendNodeId: target });
           return { ok: true, files: files.length };
-        });
+        }).finally(() => { pane.uploading = false; });
       }
       case 'select':
         return this.answer(pane, session, async () => {

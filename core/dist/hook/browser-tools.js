@@ -56,8 +56,8 @@ export function browserTools({ core, workbench: browser }             )         
       const d = await browser.call('browser.describe', { ...args, tool: name });
       if (d.error) return stopped(d.error);
       const { session_id, origin, control, password, hidden } = d.result                                                                                                       ;
-      // an upload is bound to its paths by the hash, which the workbench checks again; it carries no control
-      const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control: name === 'upload' ? null : control };
+      // an upload is bound to its paths and its control by the hash, which the workbench checks again
+      const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
       const out = await core('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, GATE_WAIT_MS);
       if (out.error) return stopped(out.error);
       const v = out.result                                                               ;

@@ -90,9 +90,12 @@ export function uploadProblem(paths: unknown, projectDir: string): string | null
     let real: string;
     try { real = fs.realpathSync(f); } catch { return `${f} does not exist`; }
     const rel = path.relative(root, real);
-    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return `${f} is outside the project folder`;
+    if (!rel) return `${f} is the project folder, not a file`;
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return `${f} is outside the project folder`;
     const st = fs.statSync(real);
     if (!st.isFile()) return `${f} is not a file`;
+    // a hard link can name a file from anywhere; realpath cannot see it
+    if (st.nlink > 1) return `${f} is a hard link`;
     if (st.size > UPLOAD_MAX_BYTES) return `${f} is over 100 MB`;
   }
   return null;
@@ -158,7 +161,10 @@ export function riskReason(p: CheckParams): string | null {
 }
 
 /** "click Send in example.com"; a desktop action names its window (`windowTitle`) instead of the grant id. */
-export function summaryOf(p: CheckParams, secrets: string[] = [], windowTitle?: string): string {
+/** A name cut in the middle, so both ends of a long path stay visible. */
+const middle = (s: string, n = 60) => (s.length > n ? `${s.slice(0, Math.ceil((n - 1) / 2))}…${s.slice(s.length - Math.floor((n - 1) / 2))}` : s);
+
+export function summaryOf(p: CheckParams, secrets: string[] = [], windowTitle?: string, projectDir?: string): string {
   const what = p.control ? (p.control.name || p.control.automation_id || p.control.role) : '';
   let where = windowTitle || p.target;
   if (!windowTitle) try { where = new URL(p.target).host || p.target; } catch {}
@@ -168,8 +174,17 @@ export function summaryOf(p: CheckParams, secrets: string[] = [], windowTitle?: 
     return scrub(`${p.target} runs ${String(p.args.action)}${dest}${what}`, secrets).slice(0, 300);
   }
   if (p.action === 'upload' && Array.isArray(p.args.paths)) {
-    const files = (p.args.paths as string[]).map((f) => { let size = 0; try { size = fs.statSync(f).size; } catch {} return `${path.basename(f)} (${sizeText(size)})`; });
-    return scrub(`upload ${files.join(', ')} to ${where}`, secrets).slice(0, 300);
+    // not cut as a whole: at most 10 files, each name capped, the destination and control first (B1 review of a91842c2)
+    let root = '';
+    try { root = projectDir ? fs.realpathSync(projectDir) : ''; } catch {}
+    const files = (p.args.paths as string[]).map((f) => {
+      let size = 0;
+      let shown = path.basename(f);
+      try { const real = fs.realpathSync(f); size = fs.statSync(real).size; if (root) shown = path.relative(root, real).split(path.sep).join('/'); } catch {}
+      return `${middle(shown)} (${sizeText(size)})`;
+    });
+    const via = what ? ` with '${middle(what, 40)}'` : '';
+    return scrub(`upload to ${where}${via}: ${files.join(', ')}`, secrets);
   }
   const verb = p.action === 'type' ? 'type into' : p.action === 'key' ? `press ${typeof p.args.keys === 'string' ? p.args.keys : ''} on` : p.action;
   return scrub(`${verb} ${what || (p.surface === 'desktop' ? 'the window' : 'the page')} in ${where}`.replace(/\s+/g, ' ').trim(), secrets).slice(0, 300);
@@ -219,10 +234,16 @@ export class Approvals {
     if (this.hooks.paused?.(p.session_id)) return { decision: 'deny', reason: 'paused by the user' };
     if (p.surface === 'desktop' && this.hooks.granted && !this.hooks.granted(p.session_id, p.target)) return { decision: 'deny', reason: 'window not granted; ask the user to give it to you' };
     if (p.surface === 'desktop' && actionHeld(this.db, hash)) return { decision: 'deny', reason: ACTION_HELD };
+    let projectDir: string | undefined;
     if (p.action === 'upload') {
       const proj = this.db.prepare('SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(p.session_id) as { path: string } | undefined;
       const bad = p.surface !== 'browser' ? 'upload is a browser action' : !proj ? 'this session has no project' : uploadProblem(p.args.paths, proj.path);
       if (bad) return { decision: 'deny', reason: bad };
+      // the upload may click its control to open the chooser, so the control must be one the person would click for that
+      if (!p.control) return { decision: 'deny', reason: 'an upload needs a control on the page (a file input or the button that opens one)' };
+      if (p.hidden) return { decision: 'deny', reason: 'the upload control is hidden' };
+      if (riskyControl(p.control)) return { decision: 'deny', reason: `${risky(p.control)}; an upload will not click it` };
+      projectDir = proj!.path;
     }
     const text = p.surface === 'browser' && p.action === 'type' && typeof p.args.text === 'string' ? p.args.text : '';
     if (text.includes('{{secret:')) {
@@ -255,7 +276,7 @@ export class Approvals {
     const now = nowIso();
     let title: string | undefined;
     if (p.surface === 'desktop') try { title = (this.db.prepare('SELECT title FROM grant WHERE id = ?').get(p.target) as { title: string } | undefined)?.title; } catch {}
-    const summary = summaryOf(p, secrets, title);
+    const summary = summaryOf(p, secrets, title, projectDir);
     this.db.prepare(
       "INSERT INTO approval (id, session_id, surface, target, control, action, action_hash, summary, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)",
     ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, clean(reason), now);

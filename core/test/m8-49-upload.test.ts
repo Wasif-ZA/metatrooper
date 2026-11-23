@@ -60,7 +60,7 @@ test('an upload always asks, names each file and its size, and is denied for pat
     db.prepare('INSERT INTO project (id, path) VALUES (?, ?)').run('p1', f.project);
     db.prepare('INSERT INTO session (id, project_id) VALUES (?, ?)').run('s1', 'p1');
     const approvals = new Approvals(db);
-    const up = (paths: string[]) => ({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1:8080', action: 'upload', args: { ref: 'e1', paths }, control: null });
+    const up = (paths: string[]) => ({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1:8080', action: 'upload', args: { ref: 'e1', paths }, control: { automation_id: '', name: 'Choose file', role: 'button' } });
     const waiting = () => db.prepare("SELECT id, summary, reason FROM approval WHERE status = 'waiting'").all() as Array<{ id: string; summary: string; reason: string }>;
     const settle = async () => { for (let i = 0; i < 100 && !waiting().length; i++) await new Promise((r) => setTimeout(r, 10)); return waiting()[0]; };
 
@@ -102,10 +102,10 @@ test('the workbench re-checks upload paths before sending', () => {
   const src = readFileSync(new URL('../../workbench/src/browser/server.ts', import.meta.url), 'utf8');
   const start = src.indexOf("if (tool === 'upload') {");
   assert.ok(start >= 0);
-  const block = src.slice(start, src.indexOf('usedUploads.add', start) + 'usedUploads.add'.length);
+  const block = src.slice(start, src.indexOf('spendUpload(ap)', start) + 'spendUpload(ap)'.length);
   const row = block.indexOf('-32030');
   const check = block.indexOf('uploadProblem(params.paths');
-  assert.ok(row >= 0 && check > row && block.endsWith('usedUploads.add'), 'uploadProblem after the approval row check, before usedUploads.add');
+  assert.ok(row >= 0 && check > row && block.endsWith('spendUpload(ap)'), 'uploadProblem after the approval row check, before spendUpload');
   const shim = readFileSync(new URL('../src/hook/mcp-shim.ts', import.meta.url), 'utf8');
   assert.match(shim, /engine\.run[^\n]*waitMs: 2_147_483_647/);
 });
