@@ -20,7 +20,7 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 
 ## Acceptance criteria
 
-- [ ] FIX-R5a. A UTF-8 event with café or an emoji round-trips unchanged with PYTHONUTF8 unset.
+- [x] FIX-R5a. A UTF-8 event with café or an emoji round-trips unchanged with PYTHONUTF8 unset. (2026-11-24, B4 on a8a3b642: router/tests/test_hook.py::test_main_decodes_utf8_stdin_with_cp1252_wrapper passes (py -3.12))
 - [ ] FIX-R5b. A test runs the hook with PYTHONUTF8 unset.
 
 ## Rules
