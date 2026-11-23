@@ -163,10 +163,10 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
 }
 
 const PERMISSION_WORDS: Record<string, string> = {
-  'project:read': 'Read files in the project folder',
-  'project:write': 'Change files in the project folder',
+  'project:read': 'Read files in the project folder (declared only: Windows does not block other reads)',
+  'project:write': 'Change files in the project folder (declared only: Windows does not block other writes)',
   'run:write': 'Write files in the run folder',
-  network: 'Connect to the internet',
+  network: 'Connect to the internet (declared only: cc does not block network access)',
   browser: 'Drive browser panes it opens through the core',
   clipboard: 'Write to the clipboard',
 };
@@ -189,9 +189,9 @@ export interface InstallScreen {
 export function installScreen(m: Manifest, previous: string[] | null, pluginDir?: string): InstallScreen {
   const before = new Set(previous ?? []);
   const warnings = [
-    'Actions run in a Windows sandbox: they read and write only the folders these permissions name, and reach the internet only with network. MCP servers this plugin adds are not sandboxed yet.',
+    'Plugins run as you. Windows does not sandbox their files or network in this version; only secrets, browser and clipboard are enforced.',
   ];
-  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet. Its MCP servers are not blocked from it.');
+  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and cc does not block it.');
   const storeWarning = (m.permissions ?? []).some((p) => p.startsWith('secrets:')) ? secretStoreWarning() : null;
   if (storeWarning) warnings.push(storeWarning);
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');

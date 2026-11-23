@@ -5,7 +5,6 @@ import { resolveCommand } from '../hook/resolve.ts';
 import { validate } from '../jsonschema.ts';
 import { nowIso } from '../time.ts';
 import { insideDir, type ActionSpec } from './manifest.ts';
-import { boxed, boxPlan } from './box.ts';
 import type { InstalledPlugin } from './store.ts';
 
 export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TROOP_CHROME', 'TROOP_PDFTOTEXT', 'TROOP_WHISPER', 'TROOP_WHISPER_MODEL', 'TROOP_GMAIL_API'];
@@ -132,10 +131,8 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
   }
   const { env, missing } = actionEnv(req);
   if (missing.length) return Promise.resolve(fail(`secret ${missing.join(', ')} is not set for ${req.plugin.id}`));
-  const found = planCommand(action.run, req.plugin.path, env);
-  if (!found) return Promise.resolve(fail(`command not found: ${action.run[0]}`));
-  const plan = boxed(req.plugin) ? boxPlan(found, req.plugin, req.projectDir, req.run.dir, env) : found;
-  if (typeof plan === 'string') return Promise.resolve(fail(`not run: ${plan}`));
+  const plan = planCommand(action.run, req.plugin.path, env);
+  if (!plan) return Promise.resolve(fail(`command not found: ${action.run[0]}`));
   const log = new RunLog(req.run.dir);
   const secrets = req.plugin.permissions.filter((p) => p.startsWith('secrets:')).map((p) => env[p.slice(8)]).filter(Boolean);
   const redact = (line: string) => secrets.reduce((l, v) => l.split(v).join('[redacted]'), line);
