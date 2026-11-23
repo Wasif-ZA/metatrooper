@@ -40,7 +40,10 @@ export function gitLayout(worktree: string): { gitdir: string; common: string } 
   return { gitdir, common };
 }
 
-const bind = (src: string, dst: string, ro = false) => ['--mount', `type=bind,source=${fwd(src)},target=${dst}${ro ? ',readonly' : ''}`];
+const bind = (src: string, dst: string, ro = false) => {
+  for (const p of [src, dst]) if (/[,"]/.test(p)) throw new RpcError(E.VALIDATION, `the sandbox cannot mount a path with a comma or a quote in it: ${p}`);
+  return ['--mount', `type=bind,source=${fwd(src)},target=${dst}${ro ? ',readonly' : ''}`];
+};
 
 /** The docker run argv for a sandboxed session, per spec.md "Trooper sandbox host plugin" and the build plan's D2, D6, D7 and D9. */
 export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: string, layout: { gitdir: string; common: string }, inner: string[], runtime = 'docker', env: Record<string, string> = {}): string[] {
