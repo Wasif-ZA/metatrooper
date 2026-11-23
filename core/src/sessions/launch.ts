@@ -53,6 +53,15 @@ export function defaultApproval(engine: EngineSpec, preferred: string): string {
   return [preferred, 'contained', 'edits'].find((a) => a !== 'isolated' && (a === 'ask' ? preferred === 'ask' : Boolean(engine.approval_profiles?.[a]))) || 'ask';
 }
 
+/** A follow-up never runs looser than the session it follows, the same ceiling session.launch applies to a child. */
+export function followUpApproval(engine: EngineSpec, preferred: string, parentApproval: string | null | undefined): string {
+  const approval = defaultApproval(engine, preferred);
+  const levels = ['ask', 'edits', 'contained', 'isolated'];
+  const ceiling = parentApproval || 'ask';
+  if (levels.indexOf(approval) <= levels.indexOf(ceiling)) return approval;
+  return ceiling === 'ask' || engine.approval_profiles?.[ceiling] ? ceiling : 'ask';
+}
+
 export const METAROUTER_BLOCK = `## Tools
 Run shell commands through metarouter.
 - Look for a saved recipe first: \`metarouter search <words>\`, then \`metarouter run <recipe> ...\`.

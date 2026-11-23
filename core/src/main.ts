@@ -10,7 +10,7 @@ import { wireTermEvents } from './terminal/events.ts';
 import * as term from './terminal/index.ts';
 import { checkBudgets, proveDone, watchRecord } from './reliability.ts';
 import { onStateChange } from './events/state.ts';
-import { defaultApproval, deliverPrompts, launchSession } from './sessions/launch.ts';
+import { deliverPrompts, followUpApproval, launchSession } from './sessions/launch.ts';
 import { nowIso } from './time.ts';
 import { rotateUiKey } from './uikey.ts';
 import { CommandRunner } from './pipe/commands.ts';
@@ -162,7 +162,8 @@ async function main(): Promise<void> {
       const project = db.prepare('SELECT path, name FROM project WHERE id = ?').get(a.project_id) as { path: string; name: string };
       const engine = getEngine(db, a.engine_id);
       if (!engine) throw new Error(`engine ${a.engine_id} not found`);
-      return launchSession(db, { projectId: a.project_id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd ?? project.path, parentId: a.parent_id, prompt: a.prompt, approval: defaultApproval(engine, settings().sessions.approval) });
+      const parent = db.prepare('SELECT approval FROM session WHERE id = ?').get(a.parent_id) as { approval: string | null } | undefined;
+      return launchSession(db, { projectId: a.project_id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd ?? project.path, parentId: a.parent_id, prompt: a.prompt, approval: followUpApproval(engine, settings().sessions.approval, parent?.approval) });
     },
   };
   ctl.automationDeps = autoDeps;
