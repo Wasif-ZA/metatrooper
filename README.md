@@ -140,6 +140,10 @@ What to expect:
 - From source, `troop` in any message or below means `node core/cli.ts`. From the zip, open a terminal in the
   unzipped folder (in File Explorer, right-click the folder, then **Open in Terminal**), and `troop` means
   `resources\node\node.exe resources\app\core\cli.ts`.
+- Agents cc starts already have `troop` on their PATH. To type `troop` in your own terminal, put the `router\bin`
+  folder first on PATH for that terminal: in the repo it is `router\bin`, in the zip `resources\app\router\bin`. In
+  PowerShell: `$env:Path = "<that folder>;$env:Path"`. cc never edits your saved PATH. `troop.cmd` runs `node`, so
+  Node 24.16 or later must be on PATH as well.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the window installs cc's hooks into
