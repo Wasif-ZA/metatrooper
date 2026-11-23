@@ -317,7 +317,30 @@ function Trigger({ x, kids, open, toggle }) {
   );
 }
 
-function TaskView({ x, kids, openList, toggle, picked }) {
+const REVIEW_WORD = { pending: 'Reviewing', passed: 'Passed', failed: 'Failed' };
+
+/** A reviewer's run, nested under the turn it checked and folded until opened (M8-F17c). */
+function ReviewRun({ r, child, openList, toggle }) {
+  const key = `review:${child.id}`;
+  const open = openList.includes(key);
+  return (
+    <div className="ou-hm-review" data-review={r.who} data-state={r.state}>
+      <div className="ou-hm-reviewhead" aria-expanded={open} {...press(() => toggle(key))}>
+        <span className="ou-hm-reviewtitle">Review by {engineName(r.who)} · {REVIEW_WORD[r.state] || r.state}</span>
+        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
+      </div>
+      <Drop open={open} className="ou-hm-drop">
+        <ul className="ou-hm-slimlist"><SlimRow k={child} openList={openList} toggle={toggle} /></ul>
+        {r.note ? <p className="ou-hm-reviewnote">{r.note}</p> : null}
+      </Drop>
+    </div>
+  );
+}
+
+function TaskView({ x, kids: allKids, openList, toggle, picked }) {
+  const reviewIds = new Set((x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => r.review_session_id));
+  const kids = allKids.filter((k) => !reviewIds.has(k.id));
+  const reviewRuns = (x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => [r, allKids.find((k) => k.id === r.review_session_id)]).filter(([, c]) => c);
   const [answer, setAnswer] = useState('');
   const [draft, setDraft] = useState('');
   const chat = useChat(x.id, x.state);
@@ -368,6 +391,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
           </div>
         ) : null}
         <Chat x={x} chat={chat} openInEditor={openInEditor} />
+        {reviewRuns.map(([r, child]) => <ReviewRun key={child.id} r={r} child={child} openList={openList} toggle={toggle} />)}
         {ask && !chat?.waiting ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
