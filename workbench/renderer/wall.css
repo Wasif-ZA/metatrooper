@@ -52,7 +52,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--canv
 .needs { color: var(--wait); border-color: var(--wait); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; font-size: 10.5px; }
 .needs .n { min-width: 18px; height: 16px; border-radius: 1px; padding: 0 5px; background: var(--wait); color: #0b0b0c; letter-spacing: 0; font-weight: 600; font-size: 11px; display: inline-grid; place-items: center; }
 .needs.zero { color: var(--mute); border-color: var(--hairline-strong); }
-.needs.zero .n { background: var(--hairline-strong); color: var(--mute); }
+.needs.zero .n { background: var(--hairline-strong); color: var(--body-strong); }
 @media (max-width: 1100px) { .crumb .core, .title .needs { font-size: 0; gap: 0; } .crumb .core { padding: 0 6px; } .crumb .core .offline { font-size: 11px; } }
 .roll { position: relative; display: inline-block; overflow: hidden; height: 16px; line-height: 16px; vertical-align: bottom; text-align: center; }
 .roll > span { display: block; }
@@ -231,7 +231,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .sheet.up { box-shadow: var(--float); }
 .sheet:not(.up) { clip-path: inset(0 0 208px 0 round var(--r)); }
 .sheet:not(.up)::after { content: ''; position: absolute; left: 0; right: 0; top: 42px; border-top: inherit; }
-.sheet:has(.gates:empty, .gates > .gate:not([data-approval])) .tab .n { background: var(--canvas-soft); color: var(--mute); }
+.sheet:has(.gates:empty, .gates > .gate:not([data-approval])) .tab .n { background: var(--canvas-soft); color: var(--body); }
 .sheet .tab { height: 44px; flex: none; width: 100%; display: flex; align-items: center; gap: 10px; padding: 0 12px; text-align: left; font-size: 12px; }
 .sheet .tab .n { min-width: 18px; height: 16px; border-radius: 1px; background: var(--wait); color: #0b0b0c; font-weight: 600; font-size: 11px; display: inline-grid; place-items: center; padding: 0 5px; }
 .sheet .tab .t { font-weight: 600; text-transform: uppercase; letter-spacing: .14em; font-size: 10.5px; color: var(--ink); }

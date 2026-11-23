@@ -155,6 +155,7 @@
 .ou-ide-tree .astryx-tree-list-item { border-radius: 0; }
 .ou-ide-tree .astryx-tree-list-item:hover { background: var(--row-hover); }
 .ou-ide-tree [aria-selected="true"] > * > .astryx-tree-list-item { background: var(--row-selected); }
+.ou-ide-cur, .ou-ide-scrow:focus-visible, .ou-ide-tree [aria-selected="true"] > * > .astryx-tree-list-item, .ou-ide-tree [role="treeitem"]:focus > * > .astryx-tree-list-item, .ou-ide-tree .astryx-tree-list-item:has(:focus) { --mute: var(--body); --color-text-secondary: var(--body); }
 .ou-ide-tree [role="treeitem"]:focus > * > .astryx-tree-list-item, .ou-ide-tree .astryx-tree-list-item:has(:focus) { background: var(--row-selected); box-shadow: inset 0 0 0 1px var(--body); }
 .ou-ide-tree .astryx-tree-list-guide { opacity: 0; transition: opacity var(--ease-fast); }
 .ou-ide-tree:hover .astryx-tree-list-guide { opacity: 1; transition-duration: 0s; }
