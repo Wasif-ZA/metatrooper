@@ -224,8 +224,9 @@ function installPrepared(db: DatabaseSync, req: InstallRequest, p: Prepared): { 
       if (!asked.has(`secrets:${name}`)) throw new RpcError(E.VALIDATION, `secret ${name} has no secrets:${name} permission`, { errors: [`not asked for: secrets:${name}`] });
     }
 
-    const finalDir = placeFiles(p, m);
-    tx(db, () => {
+    const placed = placeFiles(p, m);
+    const finalDir = placed.dir;
+    try { tx(db, () => {
       const now = nowIso();
       db.prepare(
         `INSERT INTO plugin (id, version, path, manifest, source, permissions, enabled, installed_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
@@ -245,7 +246,8 @@ function installPrepared(db: DatabaseSync, req: InstallRequest, p: Prepared): { 
         up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
       }
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(now, m.id);
-    });
+    }); } catch (e) { placed.undo(); throw e; }
+    placed.done();
 
     for (const [name, value] of Object.entries(req.secrets ?? {})) setSecret(db, m.id, name, value);
     for (const env of Object.values(p.imported?.env ?? {})) {
@@ -262,25 +264,31 @@ function installPrepared(db: DatabaseSync, req: InstallRequest, p: Prepared): { 
   }
 }
 
-function placeFiles(p: Prepared, m: Manifest): string {
+/** Puts the plugin's files in place; `done` drops the old copy once the database has the new manifest, `undo` puts the old files back. */
+function placeFiles(p: Prepared, m: Manifest): { dir: string; done: () => void; undo: () => void } {
   const target = path.join(pluginsDir(), m.id);
   if (p.imported) {
     fs.mkdirSync(target, { recursive: true });
-    fs.writeFileSync(path.join(target, MANIFEST_FILE), p.text);
-    const record: ImportRecord = {
-      source: p.imported.source,
-      original: p.imported.original,
-      env: Object.fromEntries(Object.entries(p.imported.env).map(([server, env]) => [
-        server,
-        Object.fromEntries(Object.entries(env).map(([k, b]: [string, EnvBinding]) => [k, b.kind === 'ref' ? { kind: 'ref' as const, name: b.name } : { kind: 'dpapi' as const }])),
-      ])),
-      skills: p.imported.skills,
-      hooks: p.imported.hooks,
-      skipped: p.imported.skipped,
-      ...(p.imported.origin ? { origin: p.imported.origin } : {}),
-    };
-    fs.writeFileSync(path.join(target, IMPORT_FILE), JSON.stringify(record, null, 2) + '\n');
-    return target;
+    const files = [MANIFEST_FILE, IMPORT_FILE].map((f) => path.join(target, f));
+    const before = files.map((f) => (fs.existsSync(f) ? fs.readFileSync(f) : null));
+    const undo = () => files.forEach((f, i) => { const b = before[i]; if (b === null) fs.rmSync(f, { force: true }); else fs.writeFileSync(f, b); });
+    try {
+      fs.writeFileSync(files[0], p.text);
+      const record: ImportRecord = {
+        source: p.imported.source,
+        original: p.imported.original,
+        env: Object.fromEntries(Object.entries(p.imported.env).map(([server, env]) => [
+          server,
+          Object.fromEntries(Object.entries(env).map(([k, b]: [string, EnvBinding]) => [k, b.kind === 'ref' ? { kind: 'ref' as const, name: b.name } : { kind: 'dpapi' as const }])),
+        ])),
+        skills: p.imported.skills,
+        hooks: p.imported.hooks,
+        skipped: p.imported.skipped,
+        ...(p.imported.origin ? { origin: p.imported.origin } : {}),
+      };
+      fs.writeFileSync(files[1], JSON.stringify(record, null, 2) + '\n');
+    } catch (e) { undo(); throw e; }
+    return { dir: target, done: () => {}, undo };
   }
   if (p.staged) {
     const aside = fs.existsSync(target) ? `${target}.old-${ulid().toLowerCase()}` : null;
@@ -292,16 +300,20 @@ function placeFiles(p: Prepared, m: Manifest): string {
       throw e;
     }
     p.staged = false;
-    if (aside) {
-      try {
-        fs.rmSync(aside, { recursive: true, force: true });
-      } catch (e) {
-        console.error(`plugin install: left ${aside} in place: ${(e as Error).message.split('\n')[0]}`);
-      }
-    }
-    return target;
+    return {
+      dir: target,
+      done: () => {
+        if (!aside) return;
+        try { fs.rmSync(aside, { recursive: true, force: true }); }
+        catch (e) { console.error(`plugin install: left ${aside} in place: ${(e as Error).message.split('\n')[0]}`); }
+      },
+      undo: () => {
+        fs.rmSync(target, { recursive: true, force: true });
+        if (aside) fs.renameSync(aside, target);
+      },
+    };
   }
-  return p.dir;
+  return { dir: p.dir, done: () => {}, undo: () => {} };
 }
 
 export function raiseMissingSecret(db: DatabaseSync, pluginId: string, name: string): void {
