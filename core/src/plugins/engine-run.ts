@@ -10,6 +10,7 @@ import { runAction } from './actions.ts';
 import { blockReason } from './blocklist.ts';
 import { checkShippedFiles, loadPlugin } from './store.ts';
 import { canonicalJson, type Approvals } from '../approvals.ts';
+import { redactCredentials } from '../redact.ts';
 import crypto from 'node:crypto';
 
 export interface EngineResult { status: 'ok' | 'failed'; outputs?: Record<string, unknown>; error?: string; bound?: string; run: string }
@@ -39,9 +40,17 @@ export async function runEngine(db: DatabaseSync, p: Record<string, unknown>, ap
     if (!approvals) throw new RpcError(E.VALIDATION, `${plugin.id} ${action.id} leaves this machine and no gate is available, so it does not run`);
     const files = (db.prepare('SELECT value FROM meta WHERE key = ?').get(`plugin_files:${plugin.id}`) as { value: string } | undefined)?.value ?? '';
     const destination = action.destination_field ? String(input[action.destination_field] ?? '').slice(0, 200) : '';
-    const args = { action: action.id, input_sha256: crypto.createHash('sha256').update(canonicalJson(input)).digest('hex'), files_sha256: crypto.createHash('sha256').update(files).digest('hex'), destination };
+    // the person sees what leaves: a short preview of the input, scrubbed of credentials and saved secrets in the summary
+    const preview = redactCredentials(canonicalJson(input)).slice(0, 200);
+    const args = { action: action.id, input_sha256: crypto.createHash('sha256').update(canonicalJson(input)).digest('hex'), files_sha256: crypto.createHash('sha256').update(files).digest('hex'), destination, preview };
     const v = await approvals.check({ session_id: sessionId, surface: 'engine', target: plugin.id, action: 'run', args, control: null });
     if (v.decision !== 'approved') throw new RpcError(E.VALIDATION, v.decision === 'deny' ? `not run: ${v.reason}` : v.decision === 'rejected' ? 'not run: the user rejected this action' : 'not run: not approved in time');
+    // the wait has no limit, so the plugin is checked again: what runs is what was approved
+    const still = loadPlugin(db, plugin.id);
+    if (!still) throw new RpcError(E.NOT_FOUND, `${plugin.id} was removed or turned off while the approval waited; nothing ran`);
+    const blockedNow = blockReason(still.id, still.version);
+    if (blockedNow) throw new RpcError(E.VALIDATION, `${still.id} ${still.version} is on cc's block list: ${blockedNow}; nothing ran`);
+    checkShippedFiles(db, still);
   }
   const run = { id: ulid(), dir: '' };
   run.dir = path.join(homeDir(), 'engine-runs', run.id);

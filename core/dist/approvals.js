@@ -164,8 +164,9 @@ export function summaryOf(p             , secrets           = [], windowTitle   
   let where = windowTitle || p.target;
   if (!windowTitle) try { where = new URL(p.target).host || p.target; } catch {}
   if (p.surface === 'engine') {
-    const dest = typeof p.args.destination === 'string' && p.args.destination ? ` to ${p.args.destination}` : '';
-    return scrub(`${p.target} runs ${String(p.args.action)}${dest}`, secrets).slice(0, 300);
+    const dest = typeof p.args.destination === 'string' && p.args.destination ? ` to ${p.args.destination}` : ' to a destination the plugin does not name';
+    const what = typeof p.args.preview === 'string' && p.args.preview ? `: ${p.args.preview}` : '';
+    return scrub(`${p.target} runs ${String(p.args.action)}${dest}${what}`, secrets).slice(0, 300);
   }
   if (p.action === 'upload' && Array.isArray(p.args.paths)) {
     const files = (p.args.paths            ).map((f) => { let size = 0; try { size = fs.statSync(f).size; } catch {} return `${path.basename(f)} (${sizeText(size)})`; });
