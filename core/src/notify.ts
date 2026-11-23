@@ -14,8 +14,8 @@ const DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secre
 const RETRY_MS = [10_000, 60_000, 300_000];
 const STALE_MS = 24 * 3600_000;
 const FAILED_PREFIX = 'notify-failed';
-/** Sinks that reach a phone; quiet hours hold only these (Q9b). webhook and command go to machines and still send. */
-export const PHONE_SINKS: ReadonlySet<string> = new Set(['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow']);
+/** Sinks that quiet hours hold (Q9b): ntfy only. Slack, Discord, Teams, webhook and command sinks still send at night. */
+export const PHONE_SINKS: ReadonlySet<string> = new Set(['ntfy']);
 
 interface SinkRow {
   id: string;

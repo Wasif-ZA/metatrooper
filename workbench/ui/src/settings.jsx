@@ -77,7 +77,7 @@ const SECTIONS = [
   ] }] },
   { id: 'notify', label: 'Notifications', note: 'Where cc tells you when an agent needs you.', groups: [{ rows: [
     { run: () => openSinks(), button: 'Manage', label: 'Slack, ntfy and webhooks', hint: 'Where "needs you" and "run failed" get sent. Each one sends the alert through that outside service.' },
-    { key: 'notify.quiet_at_night', label: 'Never at night', hint: 'Phone alerts (ntfy, Slack, Discord, Teams) send nothing from 22:00 to 07:00. Webhooks and commands still send. Needs you still shows every item, and anything still waiting goes out after 07:00.' },
+    { key: 'notify.quiet_at_night', label: 'Never at night', hint: 'Phone alerts (ntfy) send nothing from 22:00 to 07:00. Slack, Discord, Teams, webhooks and commands still send. Needs you still shows every item, and anything still waiting goes out after 07:00.' },
   ] }] },
   { id: 'advanced', label: 'Advanced', note: 'Worktrees and logs.', groups: [{ title: 'Worktrees', rows: [
     { key: 'worktree.npm_ci', label: 'Install dependencies in each new worktree' },
