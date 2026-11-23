@@ -166,3 +166,28 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<string
     default: throw new Error(`unknown git action ${op}`);
   }
 }
+
+/** Commit, push, open PR, in that order; the first failure stops the rest and names its step. Never force-pushes and never pushes the default branch. With nothing staged it commits every change. */
+export async function ship(git: Run, gh: (args: string[]) => Promise<string>, message: string): Promise<{ commit?: string; url: string }> {
+  const step = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+    try { return await fn(); } catch (e) { throw new Error(`${name} failed: ${String((e as { stderr?: string }).stderr || (e as Error).message || e).trim().split('\n')[0]}`); }
+  };
+  const branch = (await step('push', () => git(['rev-parse', '--abbrev-ref', 'HEAD']))).trim();
+  if (!branch || branch === 'HEAD') throw new Error('push failed: no branch is checked out');
+  const head = await git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).then((r) => r.trim().replace(/^origin\//, ''), () => '');
+  if (branch === head || (!head && (branch === 'main' || branch === 'master'))) throw new Error(`push failed: ${branch} is the default branch; ship from a feature branch`);
+  let commit: string | undefined;
+  if ((await step('commit', () => git(['status', '--porcelain']))).trim()) {
+    const msg = message.trim();
+    if (!msg || msg.includes('\0')) throw new Error('commit failed: write a commit message first');
+    if (!(await step('commit', () => git(['diff', '--cached', '--name-only']))).trim()) await step('commit', () => git(['add', '-A']));
+    await step('commit', () => git(['commit', '-F', '-'], msg));
+    commit = (await git(['rev-parse', '--short', 'HEAD'])).trim();
+  }
+  await step('push', () => git(['push', '--set-upstream', 'origin', branch]));
+  const existing = await gh(['pr', 'view', branch, '--json', 'url']).then((r) => String(JSON.parse(r).url || ''), () => '');
+  if (existing) return { commit, url: existing };
+  const [title, ...rest] = message.trim().split(/\r?\n/);
+  const out = await step('open PR', () => gh(title ? ['pr', 'create', '--head', branch, '--title', title, '--body', rest.join('\n').trim()] : ['pr', 'create', '--head', branch, '--fill']));
+  return { commit, url: out.trim().split(/\r?\n/).at(-1) ?? '' };
+}
