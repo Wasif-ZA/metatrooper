@@ -15,7 +15,7 @@ import * as Sc from './icons/screens.jsx';
 import './needsyou-ref.css';
 import { PROJECT_COLOURS } from './icons/shapes.js';
 
-export const inboxStore = createStore({ tick: 0, filter: 'all', engine: '', project: '', collapsed: [], selectedId: null });
+export const inboxStore = createStore({ tick: 0, filter: 'all', engine: '', project: '', collapsed: ['quiet'], selectedId: null });
 
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 const PRIORITIES = [['none', 'No priority'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']];
@@ -394,6 +394,7 @@ const openOnWall = (x) => {
   void pick(x.id);
 };
 
+const QUIET_MS = 2 * 3600_000;
 const WHAT = { needs: 'asked a question', working: 'working', review: 'waiting for review', failed: 'failed', done: 'finished', blocked: 'blocked' };
 const WORD = { needs: 'Needs you', working: 'Working', review: 'In review', failed: 'Failed', done: 'Done', blocked: 'Blocked' };
 
@@ -439,6 +440,10 @@ export function Inbox() {
   const targetSessionId = selectedNotice ? selectedNotice.ref : selectedId;
   const targetSession = targetSessionId ? byId(targetSessionId) : null;
   const { text: sessionText, error: sessionTextError } = useSessionText(ui.view === 'inbox' ? targetSession?.id : null, targetSession?.last_line || null);
+  const lastSaid = useRpcResult('session.chat', { session_id: targetSession?.id, limit: 20 }, ui.view === 'inbox' && targetSession?.state === 'waiting_for_you' ? `${targetSession.id} ${targetSession.state_at}` : null, (res) => {
+    const last = (res?.result?.items || []).at(-1);
+    return { value: last ? (last.kind === 'tool' ? last.label : last.text) : null, error: false };
+  }).value;
   const handoff = useRpcResult('session.handoff', { session_id: targetSession?.id }, ui.view === 'inbox' ? targetSession?.id : null, (res) => ({ value: res && res.result ? res.result.handoff || null : null, error: false })).value;
 
   const autoProject = targetSession?.project_id || null;
@@ -459,7 +464,10 @@ export function Inbox() {
     return (!engineFilter || x?.engine_id === engineFilter) && (!projectFilter || (x?.project_id || item.project_id) === projectFilter);
   };
   const approvals = allApprovals.filter((a) => passes({ ref: a.session_id }, false));
-  const waitingSessions = waitingAll().slice().sort(byPriority(true));
+  const quietBefore = Date.now() - QUIET_MS;
+  const waitingAllSorted = waitingAll().slice().sort(byPriority(true));
+  const waitingSessions = waitingAllSorted.filter((x) => !(Date.parse(x.state_at) < quietBefore));
+  const quietSessions = waitingAllSorted.filter((x) => Date.parse(x.state_at) < quietBefore);
   const workingSessions = workingRows(ui.snap).sort(byPriority(true));
   const needsNotices = needsYou.filter((n) => kindOf(n) === 'needs').sort(byPriority(false));
   const inReviewNotices = needsYou.filter((n) => n.kind === 'uncommitted' || n.kind === 'handoff').sort(byPriority(false));
@@ -468,13 +476,14 @@ export function Inbox() {
 
   const groups = [
     { key: 'needs', title: 'Needs your answer', status: 'needs', count: waitingSessions.length + approvals.length + needsNotices.length, items: [...waitingSessions.map((x) => [x, true]), ...needsNotices.map((n) => [n, false])] },
+    { key: 'quiet', title: 'Waiting over 2 hours', status: 'needs', count: quietSessions.length, items: quietSessions.map((x) => [x, true]) },
     { key: 'working', title: 'Working', status: 'working', count: 0, items: workingSessions.map((x) => [x, true]) },
     { key: 'in_review', title: 'In review', status: 'review', count: inReviewNotices.length, items: inReviewNotices.map((n) => [n, false]) },
     { key: 'failed', title: 'Failed', status: 'failed', count: failedNotices.length, items: failedNotices.map((n) => [n, false]) },
     { key: 'done', title: 'Done', status: 'done', count: doneNotices.length, items: doneNotices.map((n) => [n, false]) },
   ];
   for (const g of groups) {
-    g.items = filter !== 'all' && filter !== g.key ? [] : g.items.filter(([item, isSession]) => passes(item, isSession));
+    g.items = filter !== 'all' && filter !== g.key && !(filter === 'needs' && g.key === 'quiet') ? [] : g.items.filter(([item, isSession]) => passes(item, isSession));
     g.count = g.key === 'working' ? workingCounts({ live: g.items.map(([x]) => x) }).working : g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
   }
   const rowCount = (g) => g.items.length + (g.key === 'needs' && (filter === 'all' || filter === 'needs') ? approvals.length : 0);
@@ -749,7 +758,7 @@ export function Inbox() {
         {activeRow.isSession && item.state === 'waiting_for_you' ? (
           <li className="ou-ny-entry ou-ipane-question">
             <div className="ou-ny-entry-head"><Avatar name={engine} /><span className="ou-ny-entry-who">{Ic.engineName(engine)} asked</span><span className="ou-ny-muted">{ago(item.state_at) || ''}</span></div>
-            <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{item.last_line || taskOf(item)}</div>
+            <div className="ou-ny-entry-body ou-ipane-lastline ou-ny-question">{lastSaid || taskOf(item)}</div>
           </li>
         ) : null}
         {!activeRow.isSession ? <li><DetailNotice key={`notice-${item.id}`} n={item} /></li> : null}

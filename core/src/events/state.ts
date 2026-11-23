@@ -72,7 +72,7 @@ export function nextState(current: string, event: StateEvent, waited: string | n
     case 'core.process-gone':
       return 'exited';
     case 'core.stalled':
-      return current === 'starting' ? 'waiting_for_you' : null;
+      return current !== 'starting' ? null : p.prompt === false ? 'idle' : 'waiting_for_you';
     case 'core.seen':
       return current === 'done' ? 'idle' : null;
     case 'term.bell':

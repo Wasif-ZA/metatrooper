@@ -29,10 +29,10 @@ export function checkPids(db: DatabaseSync, now = Date.now()): void {
 
 export const STALL_MS = 15_000;
 
-/** Every 5 s: sessions still `starting` 15 s after launch get a core.stalled event, except codex and agy sessions not yet linked to their session files. */
+/** Every 5 s: sessions still `starting` 15 s after launch get a core.stalled event, except codex and agy sessions not yet linked to their session files. `prompt: false` marks a launch or resume with no prompt, which is ready at its prompt, not stuck. */
 export function checkStalled(db: DatabaseSync, now = Date.now()): void {
-  const rows = db.prepare("SELECT id, started_at FROM session WHERE state = 'starting' AND NOT (engine_id IN ('codex','agy') AND native_id IS NULL)").all() as Array<{ id: string; started_at: string }>;
-  for (const r of rows) if (now - Date.parse(r.started_at) >= STALL_MS) appendEvent('core.stalled', r.id, {}, db);
+  const rows = db.prepare("SELECT id, started_at, prompt FROM session WHERE state = 'starting' AND NOT (engine_id IN ('codex','agy') AND native_id IS NULL)").all() as Array<{ id: string; started_at: string; prompt: string | null }>;
+  for (const r of rows) if (now - Date.parse(r.started_at) >= STALL_MS) appendEvent('core.stalled', r.id, { prompt: r.prompt !== null }, db);
 }
 
 const HELD_STOP_MS = 600_000;

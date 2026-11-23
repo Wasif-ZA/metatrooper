@@ -169,6 +169,8 @@ test('core.stalled moves only a starting session to waiting_for_you', () => {
   for (const current of ['working', 'done', 'idle', 'waiting_for_you', 'exited']) {
     assert.equal(nextState(current, { kind: 'core.stalled', payload: {} }), null, current);
   }
+  assert.equal(nextState('starting', { kind: 'core.stalled', payload: { prompt: true } }), 'waiting_for_you');
+  assert.equal(nextState('starting', { kind: 'core.stalled', payload: { prompt: false } }), 'idle');
 });
 
 test('agy activity_waiting matches an unanswered tool call and not a finished reply', async () => {
