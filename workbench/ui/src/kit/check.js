@@ -4,13 +4,14 @@ import B from './parts-b.names.js';
 import C from './parts-c.names.js';
 import D from './parts-d.names.js';
 import E from './parts-e.names.js';
+import F from './parts-f.names.js';
 
 export { KIT, VERSION } from './catalogue.js';
 export const MAX_DEPTH = 12;
 export const MAX_PARTS = 1500;
 export const MAX_ROWS = 200;
 // Parts Draw.jsx has a component for; every other catalogue part expands to the plain-text box until its batch lands.
-export const DRAWN = ['page', 'section', 'header', 'text', 'table', 'buttons', ...A, ...B, ...C, ...D, ...E];
+export const DRAWN = ['page', 'section', 'header', 'text', 'table', 'buttons', ...A, ...B, ...C, ...D, ...E, ...F];
 
 const TYPES = { str: (v) => typeof v === 'string' || typeof v === 'number', num: Number.isFinite, bool: (v) => typeof v === 'boolean', arr: Array.isArray, obj: (v) => !!v && typeof v === 'object' && !Array.isArray(v), any: (v) => v !== undefined };
 const CHILDREN = new Set(['page', 'section', 'columns', 'grid', 'fold']);
