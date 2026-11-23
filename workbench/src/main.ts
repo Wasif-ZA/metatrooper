@@ -288,9 +288,15 @@ function watch(): void {
   }, POLL_MS);
 }
 
+/** Windows paths compare without case (a lower-case drive in the launch path comes back upper-case in the page URL). */
+export const samePath = (a: string, b: string, platform = process.platform): boolean => {
+  const norm = (p: string) => (platform === 'win32' ? path.win32.resolve(p).toLowerCase() : path.resolve(p));
+  return norm(a) === norm(b);
+};
+
 function trusted(e: IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? '';
-  return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
+  return url.startsWith('file:') && samePath(fileURLToPath(url.split(/[?#]/)[0]), INDEX);
 }
 
 async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string; copied?: boolean }> {
