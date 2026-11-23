@@ -15,7 +15,7 @@ const temp = mkdtempSync(join(tmpdir(), 'm8-workspace-'));
 after(() => rmSync(temp, { recursive: true, force: true }));
 const requireUI = createRequire(join(ui, 'package.json'));
 const { build } = requireUI('esbuild');
-const exports = 'Pane, WorkspaceBanner, workspaceKey, wsStore';
+const exports = 'Pane, WorkspaceBanner, workspaceKey, wsStore, hasView';
 try { await build({
   stdin: { contents: `export { ${exports} } from './src/workspace.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';`, resolveDir: ui, loader: 'jsx' },
   absWorkingDir: ui, tsconfigRaw: {}, bundle: true, platform: 'node', format: 'esm', jsx: 'automatic',
@@ -34,7 +34,7 @@ try { await build({
     child.on('exit', code => code === 0 ? resolveBuild() : reject(new Error('esbuild exited ' + code)));
   });
 }
-const { Pane, WorkspaceBanner, workspaceKey, wsStore, React, renderToStaticMarkup } = await import(pathToFileURL(join(temp, 'ws.mjs')).href);
+const { Pane, WorkspaceBanner, workspaceKey, wsStore, hasView, React, renderToStaticMarkup } = await import(pathToFileURL(join(temp, 'ws.mjs')).href);
 
 const examples = fileURLToPath(new URL('../ui/src/workspaces/', import.meta.url));
 const example = (name: string) => JSON.parse(readFileSync(join(examples, name + '.json'), 'utf8'));
@@ -125,4 +125,19 @@ test('all 8 persona layouts load', t => {
     assert.equal(r.current?.name, example(name).name, name);
   }
   assert.throws(() => h.op('example', 'no-such-layout'), { code: -32002 });
+});
+
+test('the renderer may call the workspace methods', () => {
+  const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+  const body = main.match(/UI_METHODS\s*=\s*new Set\(\[([\s\S]*?)\]\)/)?.[1];
+  assert.ok(body, 'UI_METHODS found in main.ts');
+  for (const m of ['workspace.get', 'workspace.undo', 'workspace.usual']) assert.ok(body.includes(`'${m}'`), m);
+});
+
+test('hasView finds a built-in view anywhere in a layout', () => {
+  assert.equal(hasView(example('dev').layout, 'explorer'), true);
+  assert.equal(hasView(example('video').layout, 'explorer'), false);
+  const nested = { split: 'row', sizes: [1, 1], children: [{ view: 'wall' }, { split: 'col', sizes: [1, 1], children: [{ view: 'editor' }, { view: 'terminal' }] }] };
+  assert.equal(hasView(nested, 'terminal'), true);
+  assert.equal(hasView(nested, 'explorer'), false);
 });
