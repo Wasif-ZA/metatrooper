@@ -153,6 +153,7 @@ const catalogueParts = [
   { type: 'calendar', days: [], events: [] }, { type: 'image', asset: 'asset:synthetic', alt: 'A' }, { type: 'use', template: 'hello' },
 ];
 const undrawn = ['gate', 'tile', 'use'];
+const whyUndrawn = (t: string) => (t === 'use' ? 'no template called hello' : 'not drawn yet');
 for (const part of catalogueParts) {
   const draws = !undrawn.includes(part.type);
   test(`catalogue ${part.type} is checked then ${draws ? 'expanded for drawing' : 'marked not drawn yet'}`, () => {
@@ -163,9 +164,9 @@ for (const part of catalogueParts) {
       assert.equal(out.root.type, part.type);
       assert.equal(isFallback(out.root), false);
     } else {
-      assert.deepEqual(out.fellBack, [{ part: 'p1', type: part.type, why: 'not drawn yet' }]);
+      assert.deepEqual(out.fellBack, [{ part: 'p1', type: part.type, why: whyUndrawn(part.type) }]);
       assert.equal(isFallback(out.root), true);
-      assert.equal(out.root.why, 'not drawn yet');
+      assert.equal(out.root.why, whyUndrawn(part.type));
     }
   });
 }
