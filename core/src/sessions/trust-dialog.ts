@@ -9,6 +9,7 @@ const LINES = 20;
 export async function checkTrustDialog(db: DatabaseSync, read: (id: string, n: number) => Promise<string[] | null> = lastLines): Promise<void> {
   const rows = db.prepare(`SELECT s.id, s.engine_id, s.wait_reason FROM session s WHERE s.state NOT IN ('done', 'exited') AND (s.wait_reason = 'trust' OR NOT EXISTS (
     SELECT 1 FROM event e WHERE e.session_id = s.id AND e.kind NOT IN ('launch', 'core.stalled', 'core.trust-dialog', 'core.trust-cleared', 'core.title-state', 'term.bell', 'term.output') AND e.kind NOT LIKE '%.SessionStart'))`).all() as Array<{ id: string; engine_id: string; wait_reason: string | null }>;
+  const lastTrust = db.prepare("SELECT kind FROM event WHERE session_id = ? AND kind IN ('core.trust-dialog', 'core.trust-cleared') ORDER BY seq DESC LIMIT 1");
   for (const s of rows) {
     const patterns = getEngine(db, s.engine_id)?.trust_patterns;
     if (!patterns?.length) continue;
@@ -17,7 +18,8 @@ export async function checkTrustDialog(db: DatabaseSync, read: (id: string, n: n
     if (lines === null) continue;
     const text = lines.join('\n').toLowerCase();
     const shown = patterns.some((p) => text.includes(p.toLowerCase()));
-    if (shown && s.wait_reason !== 'trust') appendEvent('core.trust-dialog', s.id, {}, db);
-    else if (!shown && s.wait_reason === 'trust') appendEvent('core.trust-cleared', s.id, {}, db);
+    const raised = (lastTrust.get(s.id) as { kind: string } | undefined)?.kind === 'core.trust-dialog';
+    if (shown && !raised) appendEvent('core.trust-dialog', s.id, {}, db);
+    else if (!shown && raised && s.wait_reason === 'trust') appendEvent('core.trust-cleared', s.id, {}, db);
   }
 }
