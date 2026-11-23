@@ -14,9 +14,9 @@ import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-
 export const APPROVAL_TIMEOUT_MS = 0;
 /** How long a caller waits for a gate: the longest setTimeout allows. */
 export const GATE_WAIT_MS = 2_147_483_647;
-export const SURFACES = ['browser', 'desktop']         ;
+export const SURFACES = ['browser', 'desktop', 'engine']         ;
 export const INSTRUCTION_MAX = 500;
-export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate', 'upload']         ;
+export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate', 'upload', 'run']         ;
 
                                                                               
 
@@ -77,7 +77,7 @@ export function desktopActionArgs(action        , p                         )   
 const RISKY_NAME = /\b(send|submit|pay|buy|purchase|order|checkout|delete|remove|erase|publish|post|transfer|authori[sz]e|confirm)\b/i;
 const CREDENTIAL_LABEL = /\b(password|passcode|token|secret|key|cvv|card)s?\b/i;
 const ACTIVATING_KEY = /^(enter|return|space| )$/i;
-const ALWAYS = new Set(['password field', 'credential text', 'credential field', 'file dialog', 'hidden control', 'file upload']);
+const ALWAYS = new Set(['password field', 'credential text', 'credential field', 'file dialog', 'hidden control', 'file upload', 'leaves this machine']);
 export const UPLOAD_MAX_FILES = 10;
 export const UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
 
@@ -138,6 +138,7 @@ export function riskReason(p             )                {
   const label = c ? `${c.name} ${c.automation_id}` : '';
   if (p.file_dialog) return 'file dialog';
   if (p.action === 'upload') return 'file upload';
+  if (p.surface === 'engine') return 'leaves this machine';
   if (p.action === 'type') {
     if (p.password) return 'password field';
     if (typeof p.args.text === 'string' && typed(p).some(looksLikeCredential)) return 'credential text';
@@ -162,6 +163,10 @@ export function summaryOf(p             , secrets           = [], windowTitle   
   const what = p.control ? (p.control.name || p.control.automation_id || p.control.role) : '';
   let where = windowTitle || p.target;
   if (!windowTitle) try { where = new URL(p.target).host || p.target; } catch {}
+  if (p.surface === 'engine') {
+    const dest = typeof p.args.destination === 'string' && p.args.destination ? ` to ${p.args.destination}` : '';
+    return scrub(`${p.target} runs ${String(p.args.action)}${dest}`, secrets).slice(0, 300);
+  }
   if (p.action === 'upload' && Array.isArray(p.args.paths)) {
     const files = (p.args.paths            ).map((f) => { let size = 0; try { size = fs.statSync(f).size; } catch {} return `${path.basename(f)} (${sizeText(size)})`; });
     return scrub(`upload ${files.join(', ')} to ${where}`, secrets).slice(0, 300);
@@ -309,7 +314,8 @@ function parseCheck(raw                         )              {
     return v;
   };
   const surface = s('surface');
-  if (!(SURFACES                     ).includes(surface)) throw new RpcError(E.INVALID_PARAMS, 'surface must be browser or desktop');
+  if (!(SURFACES                     ).includes(surface)) throw new RpcError(E.INVALID_PARAMS, 'surface must be browser, desktop or engine');
+  if ((surface === 'engine') !== (raw.action === 'run')) throw new RpcError(E.INVALID_PARAMS, 'the engine surface takes the run action, and only it');
   const action = s('action');
   if (!(ACTIONS                     ).includes(action)) throw new RpcError(E.INVALID_PARAMS, `action must be one of ${ACTIONS.join(', ')}`);
   const args = raw.args && typeof raw.args === 'object' && !Array.isArray(raw.args) ? (raw.args                           ) : {};

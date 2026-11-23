@@ -149,7 +149,7 @@ function rebuildTable(db: DatabaseSync, schema: string, t: string, select: (col:
 /** Rebuilds session, comment, needs_you and plugin once when their CHECKs predate a host or kind schema.sql now allows. */
 export function allowSandbox(db: DatabaseSync): void {
   const sql = (t: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(t) as { sql: string } | undefined)?.sql ?? '';
-  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'approval'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
+  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'approval'"], ['plugin', "'registry-import'"], ['approval', "'engine'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
   if (!stale.length) return;
   const schema = fs.readFileSync(schemaFile, 'utf8');
   db.exec('PRAGMA foreign_keys = OFF');

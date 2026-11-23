@@ -191,7 +191,7 @@ CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
 CREATE TABLE approval (
   id           TEXT PRIMARY KEY,               -- 'ap_<ulid>'
   session_id   TEXT NOT NULL REFERENCES session(id),
-  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop')),
+  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop','engine')),
   target       TEXT NOT NULL,                  -- browser: origin; desktop: grant id
   control      TEXT,                           -- canonical JSON {automation_id, name, role}, redacted; NULL when no control
   action       TEXT NOT NULL,                  -- tool name: click, type, key, select, scroll, navigate
