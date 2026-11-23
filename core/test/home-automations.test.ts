@@ -123,7 +123,7 @@ test('the due check compares instants, not offset strings', async t => {
   assert.equal(f.calls.launches, 0);
 });
 
-test('automation approval is stored, listed and given to the woken agent, ask by default', async t => {
+test('automation approval is stored, listed and given to the woken agent; none chosen sends none, so session.launch applies the default (D89)', async t => {
   const f = await fixture(t);
   const plain = await f.call('automation.set', { ...f.base, every_min: 30 });
   const edits = await f.call('automation.set', { ...f.base, every_min: 30, approval: 'edits' });
@@ -132,7 +132,7 @@ test('automation approval is stored, listed and given to the woken agent, ask by
   assert.equal((await f.call('automation.list', { project_id: 'p1' })).automations.find((a: any) => a.id === edits.id).approval, 'edits');
   await f.call('automation.run', { id: plain.id });
   await f.call('automation.run', { id: edits.id });
-  assert.deepEqual(f.launched.map((a: any) => a.approval), ['ask', 'edits']);
+  assert.deepEqual(f.launched.map((a: any) => a.approval), [undefined, 'edits']);
   await assert.rejects(f.call('automation.set', { ...f.base, every_min: 30, approval: 'isolated' }), (e: any) => e.code === -32003);
 });
 

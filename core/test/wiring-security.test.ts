@@ -12,6 +12,7 @@ import { schemaFile } from '../src/paths.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { automationTick, realDeps } from '../src/automations.ts';
 import { E, RpcError } from '../src/pipe/errors.ts';
+import { defaultApproval } from '../src/sessions/launch.ts';
 
 const ctx = { ui: true, origin: 'test' };
 function fixture(t: any) {
@@ -63,7 +64,7 @@ function launchHarness() {
   const engine = { id: 'codex', command: 'fake', provider: 'local-cli', model_arg: '-m', approval_profiles: { contained: [] } };
   const db = { prepare: (sql: string) => ({ get: () => sql.includes('FROM project') ? { id: 'p1', path: '/project', name: 'test' } : undefined }) };
   const c = vm.createContext({ m: { set: (_: string, v: any) => { handler = v.handler; } }, db, E, RpcError,
-    getEngine: () => engine, path: { join: (...v: string[]) => v.join('/') }, homeDir: () => '/home', canonicalPath: (p: string) => p,
+    getEngine: () => engine, defaultApproval, path: { join: (...v: string[]) => v.join('/') }, homeDir: () => '/home', canonicalPath: (p: string) => p,
     settings: () => ({ sessions: { approval: 'ask' } }), fs: { readFileSync: () => { throw Error('no config'); }, existsSync: () => true },
     launchSession: (_: unknown, opts: any) => { launched.push(opts); return { session_id: 'recorded' }; }, isPreset: () => true,
   });
