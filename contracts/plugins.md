@@ -38,18 +38,22 @@ keeps the core secrets.
 
 ## Permissions
 
-| Permission | What it grants | Enforced how (version 1) |
+| Permission | What it grants | Enforced how |
 |---|---|---|
-| `project:read` | read the project folder | cwd is the project; declared only |
-| `project:write` | write in the project folder | declared only |
-| `run:write` | write in the run directory | cwd and `TROOP_RUN_DIR` |
-| `network` | outbound network | declared only; the install screen warns it is not blocked |
+| `project:read` | read the project folder | **enforced** for actions: AppContainer read grant on the folder |
+| `project:write` | write in the project folder | **enforced** for actions: AppContainer modify grant on the folder |
+| `run:write` | write in the run directory | **enforced** for actions: AppContainer modify grant; cwd and `TROOP_RUN_DIR` |
+| `network` | outbound network | **enforced** for actions: the internetClient capability only when granted |
 | `secrets:<NAME>` | receive environment variable `<NAME>` | **enforced**: the action's environment contains only these |
 | `browser` | drive browser panes through the core | **enforced**: pipe checks pane ownership |
 | `clipboard` | write to the clipboard | **enforced**: the pane bridge refuses otherwise |
 
-"Declared only" means the user sees it at install, but Windows does not block it in version 1. OS-level
-filesystem and network sandboxing (AppContainer) is out of scope for this epic and stated as such at install.
+Actions of an installed plugin (any source but the plugins shipped in `plugins/`) run on Windows through
+`core/src/plugins/boxrun.cs`, built once with the .NET Framework `csc.exe` into `<cc home>/bin`, inside an AppContainer
+named `cc.plugin.<id>.<hash>`. The plugin folder is readable, the folders above are granted by permission, and
+`TEMP`, `TMP` and the npm cache point at the run folder. A grant is an allow entry for that container on the folder
+and stays after the run. With no compiler the action is refused, never run unconfined. MCP servers and the
+`appdata` folder below are not sandboxed yet (declared only).
 
 ## Actions: process contract
 

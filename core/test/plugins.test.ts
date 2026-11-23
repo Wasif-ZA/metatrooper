@@ -231,7 +231,7 @@ test('install refuses approvals that do not match the permissions asked for, and
       try {
         const preview = await c.request('plugin.preview', { source: dir });
         assert.deepEqual(preview.result.screen.permissions.map((p: { permission: string }) => p.permission), ['network', 'secrets:TOKEN']);
-        assert.ok(preview.result.screen.warnings.some((w: string) => w.includes('does not block')));
+        assert.ok(preview.result.screen.warnings.some((w: string) => w.includes('connects to the internet')));
         const partial = await c.request('plugin.install', { source: dir, approved_permissions: ['network'] });
         assert.equal(partial.error.code, -32003);
         assert.deepEqual(partial.error.data.errors, ['not approved: secrets:TOKEN']);
