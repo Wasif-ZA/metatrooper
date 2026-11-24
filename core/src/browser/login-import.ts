@@ -26,20 +26,29 @@ export function parseLoginCsv(text: string): LoginRow[] {
   let row: string[] = [];
   let cell = '';
   let quoted = false;
+  let closed = false;
   for (let k = 0; k < text.length; k++) {
     const c = text[k];
     if (quoted) {
-      if (c === '"' && text[k + 1] === '"') { cell += '"'; k++; } else if (c === '"') quoted = false; else cell += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
+      if (c === '"' && text[k + 1] === '"') { cell += '"'; k++; }
+      else if (c === '"') {
+        quoted = false;
+        closed = true;
+      } else cell += c;
+    } else if (c === '"') {
+      if (cell !== '' || closed) throw new Error(`row ${rows.length + 1} has a stray quote mark; this is not a clean password export`);
+      quoted = true;
+    } else if (c === ',') { row.push(cell); cell = ''; closed = false; }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && text[k + 1] === '\n') k++;
-      row.push(cell); cell = '';
+      row.push(cell); cell = ''; closed = false;
       if (row.some((x) => x !== '')) rows.push(row);
       row = [];
       if (rows.length > MAX_ROWS + 1) throw new Error(`the file has over ${MAX_ROWS} rows`);
-    } else cell += c;
+    } else if (closed) throw new Error(`row ${rows.length + 1} has text after a closing quote; this is not a clean password export`);
+    else cell += c;
   }
+  if (quoted) throw new Error('the file ends inside a quoted cell; this is not a clean password export');
   row.push(cell);
   if (row.some((x) => x !== '')) rows.push(row);
   const head = (rows.shift() ?? []).map((h) => h.trim().toLowerCase().replace(/^﻿/, ''));
@@ -49,14 +58,22 @@ export function parseLoginCsv(text: string): LoginRow[] {
   return rows.slice(0, MAX_ROWS).map((r) => ({ url: r[u] ?? '', username: r[n] ?? '', password: r[p] ?? '' }));
 }
 
-/** The origin a login may be typed into: https, or http on localhost or 127.0.0.1; null otherwise. */
+/** The origin a login may be typed into: https on a named host; null otherwise. No loopback: an agent can serve a page there and read what is typed (sec review of e89efa8c). */
 export function loginOrigin(url: string): string | null {
   try {
     const x = new URL(url);
     if (x.protocol === 'https:' && x.hostname && !/^\d+\.\d+\.\d+\.\d+$|^\[/.test(x.hostname)) return x.origin;
-    if (x.protocol === 'http:' && (x.hostname === 'localhost' || x.hostname === '127.0.0.1')) return x.origin;
   } catch {}
   return null;
+}
+
+const recordFile = () => path.join(homeDir(), 'secrets', BROWSER_SECRETS, 'imported-logins.json');
+function imported(): Set<string> {
+  try { return new Set(JSON.parse(fs.readFileSync(recordFile(), 'utf8')) as string[]); } catch { return new Set(); }
+}
+function writeImported(names: Set<string>): void {
+  fs.mkdirSync(path.dirname(recordFile()), { recursive: true });
+  fs.writeFileSync(recordFile(), JSON.stringify([...names].sort()));
 }
 
 function savedNames(): string[] {
@@ -74,7 +91,7 @@ export function previewLogins(rows: LoginRow[], saved = savedOrigins()): Preview
   const used = new Set<string>();
   return rows.map((r, i) => {
     const origin = loginOrigin(r.url);
-    const skip = !origin ? 'not an https site (or http on localhost)' : r.password.length < MIN_SECRET_LENGTH ? `password shorter than ${MIN_SECRET_LENGTH} characters` : null;
+    const skip = !origin ? 'not an https site' : r.password.length < MIN_SECRET_LENGTH ? `password shorter than ${MIN_SECRET_LENGTH} characters` : null;
     if (skip) return { i, origin, username: r.username.slice(0, 200), name: null, exists: false, skip };
     const host = new URL(origin!).host.replace(/[^A-Za-z0-9]/g, '_').slice(0, 48);
     let name = '';
@@ -95,7 +112,7 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
   const skipped: Array<{ i: number; why: string }> = [];
   const origins = new Set<string>();
   let room = MAX_SECRETS - saved.size;
-  let imported = 0;
+  let count = 0;
   const items: Array<{ name: string; origin: string; value: string }> = [];
   const isPassword: Array<string | null> = [];
   const stale: string[] = [];
@@ -114,10 +131,15 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
     else if (saved.has(userName(p.name!))) stale.push(userName(p.name!));
   }
   try {
-    setBrowserSecrets(db, items, (k) => {
-      const o = isPassword[k];
-      if (o) { origins.add(o); imported++; }
-    });
+    const record = imported();
+    try {
+      setBrowserSecrets(db, items, (k) => {
+        const o = isPassword[k];
+        if (o) { origins.add(o); count++; record.add(items[k].name); }
+      });
+    } finally {
+      writeImported(record);
+    }
     for (const n of stale) {
       deleteSecret(BROWSER_SECRETS, n);
       fs.rmSync(originFile(n), { force: true });
@@ -125,22 +147,26 @@ export function importLogins(db: DatabaseSync, rows: LoginRow[], picks: Array<{ 
   } finally {
     // written even when a save fails part way, so every saved login is logged
     fs.mkdirSync(logsDir(), { recursive: true });
-    fs.appendFileSync(path.join(logsDir(), 'logins.log'), JSON.stringify({ at: nowIso(), by: 'ui', imported, skipped: skipped.length, origins: [...origins] }) + '\n');
+    fs.appendFileSync(path.join(logsDir(), 'logins.log'), JSON.stringify({ at: nowIso(), by: 'ui', imported: count, skipped: skipped.length, origins: [...origins] }) + '\n');
   }
-  return { imported, origins: [...origins], skipped };
+  return { imported: count, origins: [...origins], skipped };
 }
 
 /** The imported logins: name and origin, never a value. */
 export function listLogins(): Array<{ name: string; origin: string | null; user: boolean }> {
   const names = savedNames();
-  return names.filter((n) => n.startsWith(PREFIX)).sort().map((name) => ({ name, origin: browserSecretOrigin(name), user: names.includes(userName(name)) }));
+  const record = imported();
+  return names.filter((n) => n.startsWith(PREFIX) && record.has(n)).sort().map((name) => ({ name, origin: browserSecretOrigin(name), user: names.includes(userName(name)) }));
 }
 
 /** Removes an imported login and its username secret. */
 export function removeLogin(name: string): void {
-  if (!SECRET_NAME.test(name) || !name.startsWith(PREFIX)) throw new Error('not an imported login');
+  const record = imported();
+  if (!SECRET_NAME.test(name) || !name.startsWith(PREFIX) || !record.has(name)) throw new Error('not an imported login');
   for (const n of [name, userName(name)]) {
     deleteSecret(BROWSER_SECRETS, n);
     fs.rmSync(originFile(n), { force: true });
   }
+  record.delete(name);
+  writeImported(record);
 }
