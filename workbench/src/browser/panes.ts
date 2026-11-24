@@ -9,6 +9,7 @@ import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/sr
 import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { challengeOf, plainUserAgent } from './challenge.ts';
+import { HeadlessBrowser, HeadlessContents, HeadlessTab, headlessView, NO_OVERLAY } from './headless.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 import { settings } from '../../../core/src/settings.ts';
 
@@ -130,6 +131,8 @@ const FOCUSED = `(() => {
   }
 })()`;
 const GESTURE_MS = 5000;
+/** Tools a headless pane refuses by name (M8-42 row 2): they need the user's window, the user's sign-in or a native chooser. */
+const HEADLESS_REFUSED = new Set(['handoff', 'upload', 'glide']);
 const PICK_RAW = 64 * 1024;
 const POPUP_PREFS = { sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false, spellcheck: false };
 
@@ -195,6 +198,8 @@ interface Pane {
   pickStack: number[];
   /** The reason the agent gave when it handed the pane to the user, or null while the agent has it. */
   handoff: string | null;
+  /** Set on a chrome-headless-shell pane (M8-42): no view in the window, and no lending, handoff, upload or glide. */
+  headless?: boolean;
   /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
   secretOnPage: boolean;
   /** An agent `evaluate` ran in the page now loaded; its listeners can outlive it, so no secret is filled until the main frame navigates. */
@@ -421,7 +426,39 @@ export class PaneManager {
     await this.userNavigate(id, url);
   }
 
+  private headless: HeadlessBrowser | null = null;
+
+  /** The headless binary for this row, or null: agent panes that are not lent only, and only when the setting names a binary. */
+  private headlessExe(row: PaneRow): string | null {
+    const b = settings().browser as { agent_engine?: string; headless_path?: string };
+    return row.id.startsWith(AGENT_PANE) && !row.lent && b.agent_engine === 'chrome-headless-shell' && b.headless_path ? b.headless_path : null;
+  }
+
+  /** An agent pane on chrome-headless-shell: the same Pane, its debugger and webContents backed by a pipe (headless.ts). */
+  private async createHeadless(row: PaneRow, exe: string): Promise<void> {
+    if (!this.headless || this.headless.closed) this.headless = new HeadlessBrowser(exe);
+    let pane: Pane | undefined;
+    const blocked = (url: string, reason: string) => {
+      this.hooks.probe({ kind: 'blocked', pane: row.id, url, reason });
+      if (pane) this.log(pane, 'blocked', `cc blocked ${url}: ${reason}`);
+    };
+    const tab = await HeadlessTab.open(this.headless, plainUserAgent(electronSession.defaultSession.getUserAgent()), (url) => checkUrl(url, pane ? this.paneCtx(pane) : this.policy({ ...row })), blocked, (url) => { if (pane) void this.load(pane, url).catch(() => {}); });
+    const view = headlessView(new HeadlessContents(tab)) as unknown as WebContentsView;
+    pane = { row, view, overlay: NO_OVERLAY as unknown as WebContentsView, dbg: tab.dbg as unknown as Debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false, docs: new Map(), headless: true };
+    this.panes.set(row.id, pane);
+    this.wireContents(pane);
+    pane.ready = this.setUp(pane);
+    await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
+      if (this.panes.get(row.id) === pane) this.destroy(row.id);
+      const n = (this.failed.get(row.id)?.n ?? 0) + 1;
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      throw e;
+    });
+  }
+
   private async create(row: PaneRow, userUrl?: string): Promise<void> {
+    const exe = this.headlessExe(row);
+    if (exe) return this.createHeadless(row, exe);
     const ses = this.guardPartition(row);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
@@ -832,7 +869,7 @@ export class PaneManager {
     for (const w of pane.popups) if (!w.isDestroyed()) w.close();
     for (const [k, a] of this.asking) if (a.pane === id) { this.asking.delete(k); a.cb(false); }
     try { pane.dbg.detach(); } catch {}
-    if (!this.win.isDestroyed()) {
+    if (!this.win.isDestroyed() && !pane.headless) {
       this.win.contentView.removeChildView(pane.view);
       try { this.win.contentView.removeChildView(pane.overlay); } catch {}
     }
@@ -1257,6 +1294,8 @@ export class PaneManager {
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
+    if (pane.headless && (HEADLESS_REFUSED.has(name) || a.signed_in === true)) throw new ToolError(-32601, `${a.signed_in === true ? 'signed_in' : name} is not supported on the chrome-headless-shell engine; use an electron pane`);
+    if (pane.headless && pane.crashed === null && (pane.view.webContents as unknown as HeadlessContents).tab.dead) pane.crashed = `the headless page ended: ${(pane.view.webContents as unknown as HeadlessContents).tab.dead}`;
     if (pane.handoff) throw handedOff(pane);
     if (name === 'handoff') {
       if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');

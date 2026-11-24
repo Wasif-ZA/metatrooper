@@ -31,6 +31,9 @@ export const DEFAULTS = {
     allow_origins: []            ,
     allow_hosts: []            ,
     lent: {}                            ,
+    /** M8-42: the engine for agent panes that are not lent: electron, or chrome-headless-shell at headless_path (a binary the user installed; cc never downloads it). */
+    agent_engine: 'electron'                                        ,
+    headless_path: '',
   },
   agent_cursor: {
     mode: 'snappy',

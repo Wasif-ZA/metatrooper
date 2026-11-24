@@ -30,6 +30,9 @@ export const DEFAULTS = {
     allow_origins: [] as string[],
     allow_hosts: [] as string[],
     lent: {} as Record<string, string[]>,
+    /** M8-42: the engine for agent panes that are not lent: electron, or chrome-headless-shell at headless_path (a binary the user installed; cc never downloads it). */
+    agent_engine: 'electron' as 'electron' | 'chrome-headless-shell',
+    headless_path: '',
   },
   agent_cursor: {
     mode: 'snappy',
