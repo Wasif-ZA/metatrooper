@@ -102,18 +102,20 @@ test('M8-20a a theme the user already chose is not replaced: listed as skipped o
   assert.ok(!t.includes('as Crisp light'));
 });
 
-test('M8-20a when cc cannot read its own theme the VS Code theme is skipped with that reason, not applied', async () => {
+test('M8-20a when cc cannot read its own theme nothing is written, toasted or applied, and a later start with a readable theme imports', async () => {
   const ls = fakeLs();
   let asked = false; // uiSettings works at boot and fails only once the import has asked
   const w = boot({ ls, vscode: () => { asked = true; return real(); }, uiTheme: () => { if (asked) throw new Error('no settings'); return 'neutral'; } });
   w.t.ui.look = { theme: { name: 'neutral', scheme: 'dark' } };
   await w.snap(snapOf([]));
+  assert.ok(asked, 'the import did ask');
   assert.deepEqual(themeCalls(w), []);
-  const { rec, t } = themeOnce({ ls, w });
-  assert.equal(rec.theme, null); assert.equal(rec.prev, null);
-  assert.deepEqual(rec.applied, []);
-  assert.equal(rec.skipped[0], 'theme "Solarized Light": cc could not read its own theme');
-  assert.ok(!t.includes('as Crisp light'));
+  assert.equal(ls.m.has('cc.vscodeImport'), false, 'no record, so the import can run again');
+  assert.deepEqual(told(w), []);
+  const later = await start(ls, real, 'dither');
+  assert.deepEqual(themeCalls(later), ['light']);
+  assert.equal(told(later).length, 1);
+  assert.equal(JSON.parse(ls.m.get('cc.vscodeImport')!).theme, 'light');
 });
 
 test('M8-20a over dither the real summary still applies the theme and lists it as applied, not skipped', async () => {
