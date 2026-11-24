@@ -70,12 +70,12 @@ Its window must be grantable only to that copy's own sessions. The real workbenc
   - `desktop-agent.mjs` exits 0 with 4 step lines.
   - The `asker` approval row reads `approved`, and its `approval.check` returned `approved`.
   - The `preview` tile reached by the click is the one whose `session_dev_server` row is `ready`.
-- [ ] M6-16b. Isolation. The test starts `--demo` with `METATROOPER_HOME` pointed at a sentinel home whose `troop.db` holds one session labelled with a unique marker.
+- [x] M6-16b. Isolation. The test starts `--demo` with `METATROOPER_HOME` pointed at a sentinel home whose `troop.db` holds one session labelled with a unique marker. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m6-16-demo.test.ts 6/6 and core/test/m6-16-demo-guard.test.ts 2/2)
   - The sentinel `troop.db` has the same SHA-256 before and after the run.
   - The marker appears in no `snapshot` text and no `windows` result of the run.
   - The demo core's pipe name starts with `metatrooper-demo-`.
   - `demoProblem` with the prefix forced to `metatrooper` (or the home to `~/.metatrooper`) returns "demo would use the real data folder", which a `--demo` start prints before exiting 2.
-- [ ] M6-16c. Grants.
+- [x] M6-16c. Grants. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m6-16-grants.test.ts 3/3 with workbench electron present, no skips; the E2E stand-in workbench run is gated and was not run)
   - On a core without `--demo`, `grant.window` on any window of a running workbench returns -32003, the demo workbench included, and `grant.candidates` lists neither.
   - On the demo core, `grant.window` on the demo window for a demo session returns a grant id.
   - On the demo core, `grant.window` on the real workbench's window (when one runs) returns -32003. The E2E starts a second, isolated workbench to stand in for the real one (rule 7).
@@ -84,8 +84,8 @@ Its window must be grantable only to that copy's own sessions. The real workbenc
   - `windows` on the `driver` session never lists a window outside its grant.
 - [ ] M6-16e. With `--demo`, a `snapshot` of the wall returns at least 20 nodes on its first or second read and contains: the nodes named "Open preview" and "Approve once", and one `group` per seeded session.
 - [ ] M6-16f. Quitting the demo workbench removes the demo home folder. A real workbench running at the same time keeps working, with its heartbeat unbroken through the run.
-- [ ] M6-16g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`.
-- [ ] M6-16h. The existing workbench and core suites still pass.
+- [x] M6-16g. Each test states its card: `protects=`, `fails_when=`, `no_claim=`. (2026-11-24, B4 on a8a3b642: card check by B4: every test in core/test/m6-16-demo-guard, m6-16-grants and workbench/test/m6-16-demo, m6-16-self-test.e2e names protects=, fails_when=, no_claim=)
+- [x] M6-16h. The existing workbench and core suites still pass. (2026-11-24: M PUSHED eca8743a with the full suite green, core 1752/0 and workbench 1468/0)
 
 ## Testing plan
 

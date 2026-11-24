@@ -18,7 +18,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { TreeList } from '@astryxdesign/core/TreeList';
 import { VStack } from '@astryxdesign/core/VStack';
 import { MAX_ROWS } from './check.js';
-import { Act, Plain } from './Draw.jsx';
+import { Act, Plain, usePage } from './Draw.jsx';
 import './parts-a.css';
 
 const isStr = (v) => typeof v === 'string' || typeof v === 'number';
@@ -148,9 +148,13 @@ export default {
   },
 
   list: ({ p }) => {
+    const [shown, more] = usePage(p.groups.slice(0, MAX_ROWS).reduce((n, g) => n + (isObj(g) && Array.isArray(g.rows) ? Math.min(g.rows.length, MAX_ROWS) : 0), 0));
+    let left = shown;
     const [groups, outs] = split(p.groups, 'list', (g, gi) => {
       obj(g);
-      const [rows, rowOuts] = split(Array.isArray(g.rows) ? g.rows : [], 'list row', (r, i) => {
+      const page = (Array.isArray(g.rows) ? g.rows : []).slice(0, Math.max(0, left));
+      left -= page.length;
+      const [rows, rowOuts] = split(page, 'list row', (r, i) => {
         obj(r);
         const right = maybe(r.right);
         const agent = maybe(r.agent);
@@ -176,6 +180,7 @@ export default {
       <div className="ou-pa-col">
         {p.search == null ? null : <TextInput label="Search" isLabelHidden value="" placeholder={String(p.search)} isReadOnly onChange={noop} />}
         {groups}
+        {more}
         {outs}
         {keys.length ? <HStack gap={3}>{keys.map((k, i) => <Aside key={i} t={k} />)}</HStack> : null}
       </div>
@@ -183,7 +188,8 @@ export default {
   },
 
   queue: ({ p }) => {
-    const [rows, outs] = split(p.items, 'queue', (q, i) => {
+    const [shown, more] = usePage(Math.min(p.items.length, MAX_ROWS));
+    const [rows, outs] = split(p.items.slice(0, shown), 'queue', (q, i) => {
       obj(q);
       const tag = maybe(q.tag);
       const acts = Array.isArray(q.actions) ? q.actions.slice(0, 6).map((a) => ({ label: need(obj(a).label), primary: a.primary === true, event: a.event })) : [];
@@ -196,7 +202,7 @@ export default {
         on: i === p.selected,
       };
     });
-    return <div className="ou-pa-col">{rows.length ? <Rows p={rows} /> : null}{outs}</div>;
+    return <div className="ou-pa-col">{rows.length ? <Rows p={rows} /> : null}{more}{outs}</div>;
   },
 
   steps: ({ p }) => {

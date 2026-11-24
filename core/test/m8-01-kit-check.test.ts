@@ -69,12 +69,10 @@ test('flat parts pass through unchanged and expand references', () => {
   assert.deepEqual(expand(flat), { root: { type: 'page', children: [{ type: 'text', text: 'kept' }] }, fellBack: [] });
 });
 
-test('missing and inherited references fall back locally', () => {
+test('a child id not yet sent expands to a spinner, not a fallback', () => {
   const out = expand({ root: 'r', parts: { r: { type: 'page', children: ['x', 'constructor', 'good'] }, good: { type: 'text', text: 'survives' } } });
-  assert.deepEqual(out.fellBack, [
-    { part: 'x', type: '(no type)', why: 'no part with id "x"' },
-    { part: 'constructor', type: '(no type)', why: 'no part with id "constructor"' },
-  ]);
+  assert.deepEqual(out.fellBack, []);
+  assert.deepEqual(out.root.children.slice(0, 2), [{ type: 'spinner', text: 'Loading' }, { type: 'spinner', text: 'Loading' }]);
   assert.deepEqual(out.root.children[2], { type: 'text', text: 'survives' });
 });
 

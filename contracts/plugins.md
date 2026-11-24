@@ -36,6 +36,24 @@ keeps the core secrets.
    `~/.metatrooper/plugins/`, its folder. An engine a session or step still names keeps its row, and the
    plugin row stays with `enabled = 0`; engines of disabled plugins are never bound, checked or launched.
 
+Block list (M8-14c): `core/src/plugins/blocked.json` ships with cc and changes only by release; cc never fetches it.
+Each entry is `{id, versions?, reason}` (no `versions` blocks every version). A blocked version fails preview and
+install with the reason; at core start an installed one is turned off and a needs-you row says why; `plugin.enable`
+refuses to turn it back on. Shipped plugins in `plugins/` are never blocked.
+
+Sandbox (M8-14a, Wasif #21): on Windows a stdio server whose `command` starts with `{{plugin_dir}}` (a program the
+plugin ships) runs inside an AppContainer through `core/src/plugins/boxrun.cs`, built once with the .NET Framework
+`csc.exe` into `<cc home>/bin`. It can read its plugin folder, read the project (write it when `writes` is `project`),
+write its `CC_PLUGIN_DATA` folder and its own temp folder, and reach the internet only with `network` or
+`writes: external`. One container per plugin, server, project and grant set, so a grant never carries to another
+project; a grant is an allow entry on the folder that stays after the run. No compiler means the server does not
+start. A server started through a tool on PATH (npx, node, uvx) is not boxed, and the install screen names it under
+"Not sandboxed". Plugin actions have no runner since M6-1 and are not boxed.
+
+Shipped files (M8-14d): install records the SHA-256 of every file in the plugin folder (links and `.git` left out). A
+stdio server starts only while they match; a changed or new file, or a `{{plugin_dir}}` argument outside the folder,
+is refused with -32003 naming it. Reinstalling approves the new files.
+
 ## Permissions
 
 | Permission | What it grants | Enforced how (version 1) |

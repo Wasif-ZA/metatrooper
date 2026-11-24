@@ -1,0 +1,329 @@
+{
+ "name": "Study space",
+ "by": "claude",
+ "place": "biology : exam in 21 days",
+ "asked": "My biology exam is in 3 weeks. Turn my lecture notes into a revision plan and quiz me.",
+ "rail": [
+  "files",
+  "search",
+  "agents",
+  "todo"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   24,
+   46,
+   30
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     33,
+     45,
+     22
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "stat",
+         "label": "Exam in",
+         "value": "21 days",
+         "sub": "Friday 20 November, 9:00"
+        },
+        {
+         "type": "check",
+         "label": "Genetics to 70%",
+         "state": "open",
+         "value": "48% now"
+        },
+        {
+         "type": "check",
+         "label": "Cells to 70%",
+         "state": "done",
+         "value": "82%"
+        },
+        {
+         "type": "check",
+         "label": "Past paper 1 this Friday",
+         "state": "open",
+         "value": "2 days"
+        },
+        {
+         "type": "check",
+         "label": "Evolution to 70%",
+         "state": "open",
+         "value": "63% now"
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "section",
+       "label": "Topics, last quiz (ready at 70%)",
+       "children": [
+        {
+         "type": "bar",
+         "label": "Genetics",
+         "value": "48%",
+         "pct": 48,
+         "note": "22 points to go · today's focus",
+         "tone": "fail"
+        },
+        {
+         "type": "bar",
+         "label": "Cells",
+         "value": "82%",
+         "pct": 82
+        },
+        {
+         "type": "bar",
+         "label": "Enzymes",
+         "value": "74%",
+         "pct": 74
+        },
+        {
+         "type": "bar",
+         "label": "Ecology",
+         "value": "71%",
+         "pct": 71
+        },
+        {
+         "type": "bar",
+         "label": "Evolution",
+         "value": "63%",
+         "pct": 63,
+         "note": "7 points to go"
+        },
+        {
+         "type": "bar",
+         "label": "Plants",
+         "value": "66%",
+         "pct": 66
+        },
+        {
+         "type": "bar",
+         "label": "Body systems",
+         "value": "55%",
+         "pct": 55
+        },
+        {
+         "type": "bar",
+         "label": "Disease",
+         "value": "52%",
+         "pct": 52
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Genetics, last quiz",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "check",
+         "label": "Punnett squares",
+         "state": "open",
+         "value": "1 of 4"
+        },
+        {
+         "type": "check",
+         "label": "Pedigree charts",
+         "state": "open",
+         "value": "2 of 3"
+        },
+        {
+         "type": "check",
+         "label": "Meiosis stages",
+         "state": "done",
+         "value": "3 of 3"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     72,
+     28
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "flashcard",
+       "deck": "Biology · Genetics",
+       "tag": "weak topic",
+       "card": "card 3 of 34",
+       "revealed": false,
+       "front": "A heterozygous tall plant (Tt) is crossed with a short plant (tt). What fraction of the offspring are short?",
+       "back": "One half. Half get t from the Tt parent, and every offspring gets t from the tt parent, so tt = 1/2.",
+       "source": "from your notes · Genetics lecture 4, slide 12",
+       "left": [
+        [
+         "new",
+         "6"
+        ],
+        [
+         "learning",
+         "3"
+        ],
+        [
+         "due",
+         "25"
+        ]
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "This week",
+      "part": {
+       "type": "calendar",
+       "days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+       ],
+       "events": [
+        {
+         "day": 0,
+         "time": "16:00",
+         "title": "Genetics quiz"
+        },
+        {
+         "day": 1,
+         "time": "16:00",
+         "title": "Cells cards"
+        },
+        {
+         "day": 2,
+         "time": "16:30",
+         "title": "Genetics recall"
+        },
+        {
+         "day": 3,
+         "time": "16:00",
+         "title": "Enzymes quiz"
+        },
+        {
+         "day": 4,
+         "time": "16:00",
+         "title": "Practice paper 1",
+         "tone": "mark"
+        },
+        {
+         "day": 5,
+         "time": "10:00",
+         "title": "Genetics quiz 2"
+        },
+        {
+         "day": 6,
+         "time": "rest",
+         "title": "No study"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     70,
+     30
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Quiz me on genetics first, it's my worst.",
+       "say": "Starting with the 34 genetics cards made from lectures 3 to 5. You missed Punnett squares twice last week, so those come first.",
+       "log": [
+        [
+         "read 12 lecture PDFs",
+         "3 topics weak"
+        ],
+        [
+         "made 186 cards",
+         "each cites a slide"
+        ],
+        [
+         "planned 21 days",
+         "short and often"
+        ],
+        [
+         "checked your last quiz",
+         "61% average"
+        ],
+        [
+         "[x] genetics cards",
+         "34 made"
+        ],
+        [
+         "[x] weekly plan",
+         "5 sessions"
+        ],
+        [
+         "[ ] add 34 cards to deck",
+         "your yes"
+        ],
+        [
+         "found 3 weak topics",
+         "genetics first"
+        ],
+        [
+         "set quiz length",
+         "12 minutes a day"
+        ],
+        [
+         "[ ] practice paper 1",
+         "Friday"
+        ]
+       ],
+       "hint": "Ask about a topic",
+       "strip": [
+        "auto · quizzing",
+        "card 3 of 34",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "digest",
+       "title": "34 cards ready to add",
+       "facts": "Biology · Genetics",
+       "note": "They go into your deck only after you say yes.",
+       "actions": [
+        {
+         "label": "Add 34 cards",
+         "primary": true
+        },
+        {
+         "label": "Not yet"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

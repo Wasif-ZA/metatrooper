@@ -9,9 +9,9 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 4.0 
 
 ## Acceptance criteria
 
-- [ ] M6-11a. Two snapshots of an unchanged page give the same refs; after one element is removed its old ref fails with "no longer on the page" and `since_last` lists it as removed; after the frame navigates, every old ref in that frame fails.
+- [x] M6-11a. Two snapshots of an unchanged page give the same refs; after one element is removed its old ref fails with "no longer on the page" and `since_last` lists it as removed; after the frame navigates, every old ref in that frame fails. (2026-11-24, B4 on a8a3b642: core/test/browser-snapshot.test.ts 9/9, M6-11a stable refs, removal diff, frame drop)
 - [ ] M6-11b. A fixture page with a same-origin iframe and an open shadow root shows controls from both, and clicking a frame-tagged ref clicks inside the frame.
-- [ ] M6-11c. A 4,000-token budget on a 20,000-node fixture returns at most 4,000 tokens and a `continue` cursor that returns the rest.
+- [x] M6-11c. A 4,000-token budget on a 20,000-node fixture returns at most 4,000 tokens and a `continue` cursor that returns the rest. (2026-11-24, B4 on a8a3b642: core/test/browser-snapshot.test.ts 9/9, M6-11c fit budget and continue on 20,000 lines)
 
 ## Rules that bind every child
 

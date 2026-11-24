@@ -1,9 +1,10 @@
 import net from 'node:net';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.ts';
 import { createDecoder, encode } from '../pipe/framing.ts';
 import { resolveCommand } from './resolve.ts';
-import { STEPS_TOOL, UI_TOOL } from './ouros-tools.ts';
+import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
 
 interface Resolved {
   command: string;
@@ -12,6 +13,7 @@ interface Resolved {
   refs: Record<string, string>;
   missing: string[];
   headers?: Record<string, string>;
+  box?: { net: boolean; grants: string[]; project: 'r' | 'w' } | null;
 }
 
 function request(method: string, params: Record<string, unknown>, timeoutMs = 3000): Promise<unknown> {
@@ -97,13 +99,15 @@ async function serveUi(): Promise<void> {
   const { serveMcp } = await import('./mcp-stdio.ts');
   const { findSession } = await import('./workbench-pipe.ts');
   const { call } = await import('../pipe/client.ts');
-  serveMcp('ouros-ui', [UI_TOOL], async (name, args) => {
+  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
     const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
-    if (name !== 'ouros_ui') return fail(`unknown tool ${name}`);
+    if (name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
-    const out = await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
-    if (out.kind !== 'reply') return fail('the cc core is offline; nothing was drawn');
+    const d = args.data as Record<string, unknown> | undefined;
+    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
+      : d && typeof d === 'object' && args.spec === undefined ? await call('ui.data', { session_id: sessionId, surface: args.surface, path: d.path, value: d.value }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
+    if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');
     if (out.reply.error) return fail(out.reply.error.message);
     return { content: [{ type: 'text', text: JSON.stringify(out.reply.result) }] };
   });
@@ -136,8 +140,22 @@ async function main(): Promise<void> {
   if (missing.length) return refuse(`set ${missing.join(', ')} for ${pluginId}; MCP server ${serverId} did not start`);
   delete env.TROOP_SESSION_SECRET;
 
-  const resolved = resolveCommand(r.command) ?? [r.command];
+  let resolved = resolveCommand(r.command) ?? [r.command];
   const args = r.args.map((a) => (a === '{{cwd}}' ? process.cwd() : a));
+  if (r.box) {
+    const { boxArgv, containerName } = await import('../plugins/box.ts');
+    const { homeDir } = await import('../paths.ts');
+    const grants = [...r.box.grants, `${r.box.project} ${process.cwd()}`];
+    const tmp = path.join(homeDir(), 'plugin-tmp', containerName(pluginId, [serverId, ...grants].join('|')));
+    try {
+      const b = boxArgv({ name: path.basename(tmp), net: r.box.net, grants }, resolved[0], [...resolved.slice(1), ...args], tmp);
+      resolved = [b.file, ...b.args];
+    } catch (e) {
+      return refuse(`${(e as Error).message}; ${serverId} from ${pluginId} did not start`);
+    }
+    env.TEMP = env.TMP = tmp;
+    args.length = 0;
+  }
   const child = spawn(resolved[0], [...resolved.slice(1), ...args], { stdio: 'inherit', env, windowsHide: true });
   child.on('error', (e) => {
     process.stderr.write(`metatrooper mcp-shim: could not start ${r.command}: ${e.message}\n`);

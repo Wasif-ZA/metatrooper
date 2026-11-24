@@ -31,6 +31,7 @@ import { readMeters, watchTranscripts } from './meter.ts';
 import { readLimits } from './limits.ts';
 import { earlyEnd, recordReadings, resumeAtReset } from './sessions/limit-resume.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
+import { applyBlocks } from './plugins/blocklist.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
 import { Watcher } from './watch/watcher.ts';
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
   const engines = loadEngines();
   syncEngines(db, engines);
   syncBuiltinPlugins(db);
+  applyBlocks(db);
 
   const timers: NodeJS.Timeout[] = [];
   const watcher = new Watcher(db);

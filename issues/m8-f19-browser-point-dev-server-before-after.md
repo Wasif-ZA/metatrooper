@@ -43,9 +43,9 @@ Not sized until M8-0.
 ## Acceptance criteria
 
 - [ ] M8-F19a. The tab shows its holder at all times, and Take over hands it over at once.
-- [ ] M8-F19b. A picked element reaches the agent as at most 4 KB of sanitised HTML, labelled page content.
+- [x] M8-F19b. A picked element reaches the agent as at most 4 KB of sanitised HTML, labelled page content. (2026-11-24: B2 MET, workbench/test/comments.test.ts)
 - [ ] M8-F19c. A dev server started in a session opens as a tab beside its thread, from a `ready` row only.
-- [ ] M8-F19d. A port the session does not own stays blocked for its agent pane (D60).
+- [x] M8-F19d. A port the session does not own stays blocked for its agent pane (D60). (2026-11-24: B2 MET, core/test/browser-policy.test.ts 'M1-24 blocks an unowned loopback port')
 - [ ] M8-F19e. Before and after images share one viewport size and are attached to one run.
 - [ ] M8-F19f. Images and text pass the same redaction as other browser output (M6-12).
 - [ ] M8-F19g. The shipped screen matches `n09-browser.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)

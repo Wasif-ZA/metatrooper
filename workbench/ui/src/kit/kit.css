@@ -14,3 +14,4 @@
 .ou-drawn-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--hairline); }
 .ou-drawn-who { margin-left: auto; }
 .ou-drawn-chips { position: absolute; top: 6px; right: 10px; z-index: 3; display: flex; gap: 6px; }
+.ou-drawn-folded { display: flex; align-items: center; gap: 8px; min-width: 0; } .ou-drawn-folded > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

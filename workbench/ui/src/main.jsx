@@ -13,6 +13,7 @@ import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from '.
 import { Palette, paletteView } from './palette.jsx';
 import { createStore } from './store.js';
 import { syncDrawn } from './kit/DrawnTabs.jsx';
+import { syncWorkspace, workspaceKey } from './workspace.jsx';
 import { AccountTour } from './tour.jsx';
 
 // `ui` is app.js's top-level const: global, but not a globalThis property.
@@ -87,7 +88,7 @@ document.addEventListener('keydown', (e) => {
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
 globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn, dropProject };
-globalThis.ideView.draw = () => { void syncDrawn(); return drawIde(); };
+globalThis.ideView.draw = () => { void syncDrawn(); if (ui.view === 'ide') void syncWorkspace(ui.projectId); return drawIde(); };
 globalThis.paletteView = paletteView;
 
 document.addEventListener('keydown', (e) => {
@@ -104,6 +105,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (ideView.shown() && workspaceKey(e)) return;
   if (!ideView.shown() || !e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'p' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.find(); }

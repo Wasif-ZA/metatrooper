@@ -48,7 +48,9 @@ import { Desktop } from './desktop/driver.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
-import { getSurface, showSurface, surfaceEvent } from './surfaces.ts';
+import { catalogueProposals, getSurface, setSurfaceData, showSurface, surfaceEvent } from './surfaces.ts';
+import { blockReason } from './plugins/blocklist.ts';
+import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -144,8 +146,14 @@ export const METHODS: MethodDecl[] = [
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
   { name: 'worktree.create', stable: true, errors: [E.NEEDS_UI, E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD", session_secret?}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS); an existing folder that holds another branch is refused with -32003. Needs a trusted UI connection, or the `session_secret` of a session that has not exited and is not at approval isolated (sent by `troop launch --worktree` from `TROOP_SESSION_SECRET`), -32012 otherwise; the folder is made under the worktrees folder and trusted for every engine, so a lane or side task started in it never stops at a trust question' },
   { name: 'ui.show', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, title?, zone?: "tab", catalogue?, spec}', result: '{surface, status: drawn | partly | rejected, fellBack: [{part, type, why}]}; stores or replaces the screen `session_id` drew and the workbench opens it as a tab. Every part is checked against the catalogue; a bad one is drawn as plain text and listed in `fellBack`. -32003 when another session owns `surface`; -32602 for a bad id, a zone other than `tab`, or a spec over 256 KB. Called by the `ouros_ui` MCP tool' },
-  { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at}; -32002 when it does not exist' },
+  { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, data, status, seq, updated_at}; -32002 when it does not exist' },
+  { name: 'ui.data', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, path, value}', result: '{surface, seq}; sets the value at a JSON pointer in the surface data (M8-08); a prop written {"bind": "/path"} takes it and the screen redraws with no parts resent. Only the session that drew the surface; data stays under 64 KB. Called by the `ouros_ui` MCP tool with `data`' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
+  { name: 'catalogue.proposals', params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
+  { name: 'workspace.change', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, op?: set | save | restore | example, workspace?, name?}', result: '{project_id, current, usual, undo, saved, examples, last: {applied, reasons, setter, asked, at}}; set checks a whole layout (ouros-spec 6c) and applies it, or leaves the old one and lists the reasons in `last`; save names the current layout; restore applies a saved one; example applies a shipped layout from workbench/ui/src/workspaces. The setter is the calling session, never the `by` inside the layout. Called by the `ouros_workspace` MCP tool' },
+  { name: 'workspace.get', params: '{project_id}', result: '{project_id, current, usual, undo, saved, last}; current is null for your usual layout' },
+  { name: 'workspace.undo', needsUi: true, errors: [E.VALIDATION], params: '{project_id}', result: 'as workspace.get; the layout before the last change (Ctrl Z)' },
+  { name: 'workspace.usual', needsUi: true, params: '{project_id}', result: 'as workspace.get; back to your usual layout (Ctrl Alt 0); Undo brings the last one back' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
   { name: 'engines.models', errors: [E.NOT_FOUND], params: '{engine_id}', result: '{models: string[]}; the model names the engine manifest lists for the chat box picker, empty when it lists none or takes no model argument' },
@@ -1019,6 +1027,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('plugin.enable', {
     handler: (p) => {
       if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const row = db.prepare('SELECT version FROM plugin WHERE id = ?').get(str(p, 'plugin_id')) as { version: string } | undefined;
+      const why = p.on && row ? blockReason(str(p, 'plugin_id'), row.version) : null;
+      if (why) throw new RpcError(E.VALIDATION, `this plugin is on cc's block list: ${why}`);
       const r = db.prepare('UPDATE plugin SET enabled = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'plugin_id'));
       if (!r.changes) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       return { enabled: p.on };
@@ -1049,6 +1060,12 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('ui.show', { handler: (p) => showSurface(db, p) });
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
+  m.set('ui.data', { handler: (p) => setSurfaceData(db, p) });
+  m.set('catalogue.proposals', { handler: () => ({ proposals: catalogueProposals(db) }) });
+  m.set('workspace.change', { handler: (p) => changeWorkspace(db, p) });
+  m.set('workspace.get', { handler: (p) => getWorkspace(str(p, 'project_id')) });
+  m.set('workspace.undo', { needsUi: true, handler: (p) => undoWorkspace(str(p, 'project_id')) });
+  m.set('workspace.usual', { needsUi: true, handler: (p) => usualWorkspace(str(p, 'project_id')) });
   m.set('ui.event', {
     needsUi: true,
     handler: (p) => surfaceEvent(db, p, (id, engine, text, state, stateAt) => {

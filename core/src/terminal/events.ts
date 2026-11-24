@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { lastLine, setTermHooks } from './index.ts';
 import { settings } from '../settings.ts';
+import { maskTokens } from '../redact.ts';
 import { devServersGone, scanOutput } from '../devservers.ts';
 import { getEngine, MAX_TITLE, titlePatterns, type TitleMatcher, type TitleState } from '../engines/registry.ts';
 
@@ -72,7 +73,7 @@ export function wireTermEvents(db: DatabaseSync): void {
   };
   const lineTimers = new Map<string, NodeJS.Timeout>();
   const safe = (fn: () => void) => { try { fn(); } catch {} };
-  const readLine = (id: string) => lastLine(id, settings().terminal.last_line_chars).then((line) => { if (line !== null) put(id, 'line', line); });
+  const readLine = (id: string) => lastLine(id, settings().terminal.last_line_chars).then((line) => { if (line !== null) put(id, 'line', maskTokens(line)); });
   setTermHooks({
     onBell: (id) => safe(() => {
       if (!silent(db, id)) return;
@@ -96,7 +97,7 @@ export function wireTermEvents(db: DatabaseSync): void {
       const key = title.replace(/^[\p{S}\p{P}\s]+/u, '');
       if (titleKeys.get(id) === key) return;
       titleKeys.set(id, key);
-      put(id, 'title', title);
+      put(id, 'title', maskTokens(title));
     },
     onExit: (id, code, killed) => {
       belled.delete(id);

@@ -1,0 +1,348 @@
+{
+ "name": "Bakery",
+ "by": "claude",
+ "place": "Hearth Lane Bakery : this week",
+ "asked": "Run my bakery from here. I don't write code, so drop anything about code.",
+ "rail": [
+  "todo",
+  "agents"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   27,
+   41,
+   32
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     48,
+     36,
+     16
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "title": "Today",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "time",
+         "iso": "2026-10-30T18:00:00+11:00",
+         "label": "Close"
+        },
+        {
+         "type": "check",
+         "label": "Prove sourdough for tomorrow",
+         "state": "done"
+        },
+        {
+         "type": "check",
+         "label": "Clean the deck oven",
+         "state": "done"
+        },
+        {
+         "type": "check",
+         "label": "Call Marta about flour",
+         "state": "open",
+         "event": "tick"
+        },
+        {
+         "type": "check",
+         "label": "Confirm Priya's cake design",
+         "state": "open",
+         "event": "tick"
+        },
+        {
+         "type": "check",
+         "label": "Text Daniel the cupcake price",
+         "state": "open",
+         "event": "tick"
+        },
+        {
+         "type": "check",
+         "label": "Count the till",
+         "state": "open",
+         "event": "tick"
+        },
+        {
+         "type": "section",
+         "label": "Pickups today",
+         "children": [
+          {
+           "type": "kv",
+           "rows": [
+            [
+             "Corner Cafe",
+             "4:30 pm"
+            ],
+            [
+             "Mrs Okafor",
+             "5:15 pm"
+            ],
+            [
+             "Bondi Deli",
+             "5:40 pm"
+            ]
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Flour's running low, isn't it?",
+       "say": "Yes. At this week's pace you run out on Thursday. Marta can deliver Wednesday if you order by noon, so she is first on your call list. The email to her waits for your yes.",
+       "log": [
+        [
+         "read this week's orders",
+         "142"
+        ],
+        [
+         "worked out flour per day",
+         "about 9 kg"
+        ],
+        [
+         "drafted the flour order",
+         "4 sacks, Wed"
+        ],
+        [
+         "[x] check stock",
+         "done"
+        ],
+        [
+         "[ ] email Marta",
+         "your yes"
+        ]
+       ],
+       "hint": "Ask about the week",
+       "strip": [
+        "auto · watching stock",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "digest",
+       "title": "Email waiting",
+       "facts": "To Marta · 4 sacks of flour for Wednesday",
+       "note": "Nothing is sent until you approve it.",
+       "actions": [
+        {
+         "label": "Review and send",
+         "primary": true
+        },
+        {
+         "label": "Edit first"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     44,
+     56
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "title": "Orders",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "table",
+         "cols": [
+          "Order",
+          "For",
+          "Ready",
+          ""
+         ],
+         "rows": [
+          [
+           "Wedding cake, 3 tier",
+           "Priya",
+           "Sat 9:00",
+           {
+            "type": "pill",
+            "text": "baking"
+           }
+          ],
+          [
+           "Sourdough × 24",
+           "Corner Cafe",
+           "Fri 6:30",
+           {
+            "type": "pill",
+            "text": "ready",
+            "tone": "kept"
+           }
+          ],
+          [
+           "Birthday cupcakes × 36",
+           "Daniel",
+           "Fri 15:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Croissants × 60",
+           "Harbour Hotel",
+           "Sat 7:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Rye loaves × 12",
+           "Green Grocer",
+           "Sat 8:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Seeded rolls × 48",
+           "School canteen",
+           "Mon 7:30",
+           {
+            "type": "pill",
+            "text": "next week"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "axischart",
+       "title": "Orders per day",
+       "labels": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+       ],
+       "values": [
+        12,
+        14,
+        15,
+        17,
+        24,
+        31,
+        29
+       ],
+       "valueLabel": "orders, Sunday is a forecast",
+       "h": 260
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     58,
+     42
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "calllist",
+       "title": "Who to call",
+       "items": [
+        {
+         "who": "Marta, flour mill",
+         "why": "Order 4 sacks for Wednesday delivery",
+         "when": "by noon",
+         "phone": "0400 555 101",
+         "first": true
+        },
+        {
+         "who": "Priya",
+         "why": "Confirm cake design and Saturday pickup",
+         "when": "today",
+         "phone": "0400 555 214"
+        },
+        {
+         "who": "Daniel",
+         "why": "Cupcake price for Friday",
+         "when": "today",
+         "phone": "0400 555 338"
+        },
+        {
+         "who": "Joe, egg farm",
+         "why": "Extra 10 trays for the weekend",
+         "when": "Fri",
+         "phone": "0400 555 377"
+        },
+        {
+         "who": "Corner Cafe",
+         "why": "Next week's bread count",
+         "when": "Mon",
+         "done": true
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "stockshelf",
+       "title": "Stock",
+       "items": [
+        {
+         "name": "Flour",
+         "have": 18,
+         "max": 100,
+         "reorder": 30,
+         "unit": "kg",
+         "lasts": "runs out Thursday",
+         "action": "Order from Marta"
+        },
+        {
+         "name": "Eggs",
+         "have": 60,
+         "max": 360,
+         "reorder": 90,
+         "unit": "eggs",
+         "lasts": "lasts to Saturday",
+         "action": "Order from Joe"
+        },
+        {
+         "name": "Butter",
+         "have": 14,
+         "max": 40,
+         "reorder": 10,
+         "unit": "kg",
+         "lasts": "lasts to Friday"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

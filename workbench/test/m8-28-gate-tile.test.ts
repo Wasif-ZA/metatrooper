@@ -83,8 +83,8 @@ test('tile cuts lines beyond MAX_ROWS', () => {
   assert.doesNotMatch(html, new RegExp(`ROW_${MAX_ROWS}_END`));
 });
 
-const specs = 'C:/Users/User/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/specs';
-test('M8-28a: every p-*.json prototype spec passes check with nothing falling back', { skip: !existsSync(specs) && 'prototype specs folder is absent' }, () => {
+const specs = process.env.CC_KIT_SPECS ?? '';
+test('M8-28a: every p-*.json prototype spec passes check with nothing falling back', { skip: (!specs || !existsSync(specs)) && 'set CC_KIT_SPECS to the prototype kit specs folder' }, () => {
   const files = readdirSync(specs).filter(f => /^p-.*\.json$/.test(f));
   assert.ok(files.length > 0);
   for (const f of files) {

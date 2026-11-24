@@ -46,9 +46,9 @@ Everything in Part A of the brief. In short:
 - [ ] M9-02a. On screen: Ctrl+P, type part of a name, Enter. The file opens in a tab with colours.
 - [ ] M9-02b. Type in it: the tab shows the dirty dot. Ctrl+S clears it. Undo still works after a tab switch.
 - [ ] M9-02c. Ctrl+Shift+F, type a word, Enter. Click a hit: the file opens with the caret on that line.
-- [ ] M9-02d. Close a dirty tab: the three-way question appears. Cancel keeps the tab and the edit.
+- [x] M9-02d. Close a dirty tab: the three-way question appears. Cancel keeps the tab and the edit. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-ide.test.ts 14/14, 'closing a dirty tab asks while closing a clean tab does not')
 - [ ] M9-02e. Typing `c`, space or Escape in the editor never triggers an app shortcut.
-- [ ] M9-02f. Switch project and come back: unsaved edits are still there.
+- [x] M9-02f. Switch project and come back: unsaved edits are still there. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-ide.test.ts and workbench/test/m9-ide-unsaved-save.test.ts 21/21, per-project dirty state kept across switches)
 - [ ] M9-02g. A file an agent changed shows File and Changes; Changes shows the added and removed lines.
 - [ ] M9-02h. Orange appears only on an agent that is waiting for him.
 - [ ] M9-02i. The four old IDE test files are rewritten against the new screen; a mutation run catches every mutant.

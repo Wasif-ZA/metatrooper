@@ -1,0 +1,198 @@
+{
+  "tab": "Find · bracket-mk2",
+  "spec": {
+    "type": "page",
+    "children": [
+      {
+        "type": "columns",
+        "children": [
+          [
+            {
+              "type": "list",
+              "search": "M6 bolt torque   ·   searched on this PC; ? by meaning goes to claude",
+              "groups": [
+                {
+                  "label": "Best match",
+                  "rows": [
+                    {
+                      "name": "datasheets/M6-bolt.pdf",
+                      "dir": "p.3",
+                      "right": "tightening torque 9.9 N m",
+                      "icon": "PDF",
+                      "cur": true
+                    }
+                  ]
+                },
+                {
+                  "label": "Your files",
+                  "rows": [
+                    {
+                      "name": "loads.xlsx",
+                      "dir": "sheet \"bolts\"",
+                      "icon": "XLS"
+                    },
+                    {
+                      "name": "report.md",
+                      "dir": "section 4",
+                      "icon": "MD"
+                    }
+                  ]
+                },
+                {
+                  "label": "Design revisions",
+                  "rows": [
+                    {
+                      "name": "bracket.py rev C",
+                      "dir": "bracket-mk2",
+                      "right": "current",
+                      "icon": "PY"
+                    }
+                  ]
+                }
+              ],
+              "keys": [
+                "↑↓ move",
+                "↵ open",
+                "? meaning"
+              ]
+            },
+            {
+              "type": "section",
+              "label": "Other hits for this search",
+              "children": [
+                {
+                  "type": "table",
+                  "cols": [
+                    "File",
+                    "Line",
+                    "Snippet"
+                  ],
+                  "rows": [
+                    [
+                      "M6-bolt.pdf",
+                      "p.3 l.5",
+                      "M6, A2-70: 8.1 N m"
+                    ],
+                    [
+                      "plate.inp",
+                      "l.12",
+                      "*TORQUE_PRELOAD 9.9"
+                    ],
+                    [
+                      "report.md",
+                      "l.58",
+                      "torque 9.9 N m at M6"
+                    ]
+                  ],
+                  "foot": "3 more hits · 214 files, 1,430 pages, 0.2 s"
+                }
+              ],
+              "aside": "by line"
+            }
+          ],
+          [
+            {
+              "type": "preview",
+              "kind": "page",
+              "title": "M6-bolt.pdf · page 3",
+              "still": "pdf",
+              "figures": [
+                "M6 torque: 9.9 N m"
+              ],
+              "lines": [
+                "Tightening torque",
+                "M6, grade 8.8: 9.9 N m",
+                "M6, A2-70: 8.1 N m"
+              ],
+              "marks": [
+                {
+                  "text": "9.9 N m matches the top of torque_Nm in loads.xlsx"
+                }
+              ]
+            },
+            {
+              "type": "buttons",
+              "actions": [
+                {
+                  "label": "Open page 3",
+                  "primary": true
+                },
+                {
+                  "label": "Cite in report.md"
+                }
+              ]
+            },
+            {
+              "type": "section",
+              "label": "What was searched",
+              "children": [
+                {
+                  "type": "kv",
+                  "rows": [
+                    [
+                      "searched",
+                      "214 files, 1,430 pages"
+                    ],
+                    [
+                      "found in",
+                      "0.2 s"
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "source": "system",
+  "agent": "claude",
+  "chrome": {
+    "place": "bracket-mk2 : search",
+    "branch": "main",
+    "status": "0 need you",
+    "files": [
+      "bracket-mk2/",
+      "  cad/",
+      "    bracket.py",
+      "  datasheets/",
+      "    *M6-bolt.pdf",
+      "  fea/",
+      "    plate.inp",
+      "  loads.xlsx",
+      "  report.md"
+    ],
+    "terminal": [
+      {
+        "you": "Open the bolt datasheets."
+      },
+      [
+        "listed datasheets/",
+        "6 pdf files"
+      ],
+      [
+        "indexed M6-bolt.pdf",
+        "12 pages"
+      ],
+      [
+        "indexed loads.xlsx",
+        "sheet bolts, 48 rows"
+      ],
+      {
+        "you": "Where is the M6 bolt torque?"
+      },
+      [
+        "searched 214 files, 1,430 pdf pages",
+        "0.2 s"
+      ],
+      [
+        "best match",
+        "M6-bolt.pdf page 3, 9.9 N m"
+      ],
+      "9.9 N m matches the top of torque_Nm in loads.xlsx."
+    ],
+    "strip": "search · 214 files · 0.2 s",
+    "termHeight": 400
+  }
+}

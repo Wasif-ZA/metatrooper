@@ -20,10 +20,10 @@ Read-only audit of core/src, 2026-10-31. Tests at audit time: `node --test "test
 
 ## Acceptance criteria
 
-- [ ] FIX-C4a. With a fake git that sleeps 30 s, core.ping answers in under 500 ms during plugin.preview.
+- [x] FIX-C4a. With a fake git that sleeps 30 s, core.ping answers in under 500 ms during plugin.preview. (2026-11-24, B4 on a8a3b642: core/test/fix-c4-nonblocking.test.ts C4a passes)
 - [ ] FIX-C4b. The heartbeat keeps advancing during the clone.
-- [ ] FIX-C4c. git clone runs with the https-only protocol flags.
-- [ ] FIX-C4d. plugin.preview of a git URL needs ui.hello, or the contract says why not.
+- [x] FIX-C4c. git clone runs with the https-only protocol flags. (2026-11-24, B4 on a8a3b642: core/test/fix-c4-nonblocking.test.ts C4c passes)
+- [x] FIX-C4d. plugin.preview of a git URL needs ui.hello, or the contract says why not. (2026-11-24, B4 on a8a3b642: core/test/fix-c4-nonblocking.test.ts C4d passes)
 
 ## Rules
 

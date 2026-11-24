@@ -1,0 +1,315 @@
+{
+ "name": "Study: biology",
+ "by": "claude",
+ "place": "biology exam : week 1",
+ "asked": "Make this my study space for the biology exam. Keep the agent chat at the bottom.",
+ "rail": [
+  "todo",
+  "search",
+  "agents"
+ ],
+ "layout": {
+  "split": "col",
+  "sizes": [
+   68,
+   32
+  ],
+  "children": [
+   {
+    "split": "row",
+    "sizes": [
+     26,
+     74
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "title": "Topics",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "time",
+         "iso": "2026-11-20T09:00:00+11:00",
+         "label": "Exam"
+        },
+        {
+         "type": "meter",
+         "label": "Topics ready",
+         "value": 3,
+         "max": 8
+        },
+        {
+         "type": "tree",
+         "nodes": [
+          {
+           "label": "Cells",
+           "state": "ok",
+           "right": "82%"
+          },
+          {
+           "label": "Enzymes",
+           "state": "ok",
+           "right": "74%"
+          },
+          {
+           "label": "Ecology",
+           "state": "ok",
+           "right": "71%"
+          },
+          {
+           "label": "Plants",
+           "right": "66%"
+          },
+          {
+           "label": "Evolution",
+           "right": "63%"
+          },
+          {
+           "label": "Genetics",
+           "state": "fail",
+           "right": "48%"
+          },
+          {
+           "label": "Body systems",
+           "right": "55%"
+          },
+          {
+           "label": "Disease",
+           "right": "52%"
+          }
+         ]
+        },
+        {
+         "type": "section",
+         "label": "Tonight",
+         "children": [
+          {
+           "type": "check",
+           "label": "34 flash cards",
+           "state": "open",
+           "event": "tick"
+          },
+          {
+           "type": "check",
+           "label": "Genetics quiz",
+           "state": "open",
+           "event": "tick"
+          },
+          {
+           "type": "check",
+           "label": "Genetics recall, 10 min",
+           "state": "open",
+           "event": "tick"
+          },
+          {
+           "type": "check",
+           "label": "Past paper 1, section A",
+           "state": "open",
+           "event": "tick"
+          },
+          {
+           "type": "check",
+           "label": "Lecture 5 summary",
+           "state": "open",
+           "event": "tick"
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "split": "col",
+      "sizes": [
+       24,
+       76
+      ],
+      "children": [
+       {
+        "view": "kit",
+        "part": {
+         "type": "grid",
+         "cols": 3,
+         "children": [
+          {
+           "type": "stat",
+           "label": "Topics ready",
+           "value": "3 of 8",
+           "sub": "ready at 70%"
+          },
+          {
+           "type": "stat",
+           "label": "Cards due today",
+           "value": "34",
+           "sub": "about 12 minutes"
+          },
+          {
+           "type": "stat",
+           "label": "Last quiz average",
+           "value": "61%",
+           "delta": "4%",
+           "dir": "up",
+           "sub": "vs the one before"
+          }
+         ]
+        }
+       },
+       {
+        "view": "kit",
+        "title": "What have you done on each topic",
+        "part": {
+         "type": "table",
+         "cols": [
+          "Topic",
+          "Notes",
+          "Cards",
+          "Quiz",
+          "Past paper"
+         ],
+         "rows": [
+          [
+           "Cells",
+           {
+            "type": "pill",
+            "text": "done",
+            "tone": "kept"
+           },
+           "62 / 62",
+           "82%",
+           {
+            "type": "pill",
+            "text": "done",
+            "tone": "kept"
+           }
+          ],
+          [
+           "Enzymes",
+           {
+            "type": "pill",
+            "text": "done",
+            "tone": "kept"
+           },
+           "48 / 48",
+           "74%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Ecology",
+           {
+            "type": "pill",
+            "text": "done",
+            "tone": "kept"
+           },
+           "30 / 40",
+           "71%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Plants",
+           {
+            "type": "pill",
+            "text": "partly"
+           },
+           "12 / 36",
+           "66%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Evolution",
+           {
+            "type": "pill",
+            "text": "partly"
+           },
+           "20 / 44",
+           "63%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Genetics",
+           {
+            "type": "pill",
+            "text": "partly"
+           },
+           "0 / 34",
+           "48%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Body systems",
+           {
+            "type": "pill",
+            "text": "not started"
+           },
+           "0 / 52",
+           "55%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Disease",
+           {
+            "type": "pill",
+            "text": "not started"
+           },
+           "0 / 28",
+           "52%",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ]
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "view": "agent",
+    "chat": {
+     "you": "Quiz me on genetics. 10 questions, hardest last.",
+     "say": "Starting with Punnett squares, since that is where you lost the most marks last time. Question 3 of 10: a tall plant (Tt) is crossed with a short plant (tt). What fraction of the offspring are short?",
+     "log": [
+      [
+       "wrote 10 questions from your notes",
+       "4 easy, 3 medium, 3 hard"
+      ],
+      [
+       "questions 1 and 2",
+       "both right"
+      ]
+     ],
+     "now": [
+      "Question 3 of 10",
+      "waiting for your answer"
+     ],
+     "hint": "Type your answer, or ask for a hint",
+     "strip": [
+      "quiz · 2 of 10",
+      "2 right",
+      "0 wrong"
+     ]
+    }
+   }
+  ]
+ }
+}

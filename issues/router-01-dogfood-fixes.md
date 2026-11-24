@@ -148,3 +148,5 @@ live install. Done already: missing work folders added to `private` in `~/.metar
 - [ ] Hook plus exec overhead under 200 ms per wrapped call; unwrapped calls pay only the hook.
 - [ ] A/B rerun with enough tasks to see a 5% difference (at least 6 tasks x 5 runs per arm). Keep the hook only if
       cost per pass is at or below arm B. Otherwise turn the hook off and keep the CLI.
+
+Status 2026-11-24 (B4): still owed: the two-week adoption rerun (`metarouter stats --adoption`) and the A/B rerun (at least 6 tasks x 5 runs per arm). Both need real use over time, not a test. The other boxes were not rechecked this run. Open.

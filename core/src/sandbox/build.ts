@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,6 +19,30 @@ export function allowList(engines: EngineSpec[]): string[] {
 export function dockerfile(template: string, engines: EngineSpec[]): string {
   const lines = engines.flatMap((e) => e.sandbox?.install ?? []).map((l) => `RUN ${l}`);
   return template.replace('# ENGINE INSTALL LINES', lines.join('\n'));
+}
+
+export const HASH_LABEL = 'troop.hash';
+
+/** A hash of everything the image is built from: the hook files and dist, the sandbox scripts, the Dockerfile with engine installs, and the egress list (M7-19a). */
+export function imageHash(engines: EngineSpec[], roots = { core: coreDir, repo: repoDir }): string {
+  const h = crypto.createHash('sha256');
+  const add = (name: string, data: Buffer | string) => h.update(`${name}\0`).update(data).update('\0');
+  for (const f of ['event.js', 'codex-notify.js']) add(f, fs.readFileSync(path.join(roots.core, f)));
+  const walk = (dir: string, rel: string): void => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const r = `${rel}/${e.name}`;
+      if (e.isDirectory()) walk(path.join(dir, e.name), r);
+      else if (e.isFile()) add(r, fs.readFileSync(path.join(dir, e.name)));
+    }
+  };
+  walk(path.join(roots.core, 'dist'), 'dist');
+  for (const f of ['entry.sh', 'proxy.js', 'selftest.js']) {
+    const src = path.join(roots.repo, 'sandbox', f);
+    if (fs.existsSync(src)) add(f, fs.readFileSync(src, 'utf8').replaceAll('\r\n', '\n'));
+  }
+  add('Dockerfile', dockerfile(fs.readFileSync(path.join(roots.repo, 'sandbox', 'Dockerfile'), 'utf8'), engines));
+  add('egress', allowList(engines).join('\n'));
+  return h.digest('hex').slice(0, 32);
 }
 
 function stage(engines: EngineSpec[]): string {
@@ -49,7 +74,7 @@ export function buildSandbox(engines: EngineSpec[], log: (s: string) => void = c
   const dir = stage(engines);
   try {
     log(`building ${imageTag()}`);
-    if (run(rt, ['build', '-t', imageTag(), dir], log, true) !== 0) return 1;
+    if (run(rt, ['build', '--label', `${HASH_LABEL}=${imageHash(engines)}`, '-t', imageTag(), dir], log, true) !== 0) return 1;
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

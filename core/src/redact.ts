@@ -226,7 +226,7 @@ const NOTIFY_LABEL: Record<string, string> = {
 
 /** The one-line message a notification sink receives: a fixed label plus the item text with URLs, paths and token-like strings removed. */
 export function notifyText(kind: string, text: string): string {
-  const clean = redactCredentials(text)
+  const clean = redactCredentials(maskTokens(text))
     .replace(/\s+/g, ' ')
     .replace(/https?:\/\/\S+/g, '<url>')
     .replace(/[A-Za-z]:[\\/]\S*|(?<!\S)\/[^\s/]+\/\S*/g, '<path>')
@@ -236,16 +236,52 @@ export function notifyText(kind: string, text: string): string {
   return `cc (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
 }
 
-export const CREDENTIAL_PATTERNS: RegExp[] = [
-  /\bgh[pousr]_[A-Za-z0-9]{30,}/,
-  /\bgithub_pat_\w{20,}/,
-  /\bsk-[A-Za-z0-9_-]{20,}/,
-  /\bAKIA[0-9A-Z]{16}\b/,
-  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
-  /\bAIza[0-9A-Za-z_-]{35}/,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/,
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+export interface TokenRule { id: string; keywords: string[]; re: RegExp; min_entropy: number }
+
+/** Known token shapes. A rule's regex runs only when the text holds one of its keywords; a match is masked when its entropy reaches min_entropy bits per character. */
+export const TOKEN_RULES: TokenRule[] = [
+  { id: 'github', keywords: ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_'], re: /\bgh[pousr]_[A-Za-z0-9]{30,}/g, min_entropy: 3 },
+  { id: 'github-pat', keywords: ['github_pat_'], re: /\bgithub_pat_\w{20,}/g, min_entropy: 3 },
+  { id: 'anthropic', keywords: ['sk-ant-'], re: /\bsk-ant-[A-Za-z0-9_-]{20,}/g, min_entropy: 3 },
+  { id: 'openai-project', keywords: ['sk-proj-'], re: /\bsk-proj-[A-Za-z0-9_-]{20,}/g, min_entropy: 3 },
+  { id: 'openai', keywords: ['sk-'], re: /\bsk-[A-Za-z0-9_-]{20,}/g, min_entropy: 3 },
+  { id: 'aws', keywords: ['AKIA'], re: /\bAKIA[0-9A-Z]{16}\b/g, min_entropy: 3 },
+  { id: 'slack', keywords: ['xox'], re: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, min_entropy: 3 },
+  { id: 'google-api', keywords: ['AIza'], re: /\bAIza[0-9A-Za-z_-]{35}/g, min_entropy: 3 },
+  { id: 'jwt', keywords: ['eyJ'], re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, min_entropy: 3 },
+  { id: 'private-key', keywords: ['PRIVATE KEY'], re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g, min_entropy: 0 },
+  { id: 'stripe', keywords: ['sk_live_', 'rk_live_'], re: /\b[sr]k_live_[A-Za-z0-9]{20,}/g, min_entropy: 3 },
+  { id: 'gitlab', keywords: ['glpat-'], re: /\bglpat-[A-Za-z0-9_-]{20,}/g, min_entropy: 3 },
+  { id: 'npm', keywords: ['npm_'], re: /\bnpm_[A-Za-z0-9]{36,}/g, min_entropy: 3 },
+  { id: 'pypi', keywords: ['pypi-'], re: /\bpypi-[A-Za-z0-9_-]{50,}/g, min_entropy: 3 },
+  { id: 'huggingface', keywords: ['hf_'], re: /\bhf_[A-Za-z0-9]{30,}/g, min_entropy: 3 },
+  { id: 'google-oauth', keywords: ['ya29.'], re: /\bya29\.[A-Za-z0-9_-]{20,}/g, min_entropy: 3 },
+  { id: 'azure-storage', keywords: ['AccountKey='], re: /AccountKey=[A-Za-z0-9+/]{40,}={0,2}/g, min_entropy: 3 },
+  { id: 'sendgrid', keywords: ['SG.'], re: /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g, min_entropy: 3 },
+  { id: 'bearer', keywords: ['Bearer'], re: /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, min_entropy: 3 },
 ];
+
+/** Shannon entropy of s in bits per character. */
+function entropy(s: string): number {
+  const counts = new Map<string, number>();
+  for (const char of s) counts.set(char, (counts.get(char) ?? 0) + 1);
+  let bits = 0;
+  for (const count of counts.values()) bits -= (count / s.length) * Math.log2(count / s.length);
+  return bits;
+}
+
+/** Replaces each known-shape token in text with [token]; SHAs, UUIDs and paths match no rule and are kept. */
+export function maskTokens(text: string): string {
+  let out = text;
+  for (const rule of TOKEN_RULES) {
+    if (!rule.keywords.some((k) => out.includes(k))) continue;
+    out = out.replace(rule.re, (m) => (entropy(m) >= rule.min_entropy ? '[token]' : m));
+  }
+  return out;
+}
+
+/** The TOKEN_RULES regexes without the global flag, for approvals' credential check. */
+export const CREDENTIAL_PATTERNS: RegExp[] = TOKEN_RULES.map((r) => new RegExp(r.re.source));
 
 /** A run of 32+ token characters is a credential when it mixes digits, lower and upper case; found in one pass, then each run tested, so a long run costs linear time. */
 const LONG_RUN = /[A-Za-z0-9_+/=-]{32,}/g;
@@ -257,14 +293,7 @@ function highEntropy(run: string): boolean {
   if (!/[0-9]/.test(run) || !/[a-z]/.test(run)) return false;
   if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(run) || /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(run)) return false;
   if (/^(?:[A-Za-z]+|[0-9]+)(?:[_-](?:[A-Za-z]+|[0-9]+))*$/.test(run)) return false;
-  const counts = new Map<string, number>();
-  for (const char of run) counts.set(char, (counts.get(char) ?? 0) + 1);
-  let entropy = 0;
-  for (const count of counts.values()) {
-    const p = count / run.length;
-    entropy -= p * Math.log2(p);
-  }
-  return entropy >= 3.5;
+  return entropy(run) >= 3.5;
 }
 
 export function looksLikeCredential(text: string): boolean {

@@ -21,8 +21,8 @@ Read-only audit of core/src, 2026-10-31. Tests at audit time: `node --test "test
 ## Acceptance criteria
 
 - [ ] FIX-C2a. A non-UI launch with parent_id of an ask session and approval contained returns -32012 or -32003.
-- [ ] FIX-C2b. The same call over a ui.hello connection succeeds.
-- [ ] FIX-C2c. A child at or below the parent's level still launches.
+- [x] FIX-C2b. The same call over a ui.hello connection succeeds. (2026-11-24, B4 on a8a3b642: core/test/c2-session-secret.test.ts case 11 and core/test/fix-c2-parent-approval.test.ts C2b pass)
+- [x] FIX-C2c. A child at or below the parent's level still launches. (2026-11-24, B4 on a8a3b642: core/test/c2-session-secret.test.ts cases 2 and 3, fix-c2-parent-approval.test.ts C2c pass)
 - [ ] FIX-C2d. A test covers all three.
 
 ## Rules

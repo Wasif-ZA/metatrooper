@@ -11,7 +11,7 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 1.5 
 
 - [ ] M6-03a. A fixture dev server started in a session's terminal prints its URL; within 2 s a `session_dev_server` row with `matched_by: ancestry` exists, the tile shows "Open preview", and that session's agent pane loads it.
 - [ ] M6-03b. A fixture `npm run dev` that starts a detached child gets a `printed` row and the same result. A port served by a process started outside MetaTrooper before the URL was printed is blocked for agent panes.
-- [ ] M6-03c. A user pane loads `http://localhost:<any listening port>` typed by hand; no agent tool can drive that pane.
+- [x] M6-03c. A user pane loads `http://localhost:<any listening port>` typed by hand; no agent tool can drive that pane. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/browser-policy.test.ts 3/3, both M6-03c tests)
 
 ## Rules that bind every child
 

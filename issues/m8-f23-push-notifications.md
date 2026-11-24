@@ -36,7 +36,7 @@ Not sized until M8-0.
 ## Acceptance criteria
 
 - [ ] M8-F23a. By default a finished job sends nothing and a waiting gate sends one alert.
-- [ ] M8-F23b. Nothing is sent during quiet hours, and the waiting gate still shows on the PC.
+- [x] M8-F23b. Nothing is sent during quiet hours, and the waiting gate still shows on the PC. (2026-11-24: scope per Wasif Q9b: quiet hours hold ntfy only; B1 READY @ef217867 and b714e838, core/test/m8-f23-quiet.test.ts and m5-notify.test.ts 19/19)
 - [ ] M8-F23c. An alert names the agent and project and carries no diff, command or fixture secret.
 - [ ] M8-F23d. The settings say that the chosen sink sends the alert through a third party.
 - [ ] M8-F23e. The shipped block matches `n14-machines.json`, and that workspace loads through `ouros_workspace` with no refusal. (was: passes validate.mjs)

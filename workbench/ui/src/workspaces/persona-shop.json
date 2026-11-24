@@ -1,0 +1,359 @@
+{
+ "name": "Shop week",
+ "by": "claude",
+ "place": "hearth-lane-bakery : this week",
+ "asked": "Run my bakery's week from here. I don't want to see any code.",
+ "rail": [
+  "files",
+  "agents",
+  "todo"
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   44,
+   30,
+   26
+  ],
+  "children": [
+   {
+    "split": "col",
+    "sizes": [
+     28,
+     40,
+     32
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "grid",
+       "cols": 2,
+       "children": [
+        {
+         "type": "stat",
+         "label": "Orders this week",
+         "value": "142",
+         "delta": "9%",
+         "dir": "up",
+         "sub": "vs last week"
+        },
+        {
+         "type": "stat",
+         "label": "Sales so far",
+         "value": "$4,860",
+         "delta": "6%",
+         "dir": "up",
+         "sub": "vs last week"
+        },
+        {
+         "type": "stat",
+         "label": "Running low",
+         "value": "2 items",
+         "sub": "flour, eggs"
+        },
+        {
+         "type": "stat",
+         "label": "To call",
+         "value": "4 people",
+         "sub": "1 by noon"
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "title": "Orders",
+      "part": {
+       "type": "page",
+       "children": [
+        {
+         "type": "buttons",
+         "actions": [
+          {
+           "label": "+ New order"
+          },
+          {
+           "label": "Print today's bake list"
+          }
+         ]
+        },
+        {
+         "type": "table",
+         "cols": [
+          "Order",
+          "For",
+          "Ready",
+          ""
+         ],
+         "rows": [
+          [
+           "Wedding cake, 3 tier",
+           "Priya",
+           "Sat 9:00",
+           {
+            "type": "pill",
+            "text": "baking"
+           }
+          ],
+          [
+           "Sourdough × 24",
+           "Corner Cafe",
+           "Fri 6:30",
+           {
+            "type": "pill",
+            "text": "ready",
+            "tone": "kept"
+           }
+          ],
+          [
+           "Birthday cupcakes × 36",
+           "Daniel",
+           "Fri 15:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Croissants × 60",
+           "Harbour Hotel",
+           "Sat 7:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Rye loaves × 12",
+           "Green Grocer",
+           "Sat 8:00",
+           {
+            "type": "pill",
+            "text": "not started"
+           }
+          ],
+          [
+           "Seeded rolls × 48",
+           "School canteen",
+           "Mon 7:30",
+           {
+            "type": "pill",
+            "text": "next week"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "chart",
+       "kind": "bar",
+       "title": "Orders per day · Sunday is a forecast",
+       "labels": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+       ],
+       "series": [
+        {
+         "name": "orders",
+         "values": [
+          12,
+          14,
+          15,
+          17,
+          24,
+          31,
+          29
+         ]
+        }
+       ],
+       "forecast": 6
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     56,
+     44
+    ],
+    "children": [
+     {
+      "view": "kit",
+      "part": {
+       "type": "calllist",
+       "title": "Who to call",
+       "items": [
+        {
+         "who": "Marta, flour mill",
+         "why": "Order 4 sacks for Wednesday delivery",
+         "when": "by noon",
+         "phone": "0400 555 101",
+         "first": true
+        },
+        {
+         "who": "Priya",
+         "why": "Confirm cake design and Saturday pickup",
+         "when": "today",
+         "phone": "0400 555 214"
+        },
+        {
+         "who": "Daniel",
+         "why": "Cupcake price for Friday",
+         "when": "today",
+         "phone": "0400 555 338"
+        },
+        {
+         "who": "Joe, egg farm",
+         "why": "Extra 10 trays for the weekend",
+         "when": "Fri",
+         "phone": "0400 555 377"
+        },
+        {
+         "who": "Corner Cafe",
+         "why": "Next week's bread count",
+         "when": "Mon",
+         "done": true
+        }
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "stockshelf",
+       "title": "Stock",
+       "items": [
+        {
+         "name": "Flour",
+         "have": 18,
+         "max": 100,
+         "reorder": 30,
+         "unit": "kg",
+         "lasts": "runs out Thursday",
+         "action": "Order from Marta"
+        },
+        {
+         "name": "Eggs",
+         "have": 60,
+         "max": 360,
+         "reorder": 90,
+         "unit": "eggs",
+         "lasts": "lasts to Saturday",
+         "action": "Order from Joe"
+        },
+        {
+         "name": "Butter",
+         "have": 14,
+         "max": 40,
+         "reorder": 10,
+         "unit": "kg",
+         "lasts": "lasts to Friday"
+        },
+        {
+         "name": "Sugar",
+         "have": 34,
+         "max": 50,
+         "reorder": 12,
+         "unit": "kg",
+         "lasts": "about 2 weeks"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "split": "col",
+    "sizes": [
+     66,
+     34
+    ],
+    "children": [
+     {
+      "view": "agent",
+      "chat": {
+       "you": "Flour's running low, isn't it?",
+       "say": "Yes. At this week's pace you run out on Thursday. Marta can deliver Wednesday if you order by noon today, so I put her first on your call list. The email to her waits for your yes.",
+       "log": [
+        [
+         "read this week's orders",
+         "142"
+        ],
+        [
+         "worked out flour per day",
+         "about 9 kg"
+        ],
+        [
+         "drafted the flour order",
+         "4 sacks, Wed"
+        ],
+        [
+         "checked egg stock",
+         "60 left"
+        ],
+        [
+         "found 2 orders at risk",
+         "Fri, Sat"
+        ],
+        [
+         "[x] stock check",
+         "done"
+        ],
+        [
+         "[ ] email Marta",
+         "your yes"
+        ],
+        [
+         "[ ] call Priya",
+         "today"
+        ],
+        [
+         "called the mill's number",
+         "0400 555 101"
+        ],
+        [
+         "checked Priya's cake",
+         "Sat 9:00"
+        ]
+       ],
+       "hint": "Ask about the week",
+       "strip": [
+        "auto · watching stock",
+        "1 waiting on you"
+       ]
+      }
+     },
+     {
+      "view": "kit",
+      "part": {
+       "type": "digest",
+       "title": "Email waiting",
+       "facts": "To Marta · 4 sacks of flour for Wednesday",
+       "note": "Nothing is sent until you approve it.",
+       "actions": [
+        {
+         "label": "Send the order",
+         "primary": true
+        },
+        {
+         "label": "Edit first"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

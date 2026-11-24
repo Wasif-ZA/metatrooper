@@ -308,9 +308,9 @@ test('d9d885ca explorer has a 22px header and Files/Search/Changes icon buttons 
 // Register the real Ctrl+P listener with synthetic event and overlay boundaries.
 function ctrlP() {
   const source = readFileSync(join(wb, 'ui/src/main.jsx'), 'utf8');
-  const listener = source.match(/document\.addEventListener\('keydown', \(e\) => \{\r?\n  if \(!ideView\.shown\(\)[^]*?\r?\n\}\);/)![0];
+  const listener = source.match(/document\.addEventListener\('keydown', \(e\) => \{\r?\n(?:  if \(ideView\.shown\(\) && workspaceKey\(e\)\) return;\r?\n)?  if \(!ideView\.shown\(\)[^]*?\r?\n\}\);/)![0];
   let handler: any;
-  new Function('document', 'ideView', 'ideKeys', 'overlayOpen', listener)({ addEventListener: (_: any, fn: any) => { handler = fn; } }, { shown: ideShown }, ideKeys, () => false);
+  new Function('document', 'ideView', 'ideKeys', 'overlayOpen', 'workspaceKey', listener)({ addEventListener: (_: any, fn: any) => { handler = fn; } }, { shown: ideShown }, ideKeys, () => false, () => false);
   handler(event({ key: 'p', ctrlKey: true }));
 }
 test('d9d885ca find is hidden until Ctrl+P and hides on empty blur or Escape', async () => {

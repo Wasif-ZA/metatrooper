@@ -45,9 +45,9 @@ The daily copy only moves on a green suite (M9-06). So the suite has to be green
 ## Acceptance checks
 
 - [ ] M9-08a. Core: 0 fail. Workbench: 0 fail. Both serial, machine quiet, counts written down with the commit.
-- [ ] M9-08b. G2 passes: switch project and the field shows that project's command; no project disables it.
+- [x] M9-08b. G2 passes: switch project and the field shows that project's command; no project disables it. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-settings-gaps.test.ts 5/5, 'G2: Check command shows saved command ... disabled without project')
 - [ ] M9-08c. Each of G1 to G6 fails when the behaviour it names is broken on purpose.
-- [ ] M9-08d. After the deletes, no file in the repo names `settings.js`, `inbox.js` or `addons.js` in the renderer folder, apart from the test that asserts they are not loaded.
+- [x] M9-08d. After the deletes, no file in the repo names `settings.js`, `inbox.js` or `addons.js` in the renderer folder, apart from the test that asserts they are not loaded. (2026-11-24, B4 on a8a3b642: the three files are gone; `git grep` outside issues/ and marketing/ finds the names only in m8-ax-screens.test.ts:156, the test that asserts they are not loaded.)
 - [ ] M9-08e. `daily.sh promote` (M9-06) goes green on this commit.
 
 ## Engines
