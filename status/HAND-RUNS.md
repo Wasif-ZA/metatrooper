@@ -5,7 +5,7 @@ An item is ticked only with a dated result (ISO date, machine, commit, what was 
 
 App start on this laptop, used below as "start the app" (README.md:118-126):
 `node core/cli.ts start`, `node core/cli.ts ping`, then `cd workbench && npm run dev`.
-Daily copy, used below as `daily.sh`: `~/.cache/claude-scratch/ouros-daily/daily.sh` (verbs `promote`, `start`, `stop`, `status`, `rollback`).
+Daily copy, used below as `daily.sh`: `daily.sh` in the ouros-daily scratch folder (outside the repo) (verbs `promote`, `start`, `stop`, `status`, `rollback`).
 
 ## 1. This laptop
 
@@ -59,6 +59,6 @@ Daily copy, used below as `daily.sh`: `~/.cache/claude-scratch/ouros-daily/daily
 | M6-23 opencode session | issues/archive/m6-23-true-status-part-2.md | 1. Spike: does opencode load a plugin by file URL in `OPENCODE_CONFIG_CONTENT` (else `OPENCODE_CONFIG_DIR`). 2. One real opencode session shows `working` and `done` from its plugin. Steps: see :61 and :95. | M6-23e, report row :122 |
 | M6-08a Shift+Enter per CLI | issues/m6-08-agent-input.md | In a Claude, a Codex and a Gemini tile: 1. Type a line, press Shift+Enter. 2. Pass: newline inserted, not submitted. Record each CLI version. | M6-08a |
 | M9-02j visual judge | issues/m9-02-ide-editor-screen.md | 1. Screenshot the IDE screen. 2. Give it with `research/ref-shots/herdr/06-showcase-layout-code.webp` to Gemini and to Codex. 3. Fix points both raise. | M9-02j |
-| M9-07c test issue and triage | issues/m9-07-report-issue-live-and-daily-triage.md | 1. Submit one test issue from the Report issue page. 2. `~/.cache/claude-scratch/ouros-daily/triage.sh` (defaults to `Wasif-ZA/metatrooper`; for the private repo `TRIAGE_REPO=Wasif-ZA/metatrooper-private`). 3. Pass: it lists the issue. | M9-07c |
+| M9-07c test issue and triage | issues/m9-07-report-issue-live-and-daily-triage.md | 1. Submit one test issue from the Report issue page. 2. `ouros-daily/triage.sh` (defaults to `Wasif-ZA/metatrooper`; for the private repo `TRIAGE_REPO=Wasif-ZA/metatrooper-private`). 3. Pass: it lists the issue. | M9-07c |
 | M9-09e lent site | issues/m9-09-lent-session-fixes-after-codex.md | 1. In a lent browser session, open a site he uses. 2. Pass: it signs in and loads its own images and scripts. | M9-09e |
-| M6-01b pipelines repo and tag | issues/m6-01-split-the-pipelines-out.md | Not ready on 2026-11-24: the repo is not at `teehee/projects/metatrooper-pipelines` and `pipelines-final` is not on origin. 1. Put the repo there. 2. In it: `git log --oneline -- core/src/pipelines/runner.ts` shows pre-split commits. 3. `git push origin pipelines-final`. 4. `git ls-remote --tags origin pipelines-final` prints it. spec.md:762 names `../suite-of-products/shared/core/src/pipelines/runner.ts` instead; settle which. | M6-01b |
+| M6-01b pipelines repo and tag | issues/m6-01-split-the-pipelines-out.md | Not ready on 2026-11-24: the repo is not at the metatrooper-pipelines folder beside this repo and `pipelines-final` is not on origin. 1. Put the repo there. 2. In it: `git log --oneline -- core/src/pipelines/runner.ts` shows pre-split commits. 3. `git push origin pipelines-final`. 4. `git ls-remote --tags origin pipelines-final` prints it. spec.md:762 names `../suite-of-products/shared/core/src/pipelines/runner.ts` instead; settle which. | M6-01b |
