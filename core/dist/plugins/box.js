@@ -45,6 +45,13 @@ export function launcher()                {
 /** Why a folder must never be granted to a box: a line break in its name, a drive root, your user folder or a folder above it, or the cc home or a folder above it. */
 export function unsafeGrant(dir        , profile = os.homedir(), ccHome = homeDir())                {
   if (/[\r\n]/.test(dir)) return 'a folder name with a line break';
+  // a junction, an 8.3 name or a \\?\ form can name a refused folder; the ACL write follows it, so the real path is checked too (sec review of e89efa8c, item 6)
+  let real = dir;
+  try { real = fs.realpathSync.native(dir); } catch {}
+  if (real !== dir) {
+    const why = unsafeGrant(real, profile, ccHome);
+    if (why) return `${dir} (really ${real}): ${why}`;
+  }
   const norm = (p        ) => path.resolve(p).replace(/[\\/]+$/, '').toLowerCase();
   const d = norm(dir);
   const atOrBelow = (a        , b        ) => a === b || a.startsWith(b + path.sep);

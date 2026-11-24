@@ -21,6 +21,12 @@ export function proveSecret(secret: string): { session: string; approval: string
   return byHash.get(hash(secret)) ?? null;
 }
 
+/** The approval profile a live session was launched with, or null when it holds no secret. */
+export function approvalOf(sessionId: string): string | null {
+  const h = bySession.get(sessionId);
+  return h ? byHash.get(h)?.approval ?? null : null;
+}
+
 export function dropSecret(sessionId: string): void {
   const h = bySession.get(sessionId);
   if (h) byHash.delete(h);

@@ -123,7 +123,7 @@ async function main()                {
   if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id> <token>');
   let r          ;
   try {
-    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token }))            ;
+    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token, session_secret: process.env.TROOP_SESSION_SECRET ?? '' }))            ;
   } catch (e) {
     return refuse(`${(e         ).message}; ${serverId} from ${pluginId} did not start`);
   }
@@ -147,7 +147,8 @@ async function main()                {
   if (r.box) {
     const { boxArgv, containerName } = await import('../plugins/box.js');
     const { homeDir } = await import('../paths.js');
-    const grants = [...r.box.grants, `${r.box.project} ${process.cwd()}`];
+    if (!r.project_dir) return refuse(`${serverId} from ${pluginId} is boxed and needs the project of a live cc session; it did not start`);
+    const grants = [...r.box.grants, `${r.box.project} ${r.project_dir}`];
     const tmp = path.join(homeDir(), 'plugin-tmp', containerName(pluginId, [serverId, ...grants].join('|')));
     try {
       const b = boxArgv({ name: path.basename(tmp), net: r.box.net, grants }, resolved[0], [...resolved.slice(1), ...args], tmp);

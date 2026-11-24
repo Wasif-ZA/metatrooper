@@ -16,7 +16,7 @@ import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { defaultApproval, heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
-import { proveSecret } from './sessions/secret.ts';
+import { proveSecret, approvalOf } from './sessions/secret.ts';
 import { parseChat, parseEngineChat } from './sessions/chat.ts';
 import { engineFile } from './meter.ts';
 import { buildHandoff, gatherHandoff, handoffTranscript } from './sessions/handoff.ts';
@@ -179,7 +179,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'browser.logins.list', needsUi: true, params: '{}', result: '{logins: [{name, origin, user}]}; the imported logins, never a value' },
   { name: 'browser.logins.remove', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name}', result: '{}; removes an imported login and its username' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
-  { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
+  { name: 'mcp.resolve', params: '{plugin_id, server_id, token, session_secret?}', result: '{command, args, env, refs, missing, project_dir} for the MCP shim (project_dir: the project of the proven session, or null), refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
   { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names, token}', result: '{}; raises a `missing-secret` needs-you item per name' },
   { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
   { name: 'notify.sink.list', stable: true, params: '{}', result: '{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination' },
@@ -1082,8 +1082,12 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p, ctx) => {
       // a direct pipe call proves the session it names (B1 review of fa77f07e, point 4)
       if (!ctx?.ui) {
-        const proven = ctx?.session ?? (typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret)?.session : undefined);
+        const secret = typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret) : null;
+        const proven = ctx?.session ?? secret?.session;
         if (!proven || proven !== p.session_id) throw new RpcError(E.NEEDS_UI, 'engine.run needs the session_secret of the session it names, or a trusted UI connection');
+        // an exited or isolated session runs no plugin action (sec review of e89efa8c, item 2)
+        const live = db.prepare('SELECT state FROM session WHERE id = ?').get(proven) as { state: string } | undefined;
+        if (!live || live.state === 'exited' || (secret?.approval ?? approvalOf(proven)) === 'isolated') throw new RpcError(E.NEEDS_UI, 'engine.run needs a live session that is not isolated');
       }
       return runEngine(db, p, approvals);
     },
@@ -1104,7 +1108,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('mcp.resolve', {
     handler: (p) => {
       checkShimToken(str(p, 'plugin_id'), str(p, 'token'));
-      return resolveMcpServerAsync(db, str(p, 'plugin_id'), str(p, 'server_id'));
+      // a boxed server is granted the project of the session the shim proves, never its own cwd (sec review of e89efa8c, item 7)
+      const proven = typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret) : null;
+      const project = proven ? (db.prepare("SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ? AND s.state != 'exited'").get(proven.session) as { path: string } | undefined) : undefined;
+      return resolveMcpServerAsync(db, str(p, 'plugin_id'), str(p, 'server_id')).then((r) => ({ ...r, project_dir: project?.path ?? null }));
     },
   });
 

@@ -60,7 +60,7 @@ is refused with -32003 naming it. Reinstalling approves the new files.
 |---|---|---|
 | `project:read` | read the project folder | cwd is the project; declared only |
 | `project:write` | write in the project folder | declared only |
-| `run:write` | write in the run directory | cwd and `TROOP_RUN_DIR` |
+| `run:write` | write in the run directory | cwd and `TROOP_RUN_DIR` (for a boxed action on Windows, the run's `out` folder; the run log beside it is not writable) |
 | `network` | outbound network | declared only; the install screen warns it is not blocked |
 | `secrets:<NAME>` | receive environment variable `<NAME>` | **enforced**: the action's environment contains only these |
 | `browser` | drive browser panes through the core | **enforced**: pipe checks pane ownership |

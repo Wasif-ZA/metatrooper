@@ -134,13 +134,21 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
   if (missing.length) return Promise.resolve(fail(`secret ${missing.join(', ')} is not set for ${req.plugin.id}`));
   let plan = planCommand(action.run, req.plugin.path, env);
   if (!plan) return Promise.resolve(fail(`command not found: ${action.run[0]}`));
-  const root = path.resolve(req.plugin.path).toLowerCase() + path.sep;
-  if (process.platform === 'win32' && req.plugin.source !== 'builtin' && path.resolve(plan.file).toLowerCase().startsWith(root)) {
+  // boxed by what the plugin ships, not by what it resolves to: a shipped .js runs node and a .cmd runs cmd.exe, both outside the folder (sec review of e89efa8c, item 1)
+  const shipped = /[\\/]/.test(action.run[0]) ? insideDir(req.plugin.path, action.run[0]) : null;
+  // node in the box cannot list the folders above the script, so it skips resolving the main path (--preserve-symlinks-main)
+  if (process.platform === 'win32' && req.plugin.source !== 'builtin' && shipped) {
+    if (/\.(cmd|bat)$/i.test(shipped)) return Promise.resolve(fail(`not run: ${path.basename(shipped)} would run through cmd.exe, which cannot be boxed; ship an .exe or a .js`));
     const has = (x: string) => req.plugin.permissions.includes(x);
-    const grants = [`r ${req.plugin.path}`, ...(has('project:write') ? [`w ${req.projectDir}`] : has('project:read') ? [`r ${req.projectDir}`] : []), `w ${req.run.dir}`];
+    // the box writes only its tmp folder, so it cannot forge or unredact the run log beside it (item 8)
+    const tmp = path.join(req.run.dir, 'tmp');
+    const out = path.join(req.run.dir, 'out');
+    const grants = [`r ${req.plugin.path}`, ...(has('project:write') ? [`w ${req.projectDir}`] : has('project:read') ? [`r ${req.projectDir}`] : []), `w ${tmp}`, `w ${out}`];
     try {
-      const tmp = path.join(req.run.dir, 'tmp');
-      plan = { ...boxArgv({ name: containerName(req.plugin.id, [action.id, ...grants].join('|')), net: has('network'), grants }, plan.file, plan.args, tmp), verbatim: false };
+      fs.mkdirSync(tmp, { recursive: true });
+      fs.mkdirSync(out, { recursive: true });
+      env.TROOP_RUN_DIR = out;
+      plan = { ...boxArgv({ name: containerName(req.plugin.id, [action.id, ...grants].join('|')), net: has('network'), grants }, plan.file, /\.(m?js|cjs)$/i.test(shipped) ? ['--preserve-symlinks-main', '--preserve-symlinks', ...plan.args] : plan.args, tmp), verbatim: false };
       env.TEMP = env.TMP = tmp;
     } catch (e) {
       return Promise.resolve(fail(`not run: ${(e as Error).message}`));
@@ -239,6 +247,6 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
     };
 
     child.stdin!.on('error', () => {});
-    child.stdin!.end(JSON.stringify({ schema: 1, action: action.id, input: req.input, project: req.projectDir, run: { id: req.run.id, dir: req.run.dir } }));
+    child.stdin!.end(JSON.stringify({ schema: 1, action: action.id, input: req.input, project: req.projectDir, run: { id: req.run.id, dir: env.TROOP_RUN_DIR ?? req.run.dir } }));
   });
 }
