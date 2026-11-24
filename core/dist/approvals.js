@@ -185,7 +185,8 @@ export function summaryOf(p             , secrets           = [], windowTitle   
       return `${middle(shown)} (${sizeText(size)})`;
     });
     const via = what ? ` with '${middle(what, 40)}'` : '';
-    return scrub(`upload to ${where}${via}: ${files.join(', ')}`, secrets);
+    // file names are not run through the credential patterns, which would hide which file is sent (B2 review of 417cd8cd, N6)
+    return `${scrub(`upload to ${where}${via}`, secrets)}: ${redactSecretValues(files.join(', '), secrets)}`;
   }
   const verb = p.action === 'type' ? 'type into' : p.action === 'key' ? `press ${typeof p.args.keys === 'string' ? p.args.keys : ''} on` : p.action;
   return scrub(`${verb} ${what || (p.surface === 'desktop' ? 'the window' : 'the page')} in ${where}`.replace(/\s+/g, ' ').trim(), secrets).slice(0, 300);
@@ -241,7 +242,7 @@ export class Approvals {
       const bad = p.surface !== 'browser' ? 'upload is a browser action' : !proj ? 'this session has no project' : uploadProblem(p.args.paths, proj.path);
       if (bad) return { decision: 'deny', reason: bad };
       // the upload may click its control to open the chooser, so the control must be one the person would click for that
-      if (!p.control) return { decision: 'deny', reason: 'an upload needs a control on the page (a file input or the button that opens one)' };
+      if (!p.control || !(p.control.name || p.control.automation_id)) return { decision: 'deny', reason: 'an upload needs a control on the page with a name or id (a file input or the button that opens one)' };
       if (p.hidden) return { decision: 'deny', reason: 'the upload control is hidden' };
       if (riskyControl(p.control)) return { decision: 'deny', reason: `${risky(p.control)}; an upload will not click it` };
       projectDir = proj .path;
@@ -253,6 +254,7 @@ export class Approvals {
       const saved = browserSecretOrigin(name);
       if (!saved) return { decision: 'deny', reason: `there is no browser secret named ${name}` };
       if (saved !== normalOrigin(p.target)) return { decision: 'deny', reason: `secret ${name} is saved for another origin` };
+      if (/^https?:\/\/(\[|\d+\.\d+\.\d+\.\d+|localhost\.?(:|$)|[^/]*\.localhost\.?(:|$))/i.test(saved) && /^login(user)?_/.test(name)) return { decision: 'deny', reason: `secret ${name} is a login for a loopback address, where an agent could read it; remove it in Settings` };
       if (!p.password && !isUsernameSecret(name)) return { decision: 'deny', reason: `secret ${name} goes only into a password field` };
     }
     const reason = riskReason(p) ?? (this.newOrigin(p) ? 'new origin' : null);

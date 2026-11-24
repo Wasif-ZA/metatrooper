@@ -15,6 +15,7 @@ import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 import { scrubbedCaption } from '../cursor-glide.ts';
 import { exportTest, type Step } from '../../../core/src/browser/export-test.ts';
 import { actionHash, uploadProblem } from '../../../core/src/approvals.ts';
+import { normalOrigin } from '../../../core/src/browser/secret-origin.ts';
 
 const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'upload', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
@@ -34,14 +35,18 @@ function spendUpload(approvalId: string): boolean {
 }
 
 /** Copies approved upload files into a fresh workbench folder and returns the copies' paths; each copy must be a plain file of at most 100 MB. */
-function copyForUpload(paths: string[]): string[] {
+function copyForUpload(paths: string[], projectDir: string): string[] {
+  const root = fs.realpathSync(projectDir);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-upload-'));
   // ponytail: removed after 30 min, long enough for a page to read or submit it; tie it to the pane's next navigation if pages hold files longer
   setTimeout(() => fs.rmSync(dir, { recursive: true, force: true }), 30 * 60_000).unref();
   return paths.map((f, i) => {
     const to = path.join(dir, String(i), path.basename(f));
     fs.mkdirSync(path.dirname(to));
-    fs.copyFileSync(fs.realpathSync(f), to, fs.constants.COPYFILE_EXCL);
+    const real = fs.realpathSync(f);
+    const rel = path.relative(root, real);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`${path.basename(f)} moved outside the project`);
+    fs.copyFileSync(real, to, fs.constants.COPYFILE_EXCL);
     const st = fs.lstatSync(to);
     if (!st.isFile() || st.size > 100 * 1024 * 1024) throw new Error(`${path.basename(f)} is not a plain file of at most 100 MB`);
     return to;
@@ -239,7 +244,8 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         const row = ap ? db.prepare("SELECT action_hash, decided_at FROM approval WHERE id = ? AND session_id = ? AND surface = 'browser' AND action = 'upload' AND status = 'approved'").get(ap, sessionId) as { action_hash: string; decided_at: string } | undefined : undefined;
         const { expect, approval_id: _a, ...args } = params;
         // the control the hash binds is the one the MCP server described; panes.ts refuses the call if the live control differs from expect
-        const { origin: _o, hidden: _h, password: _p, ...control } = (expect && typeof expect === 'object' ? expect : {}) as Record<string, string>;
+        if (!expect || typeof expect !== 'object' || normalOrigin(String(expect.origin ?? '')) !== normalOrigin(origin || '')) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: an upload must name the control it was approved for'); }
+        const { origin: _o, hidden: _h, password: _p, ...control } = expect as Record<string, string>;
         const want = actionHash({ session_id: sessionId, surface: 'browser', target: origin || 'about:blank', action: 'upload', args, control: control as any });
         if (!row || row.action_hash !== want || !(Date.now() - Date.parse(row.decided_at) < 120_000)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
         // the paths are checked again here: a folder in the project could have become a link since the approval
@@ -249,7 +255,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         // spent in the database, so a restart cannot replay it
         if (!spendUpload(ap)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
         // the page gets copies taken now, so a file swapped for a link after this check is never read
-        try { params.paths = copyForUpload(params.paths as string[]); } catch (e) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, `not sent: ${(e as Error).message}`); }
+        try { params.paths = copyForUpload(params.paths as string[], proj!.path); } catch (e) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, `not sent: ${(e as Error).message}`); }
       }
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });

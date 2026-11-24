@@ -62,7 +62,9 @@ export function parseLoginCsv(text: string): LoginRow[] {
 export function loginOrigin(url: string): string | null {
   try {
     const x = new URL(url);
-    if (x.protocol === 'https:' && x.hostname && !/^\d+\.\d+\.\d+\.\d+$|^\[/.test(x.hostname)) return x.origin;
+    const host = x.hostname.replace(/\.$/, '').toLowerCase();
+    // no IP literal, no localhost or *.localhost (Chromium sends them to loopback), no single-label name (B2 review of 417cd8cd, N4)
+    if (x.protocol === 'https:' && host.includes('.') && !/^\d+\.\d+\.\d+\.\d+$|^\[/.test(host) && !/(^|\.)localhost$/.test(host)) return x.origin;
   } catch {}
   return null;
 }
