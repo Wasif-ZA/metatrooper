@@ -26,11 +26,11 @@ function harness(t: any, action: Record<string, unknown> = {}) {
   mkdirSync(join(source, 'bin'), { recursive: true });
   writeFileSync(join(source, 'bin', 'captions.js'), SCRIPT);
   const manifest = {
-    schema: 1, id: 'fake-captions', version: '1.0.0', name: 'fake-captions', permissions: ['run:write'], platforms: ['windows', 'linux', 'macos'],
+    schema: 1, id: 'fake-captions', version: '1.0.0', name: 'fake-captions', permissions: ['run:write', 'project:write'], platforms: ['windows', 'linux', 'macos'],
     actions: [{ id: 'transcribe', run: ['bin/captions.js'], binds: { from: '/captions', to: '/captions' }, ...action }],
   };
   writeFileSync(join(source, 'troop-plugin.json'), JSON.stringify(manifest));
-  withEnv(env, () => installPlugin(db, { source, approved_permissions: ['run:write'] }));
+  withEnv(env, () => installPlugin(db, { source, approved_permissions: ['run:write', 'project:write'] }));
   const project = join(isolated.home, 'project');
   mkdirSync(project, { recursive: true });
   const at = '2026-11-24T00:00:00.000Z';

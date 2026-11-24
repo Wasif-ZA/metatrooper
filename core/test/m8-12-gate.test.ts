@@ -33,11 +33,11 @@ function harness(t: any, timeoutMs = 60_000) {
   mkdirSync(join(source, 'bin'), { recursive: true });
   writeFileSync(join(source, 'bin', 'publish.js'), SCRIPT);
   const manifest = {
-    schema: 1, id: 'fake-publish', version: '1.0.0', name: 'fake-publish', permissions: ['run:write'], platforms: ['windows', 'linux', 'macos'],
+    schema: 1, id: 'fake-publish', version: '1.0.0', name: 'fake-publish', permissions: ['run:write', 'project:write'], platforms: ['windows', 'linux', 'macos'],
     actions: [{ id: 'publish', run: ['bin/publish.js'], external: true, destination_field: 'channel' }],
   };
   writeFileSync(join(source, 'troop-plugin.json'), JSON.stringify(manifest));
-  withEnv(env, () => installPlugin(db, { source, approved_permissions: ['run:write'] }));
+  withEnv(env, () => installPlugin(db, { source, approved_permissions: ['run:write', 'project:write'] }));
   const project = join(isolated.home, 'project');
   mkdirSync(project, { recursive: true });
   const at = '2026-11-24T00:00:00.000Z';
@@ -165,7 +165,7 @@ test('a plugin reinstalled while the gate waits does not run on the old approval
   const manifestPath = join(source, 'troop-plugin.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   writeFileSync(manifestPath, JSON.stringify({ ...manifest, version: '1.0.1' }));
-  withEnv(h.env, () => installPlugin(h.db, { source, approved_permissions: ['run:write'] }));
+  withEnv(h.env, () => installPlugin(h.db, { source, approved_permissions: ['run:write', 'project:write'] }));
   h.approvals.resolve({ approval_id: row.id, decision: 'approve' });
   await assert.rejects(pending, (e: any) => e.code === -32003 && /updated while the approval waited/.test(e.message));
   assert.equal(h.marker(), false);

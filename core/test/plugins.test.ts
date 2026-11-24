@@ -267,6 +267,8 @@ function pluginRecord(dir: string, actions: unknown[], permissions: string[] = [
 test('M1-16 an action sees only the base variables, the TROOP_ paths and approved secrets', async () => {
   const dir = fixtureDir();
   const runDir = join(dir, 'run');
+  // a boxed action (Windows, non-builtin) is told its out folder as the run dir
+  const outDir = process.platform === 'win32' ? join(runDir, 'out') : runDir;
   try {
     script(dir, 'bin/env.js', `
       const fs = require('node:fs');
@@ -285,8 +287,8 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
     delete process.env.TROOP_TEST_LEAK;
     assert.equal(r.ok, true, JSON.stringify(r));
     const got = (r as { outputs: { got: Record<string, unknown> } }).outputs.got;
-    assert.deepEqual({ schema: got.schema, action: got.action, input: got.input, run: got.run }, { schema: 1, action: 'env', input: { a: 1 }, run: { id: 'r1', dir: runDir } });
-    const env = JSON.parse(readFileSync(join(runDir, 'env.json'), 'utf8'));
+    assert.deepEqual({ schema: got.schema, action: got.action, input: got.input, run: got.run }, { schema: 1, action: 'env', input: { a: 1 }, run: { id: 'r1', dir: outDir } });
+    const env = JSON.parse(readFileSync(join(outDir, 'env.json'), 'utf8'));
     const allowed = new Set([...BASE_ENV, 'TROOP_RUN_DIR', 'TROOP_PROJECT_DIR', 'TROOP_PLUGIN_DIR', 'API_TOKEN']);
     // libuv's required_vars (src/win/process.c) are copied from the parent on every Windows spawn.
     if (process.platform === 'win32') for (const k of ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'SYSTEMDRIVE', 'USERDOMAIN', 'USERNAME']) allowed.add(k);
@@ -340,7 +342,8 @@ test('an action that exits without a result resolves while an orphaned grandchil
       plugin: pluginRecord(dir, [{ id: 'orphan', run: ['bin/orphan.cmd'], timeout_seconds: 1 }]),
       actionId: 'orphan', input: {}, projectDir: tmpdir(), run: { id: 'r', dir: join(dir, 'run') }, secret: () => null,
     });
-    assert.deepEqual(r, { ok: false, error: { message: 'action wrote invalid output', retryable: false } });
+    assert.equal(r.ok, false);
+    assert.match(r.error.message, /would run through cmd.exe/);
     assert.ok(Date.now() - started < 1000);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -357,7 +360,8 @@ test('M1-16 a hung action is killed with its child processes at its timeout', as
       setInterval(() => {}, 1000);`);
     const started = Date.now();
     const r = await runAction({
-      plugin: pluginRecord(dir, [{ id: 'hang', run: ['bin/hang.js'], timeout_seconds: 1 }]),
+      // builtin so it is not boxed: a boxed script cannot start node.exe for a child (the box grants no read of it)
+      plugin: { ...pluginRecord(dir, [{ id: 'hang', run: ['bin/hang.js'], timeout_seconds: 1 }]), source: 'builtin' as const },
       actionId: 'hang', input: {}, projectDir: dir, run: { id: 'r2', dir: join(dir, 'run') }, secret: () => null,
     });
     assert.deepEqual(r, { ok: false, error: { message: 'action timed out after 1 s', retryable: true } });
@@ -397,7 +401,8 @@ test('M1-25a an action with the stripped environment runs npm by name', async ()
         process.stdout.write(JSON.stringify({ ok: true, outputs: { v } }));
       });`);
     const r = await runAction({
-      plugin: pluginRecord(dir, [{ id: 'nested', run: ['bin/npm-version.js'] }]),
+      // builtin so it is not boxed: a boxed script cannot start cmd.exe or npm
+      plugin: { ...pluginRecord(dir, [{ id: 'nested', run: ['bin/npm-version.js'] }]), source: 'builtin' as const },
       actionId: 'nested', input: {}, projectDir: dir, run: { id: 'r4', dir: join(dir, 'run') }, secret: () => null,
     });
     assert.equal(r.ok, true, JSON.stringify(r));
