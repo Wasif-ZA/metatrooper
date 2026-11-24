@@ -337,6 +337,9 @@ function ReviewRun({ r, child, openList, toggle }) {
   );
 }
 
+/** True only when the wait is known not to be a permission menu, so typed text and Enter cannot approve a tool. */
+export const plainAsk = (ask, x, chat) => ask.reason !== 'permission' && ask === x && Array.isArray(chat?.items) && !chat.waiting;
+
 function TaskView({ x, kids: allKids, openList, toggle, picked }) {
   const reviewIds = new Set((x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => r.review_session_id));
   const kids = allKids.filter((k) => !reviewIds.has(k.id));
@@ -348,7 +351,7 @@ function TaskView({ x, kids: allKids, openList, toggle, picked }) {
   const here = !ask?.project_id || ask.project_id === ui.projectId;
   const send = async () => {
     const t = answer.trim();
-    if (!t || !here || !ask) return;
+    if (!t || !here || !ask || !plainAsk(ask, x, chat)) return;
     try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); echoSend(ask.id, t); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const queue = !ask && (!x.project_id || x.project_id === ui.projectId) && isWorking(x);
@@ -392,7 +395,7 @@ function TaskView({ x, kids: allKids, openList, toggle, picked }) {
         ) : null}
         <Chat x={x} chat={chat} openInEditor={openInEditor} />
         {reviewRuns.map(([r, child]) => <ReviewRun key={child.id} r={r} child={child} openList={openList} toggle={toggle} />)}
-        {ask && !chat?.waiting ? (
+        {ask && plainAsk(ask, x, chat) ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
         {waitingText ? (

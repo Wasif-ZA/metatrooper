@@ -462,6 +462,7 @@ async function vscodeOnce() {
   if (!r) { writeStore(VSCODE_KEY, { none: true }); return; }
   const now = await api.uiSettings().catch(() => null);
   const prev = now && now.ui ? now.ui.theme : null;
+  if (prev === null) return;
   const theme = r.theme && prev === 'dither' && r.theme !== prev ? r.theme : null;
   const themeLine = r.summary.applied.find((s) => s.startsWith('theme '));
   if (themeLine && !theme) {
