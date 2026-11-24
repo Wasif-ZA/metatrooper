@@ -144,7 +144,7 @@ test('case 1: #cmdk mounts and Ctrl+Shift+P toggles on every screen, respecting 
   mountUI(document, (el: any) => ({ render: () => mounted.push(el.id) }));
   assert.equal(mounted.filter(id => id === 'cmdk').length, 1);
   assert.ok(document.elements.has('cmdk'));
-  c.ideView = { shown: () => g.ui.view === 'ide' };
+  c.ideView = { shown: () => g.ui.view === 'ide' }; c.workspaceKey = () => false;
   c.ideKeys = { asking: () => false };
   // Execute all real main.jsx keydown registrations; no copied shortcut logic.
   vm.runInContext(main.match(/^document\.addEventListener\('keydown', \(e\) => \{[^]*?^\}\);/gm)!.join('\n'), c);

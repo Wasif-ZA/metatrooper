@@ -126,7 +126,7 @@ test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and
         u.send({ id: 1, ...INIT });
         assert.equal((await u.reply(1)).result.serverInfo.name, 'ouros-ui');
         u.send({ id: 2, method: 'tools/list' });
-        assert.deepEqual((await u.reply(2)).result.tools.map((t: any) => t.name), ['ouros_ui']);
+        assert.deepEqual((await u.reply(2)).result.tools.map((t: any) => t.name), ['ouros_ui', 'ouros_workspace']);
       } finally { u.c.kill(); }
     } finally { r.c.kill(); }
   } finally { await s.done(); }
