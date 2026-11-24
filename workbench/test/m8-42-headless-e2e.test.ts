@@ -11,16 +11,17 @@ import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
-const exe = process.env.METATROOPER_HEADLESS_EXE ?? '';
-const runnable = process.env.METATROOPER_BROWSER_E2E === '1' && process.platform === 'win32' && existsSync(electron) && exe !== '' && existsSync(exe);
-const options = { skip: !runnable, timeout: 240_000 };
+export const exe = process.env.METATROOPER_HEADLESS_EXE ?? '';
+export const runnable = process.env.METATROOPER_BROWSER_E2E === '1' && process.platform === 'win32' && existsSync(electron) && exe !== '' && existsSync(exe);
+const held = readFileSync(join(workbench, 'src', 'browser', 'panes.ts'), 'utf8').match(/const HEADLESS_HELD = '([^']*)'/)?.[1] ?? '';
+const options = { skip: held !== '' ? `the chrome-headless-shell engine is held (HEADLESS_HELD: ${held})` : !runnable, timeout: 240_000 };
 
 type Step = [string, string, Record<string, unknown>];
 type Reply = { result?: any; error?: { code: number; message: string } };
 type Out = { hello?: Reply; steps: Record<string, { reply: Reply; ms: number; at: number }> };
 
 // The ref of the snapshot line for this label. A label is the quoted accessible name.
-function refOf(text: string, label: string): string {
+export function refOf(text: string, label: string): string {
   const line = text.split(/\r?\n/).find((l) => l.includes(`"${label}"`));
   const ref = line?.match(/\[ref=((?:f\d+)?e\d+)\]/)?.[1];
   assert.ok(ref, `no ref for "${label}" in the snapshot: ${text}`);
@@ -35,12 +36,12 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-const ENGINES = {
+export const ENGINES = {
   electron: { browser: { agent_engine: 'electron' } },
   headless: { browser: { agent_engine: 'chrome-headless-shell', headless_path: exe } },
 };
 
-async function boot(settings: object) {
+export async function boot(settings: object) {
   await buildGenerated();
   const iso = isolation();
   writeFileSync(join(iso.home, 'settings.json'), JSON.stringify(settings));
@@ -141,8 +142,8 @@ type Harness = Awaited<ReturnType<typeof boot>>;
 function ps(command: string): string {
   return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8' }).stdout.trim();
 }
-const headlessProcs = () => Number(ps('@(Get-Process -Name chrome-headless-shell -ErrorAction SilentlyContinue).Count')) || 0;
-const killHeadless = () => { ps('Get-Process -Name chrome-headless-shell -ErrorAction SilentlyContinue | Stop-Process -Force'); };
+export const headlessProcs = () => Number(ps('@(Get-Process -Name chrome-headless-shell -ErrorAction SilentlyContinue).Count')) || 0;
+export const killHeadless = () => { ps('Get-Process -Name chrome-headless-shell -ErrorAction SilentlyContinue | Stop-Process -Force'); };
 
 // electron.exe processes and visible top-level windows in the workbench tree: a view or window in the app adds a renderer or a window
 function tree(h: Harness): { electrons: number; windows: number } {
@@ -171,7 +172,7 @@ $e = @($all | Where-Object { $set.Contains([uint32]$_.ProcessId) -and $_.Name -e
   return { electrons, windows };
 }
 
-async function served(html: (port: number) => string) {
+export async function served(html: (port: number) => string) {
   const port = await freePort();
   const hits: string[] = [];
   const srv = createHttp((req, res) => { hits.push(req.url ?? ''); res.setHeader('content-type', 'text/html'); res.end(html(port)); });
