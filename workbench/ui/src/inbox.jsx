@@ -799,7 +799,7 @@ export function Inbox() {
           </li>
         ))}
       </ol>
-      {activeRow.isSession && item.state === 'waiting_for_you' ? <div className="ou-ny-answer-pin"><DetailAsk key={item.id} x={item} plain={item.reason !== 'permission' && said?.id === item.id && said?.at === item.state_at && said.plain} /></div> : null}
+      {activeRow.isSession && item.state === 'waiting_for_you' ? <div className="ou-ny-answer-pin"><DetailAsk key={item.id} x={item} plain={item.reason === 'question' && said?.id === item.id && said?.at === item.state_at && said.plain} /></div> : null}
     </section>
   );
 

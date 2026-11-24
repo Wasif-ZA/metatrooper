@@ -337,8 +337,8 @@ function ReviewRun({ r, child, openList, toggle }) {
   );
 }
 
-/** True only when the wait is known not to be a permission menu, so typed text and Enter cannot approve a tool. */
-export const plainAsk = (ask, x, chat) => ask.reason !== 'permission' && ask === x && Array.isArray(chat?.items) && !chat.waiting;
+/** True only when core says the agent asked a question (never a permission menu or a form), so typed text and Enter cannot approve a tool. */
+export const plainAsk = (ask, x, chat) => ask.reason === 'question' && ask === x && Array.isArray(chat?.items) && !chat.waiting;
 
 function TaskView({ x, kids: allKids, openList, toggle, picked }) {
   const reviewIds = new Set((x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => r.review_session_id));
