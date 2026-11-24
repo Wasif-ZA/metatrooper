@@ -1,5 +1,6 @@
 import { coreMcpStdio } from './hook/mcp-core.ts';
 import './demo-guard.ts';
+import { useSecretStore } from './sessions/secret.ts';
 import './log-core.ts';
 import { logOnce } from './log.ts';
 import type { Server } from 'node:net';
@@ -111,6 +112,7 @@ async function main(): Promise<void> {
   endAllGrants(db);
   const desktop = new Desktop(db, { demo: process.argv.includes('--demo') });
   const ctl: CoreControl = { engines: () => activeEngines(db), stop, uiKey, desktop };
+  useSecretStore(db);
   const methods = buildMethods(db, ctl);
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;

@@ -43,6 +43,7 @@ export function openCoreDb(): DatabaseSync {
     };
     addColumn('session', 'driven_engine', 'TEXT');
     addColumn('session', 'parent_id', 'TEXT REFERENCES session(id)');
+    addColumn('session', 'secret_hash', 'TEXT');
     db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
     db.exec('CREATE INDEX IF NOT EXISTS event_session_idx ON event (session_id, seq)');
     addColumn('run', 'hidden', 'INTEGER NOT NULL DEFAULT 0');

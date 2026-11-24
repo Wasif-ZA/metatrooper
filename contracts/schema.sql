@@ -76,7 +76,8 @@ CREATE TABLE session (
   outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')), -- set when the session exits
   prompt        TEXT,
   priority      TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent')),
-  approval      TEXT
+  approval      TEXT,
+  secret_hash   TEXT                            -- sha256 of the launch secret (never the secret), so a running session keeps its proof after a core restart
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
