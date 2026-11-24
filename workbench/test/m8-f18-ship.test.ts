@@ -135,24 +135,35 @@ test('ship commits only staged files and leaves the second file unstaged', async
   assert.ok(!f.calls.some(args => args[0] === 'add'));
 });
 
-test('dirty tree with nothing staged refuses without a commit, push or PR', async t => {
+test('dirty tree with nothing staged pushes without committing, and never commits an unstaged file', async t => {
   const f = fixture(t);
   f.write('first.txt', 'unstaged\n');
   f.write('untracked.txt', 'untracked\n');
   fs.unlinkSync(path.join(f.local, 'deleted.txt'));
   const before = f.git(['status', '--porcelain']);
-  const remoteBefore = f.remote(['show-ref']);
   const gh = fakeGh();
-  await assert.rejects(ship(f.run, gh.run, 'do not stage everything'), {
-    message: 'commit failed: nothing is staged; stage the files to ship first',
-  });
+  assert.deepEqual(await ship(f.run, gh.run, 'do not stage everything'), { commit: undefined, url: prUrl });
   assert.equal(f.git(['rev-parse', 'HEAD']), f.base);
   assert.equal(f.git(['rev-list', '--count', 'HEAD']), '1');
   assert.equal(f.git(['status', '--porcelain']), before);
   assert.equal(f.git(['diff', '--cached', '--name-only']), '');
-  assert.equal(f.remote(['show-ref']), remoteBefore);
-  assert.ok(!f.calls.some(args => ['add', 'commit', 'push'].includes(args[0])));
-  assert.deepEqual(gh.calls, []);
+  assert.ok(!f.calls.some(args => ['add', 'commit'].includes(args[0])));
+  assertSafePush(f.calls, f.branch);
+  assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), f.base);
+  assert.equal(gh.calls.length, 2);
+});
+
+test('a commit already made with an unstaged file left over can still be pushed', async t => {
+  const f = fixture(t);
+  f.write('first.txt', 'committed\n');
+  f.git(['add', 'first.txt']);
+  f.git(['commit', '-m', 'already committed']);
+  f.write('second.txt', 'unstaged\n');
+  const head = f.git(['rev-parse', 'HEAD']);
+  await ship(f.run, fakeGh().run, '');
+  assert.equal(f.remote(['rev-parse', `refs/heads/${f.branch}`]), head);
+  assert.equal(f.git(['rev-list', '--count', 'HEAD']), '2');
+  assert.ok(!f.calls.some(args => args[0] === 'commit'));
 });
 
 test('missing origin/HEAD discovers remote trunk and ships a feature branch', async t => {
@@ -444,13 +455,14 @@ function reviewHarness(realShip = false) {
     return body;
   };
   const calls: any[][] = [];
+  let apiError = '';
   const deps = {
     h: (type: any, props: any, ...children: any[]) => ({ type, props: props || {}, children }),
     Button: 'Button', Verdict: 'Verdict',
     ui: { snap: { sessions: [] } }, ownerOf: () => null,
     statusLetter: (index: string, worktree: string, staged: boolean) => staged ? index : worktree,
     bump: () => calls.push(['bump']), toast: (...args: any[]) => calls.push(['toast', ...args]),
-    api: { git: async (...args: any[]) => { calls.push(['git', ...args]); return { url: prUrl }; } },
+    api: { git: async (...args: any[]) => { calls.push(['git', ...args]); return apiError ? { error: apiError } : { url: prUrl }; } },
     loadGitStatus: async () => { calls.push(['loadGitStatus']); },
     ...(realShip ? {} : { gitShip: (st: any) => { calls.push(['gitShip', st]); } }),
   };
@@ -467,7 +479,7 @@ function reviewHarness(realShip = false) {
     assert.ok(found, 'ReviewHeader renders its ship button');
     return found.props;
   };
-  return { st, calls, render, nodes, button };
+  return { st, calls, render, nodes, button, setApiError: (e: string) => { apiError = e; } };
 }
 
 test('ReviewHeader disables shipping when changes are unstaged and nothing is staged', () => {
@@ -514,4 +526,29 @@ test('ReviewHeader checks row says no check has run when no agent owns the file'
   assert.ok(row, 'checks row exists');
   assert.ok(h.nodes(row).some(n => n.type === 'span' && n.children.includes('No check has run on these files.')));
   assert.equal(h.nodes(row).some(n => n.type === 'Verdict'), false);
+});
+
+test('ReviewHeader is not blocked when only unstaged changes remain but commits are ahead, and says how many to push', () => {
+  const h = reviewHarness();
+  h.st.git.files = [{ path: 'first.txt', index: '.', worktree: 'M' }];
+  (h.st.git as any).ahead = 2;
+  assert.equal(h.button().isDisabled, false);
+  assert.ok(h.nodes(h.render()).some(n => n.children.includes('2 commits to push')));
+  (h.st.git as any).ahead = 1;
+  assert.ok(h.nodes(h.render()).some(n => n.children.includes('1 commit to push')));
+  (h.st.git as any).ahead = 0;
+  assert.equal(h.button().isDisabled, true);
+});
+
+test('gitShip refreshes the git status after an error', async () => {
+  const h = reviewHarness(true);
+  h.st.git.files = [{ path: 'first.txt', index: 'M', worktree: '.' }];
+  h.st.commitMsg = 'msg';
+  h.calls.length = 0;
+  h.setApiError('push failed: x');
+  h.button().onClick();
+  await new Promise(r => setImmediate(r));
+  assert.ok(h.calls.some(c => c[0] === 'toast' && c[1] === 'push failed: x' && c[2] === true));
+  assert.ok(h.calls.some(c => c[0] === 'loadGitStatus'));
+  assert.equal(h.st.commitMsg, 'msg', 'the message is kept');
 });

@@ -858,3 +858,8 @@ dialog:has(.astryx-command-palette-input) { animation: ou-palette-in var(--motio
 .ou-cmp-mention [role="option"] { padding: 5px 8px; border-radius: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .ou-cmp-mention [role="option"][aria-selected="true"], .ou-cmp-mention [role="option"]:hover { background: var(--canvas-deep); color: var(--ink); }
 .ou-cmp-mention-hint { padding: 5px 8px; font-size: 12px; color: var(--mute); }
+.ou-hm-resumed { margin: 4px 0; color: var(--body); font-size: 12px; }
+.ou-hm-review { margin: 6px 0; border-left: 2px solid var(--hairline-strong); padding-left: 10px; }
+.ou-hm-reviewhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; color: var(--body); font-size: 12.5px; }
+.ou-hm-review[data-state="failed"] .ou-hm-reviewtitle { color: var(--st-bad, var(--del)); }
+.ou-hm-reviewnote { margin: 4px 0 0; color: var(--body); font-size: 12px; white-space: pre-wrap; }

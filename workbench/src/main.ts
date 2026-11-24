@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { makeTaskFolder } from './task-folder.ts';
 import { worktreesRoot } from '../../core/src/project.ts';
 import { usdFor } from '../../core/src/meter.ts';
+import { importSummary, readVsCode, themeFor } from './vscode-import.ts';
 import path from 'node:path';
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -69,7 +70,7 @@ export const UI_METHODS = new Set([
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
-  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'session.history',
+  'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'session.history', 'session.send',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'plugin.enable',
   'ui.get', 'ui.event', 'workspace.get', 'workspace.undo', 'workspace.usual', 'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
@@ -287,9 +288,15 @@ function watch(): void {
   }, POLL_MS);
 }
 
+/** Windows paths compare without case (a lower-case drive in the launch path comes back upper-case in the page URL). */
+export const samePath = (a: string, b: string, platform = process.platform): boolean => {
+  const norm = (p: string) => (platform === 'win32' ? path.win32.resolve(p).toLowerCase() : path.resolve(p));
+  return norm(a) === norm(b);
+};
+
 function trusted(e: IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? '';
-  return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
+  return url.startsWith('file:') && samePath(fileURLToPath(url.split(/[?#]/)[0]), INDEX);
 }
 
 async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string; copied?: boolean }> {
@@ -674,6 +681,13 @@ function handlers(): void {
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
+  });
+  // M8-20: what the user's VS Code settings say; the renderer applies the theme once and shows one summary.
+  on('vscodeImport', () => {
+    const found = readVsCode(app.getPath('appData'));
+    if (!found) return null;
+    const theme = themeFor(found.theme);
+    return { theme, summary: importSummary(found, { theme }), keys: found.keys.map((k) => ({ key: k.key, command: k.command })) };
   });
   on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);

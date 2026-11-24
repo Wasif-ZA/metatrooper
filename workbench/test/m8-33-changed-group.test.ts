@@ -26,6 +26,7 @@ function groupHarness(files: any[], owners: Record<string, string> = {}, counts:
   const cleared: any[] = [];
   const loads: any[] = [];
   const doc: any = { hidden: false };
+  const shown = { on: true };
   const pending: Array<() => void> = [];
   const deps = {
     h: (type: any, props: any, ...children: any[]) => ({ type, props: props || {}, children }),
@@ -33,6 +34,7 @@ function groupHarness(files: any[], owners: Record<string, string> = {}, counts:
     setTimeout: (fn: () => void, ms: number) => { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
     clearTimeout: (t: any) => { cleared.push(t); timers.delete(t); },
     globalThis: { document: doc },
+    ideShown: () => shown.on,
     loadGitStatus: (st: any) => { loads.push(st); return new Promise<void>((r) => pending.push(r)); },
     openFile: () => {}, FileIcon: 'FileIcon', base: (p: string) => p.split('/').pop(),
     statusLetter: build(['statusLetter'], {}, 'statusLetter'),
@@ -41,7 +43,7 @@ function groupHarness(files: any[], owners: Record<string, string> = {}, counts:
   const st: any = { git: { files }, owners: new Map(Object.entries(owners)), ownerCount: new Map(Object.entries(counts)) };
   const render = () => { effects.length = 0; return ChangedGroup({ st }); };
   const rows = (root: any) => flat(root).filter((n) => n.type === 'button');
-  return { st, render, rows, effects, timers, cleared, loads, doc, pending };
+  return { st, render, rows, effects, timers, cleared, loads, doc, pending, shown };
 }
 
 const tick = () => new Promise((r) => setImmediate(r));
@@ -68,6 +70,12 @@ test('M8-33a: polling is a 2000 ms timeout chained after each load, skipped whil
   assert.equal(h.loads.length, 1, 'hidden window skips the load');
   assert.equal(h.timers.size, 1, 'but keeps polling');
   h.doc.hidden = false;
+  h.shown.on = false;
+  fire();
+  await tick();
+  assert.equal(h.loads.length, 1, 'IDE not shown skips the load');
+  assert.equal(h.timers.size, 1, 'but keeps polling');
+  h.shown.on = true;
   fire();
   await tick();
   cleanup();

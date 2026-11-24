@@ -448,6 +448,64 @@ function applyLook(look) {
   globalThis.setUiScheme?.();
 }
 
+/** M8-20: on the first start, takes the theme from VS Code and shows one summary; each start, learns VS Code's own keys so a chord only VS Code knows says so once. */
+const VSCODE_KEY = 'cc.vscodeImport';
+const VSCODE_TOLD = 'cc.vscodeTold';
+const readStore = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const writeStore = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+async function vscodeOnce() {
+  if (ui.vscodeAsked || typeof api.vscodeImport !== 'function') return;
+  ui.vscodeAsked = true;
+  const r = await api.vscodeImport().catch(() => null);
+  ui.vscodeKeys = new Map(((r && r.keys) || []).filter((k) => /\b(ctrl|alt)\b/.test(k.key)).map((k) => [chordOf(k.key.split('+')), k.command]));
+  if (readStore(VSCODE_KEY)) return;
+  if (!r) { writeStore(VSCODE_KEY, { none: true }); return; }
+  const now = await api.uiSettings().catch(() => null);
+  const prev = now && now.ui ? now.ui.theme : null;
+  if (prev === null) return;
+  const theme = r.theme && prev === 'dither' && r.theme !== prev ? r.theme : null;
+  const themeLine = r.summary.applied.find((s) => s.startsWith('theme '));
+  if (themeLine && !theme) {
+    r.summary.applied = r.summary.applied.filter((s) => s !== themeLine);
+    r.summary.skipped.unshift(`${themeLine.replace(/ as .*$/, '')}: ${prev === null ? "cc could not read its own theme" : r.theme === prev ? 'already in use' : 'you already chose a cc theme'}`);
+  }
+  if (theme) await setLook(theme);
+  writeStore(VSCODE_KEY, { at: new Date().toISOString(), prev, theme, applied: r.summary.applied, skipped: r.summary.skipped });
+  toast(`From VS Code: ${r.summary.applied.join('; ') || 'nothing applied'}. ${r.summary.skipped.length} skipped, listed in Settings > Learning.`);
+}
+
+/** Undoes the VS Code import: puts the theme back as it was. */
+async function undoVscodeImport() {
+  const rec = readStore(VSCODE_KEY);
+  if (!rec || rec.none || rec.undone) return;
+  const now = await api.uiSettings().catch(() => null);
+  const current = now && now.ui ? now.ui.theme : null;
+  if (rec.theme && (!rec.prev || current !== rec.theme)) { toast(rec.prev ? 'Not undone: you changed the theme after the import.' : 'Not undone: the theme before the import is not known.', true); return; }
+  if (rec.theme) await setLook(rec.prev);
+  writeStore(VSCODE_KEY, { ...rec, undone: true });
+  toast('VS Code import undone.');
+}
+
+const chordOf = (parts) => {
+  const mods = ['ctrl', 'shift', 'alt', 'meta'].filter((m) => parts.includes(m));
+  const key = parts.filter((p) => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).join('+');
+  return [...mods, key].join('+');
+};
+
+function vscodeChord(e) {
+  if (e.defaultPrevented || !(e.ctrlKey || e.altKey) || !ui.vscodeKeys || !ui.vscodeKeys.size) return;
+  const key = String(e.key || '').toLowerCase();
+  if (['control', 'shift', 'alt', 'meta'].includes(key)) return;
+  const chord = chordOf([...(e.ctrlKey ? ['ctrl'] : []), ...(e.shiftKey ? ['shift'] : []), ...(e.altKey ? ['alt'] : []), ...(e.metaKey ? ['meta'] : []), key]);
+  const command = ui.vscodeKeys.get(chord);
+  if (!command) return;
+  const told = readStore(VSCODE_TOLD) || [];
+  if (told.includes(chord)) return;
+  writeStore(VSCODE_TOLD, [...told, chord]);
+  toast(`${chord} did "${command}" in VS Code. cc has no key for it yet.`);
+}
+document.addEventListener('keydown', vscodeChord);
+
 async function setLook(id) {
   const theme = await api.setTheme(id);
   if (!theme || theme.error) { if (theme) toast(theme.error, true); return; }
@@ -1001,9 +1059,14 @@ function historyItems(q) {
 }
 
 async function openHistory(x) {
-  if (x.state !== 'exited') { await pick(x.id); return; }
-  const r = await rpc('session.resume', { session_id: x.id });
-  if (r.result) await pick(r.result.session_id);
+  let id = x.id;
+  if (x.state === 'exited') {
+    const r = await rpc('session.resume', { session_id: x.id }, true);
+    if (!r.result) { toast(`Could not resume: ${r.error?.message || 'unknown error'}`, true); return; }
+    id = r.result.session_id;
+  }
+  if (x.project_id && x.project_id !== ui.projectId) { ui.pendingPick = id; switchProject(x.project_id); return; }
+  await pick(id);
 }
 
 async function openHit(h) {
@@ -1196,7 +1259,8 @@ function pickAcross(id) {
 
 function waitReason(x) {
   if (x.reason === 'trust') return 'trust this folder?';
-  return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
+  if (x.reason && x.reason !== 'permission') return x.reason;
+  return x.last_tool ? `permission: ${x.last_tool}` : x.reason || 'question';
 }
 
 function oldestWaiting(sessions) {
@@ -1316,7 +1380,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected || x.shell))
-    .map((x) => ({ id: x.id, from: x.continued_from ? x.id : x.resumed_from || x.from || null, continuedEngine: x.continued_engine, limit_stopped: x.limit_stopped, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, stateAt: x.shell ? NaN : Date.parse(x.state_at), shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.continued_from ? x.id : x.resumed_from || x.from || null, continuedEngine: x.continued_engine, resumed: Boolean(x.resumed_from), limit_stopped: x.limit_stopped, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, stateAt: x.shell ? NaN : Date.parse(x.state_at), shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   for (const x of shown) x.watchOff = !x.shell && (ui.snap.watcher_off || []).includes(x.id);
@@ -2004,8 +2068,8 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
-  globalThis.flushQueued?.(s.sessions);
-  if (s.core.online) ui.coreSeen = true;
+  globalThis.flushQueued?.([...s.sessions, ...(s.live || []).filter((x) => !s.sessions.some((y) => y.id === x.id))]);
+  if (s.core.online) { ui.coreSeen = true; void vscodeOnce(); }
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
     if (!x || LIVE_STATES.includes(x.state)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
@@ -2294,7 +2358,7 @@ document.addEventListener('keydown', watchKeys, true);
 
 /** Ctrl+Alt+V moves between the IDE and the Wall (M8-17a). */
 function viewKeys(e) {
-  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap) return;
+  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap || e.getModifierState?.('AltGraph')) return;
   e.preventDefault();
   e.stopImmediatePropagation();
   homeView.set(ui.view === 'wall' ? 'ide' : 'wall');

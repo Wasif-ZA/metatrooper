@@ -115,26 +115,50 @@ test('M8-19b: the diff editor forces sticky scroll off after spreading options',
   assert.match(s, /createDiffEditor\(parent, \{ \.\.\.options\(path\), stickyScroll: \{ enabled: false \}/);
 });
 
-function queueHandler(draft: string) {
+function queueHandler(draft: string, ok = true) {
   const line = src('home.jsx').split('\n').find((l) => l.includes('label="Queue a follow-up"'));
   assert.ok(line, 'queue TextInput must exist');
   assert.match(line, /onEnter=\{enqueue\}/);
   const h = line.match(/onKeyDown=\{(\(e\) => \{[^]*?\})\} width=/)?.[1];
   assert.ok(h, 'queue onKeyDown must exist');
   const log: any[] = [];
-  const fn = new Function('draft', 'setDraft', 'sendFollowUp', 'x', `return ${h};`)(draft, (v: string) => log.push(['set', v]), (x: any, t: string) => log.push(['send', x, t]), { id: 's1' });
+  const fn = new Function('draft', 'setDraft', 'sendFollowUp', 'x', `return ${h};`)(draft, (v: string) => log.push(['set', v]), (x: any, t: string) => { log.push(['send', x, t]); return Promise.resolve(ok); }, { id: 's1' });
   return (key: string, shiftKey = false) => {
     const ev = { key, shiftKey, prevented: false, preventDefault() { this.prevented = true; } };
     log.length = 0;
     fn(ev);
-    return { ev, log: [...log] };
+    return { ev, log: [...log], live: log };
   };
 }
 
-test('M8-19e: Tab with a draft redirects now: prevents default, clears the draft, sends the trimmed text', () => {
+test('M8-19e: Tab with a draft redirects now: prevents default, clears the draft, sends the trimmed text', async () => {
   const r = queueHandler('  do this instead  ')('Tab');
   assert.equal(r.ev.prevented, true);
   assert.deepEqual(r.log, [['set', ''], ['send', { id: 's1' }, 'do this instead']]);
+  await new Promise((res) => setTimeout(res, 0));
+  assert.deepEqual(r.live, [['set', ''], ['send', { id: 's1' }, 'do this instead']]); // sent: draft stays cleared
+});
+
+test('M8-19e: Tab restores the draft when sendFollowUp returns false', async () => {
+  const r = queueHandler('  do this instead  ', false)('Tab');
+  assert.equal(r.ev.prevented, true);
+  await new Promise((res) => setTimeout(res, 0));
+  assert.deepEqual(r.live, [['set', ''], ['send', { id: 's1' }, 'do this instead'], ['set', 'do this instead']]);
+});
+
+test('M8-19e: sendNow re-queues the text when sendFollowUp returns false', async () => {
+  const line = src('home.jsx').split('\n').find((l) => l.includes('const sendNow = async'));
+  assert.ok(line);
+  const h = line.match(/const sendNow = (async \(\) => [^]*)$/)?.[1].replace(/;\s*$/, '');
+  assert.ok(h);
+  for (const ok of [false, true]) {
+    const calls: any[] = [];
+    const fn = new Function('isWorking', 'x', 'queuedText', 'setQueued', 'sendFollowUp', 'bumpHome', `return ${h};`)(
+      () => true, { id: 's1' }, () => 'text', (id: string, t: string) => calls.push(['q', id, t]),
+      async (x: any, t: string) => { calls.push(['send', t]); return ok; }, () => calls.push(['bump']));
+    await fn();
+    assert.deepEqual(calls, ok ? [['q', 's1', ''], ['send', 'text']] : [['q', 's1', ''], ['send', 'text'], ['q', 's1', 'text'], ['bump']]);
+  }
 });
 
 test('M8-19e: Shift+Tab, an empty draft and other keys do nothing; Enter still queues', () => {

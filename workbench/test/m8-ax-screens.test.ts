@@ -487,9 +487,9 @@ test('Home leaves Needs you notes and approvals to their own screen', () => {
   assert.doesNotMatch(html, /data-action="sheet"|data-action="inbox-open"|Needs you/);
 });
 
-test('Home details card for the task: workspace, version control with PR and Merge, then lineage; no Needs you inside', () => {
+test('Home details card for the task: workspace, version control with PR and Merge, then lineage; no Needs you inside', async () => {
   homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'older';
-  const older = session('older', 'waiting_for_you', { reason: 'Keep the retry?' });
+  const older = session('older', 'waiting_for_you', { reason: 'question' });
   g.ui.snap.live = [older]; g.ui.snap.sessions = [older, session('kid', 'working', { parent_id: 'older' })];
   g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
   const h = harness(Home); h.draw();
@@ -501,7 +501,11 @@ test('Home details card for the task: workspace, version control with PR and Mer
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
   assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard')), /QZ/, 'the workspace row draws the project icon');
-  assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Answer Task older/);
+  // The answer box shows once the chat is loaded and shows a plain question (no waiting tool).
+  g.rpc = async (method: string) => ({ result: method === 'session.chat' ? { session_id: 'older', source: 'transcript', engine_id: 'synthetic', items: [{ kind: 'text', id: 'a1', text: 'Keep the retry?' }] } : {} });
+  own.add('TaskView'); // expand TaskView too, so its chat hook runs
+  const doc = g.document, timeout = g.setTimeout; g.document = { ...(doc || {}), hidden: false, addEventListener() {}, removeEventListener() {} }; g.setTimeout = () => 0;
+  try { const loaded = harness(Home, true); loaded.draw(); await flush(); assert.match(loaded.html(), /Answer Task older/); } finally { own.delete('TaskView'); g.document = doc; g.setTimeout = timeout; }
   assert.deepEqual(calls, []);
 });
 
@@ -615,11 +619,12 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
   const groups = h.all(hasClass('ou-navgroup'));
   assert.deepEqual(groups.map(textContent), ['App', 'Agents', 'Extend', 'System']);
-  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced', 'Licences and trademarks']]);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Learning'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced', 'Licences and trademarks']]);
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
-  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced', 'Licences and trademarks']);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Learning', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced', 'Licences and trademarks']);
   assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
-  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function')); assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
+  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function'));
+  assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
   assert.equal(h.one((n: any) => n.props.keys === 'Ctrl+Esc').type.name, 'Kbd');
@@ -674,8 +679,8 @@ test('Needs you breadcrumb names the task, with the session id as its tooltip', 
   assert.equal(crumb.props.title, 'a1b2c3d4e5f6');
 });
 
-test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', () => {
-  g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture' })];
+test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', async () => {
+  g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture', reason: 'question' })];
   g.ui.snap.needs_you = [note('read-info', 'other', { read_at: 'read' }), note('unread-info', 'other'), note('read-needs', 'question', { read_at: 'read' }), note('unread-done', 'done'), note('unread-failed', 'failed'), note('unread-needs', 'question'), note('read-done', 'done', { read_at: 'read' }), note('read-failed', 'failed', { read_at: 'read' })];
   const h = harness(Inbox); const html = h.html();
   assert.match(html, /<h1 class="ou-ny-title">Needs you<\/h1>/);
@@ -692,10 +697,13 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
   assert.equal(subs[0], 'engine-b asked a question'); assert.deepEqual(subs.slice(1, 4), ['Asked a question', 'Asked a question', 'Failed']);
   assert.equal(h.all(hasClass('ou-ititle')).length, 9);
   assert.deepEqual(h.all(hasClass('ou-ny-row-age')).map(textContent), Array(9).fill('1m ago'));
-  inboxStore.set({ selectedId: 'ask' }); h.draw();
-  const field = h.one((n: any) => n.props.label === 'Answer' && 'value' in n.props);
+  g.rpc = async (method: string) => ({ result: method === 'session.chat' ? { session_id: 'ask', items: [{ kind: 'text', id: 'a1', text: 'Choose a fixture' }] } : {} });
+  inboxStore.set({ selectedId: 'ask' });
+  const loaded = harness(Inbox, true); loaded.draw(); await flush(); loaded.draw(); // its chat is loaded and shows a plain question
+  const field = loaded.one((n: any) => n.props.label === 'Answer' && 'value' in n.props);
   assert.equal(field.props.isDisabled, true); assert.equal(field.props.placeholder, 'Answer from its own project');
-  assert.equal(h.one(label('Send')).props.size, 'sm');
+  assert.equal(loaded.one(label('Send')).props.size, 'sm');
+  h.draw();
   g.ui.snap.live = []; h.draw(); assert.deepEqual(h.all(hasClass('ou-ny-ghead')).map(textContent), ['Needs your answer2', 'Working0', 'In review0', 'Failed2', 'Done4']);
   g.ui.snap.needs_you = []; g.ui.snap.live = [session('ask', 'waiting_for_you')]; h.draw(); assert.equal(textContent(h.all(hasClass('ou-ny-ghead'))[0]), 'Needs your answer1');
   g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);

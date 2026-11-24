@@ -1,0 +1,99 @@
+{
+ "name": "Bakery website",
+ "mode": "home",
+ "place": "Rye and Crumb",
+ "rail": [],
+ "layout": {
+  "split": "row",
+  "sizes": [20, 44, 36],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "nav",
+       "items": [
+        { "icon": "home", "label": "Home" },
+        { "icon": "inbox", "label": "Needs you", "count": "1", "needs": true },
+        { "icon": "loop", "label": "Runs by itself", "count": "2" },
+        { "icon": "plug", "label": "Add-ons" }
+       ]
+      },
+      {
+       "type": "agentlist",
+       "title": "Your work",
+       "groups": [
+        {
+         "label": "Rye and Crumb",
+         "rows": [
+          { "title": "Bakery website", "engine": "claude", "when": "2m", "state": "needs", "cur": true },
+          { "title": "Flour order email", "engine": "claude", "when": "1h", "state": "done" }
+         ]
+        },
+        {
+         "label": "Personal",
+         "rows": [
+          { "title": "Exam revision plan", "engine": "gemini", "when": "4h", "state": "done" },
+          { "title": "Trip to Japan", "engine": "claude", "when": "2d", "state": "idle" }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      { "type": "hero", "title": "Bakery website", "sub": "Three of four steps are done. The last one is yours." },
+      {
+       "type": "steplist",
+       "items": [
+        { "title": "Pages drawn", "sub": "Home, Bread, Hours, Order", "state": "done" },
+        { "title": "Photos placed", "sub": "12 photos from your folder", "state": "done" },
+        { "title": "Checked on a phone", "sub": "Looks right on a small screen", "state": "done" },
+        { "title": "Publish", "sub": "Puts the site on ryeandcrumb.example", "state": "needs", "action": "Publish it" }
+       ]
+      },
+      { "type": "msg", "who": "claude", "text": "Your site is ready. Nothing is public yet. When you press Publish it, people can find it at ryeandcrumb.example. You can take it down again any time." },
+      {
+       "type": "composer",
+       "placeholder": "Ask for a change",
+       "chips": [
+        { "icon": "folder", "label": "Rye and Crumb" },
+        { "icon": "shield", "label": "Ask me first", "end": true }
+       ]
+      },
+      {
+       "type": "rows",
+       "items": [
+        { "icon": "code", "title": "Curious how it works?", "sub": "Opens the full editor for this site", "action": "Show the code" }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "sitecard",
+       "title": "Rye and Crumb",
+       "url": "ryeandcrumb.example (preview)",
+       "cta": "Pre-order bread",
+       "lines": ["Bread before sunrise", "Baked daily on Marrickville Road. Pre-order by 6pm.", "Sourdough", "Rye loaf", "Seeded batard"]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true,
+ "pendingDemo": "claude wants to publish your bakery website"
+}

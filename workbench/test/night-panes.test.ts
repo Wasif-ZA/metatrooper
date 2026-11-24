@@ -107,7 +107,7 @@ const text = (n: any): string => n == null || typeof n === 'boolean' ? '' : Arra
 const row = (id: string) => (n: any) => n.type === 'li' && n.props['data-id'] === id;
 const event = (extra: any = {}) => ({ key: '', ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, preventDefault() {}, stopPropagation() {}, target: { closest: () => null }, currentTarget: { focus() {} }, ...extra });
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(setImmediate); };
-const session = (id: string, question: string) => ({ id, state: 'waiting_for_you', project_id: 'p1', engine_id: 'synthetic', title: 'Synthetic task ' + id, last_line: question });
+const session = (id: string, question: string) => ({ id, state: 'waiting_for_you', project_id: 'p1', engine_id: 'synthetic', title: 'Synthetic task ' + id, last_line: question, reason: 'question' });
 const note = (id: string, kind: string) => ({ id, kind, text: 'Synthetic notice ' + id, at: '2026-11-10T00:00:00Z', ref: 's-a' });
 let projectSerial = 0;
 beforeEach(() => {
@@ -208,7 +208,7 @@ for (const failure of ['rejection', 'error response']) test('ad63319c session.re
 for (const sendBy of ['button', 'Enter']) test('ad63319c answer via ' + sendBy + ' sends the exact session and terminal payload', async () => {
   // Send one trimmed answer to the selected agent in the current project.
   asks(); g.ui.snap.live[1].project_id = g.ui.projectId;
-  inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush();
+  inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush(); h.draw(); // its chat has loaded and shows a plain question
   assert.equal(h.one(label('Send')).props.isDisabled, true);
   h.one(answerField).props.onChange('  use the feature branch  '); h.draw();
   assert.equal(h.one(label('Send')).props.isDisabled, false);
@@ -365,7 +365,7 @@ test('3796944f cross-project answers are blocked and local answers send typed te
   g.ui.snap.projects.push({ id: 'p2', name: 'Other project' });
   g.ui.snap.live = [session('s-a', 'Local question?'), { ...session('s-away', 'Other question?'), project_id: 'p2' }];
   inboxStore.set({ selectedId: 's-away' });
-  const h = harness(Inbox); h.draw();
+  const h = harness(Inbox); h.draw(); await flush(); h.draw();
   assert.equal(h.one(answerField).props.isDisabled, true);
   h.one(answerField).props.onChange('do not send to p1'); h.draw();
   assert.equal(h.one(label('Send')).props.isDisabled, true);
@@ -374,7 +374,7 @@ test('3796944f cross-project answers are blocked and local answers send typed te
   await h.one(answerField).props.onEnter();
   assert.deepEqual(calls.slice(beforeAway), []);
   assert.equal(g.ui.projectId, 'p1');
-  h.one(row('s-a')).props.onClick(event()); h.draw();
+  h.one(row('s-a')).props.onClick(event()); h.draw(); await flush(); h.draw();
   assert.equal(h.one(answerField).props.isDisabled, false);
   h.one(answerField).props.onChange('use the local feature branch'); h.draw();
   const beforeLocal = calls.length;
@@ -409,17 +409,17 @@ test('3796944f opening another project agent switches project before picking the
   assert.equal(g.ui.pendingPick, null);
 });
 
-test('3796944f selecting another agent starts a fresh keyed answer draft in both directions', () => {
-  asks(); inboxStore.set({ selectedId: 's-a' }); const h = keyedInboxHarness(); h.draw();
+test('3796944f selecting another agent starts a fresh keyed answer draft in both directions', async () => {
+  asks(); inboxStore.set({ selectedId: 's-a' }); const h = keyedInboxHarness(); h.draw(); await flush(); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
   h.one(answerField).props.onChange('alpha draft'); h.draw();
   assert.equal(h.one(answerField).props.value, 'alpha draft');
-  h.one(row('s-b')).props.onClick(event()); h.draw();
+  h.one(row('s-b')).props.onClick(event()); h.draw(); await flush(); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-b');
   assert.equal(h.one(answerField).props.value, '');
   h.one(answerField).props.onChange('beta draft'); h.draw();
   assert.equal(h.one(answerField).props.value, 'beta draft');
-  h.one(row('s-a')).props.onClick(event()); h.draw();
+  h.one(row('s-a')).props.onClick(event()); h.draw(); await flush(); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
   assert.equal(h.one(answerField).props.value, '');
   assert.deepEqual(calls.filter(c => c[0] === 'termInput'), []);

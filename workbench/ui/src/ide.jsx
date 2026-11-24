@@ -30,7 +30,7 @@ import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
 import { Verdict } from './verdict.jsx';
-import { Pane, WorkspaceBanner, hasView, wsStore } from './workspace.jsx';
+import { Pane, WorkspaceBanner, hasView, layoutLine, undoLayout, wsStore } from './workspace.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -210,7 +210,7 @@ async function gitShip(st) {
   let r;
   try { r = await api.git(st.pid, 'ship', st.commitMsg.trim()); } catch (e) { r = { error: String(e) }; }
   st.shipping = false;
-  if (r && r.error) { toast(r.error, true); bump(); return; }
+  if (r && r.error) { toast(r.error, true); await loadGitStatus(st); return; }
   st.commitMsg = '';
   toast(r && r.url ? `Pushed and opened ${r.url}` : 'Pushed');
   await loadGitStatus(st);
@@ -823,7 +823,7 @@ const NotBuilt = () => <Badge label="Not built yet" />;
 function ChangedGroup({ st }) {
   useEffect(() => {
     let t = 0, live = true;
-    const tick = async () => { if (!globalThis.document?.hidden) await loadGitStatus(st).catch(() => {}); if (live) t = setTimeout(tick, 2000); };
+    const tick = async () => { if (!globalThis.document?.hidden && ideShown()) await loadGitStatus(st).catch(() => {}); if (live) t = setTimeout(tick, 2000); };
     t = setTimeout(tick, 2000);
     return () => { live = false; clearTimeout(t); };
   }, [st]);
@@ -1112,9 +1112,9 @@ function ReviewHeader({ st, tab }) {
   const ownerId = (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path);
   const owner = ownerId ? ui.snap.sessions.find((x) => x.id === ownerId) : null;
   const settled = owner && (owner.state === 'done' || owner.state === 'idle');
-  const blocked = unstaged.length > 0 && !staged.length;
+  const blocked = !staged.length && !(st.git.ahead > 0) && unstaged.length > 0;
   const n = staged.length;
-  const title = n ? `${n} staged ${n === 1 ? 'file' : 'files'} to ship` : blocked ? 'Nothing staged to ship' : 'Nothing to commit';
+  const title = n ? `${n} staged ${n === 1 ? 'file' : 'files'} to ship` : blocked ? 'Nothing staged to ship' : st.git.ahead > 0 ? `${st.git.ahead} ${st.git.ahead === 1 ? 'commit' : 'commits'} to push` : 'Nothing to commit';
   const sub = [`Branch ${st.git.branch || '(none)'}`, unstaged.length ? `${unstaged.length} not staged, left out` : ''].filter(Boolean).join(', ');
   const go = () => {
     if (n && !st.commitMsg.trim()) { st.side = 'changes'; bump(); toast('Write a commit message in Source Control first.', true); return; }
@@ -1267,6 +1267,8 @@ function StatusBar({ st, active, problems, onProblems }) {
   const lang = active ? langOf(active.path) : '';
   const { errors, warnings } = countProblems(problems);
   const indent = active?.view?.state?.model?.getOptions?.();
+  const wsNow = wsStore.use();
+  const lay = layoutLine(st.pid, wsNow.pid === st.pid ? wsNow.ws : null);
 
   return (
     <footer className="ou-ide-status">
@@ -1281,6 +1283,11 @@ function StatusBar({ st, active, problems, onProblems }) {
           <Sc.CircleXIcon size={14} /><span>{errors}</span>
           <Sc.WarningIcon size={14} /><span>{warnings}</span>
         </button>
+        {lay ? (
+          <button type="button" className="ou-ide-status-item ou-ide-status-layout" disabled={!lay.undo} title={lay.undo ? 'Ctrl+Z undoes the last layout change' : 'No layout change to undo'} onClick={() => void undoLayout()}>
+            {`layout: ${lay.name} · ${lay.n} ${lay.n === 1 ? 'change' : 'changes'}${lay.undo ? ' · Ctrl+Z' : ''}`}
+          </button>
+        ) : null}
       </div>
       <div className="ou-ide-status-right">
         {active ? (

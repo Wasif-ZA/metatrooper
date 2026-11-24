@@ -33,8 +33,13 @@ export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
 const bumpHome = () => homeStore.set({ tick: homeStore.get().tick + 1 });
 const sendFollowUp = async (x, t) => {
-  try { if (!(await troop.termInput(x.id, t + '\r'))) { toast(`${NOT_SENT} The queued message was: ${t}`, true); return false; } echoSend(x.id, t); toast(`Sent the queued message to ${engineName(x.engine_id)}`); return true; }
-  catch (err) { toast(String(err?.message || err), true); return false; }
+  try {
+    const r = await rpc('session.send', { session_id: x.id, text: t }, true);
+    if (!r || !r.result) { toast(`Not sent: ${r?.error?.message || 'the agent did not take it'}. The message was: ${t}`, true); return false; }
+    echoSend(x.id, t);
+    toast(`Sent the queued message to ${engineName(x.engine_id)}`);
+    return true;
+  } catch (err) { toast(String(err?.message || err), true); return false; }
   finally { bumpHome(); }
 };
 globalThis.flushQueued = (sessions) => flushQueued(sessions, sendFollowUp);
@@ -312,7 +317,33 @@ function Trigger({ x, kids, open, toggle }) {
   );
 }
 
-function TaskView({ x, kids, openList, toggle, picked }) {
+const REVIEW_WORD = { pending: 'Reviewing', passed: 'Passed', failed: 'Failed' };
+
+/** A reviewer's run, nested under the turn it checked and folded until opened (M8-F17c). */
+function ReviewRun({ r, child, openList, toggle }) {
+  const key = `review:${child.id}`;
+  const open = openList.includes(key);
+  return (
+    <div className="ou-hm-review" data-review={r.who} data-state={r.state}>
+      <div className="ou-hm-reviewhead" aria-expanded={open} {...press(() => toggle(key))}>
+        <span className="ou-hm-reviewtitle">Review by {engineName(r.who)} · {REVIEW_WORD[r.state] || r.state}</span>
+        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
+      </div>
+      <Drop open={open} className="ou-hm-drop">
+        <ul className="ou-hm-slimlist"><SlimRow k={child} openList={openList} toggle={toggle} /></ul>
+        {r.note ? <p className="ou-hm-reviewnote">{r.note}</p> : null}
+      </Drop>
+    </div>
+  );
+}
+
+/** True only when core says the agent asked a question (never a permission menu or a form), so typed text and Enter cannot approve a tool. */
+export const plainAsk = (ask, x, chat) => ask.reason === 'question' && ask === x && Array.isArray(chat?.items) && !chat.waiting;
+
+function TaskView({ x, kids: allKids, openList, toggle, picked }) {
+  const reviewIds = new Set((x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => r.review_session_id));
+  const kids = allKids.filter((k) => !reviewIds.has(k.id));
+  const reviewRuns = (x.reviews || []).filter((r) => r.kind === 'reviewer' && r.review_session_id).map((r) => [r, allKids.find((k) => k.id === r.review_session_id)]).filter(([, c]) => c);
   const [answer, setAnswer] = useState('');
   const [draft, setDraft] = useState('');
   const chat = useChat(x.id, x.state);
@@ -320,14 +351,14 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   const here = !ask?.project_id || ask.project_id === ui.projectId;
   const send = async () => {
     const t = answer.trim();
-    if (!t || !here || !ask) return;
+    if (!t || !here || !ask || !plainAsk(ask, x, chat)) return;
     try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); echoSend(ask.id, t); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
   const queue = !ask && (!x.project_id || x.project_id === ui.projectId) && isWorking(x);
   const waitingText = queuedText(x.id);
   const working = isWorking(x);
   const enqueue = () => { if (!draft.trim()) return; setQueued(x.id, draft); setDraft(''); bumpHome(); };
-  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t) await sendFollowUp(x, t); };
+  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t && !(await sendFollowUp(x, t))) { setQueued(x.id, t); bumpHome(); } };
   const editQueued = () => { if (!isWorking(x)) return; setDraft(queuedText(x.id)); setQueued(x.id, ''); bumpHome(); };
   const clearQueued = () => { setQueued(x.id, ''); bumpHome(); };
   const open = openList.includes(x.id);
@@ -343,6 +374,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state} aria-label={`${proj}${branch ? ` on ${branch}` : ''}: ${nameOf(x)}`}>
       {x.prompt && !chat?.items?.some((item) => item.kind === 'user') ? <div className="ou-hm-user"><p>{String(x.prompt).trim()}</p></div> : null}
+      {x.resumed_from ? <div className="ou-hm-resumed" data-resumed-from={x.resumed_from}>resumed after close</div> : null}
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
           <Status k={x} />
@@ -362,7 +394,8 @@ function TaskView({ x, kids, openList, toggle, picked }) {
           </div>
         ) : null}
         <Chat x={x} chat={chat} openInEditor={openInEditor} />
-        {ask && !chat?.waiting ? (
+        {reviewRuns.map(([r, child]) => <ReviewRun key={child.id} r={r} child={child} openList={openList} toggle={toggle} />)}
+        {ask && plainAsk(ask, x, chat) ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
         ) : null}
         {waitingText ? (
@@ -375,7 +408,7 @@ function TaskView({ x, kids, openList, toggle, picked }) {
             </span>
           </div>
         ) : queue ? (
-          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t); } }} width="100%" /></div>
+          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t).then((ok) => { if (!ok) setDraft(t); }); } }} width="100%" /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">

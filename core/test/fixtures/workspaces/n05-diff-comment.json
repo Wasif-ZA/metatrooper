@@ -1,0 +1,92 @@
+{
+ "name": "Review",
+ "place": "linkkit",
+ "rail": ["files", "search", "git", "debug", "agents", "ext", "todo"],
+ "layout": {
+  "split": "row",
+  "sizes": [22, 78],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "rows",
+       "label": "Changed files",
+       "aside": "2",
+       "items": [
+        { "icon": "doc", "title": "src/limit.ts", "sub": "New limiter", "right": "+25 −1", "cur": true },
+        { "icon": "doc", "title": "src/routes/shorten.ts", "sub": "Calls the limiter", "right": "+6 −2" }
+       ]
+      },
+      {
+       "type": "rows",
+       "label": "Agent",
+       "items": [
+        { "engine": "claude", "title": "Rate limit /shorten", "sub": "Finished 3m ago", "state": "done" }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "shipbar",
+       "title": "2 files changed, 41 tests passed",
+       "sub": "Branch ouros/rate-limit, from main",
+       "checks": ["Tests 41 of 41", "Types clean", "Review by codex done"],
+       "actions": [
+        { "label": "Undo all" },
+        { "label": "Commit, push, open PR", "primary": true }
+       ]
+      },
+      {
+       "type": "linediff",
+       "path": "src/limit.ts",
+       "add": "+25",
+       "del": "−1",
+       "lines": [
+        { "k": "ctx", "n": 3, "t": "const WINDOW_MS = 60_000;" },
+        { "k": "del", "n": 4, "t": "const MAX = 100;" },
+        { "k": "add", "n": 4, "t": "const MAX = 60;" },
+        { "comment": "Make this a setting in wrangler.toml, not a fixed 60, so each customer can have their own limit." },
+        { "k": "ctx", "n": 5, "t": "" },
+        { "k": "add", "n": 6, "t": "const hits = new Map<string, number[]>();" },
+        { "k": "add", "n": 7, "t": "" },
+        { "k": "add", "n": 8, "t": "export function allow(key: string, now = Date.now()) {" },
+        { "k": "add", "n": 9, "t": "  const recent = (hits.get(key) ?? []).filter(t => now - t < WINDOW_MS);" },
+        { "k": "add", "n": 10, "t": "  if (recent.length >= MAX) return false;" },
+        { "k": "add", "n": 11, "t": "  hits.set(key, [...recent, now]);" },
+        { "k": "add", "n": 12, "t": "  return true;" },
+        { "k": "add", "n": 13, "t": "}" }
+       ]
+      },
+      {
+       "type": "linediff",
+       "path": "src/routes/shorten.ts",
+       "add": "+6",
+       "del": "−2",
+       "lines": [
+        { "k": "ctx", "n": 12, "t": "app.post('/shorten', async (c) => {" },
+        { "k": "del", "n": 13, "t": "  const { url } = await c.req.json();" },
+        { "k": "add", "n": 13, "t": "  const key = c.req.header('x-api-key') ?? 'anon';" },
+        { "k": "add", "n": 14, "t": "  if (!allow(key)) {" },
+        { "k": "add", "n": 15, "t": "    c.header('Retry-After', '60');" },
+        { "k": "add", "n": 16, "t": "    return c.json({ error: 'rate limited' }, 429);" },
+        { "k": "add", "n": 17, "t": "  }" },
+        { "k": "add", "n": 18, "t": "  const { url } = await c.req.json();" },
+        { "k": "ctx", "n": 19, "t": "  return c.json({ code: save(url) }, 201);" }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true
+}

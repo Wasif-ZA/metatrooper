@@ -309,14 +309,14 @@ function RunLedger({ sessionId }) {
 
 const AnswerArea = ({ onEnter, ...props }) => <TextArea {...props} />;
 
-function DetailAsk({ x }) {
+function DetailAsk({ x, plain }) {
   const [answer, setAnswer] = useState('');
   const [sending, setSending] = useState(false);
   const here = !x.project_id || x.project_id === ui.projectId;
   const projectName = ui.snap?.projects?.find((p) => p.id === x.project_id)?.name || 'another project';
   const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const send = async () => {
-    if (!here || sending) return;
+    if (!here || sending || !plain) return;
     const textToSend = answer.trim();
     if (!textToSend) return;
     setSending(true);
@@ -330,6 +330,7 @@ function DetailAsk({ x }) {
       setSending(false);
     }
   };
+  if (!plain) return <p className="ou-ny-composer ou-ipane-answer ou-hm-chatnote" role="status">{x.reason === 'permission' ? 'A permission menu is open: allow or deny it in its terminal, typed text would answer it.' : 'Checking what it is asking. If it is a permission menu, allow or deny it in its terminal.'}</p>;
   return (
     <div className="ou-ny-composer ou-ipane-answer">
       {composer({
@@ -460,10 +461,11 @@ export function Inbox() {
   const targetSessionId = selectedNotice ? selectedNotice.ref : selectedId;
   const targetSession = targetSessionId ? byId(targetSessionId) : null;
   const { text: sessionText, error: sessionTextError } = useSessionText(ui.view === 'inbox' ? targetSession?.id : null, targetSession?.last_line || null);
-  const lastSaid = useRpcResult('session.chat', { session_id: targetSession?.id, limit: 20 }, ui.view === 'inbox' && targetSession?.state === 'waiting_for_you' ? `${targetSession.id} ${targetSession.state_at}` : null, (res) => {
+  const said = useRpcResult('session.chat', { session_id: targetSession?.id, limit: 20 }, ui.view === 'inbox' && targetSession?.state === 'waiting_for_you' ? `${targetSession.id} ${targetSession.state_at}` : null, (res) => {
     const last = (res?.result?.items || []).filter((i) => i.kind !== 'user').at(-1);
-    return { value: last ? (last.kind === 'tool' ? last.label : last.text) : null, error: false };
+    return { value: { id: targetSession?.id, at: targetSession?.state_at, text: last ? (last.kind === 'tool' ? last.label : last.text) : null, plain: Array.isArray(res?.result?.items) && !res.result.waiting }, error: false };
   }).value;
+  const lastSaid = said?.text || null;
   const handoff = useRpcResult('session.handoff', { session_id: targetSession?.id }, ui.view === 'inbox' ? targetSession?.id : null, (res) => ({ value: res && res.result ? res.result.handoff || null : null, error: false })).value;
 
   const autoProject = targetSession?.project_id || null;
@@ -797,7 +799,7 @@ export function Inbox() {
           </li>
         ))}
       </ol>
-      {activeRow.isSession && item.state === 'waiting_for_you' ? <div className="ou-ny-answer-pin"><DetailAsk key={item.id} x={item} /></div> : null}
+      {activeRow.isSession && item.state === 'waiting_for_you' ? <div className="ou-ny-answer-pin"><DetailAsk key={item.id} x={item} plain={item.reason === 'question' && said?.id === item.id && said?.at === item.state_at && said.plain} /></div> : null}
     </section>
   );
 

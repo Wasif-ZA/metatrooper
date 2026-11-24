@@ -178,7 +178,10 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input')) || (/^(opencode\.state|core\.title-state)$/.test(ev.kind) && payload.state === 'waiting');
         if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && !ignored && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
         // A new cause for a wait already shown replaces its reason.
-        if (s.state === 'waiting_for_you' && next === 'waiting_for_you') setReason.run(waitReason(ev.kind, payload), ev.session_id);
+        if (s.state === 'waiting_for_you' && next === 'waiting_for_you') {
+          const why = waitReason(ev.kind, payload);
+          if (!(s.wait_reason === 'permission' && why === 'question')) setReason.run(why, ev.session_id);
+        }
         if (next && next !== s.state) {
           const at = next === 'waiting_for_you' ? writtenAt : nowIso();
           setState.run(next, at, next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
@@ -228,6 +231,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
 /** The reason a session waits, for the waits whose cause the core knows; null otherwise. */
 function waitReason(kind: string, p: Record<string, unknown>): string | null {
   if (kind === 'core.trust-dialog') return 'trust';
+  if (kind === 'claude.PermissionRequest' || kind === 'codex.PermissionRequest') return 'permission';
+  if (kind === 'claude.Notification' && p.class === 'permission') return 'permission';
+  if (kind === 'claude.Notification' && p.class === 'input' && p.notification_type === 'agent_needs_input') return 'question';
   if (kind === 'claude.StopFailure') return `stopped: ${typeof p.error_type === 'string' && /^[a-z_]{1,40}$/.test(p.error_type) ? p.error_type : 'error'}`;
   if (kind === 'opencode.state' && p.why === 'permission') return 'permission';
   if (kind === 'opencode.state' && p.why === 'error') return 'stopped: error';
