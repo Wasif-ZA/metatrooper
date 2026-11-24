@@ -16,14 +16,29 @@ export async function syncWorkspace(pid, force = false) {
   if (!pid || (!force && Date.now() - lastAsk < 1000 && wsStore.get().pid === pid)) return;
   lastAsk = Date.now();
   const out = await api.call('workspace.get', { project_id: pid });
-  if (out.kind === 'reply' && out.reply.result) wsStore.set({ pid, ws: out.reply.result });
+  if (out.kind === 'reply' && out.reply.result) { countChange(pid, out.reply.result); wsStore.set({ pid, ws: out.reply.result }); }
+}
+
+// M8-35a: how many layout changes applied in this project since the window opened, for the status bar line.
+const changes = new Map();
+function countChange(pid, ws) {
+  const at = ws && ws.last && ws.last.applied ? ws.last.at : null;
+  const c = changes.get(pid) || { n: 0, at: null };
+  if (at && at !== c.at) changes.set(pid, { n: c.n + 1, at });
+}
+/** The status bar's layout line: the layout's name, the changes counted and whether Ctrl+Z can undo the last; null while nothing changed and the usual layout shows. */
+export function layoutLine(pid, ws) {
+  const n = (changes.get(pid) || { n: 0 }).n;
+  if (!ws || (!n && ws.usual)) return null;
+  const name = ws.usual ? 'your usual' : (ws.current && ws.current.name) || 'agent layout';
+  return { name, n, undo: Boolean(ws.last && ws.undo) };
 }
 
 async function act(method) {
   const pid = wsStore.get().pid;
   if (!pid) return;
   const out = await api.call(method, { project_id: pid });
-  if (out.kind === 'reply' && out.reply.result) wsStore.set({ ws: out.reply.result, seenAt: null });
+  if (out.kind === 'reply' && out.reply.result) { countChange(pid, out.reply.result); wsStore.set({ ws: out.reply.result, seenAt: null }); }
 }
 export const undoLayout = () => act('workspace.undo');
 export const usualLayout = () => act('workspace.usual');

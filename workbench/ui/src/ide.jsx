@@ -30,7 +30,7 @@ import './ide-side.css';
 import './editor-ref.css';
 import { DrawnTabs } from './kit/DrawnTabs.jsx';
 import { Verdict } from './verdict.jsx';
-import { Pane, WorkspaceBanner, hasView, wsStore } from './workspace.jsx';
+import { Pane, WorkspaceBanner, hasView, layoutLine, undoLayout, wsStore } from './workspace.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -1267,6 +1267,8 @@ function StatusBar({ st, active, problems, onProblems }) {
   const lang = active ? langOf(active.path) : '';
   const { errors, warnings } = countProblems(problems);
   const indent = active?.view?.state?.model?.getOptions?.();
+  const wsNow = wsStore.use();
+  const lay = layoutLine(st.pid, wsNow.pid === st.pid ? wsNow.ws : null);
 
   return (
     <footer className="ou-ide-status">
@@ -1281,6 +1283,11 @@ function StatusBar({ st, active, problems, onProblems }) {
           <Sc.CircleXIcon size={14} /><span>{errors}</span>
           <Sc.WarningIcon size={14} /><span>{warnings}</span>
         </button>
+        {lay ? (
+          <button type="button" className="ou-ide-status-item ou-ide-status-layout" disabled={!lay.undo} title={lay.undo ? 'Ctrl+Z undoes the last layout change' : 'No layout change to undo'} onClick={() => void undoLayout()}>
+            {`layout: ${lay.name} · ${lay.n} ${lay.n === 1 ? 'change' : 'changes'}${lay.undo ? ' · Ctrl+Z' : ''}`}
+          </button>
+        ) : null}
       </div>
       <div className="ou-ide-status-right">
         {active ? (
