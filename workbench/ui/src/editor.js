@@ -116,8 +116,33 @@ function theme() {
   monaco.editor.setTheme('cc');
 }
 
+// Customize Look presets (round-3 reconcile V1-V10): Default, Quiet and Everything; error lens and bracket colours are off by default.
+export const LOOKS = {
+  default: { sticky: true, guides: true, ruler: true, brackets: false, hints: false },
+  quiet: { sticky: false, guides: false, ruler: false, brackets: false, hints: false },
+  all: { sticky: true, guides: true, ruler: true, brackets: true, hints: true },
+};
+const LOOK_KEY = 'cc.editorLook';
+const editors = new Set();
+export function editorLook() {
+  let name = 'default';
+  try { name = globalThis.localStorage?.getItem(LOOK_KEY) || 'default'; } catch {}
+  return Object.hasOwn(LOOKS, name) ? name : 'default';
+}
+const lookOptions = (l = LOOKS[editorLook()]) => ({
+  stickyScroll: { enabled: l.sticky }, guides: { indentation: l.guides, bracketPairs: false },
+  overviewRulerLanes: l.ruler ? 3 : 0, bracketPairColorization: { enabled: l.brackets }, inlayHints: { enabled: l.hints ? 'on' : 'off' },
+});
+/** Sets a preset ('default' resets) and applies it to every open editor at once. */
+export function setEditorLook(name) {
+  const next = Object.hasOwn(LOOKS, name) ? name : 'default';
+  try { if (next === 'default') globalThis.localStorage?.removeItem(LOOK_KEY); else globalThis.localStorage?.setItem(LOOK_KEY, next); } catch {}
+  for (const e of editors) e.updateOptions(lookOptions(LOOKS[next]));
+  return next;
+}
+
 const options = (path) => ({
-  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], renderWhitespace: 'trailing', linkedEditing: true, minimap: { enabled: false }, scrollBeyondLastLine: false, overviewRulerLanes: 3, scrollbar: { verticalScrollbarSize: 15 }, fixedOverflowWidgets: true,
+  theme: 'cc', automaticLayout: true, ...lookOptions(), rulers: [], renderWhitespace: 'trailing', linkedEditing: true, minimap: { enabled: false }, scrollBeyondLastLine: false, scrollbar: { verticalScrollbarSize: 15 }, fixedOverflowWidgets: true,
   fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace', fontSize: 14, lineHeight: 19, letterSpacing: 0,
   wordWrap: ['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? 'on' : 'off',
 });
@@ -150,6 +175,7 @@ export function openEditor(parent, textOrState, path, on) {
   loadMonaco().then((m) => {
     if (dead) return;
     ed = m.editor.create(parent, { ...options(path), model: attach(doc) });
+    editors.add(ed);
     if (doc.view) ed.restoreViewState(doc.view);
     ed.onDidChangeCursorPosition((e) => on.selection?.({ line: e.position.lineNumber, col: e.position.column }));
     // addAction, not addCommand: a command keybinding is global and fires for the last editor that added it
@@ -169,7 +195,7 @@ export function openEditor(parent, textOrState, path, on) {
     focus() { if (ed) ed.focus(); else focus = true; },
     goto(n) { if (ed) show(n); else line = n; },
     pos() { const p = ed?.getPosition(); return p ? { line: p.lineNumber, col: p.column } : { line: 1, col: 1 }; },
-    destroy() { dead = true; if (ed) { doc.view = ed.saveViewState(); ed.dispose(); } },
+    destroy() { dead = true; if (ed) { editors.delete(ed); doc.view = ed.saveViewState(); ed.dispose(); } },
   };
 }
 
@@ -185,7 +211,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
   loadMonaco().then((m) => {
     if (dead) return;
     models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
-    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false, renderIndicators: true, lineDecorationsWidth: 18 });
+    ed = m.editor.createDiffEditor(parent, { ...options(path), stickyScroll: { enabled: false }, readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false, renderIndicators: true, lineDecorationsWidth: 18 });
     ed.setModel({ original: models[0], modified: models[1] });
     ed.getOriginalEditor().updateOptions({ scrollbar: { vertical: 'hidden', verticalScrollbarSize: 0 } });
     for (const side of ['old', 'new']) {
@@ -202,7 +228,14 @@ export function openDiff(parent, sides, path, hooks = {}) {
       e.onDidScrollChange(() => hooks.onMove?.());
       e.onDidLayoutChange(() => hooks.onMove?.());
     }
-    ed.onDidUpdateDiff(() => hooks.onMove?.());
+    const blame = hooks.blame ? ed.getModifiedEditor().createDecorationsCollection() : null;
+    ed.onDidUpdateDiff(() => {
+      if (blame) {
+        const value = hooks.blame();
+        blame.set((ed.getLineChanges() || []).filter((c) => c.modifiedEndLineNumber > 0).map((c) => ({ range: new m.Range(c.modifiedStartLineNumber, 1, c.modifiedEndLineNumber, 1), options: { isWholeLine: true, linesDecorationsClassName: 'cc-agent-line', hoverMessage: { value } } })));
+      }
+      hooks.onMove?.();
+    });
     hooks.onMove?.();
   }, () => {});
   return {

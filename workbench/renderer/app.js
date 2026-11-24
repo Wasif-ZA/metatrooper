@@ -225,6 +225,7 @@ function renderBrowser() {
       ${st.loading ? '<button class="ib" data-action="pane-act" data-act="stop" title="Stop" aria-label="Stop loading">&times;</button>' : '<button class="ib" data-action="pane-act" data-act="reload" title="Reload (Ctrl+R)" aria-label="Reload">&#8635;</button>'}
       ${browserChrome.urlField(st.url || pane.url || '', ui.urlDraft, st.zoom)}
       <button class="tb" data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
+      <button class="tb${ui.design ? ' on' : ''}" data-action="pane-design" aria-pressed="${ui.design ? 'true' : 'false'}" title="Design mode: point at an element, say what to change, send, then point at the next one (Esc ends)">Design</button>
       <button class="ib" data-action="pane-menu" title="Before, After, Compare, Find, Driven by, Close" aria-label="Pane menu">&#8943;</button>
     </div>` : '';
   const find = pane && ui.find && !ui.comment ? `<div class="toolbar findbar">
@@ -318,7 +319,7 @@ function reportPaneBounds() {
 
 async function startComment() {
   if (!ui.paneId) return;
-  toast('Click the element you want to comment on.');
+  toast(ui.design ? 'Design mode: click the element to change. Esc ends.' : 'Click the element you want to comment on.');
   const pick = { pane: ui.paneId };
   ui.picking = pick;
   try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) { ui.picking = null; reportPaneBounds(); } }
@@ -907,6 +908,7 @@ const KEYS = [
   { keys: 'Ctrl+,', does: 'Settings', where: 'anywhere' },
   { keys: 'Alt+J', does: 'Jump to the agent that has waited longest', where: 'anywhere' },
   { keys: 'Ctrl+Alt+W', does: 'Open or close the watch layout', where: 'anywhere' },
+  { keys: 'Ctrl+Alt+V', does: 'Switch between the IDE and the Wall', where: 'anywhere' },
   { keys: 'Esc', does: 'Close the open panel or popover', where: 'anywhere' },
   { keys: 'Shift+Enter', does: 'New line without sending', where: 'agent tile' },
   { keys: 'Ctrl+C with a selection', does: 'Copy', where: 'tile' },
@@ -965,7 +967,7 @@ function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
   const keys = KEYS.map((k) => ({ group: 'Keys', label: k.does, meta: `${k.keys} · ${k.where}`, stay: true, run() {} }));
   const all = ui.keysView ? keys.filter((x) => !q || `${x.label} ${x.meta}`.toLowerCase().includes(q))
-    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
+    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...historyItems(q), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -987,6 +989,23 @@ function scrollbackItems(q) {
   });
 }
 
+/** Sessions past the snapshot's newest ones whose task matches the query; picking an exited one resumes it (M7-12a). */
+function historyItems(q) {
+  const shown = new Set(ui.snap.sessions.map((x) => x.id));
+  return q ? (ui.historyHits || []).filter((x) => !shown.has(x.id)).map((x) => ({
+    group: 'History',
+    label: String(x.title || x.prompt || x.id).replace(/\s+/g, ' ').slice(0, 120),
+    meta: `${x.engine_id} · ${String(x.started_at || '').slice(0, 10)}${x.hidden ? ' · hidden' : ''}`,
+    run: () => openHistory(x),
+  })) : [];
+}
+
+async function openHistory(x) {
+  if (x.state !== 'exited') { await pick(x.id); return; }
+  const r = await rpc('session.resume', { session_id: x.id });
+  if (r.result) await pick(r.result.session_id);
+}
+
 async function openHit(h) {
   if (h.session_id.startsWith('sh_')) selectShell(h.session_id); else await pick(h.session_id);
   await termView.reveal(h.session_id, h.line, h.text);
@@ -999,6 +1018,8 @@ function searchScrollback() {
   if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
     const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
     if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
+    const h = await rpc('session.history', { query: q, limit: 20 }, true);
+    if (h.result && document.getElementById('palette-input').value.trim() === q) { ui.historyHits = h.result.sessions; renderPalette(); }
   }, 100);
 }
 
@@ -1010,6 +1031,7 @@ function openPalette() {
     input.value = '';
     ui.paletteAt = 0;
     ui.scrollHits = [];
+    ui.historyHits = [];
     wall.openSearch();
     renderPalette();
   }
@@ -1294,7 +1316,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected || x.shell))
-    .map((x) => ({ id: x.id, from: x.continued_from ? x.id : x.resumed_from || x.from || null, continuedEngine: x.continued_engine, limit_stopped: x.limit_stopped, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.continued_from ? x.id : x.resumed_from || x.from || null, continuedEngine: x.continued_engine, limit_stopped: x.limit_stopped, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, stateAt: x.shell ? NaN : Date.parse(x.state_at), shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   for (const x of shown) x.watchOff = !x.shell && (ui.snap.watcher_off || []).includes(x.id);
@@ -1502,6 +1524,7 @@ async function onClick(e) {
       hideMenu();
       await openFolder();
       return;
+    case 'pick-across': if (!pickAcross(el.dataset.id)) void pick(el.dataset.id); break;
     case 'pick': {
       wall.setList(false);
       if (pickAcross(id)) return;
@@ -1852,6 +1875,11 @@ async function onClick(e) {
       void api.paneAct(ui.paneId, 'permission', { id: el.dataset.id, allow: el.dataset.allow === '1' });
       render();
       return;
+    case 'pane-design':
+      ui.design = !ui.design;
+      render();
+      if (ui.design && !ui.comment && !ui.picking) await startComment();
+      return;
     case 'pane-comment':
       await startComment();
       return;
@@ -1866,6 +1894,7 @@ async function onClick(e) {
     case 'comment-cancel':
       clearDrafts('comment-note', 'comment-session');
       ui.comment = null;
+      ui.design = false;
       render();
       return;
     case 'comment-send': {
@@ -1879,6 +1908,7 @@ async function onClick(e) {
         clearDrafts('comment-note', 'comment-session');
         ui.comment = null;
         render();
+        if (ui.design) void startComment();
       });
       return;
     }
@@ -1951,6 +1981,7 @@ function observeLongTasks() {
 }
 
 function tickAges() {
+  for (const el of document.querySelectorAll('.tile[data-wait-at]')) el.classList.toggle('aged', Boolean(el.dataset.waitAt) && Date.now() - Number(el.dataset.waitAt) >= 120_000);
   for (const el of document.querySelectorAll('[data-ago]')) {
     const text = ago(el.dataset.ago);
     if (el.textContent !== text) el.textContent = text;
@@ -1973,6 +2004,7 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
+  globalThis.flushQueued?.(s.sessions);
   if (s.core.online) ui.coreSeen = true;
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
@@ -2065,7 +2097,7 @@ document.addEventListener('keydown', (e) => {
     void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });
     return;
   }
-  if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); return; }
+  if (e.key === 'Escape' && ui.picking) { e.preventDefault(); void api.panePickCancel(ui.picking.pane); ui.picking = null; ui.design = false; reportPaneBounds(); render(); return; }
   if (e.key === 'Escape' && document.querySelector('#frameIconMenu, #frameIconPick, #frameGhPanel')) return;
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
   const active = document.activeElement;
@@ -2259,6 +2291,15 @@ function watchKeys(e) {
   render();
 }
 document.addEventListener('keydown', watchKeys, true);
+
+/** Ctrl+Alt+V moves between the IDE and the Wall (M8-17a). */
+function viewKeys(e) {
+  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyV' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  homeView.set(ui.view === 'wall' ? 'ide' : 'wall');
+}
+document.addEventListener('keydown', viewKeys, true);
 
 function wallKeys(e) {
   if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;

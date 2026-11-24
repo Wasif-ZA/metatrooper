@@ -49,6 +49,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.continue        {session_id, engine_id}
   session.focus           {session_id}  (stable)
   session.live-text       {}  (stable)
+  session.history         {query?, limit?: 1-200 (50)}
   session.search          {query, session_ids?}
   session.stop            {session_id}
   session.seen            {session_id}

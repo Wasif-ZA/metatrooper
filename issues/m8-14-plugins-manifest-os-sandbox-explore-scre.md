@@ -33,7 +33,7 @@ As built 2026-11-15: plugins from M1 (`plugin.preview`, `plugin.install` with a 
 - [ ] M8-14c. A remote block disables a plugin and says why.
   Status: NOT STARTED.
   Verify: to write, `core/test/m8-14-block.test.ts` test "a plugin on the remote block list is disabled with its reason".
-- [ ] M8-14d. Ouros runs the binary a plugin ships by its approved hash, never by a PATH lookup. Tools a plugin action calls (npm, .cmd scripts, git) and cc's own tool calls stay on the PATH lookup (M1-25a; `spec.md` D85). (was: Ouros runs the approved binary by hash, never by a PATH lookup)
+- [x] M8-14d. Ouros runs the binary a plugin ships by its approved hash, never by a PATH lookup. Tools a plugin action calls (npm, .cmd scripts, git) and cc's own tool calls stay on the PATH lookup (M1-25a; `spec.md` D85). (was: Ouros runs the approved binary by hash, never by a PATH lookup) (2026-11-24: B3 READY @77e0e459, core/test/m8-14-hash.test.ts 1/1, fails with the check removed)
   Status: NOT STARTED. The M1-25a tests in `core/test/plugins.test.ts` ("runs npm by name", "runs a .cmd script by name") stay and must keep passing.
   Verify: to write, `core/test/m8-14-hash.test.ts` test "a plugin binary whose hash differs from the approved one does not run"; then `cd core; node --test --test-isolation=none --test-timeout=120000 --test-name-pattern="M1-25a" test/plugins.test.ts` still passes.
 - [ ] M8-14e. Plugin grants, updates and revocation (`f-plugin`): the install sheet shows enforced grants and the text a plugin adds.

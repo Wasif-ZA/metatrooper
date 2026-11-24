@@ -1,0 +1,9 @@
+.ou-pf-gate { display: flex; flex-direction: column; gap: 4px; border-style: dashed; }
+.ou-pf-tile { display: flex; flex-direction: column; min-width: 0; }
+.ou-pf-tilehead, .ou-pf-tilefoot { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.ou-pf-tilehead { border-bottom: 1px solid var(--hairline); }
+.ou-pf-tilefoot { border-top: 1px solid var(--hairline); }
+.ou-pf-task { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-pf-lines { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; font: 12px/1.45 var(--mono); color: var(--body); white-space: pre-wrap; }
+.ou-pf-add { color: var(--st-ok); }
+.ou-pf-del { color: var(--st-bad); }

@@ -12,6 +12,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Chat, echoSend, useChat } from './chat.jsx';
 import { createStore } from './store.js';
+import { flushQueued, queuedText, setQueued } from './queue.js';
 import { AutomationsPage } from './automations.jsx';
 import { EngineMark, engineName, statusOf, STATUS_WORD, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, ChevronRightIcon as ChevronRight, StopIcon as Stop, ProjectIcon, LaptopIcon, FolderIcon, PanelToggle } from './icons/index.js';
 import { composer, atRefs } from './composer.jsx';
@@ -29,6 +30,14 @@ function WallEmpty() {
 }
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
+
+const bumpHome = () => homeStore.set({ tick: homeStore.get().tick + 1 });
+const sendFollowUp = async (x, t) => {
+  try { if (!(await troop.termInput(x.id, t + '\r'))) { toast(`${NOT_SENT} The queued message was: ${t}`, true); return false; } echoSend(x.id, t); toast(`Sent the queued message to ${engineName(x.engine_id)}`); return true; }
+  catch (err) { toast(String(err?.message || err), true); return false; }
+  finally { bumpHome(); }
+};
+globalThis.flushQueued = (sessions) => flushQueued(sessions, sendFollowUp);
 
 export const openNewTask = () => {
   ui.homeSel = '';
@@ -305,6 +314,7 @@ function Trigger({ x, kids, open, toggle }) {
 
 function TaskView({ x, kids, openList, toggle, picked }) {
   const [answer, setAnswer] = useState('');
+  const [draft, setDraft] = useState('');
   const chat = useChat(x.id, x.state);
   const ask = picked && picked !== x && statusOf(picked) === 'waiting' ? picked : statusOf(x) === 'waiting' ? x : null;
   const here = !ask?.project_id || ask.project_id === ui.projectId;
@@ -313,6 +323,13 @@ function TaskView({ x, kids, openList, toggle, picked }) {
     if (!t || !here || !ask) return;
     try { if (!(await troop.termInput(ask.id, t + '\r'))) return toast(NOT_SENT, true); echoSend(ask.id, t); setAnswer(''); toast(`Sent to ${engineName(ask.engine_id)}`); } catch (err) { toast(String(err?.message || err), true); }
   };
+  const queue = !ask && (!x.project_id || x.project_id === ui.projectId) && isWorking(x);
+  const waitingText = queuedText(x.id);
+  const working = isWorking(x);
+  const enqueue = () => { if (!draft.trim()) return; setQueued(x.id, draft); setDraft(''); bumpHome(); };
+  const sendNow = async () => { if (!isWorking(x)) return; const t = queuedText(x.id); setQueued(x.id, ''); if (t) await sendFollowUp(x, t); };
+  const editQueued = () => { if (!isWorking(x)) return; setDraft(queuedText(x.id)); setQueued(x.id, ''); bumpHome(); };
+  const clearQueued = () => { setQueued(x.id, ''); bumpHome(); };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
   const workKey = `work:${x.id}`;
@@ -347,6 +364,18 @@ function TaskView({ x, kids, openList, toggle, picked }) {
         <Chat x={x} chat={chat} openInEditor={openInEditor} />
         {ask && !chat?.waiting ? (
           <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(ask)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
+        ) : null}
+        {waitingText ? (
+          <div className="ou-hm-ask ou-hm-queued" data-queued="1">
+            <p><b>1 queued</b>, sent when {nameOf(x)} finishes this turn: {waitingText}</p>
+            <span className="ou-hm-chatactions">
+              <Button size="sm" variant="primary" label="Send now" isDisabled={!working} onClick={() => void sendNow()} />
+              <Button size="sm" variant="ghost" label="Edit" isDisabled={!working} onClick={editQueued} />
+              <Button size="sm" variant="ghost" label="Clear" onClick={clearQueued} />
+            </span>
+          </div>
+        ) : queue ? (
+          <div className="ou-hm-ask"><TextInput size="sm" label="Queue a follow-up" isLabelHidden placeholder={`Next message for ${nameOf(x)}: Enter queues it, Tab redirects now`} value={draft} onChange={setDraft} onEnter={enqueue} onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && draft.trim()) { e.preventDefault(); const t = draft.trim(); setDraft(''); void sendFollowUp(x, t); } }} width="100%" /></div>
         ) : null}
         {pending.length ? (
           <div className="ou-hm-waiton">

@@ -277,6 +277,7 @@ export class PaneManager {
   private shown: string | null = null;
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
   private guarded = new Set<string>();
+  private spare = new Map<string, string[]>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
   /** Error page data: URL to the URL that failed, so going back or forward to an error entry restores errorFor. */
@@ -351,7 +352,7 @@ export class PaneManager {
   /** The pane's partition: every request (frames, workers, WebSockets) passes the address policy, downloads and permissions follow the pane kind. Agent-opened panes get an in-memory partition of their own. */
   private guardPartition(row: PaneRow): Electron.Session {
     const agent = row.id.startsWith(AGENT_PANE) && !row.lent;
-    const partition = agent ? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
+    const partition = agent ? this.spare.get(row.project_id)?.pop() ?? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
     const ses = electronSession.fromPartition(partition);
     if (this.guarded.has(partition)) return ses;
     this.guarded.add(partition);
@@ -880,8 +881,23 @@ export class PaneManager {
     if (!pane.overlay.webContents.isDestroyed()) pane.overlay.webContents.close();
     if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
+    const open = [pane.view.webContents, ...[...pane.popups].filter((w) => !w.isDestroyed()).map((w) => w.webContents)];
     pane.view.webContents.close();
-    if (id.startsWith(AGENT_PANE) && !pane.row.lent) void ses.clearStorageData().catch(() => {});
+    if (!id.startsWith(AGENT_PANE) || pane.row.lent) return;
+    const partition = [...this.guarded].find((p) => electronSession.fromPartition(p) === ses);
+    // The guards stay on until every page of the pane is gone, and the partition is reused only once all its caches are clear.
+    const gone = (wc: WebContents) => new Promise<void>((done) => (wc.isDestroyed() ? done() : wc.once('destroyed', () => done())));
+    void Promise.all(open.map(gone)).then(async () => {
+      if (partition) this.guarded.delete(partition);
+      ses.webRequest.onBeforeRequest(null);
+      ses.webRequest.onBeforeSendHeaders?.(null);
+      ses.webRequest.onHeadersReceived?.(null);
+      ses.removeAllListeners?.('will-download');
+      ses.setPermissionCheckHandler?.(null);
+      ses.setPermissionRequestHandler?.(null);
+      await Promise.all([ses.clearStorageData(), ses.clearCache(), ses.clearAuthCache()]);
+      if (partition && ![...this.panes.values()].some((p) => !p.view.webContents.isDestroyed() && p.view.webContents.session === ses)) this.spare.set(pane.row.project_id, [...(this.spare.get(pane.row.project_id) ?? []), partition]);
+    }).catch(() => {});
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */

@@ -54,7 +54,7 @@ The back end is in the brief. The screen has no brief, so it is decided here.
 ## Acceptance checks
 
 - [ ] M9-04a. On screen: edit and save a file. Changes lists it with M. Click it: the diff shows his edit.
-- [ ] M9-04b. Press plus: the row moves to Staged. Press minus: it moves back.
+- [x] M9-04b. Press plus: the row moves to Staged. Press minus: it moves back. (2026-11-24, B4 on a8a3b642 (own npm ci): workbench/test/m9-ide-unsaved-save.test.ts 21/21 (stage, unstage) and workbench/test/gitpane.test.ts 4/4)
 - [ ] M9-04c. Type a message, press Commit. `git log -1` in the shell pane shows that message and only the staged files.
 - [ ] M9-04d. A hook that fails the commit shows its error in a toast; the message and the staged list stay.
 - [ ] M9-04e. A file name with a space, and one that starts with `-`, stage and commit correctly.

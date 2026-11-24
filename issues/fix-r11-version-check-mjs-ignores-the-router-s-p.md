@@ -21,7 +21,7 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 ## Acceptance criteria
 
 - [ ] FIX-R11a. Changing only the pyproject version fails the check.
-- [ ] FIX-R11b. The check passes when all are 0.1.0.
+- [x] FIX-R11b. The check passes when all are 0.1.0. (2026-11-24, B4 on a8a3b642: core/test/m5-09-version-check.test.ts 2/2)
 
 ## Rules
 

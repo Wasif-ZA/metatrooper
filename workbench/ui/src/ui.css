@@ -464,7 +464,7 @@ html { font-size: 16px; }
   .ou-tags { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
   .ou-tag { display: inline-flex; align-items: center; height: 22px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--hairline-strong); font-size: 12px; color: var(--body); white-space: nowrap; }
   .ou-tag-quiet { border-color: var(--hairline); color: var(--mute); }
-  .ou-tag-more { background: var(--canvas-soft); color: var(--mute); font: inherit; font-size: 12px; cursor: pointer; }
+  .ou-tag-more { background: var(--canvas-soft); color: var(--body); font: inherit; font-size: 12px; cursor: pointer; }
   .ou-tag-more:hover { color: var(--ink); }
   .ou-tag-more:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
   .ou-addons-err { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--hairline); color: var(--body-strong); }

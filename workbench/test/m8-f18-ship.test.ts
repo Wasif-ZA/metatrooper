@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { stripTypeScriptTypes } from 'node:module';
+import { stripTypeScriptTypes, createRequire } from 'node:module';
 import { ship, runIn, gitAct, type Run } from '../src/gitpane.ts';
 
 const prUrl = 'https://example.invalid/pull/18';
@@ -362,8 +362,10 @@ function ipcHarness(options: { demo?: boolean; failure?: Error } = {}) {
     demo: options.demo ?? false,
     ship: async (actualGit: Run, gh: (args: string[]) => Promise<string>, message: string) => {
       calls.push({ git: actualGit, message });
-      // Sentinel for accidental restoration of the retired ship/gh IPC path.
-      const url = await gh(['pr', 'list', '--state', 'open', '--head=feature/ship', '--limit', '1', '--json', 'url']);
+      // Mirror ship's gh error reporting so the IPC adapter must supply stderr.
+      const url = await gh(['pr', 'list', '--state', 'open', '--head=feature/ship', '--limit', '1', '--json', 'url']).catch((error: Error & { stderr?: string }) => {
+        throw new Error(`open PR failed: ${error.stderr || error.message}`);
+      });
       return { commit: 'abc1234', url };
     },
     execFile: (file: string, args: string[], opts: unknown, done: Function) => {
@@ -379,35 +381,36 @@ function ipcHarness(options: { demo?: boolean; failure?: Error } = {}) {
   return { call: (arg: unknown) => handler('project', 'ship', arg), cwd, git, calls, executions, gitViews, refreshed };
 }
 
-// protects=main.ts git ship op: dispatch to ship, pass message/runner, return commit/url, invalidate and refresh view.
-// 79008ca9 removed the ship IPC op; retain its guards as checks that the retired path has no effects.
-test('retired git IPC ship returns an unknown-action error and refreshes the Git view', async () => {
+// protects=main.ts git ship op: dispatch, results, gh execution and view refresh.
+test('git IPC ship dispatches the runner and message, returns commit and URL, and refreshes', async () => {
   const h = ipcHarness();
   const result = await h.call('feat: through IPC');
-  assert.equal(result.commit, undefined);
-  assert.equal(result.url, undefined);
-  assert.equal(result.error, 'unknown git action ship');
+  assert.equal(result.error, undefined);
+  assert.equal(result.commit, 'abc1234');
+  assert.equal(result.url, prUrl);
   assert.equal(result.branch, 'feature/ship');
-  assert.deepEqual(h.calls, []);
-  assert.deepEqual(h.executions, []);
+  assert.deepEqual(h.calls, [{ git: h.git, message: 'feat: through IPC' }]);
+  assert.deepEqual(h.executions, [{
+    file: 'gh',
+    args: ['pr', 'list', '--state', 'open', '--head=feature/ship', '--limit', '1', '--json', 'url'],
+    options: { cwd: h.cwd, encoding: 'utf8', windowsHide: true, timeout: 60000 },
+  }]);
   assert.equal(h.gitViews.has(h.cwd), false);
   assert.deepEqual(h.refreshed, [h.cwd]);
 });
 
-// protects=main.ts git ship op: non-string IPC arguments are normalized to an empty message.
-test('retired git IPC ship rejects non-string message arguments without invoking ship', async () => {
+test('git IPC ship normalizes a non-string message to an empty string', async () => {
   const h = ipcHarness();
   const result = await h.call({ message: 'not a string' });
-  assert.equal(result.error, 'unknown git action ship');
-  assert.deepEqual(h.calls, []);
-  assert.deepEqual(h.executions, []);
+  assert.equal(result.error, undefined);
+  assert.deepEqual(h.calls, [{ git: h.git, message: '' }]);
+  assert.equal(result.url, prUrl);
 });
 
-// protects=main.ts git ship op: demo refuses shipping before invoking ship/gh while still refreshing.
-test('retired git IPC ship is also unavailable in the demo', async () => {
+test('git IPC ship refuses the demo before ship or gh and still refreshes', async () => {
   const h = ipcHarness({ demo: true });
   const result = await h.call('demo');
-  assert.equal(result.error, 'unknown git action ship');
+  assert.equal(result.error, 'Commit, push, open PR is off in the demo');
   assert.equal(result.commit, undefined);
   assert.equal(result.url, undefined);
   assert.deepEqual(h.calls, []);
@@ -416,14 +419,99 @@ test('retired git IPC ship is also unavailable in the demo', async () => {
   assert.deepEqual(h.refreshed, [h.cwd]);
 });
 
-// protects=main.ts git ship op: missing gh gets an actionable error and still invalidates/refreshes the view.
-test('retired git IPC ship never invokes gh even when it is missing', async () => {
+test('git IPC ship reports missing gh with installation guidance and still refreshes', async () => {
   const h = ipcHarness({ failure: new Error('spawn gh ENOENT') });
   const result = await h.call('message');
-  assert.equal(result.error, 'unknown git action ship');
+  assert.equal(result.error, 'open PR failed: GitHub CLI (gh) is not installed or not on PATH');
+  assert.equal(result.commit, undefined);
   assert.equal(result.url, undefined);
-  assert.deepEqual(h.calls, []);
-  assert.deepEqual(h.executions, []);
+  assert.deepEqual(h.calls, [{ git: h.git, message: 'message' }]);
+  assert.equal(h.executions.length, 1);
+  assert.equal(h.executions[0].file, 'gh');
   assert.equal(h.gitViews.has(h.cwd), false);
   assert.deepEqual(h.refreshed, [h.cwd]);
+});
+
+// Read production JSX without importing the editor or starting Electron. Evaluate
+// the real component and callbacks; only UI controls and external effects are stubs.
+const requireUI = createRequire(new URL('../ui/package.json', import.meta.url));
+const { transformSync } = requireUI('esbuild');
+function reviewHarness(realShip = false) {
+  const source = fs.readFileSync(new URL('../ui/src/ide.jsx', import.meta.url), 'utf8');
+  const fragment = (name: string) => {
+    const body = source.match(new RegExp(`^(?:async )?function ${name}\\([^]*?^\\}`, 'm'))?.[0];
+    assert.ok(body, `${name} must exist in ide.jsx`);
+    return body;
+  };
+  const calls: any[][] = [];
+  const deps = {
+    h: (type: any, props: any, ...children: any[]) => ({ type, props: props || {}, children }),
+    Button: 'Button', Verdict: 'Verdict',
+    ui: { snap: { sessions: [] } }, ownerOf: () => null,
+    statusLetter: (index: string, worktree: string, staged: boolean) => staged ? index : worktree,
+    bump: () => calls.push(['bump']), toast: (...args: any[]) => calls.push(['toast', ...args]),
+    api: { git: async (...args: any[]) => { calls.push(['git', ...args]); return { url: prUrl }; } },
+    loadGitStatus: async () => { calls.push(['loadGitStatus']); },
+    ...(realShip ? {} : { gitShip: (st: any) => { calls.push(['gitShip', st]); } }),
+  };
+  const code = [fragment('gitFiles'), ...(realShip ? [fragment('gitShip')] : []), fragment('ReviewHeader')].join('\n');
+  const compiled = transformSync(code, { loader: 'jsx', jsxFactory: 'h', format: 'cjs' }).code;
+  const ReviewHeader = new Function(...Object.keys(deps), compiled + '\nreturn ReviewHeader;')(...Object.values(deps));
+  const st = { pid: 'project-18', git: { branch: 'feature/ship', files: [] as any[] }, commitMsg: '', shipping: false, committing: false, side: 'files' };
+  const render = () => ReviewHeader({ st, tab: { path: 'first.txt', gitDiff: true } });
+  const nodes = (node: any): any[] => node && typeof node === 'object' ? [node, ...(node.children || []).flatMap(nodes)] : [];
+  const button = () => {
+    const root = render();
+    assert.equal(root.props['data-part'], 'shipbar');
+    const found = nodes(root).find(n => n.type === 'Button');
+    assert.ok(found, 'ReviewHeader renders its ship button');
+    return found.props;
+  };
+  return { st, calls, render, nodes, button };
+}
+
+test('ReviewHeader disables shipping when changes are unstaged and nothing is staged', () => {
+  const h = reviewHarness();
+  h.st.git.files = [{ path: 'first.txt', index: '.', worktree: 'M' }];
+  assert.equal(h.button().isDisabled, true);
+  h.st.git.files[0].index = 'M';
+  assert.equal(h.button().isDisabled, false);
+});
+
+test('ReviewHeader ships through api.git with the project and trimmed message', async () => {
+  const h = reviewHarness(true);
+  h.st.git.files = [{ path: 'first.txt', index: 'M', worktree: '.' }];
+  h.st.commitMsg = '  feat: review header  ';
+  assert.equal(h.button().isDisabled, false);
+  h.button().onClick();
+  // gitShip awaits the API stub; let its continuation finish without timers.
+  await Promise.resolve();
+  assert.deepEqual(h.calls.filter(c => c[0] === 'git'), [['git', 'project-18', 'ship', 'feat: review header']]);
+  assert.equal(h.st.shipping, false);
+  assert.equal(h.st.commitMsg, '');
+  assert.ok(h.calls.some(c => c[0] === 'loadGitStatus'));
+});
+
+test('ReviewHeader with staged files and an empty message does not call gitShip', () => {
+  const h = reviewHarness();
+  h.st.git.files = [{ path: 'first.txt', index: 'M', worktree: '.' }];
+  for (const message of ['', '   ']) {
+    h.st.commitMsg = message;
+    h.button().onClick();
+  }
+  assert.equal(h.st.side, 'changes');
+  assert.equal(h.calls.filter(c => c[0] === 'gitShip').length, 0);
+  assert.equal(h.calls.filter(c => c[0] === 'toast' && c[1] === 'Write a commit message in Source Control first.' && c[2] === true).length, 2);
+  // Positive control: the same callback can reach the ship stub with a message.
+  h.st.commitMsg = 'selected change';
+  h.button().onClick();
+  assert.equal(h.calls.filter(c => c[0] === 'gitShip').length, 1);
+});
+
+test('ReviewHeader checks row says no check has run when no agent owns the file', () => {
+  const h = reviewHarness();
+  const row = h.nodes(h.render()).find(n => n.props.className === 'ou-ide-shipck');
+  assert.ok(row, 'checks row exists');
+  assert.ok(h.nodes(row).some(n => n.type === 'span' && n.children.includes('No check has run on these files.')));
+  assert.equal(h.nodes(row).some(n => n.type === 'Verdict'), false);
 });

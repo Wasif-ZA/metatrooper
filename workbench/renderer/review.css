@@ -46,7 +46,7 @@
 :root:not([data-look="dither"]) #split .view .diff div:hover { background: var(--canvas-soft); }
 :root:not([data-look="dither"]) #split .view .diff .add { background: var(--add-bg); color: var(--add); }
 :root:not([data-look="dither"]) #split .view .diff .del { background: var(--del-bg); color: var(--del); }
-:root:not([data-look="dither"]) #split .view .diff .hunk { margin: 4px 0; padding-top: 2px; padding-bottom: 2px; background: var(--canvas-soft); color: var(--mute); }
+:root:not([data-look="dither"]) #split .view .diff .hunk { margin: 4px 0; padding-top: 2px; padding-bottom: 2px; background: var(--canvas-soft); color: var(--body); }
 :root:not([data-look="dither"]) #split .view .diff .on { outline: 1px solid var(--ink); outline-offset: -1px; }
 :root:not([data-look="dither"]) #split .view .log { padding: 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); color: var(--body); font: 12.5px/1.5 'Geist Mono', ui-monospace, monospace; margin-bottom: 12px; }
 :root:not([data-look="dither"]) #split .view .form { grid-template-columns: 72px minmax(0, 1fr); gap: 8px 12px; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }

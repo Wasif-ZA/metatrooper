@@ -113,6 +113,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.continue', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.VALIDATION], params: '{session_id, engine_id}', result: '{session_id, file}; continues a limit-stopped session with a redacted handoff in another installed engine' },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
+  { name: 'session.history', needsUi: true, errors: [E.INVALID_PARAMS], params: '{query?, limit?: 1-200 (50)}', result: '{sessions: [{id, project_id, engine_id, state, started_at, title, prompt, hidden}]}: every session, hidden ones included, newest first, whose title or prompt contains `query` (plain text, any case); prompt is cut to 200 characters' },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
   { name: 'session.stop', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{session_id}', result: '{stopped: boolean}; sends Ctrl+C, then kills the process tree after 3 s if it still runs; the session exits with outcome cancelled and raises no failed item. false when it had already exited' },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
@@ -406,6 +407,22 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
          WHERE (? = '' OR project_id = ?) AND (? = 1 OR hidden = 0) ORDER BY julianday(started_at) DESC`,
       ).all(project, project, p.all === true ? 1 : 0);
       return { sessions };
+    },
+  });
+
+  m.set('session.history', {
+    needsUi: true,
+    handler: (p) => {
+      const query = p.query === undefined ? '' : p.query;
+      if (typeof query !== 'string' || query.length > 200) throw new RpcError(E.INVALID_PARAMS, 'query must be a string of at most 200 characters');
+      const limit = p.limit === undefined ? 50 : p.limit;
+      if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 200) throw new RpcError(E.INVALID_PARAMS, 'limit must be a whole number from 1 to 200');
+      const like = `%${query.trim().toLowerCase().replace(/[!%_]/g, (c) => `!${c}`)}%`;
+      const rows = db.prepare(
+        `SELECT id, project_id, engine_id, state, started_at, title, substr(prompt, 1, 200) AS prompt, hidden FROM session
+         WHERE lower(coalesce(title, '')) LIKE ? ESCAPE '!' OR lower(coalesce(prompt, '')) LIKE ? ESCAPE '!' ORDER BY julianday(started_at) DESC LIMIT ?`,
+      ).all(like, like, limit) as Array<{ hidden: number }>;
+      return { sessions: rows.map((x) => ({ ...x, hidden: Boolean(x.hidden) })) };
     },
   });
 

@@ -126,3 +126,4 @@ body.doc-hidden .runb .step.run .num { animation-play-state: paused; }
 :root:not([data-look="dither"]) .timeline td.meta { font-variant-numeric: tabular-nums; }
 /* the strip clips an outset ring, so its buttons draw theirs inside */
 :root #split .view .browser .bstrip button:focus-visible { outline-offset: -2px; }
+.baddr .tb.on { background: var(--canvas-soft); border-color: var(--ink); color: var(--ink); }

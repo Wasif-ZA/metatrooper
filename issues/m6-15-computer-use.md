@@ -11,7 +11,7 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 12.0
 
 - [ ] M6-15a. A session granted Notepad types into it while another app has focus, and the pointer does not move. The same session acting on Calculator (not granted) gets "window not granted". Notepad's Save As dialog is reachable and every input in it raises an approval.
 - [ ] M6-15b. Ctrl+Alt+Q while an agent types a 2,000-character string: after the core acknowledges the pause, no further character reaches Notepad (checked by comparing the file text at the acknowledgement and 2 s later).
-- [ ] M6-15c. The workbench window never appears in `windows`, and a direct call naming its handle fails. Closing a granted window ends its grant; a new window that gets the same handle is not granted. After a core restart, no grant is live.
+- [x] M6-15c. The workbench window never appears in `windows`, and a direct call naming its handle fails. Closing a granted window ends its grant; a new window that gets the same handle is not granted. After a core restart, no grant is live. (2026-11-24, B4 on a8a3b642 (own npm ci): core/test/m6-15-desktop.test.ts 14/14)
 
 ## Rules that bind every child
 

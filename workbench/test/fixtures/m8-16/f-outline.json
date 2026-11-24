@@ -1,0 +1,189 @@
+{
+  "tab": "Outline · report.md",
+  "spec": {
+    "type": "page",
+    "children": [
+      {
+        "type": "header",
+        "title": "Outline",
+        "sub": "bracket-mk2/report.md · 4 sections · 2 linked calculations"
+      },
+      {
+        "type": "headline",
+        "text": "Section 2.2 Shear check is stale: its calculation changed after the number was written.",
+        "actions": [
+          {
+            "label": "Re-run 2.2",
+            "primary": true
+          },
+          {
+            "label": "Jump to 2.2"
+          }
+        ]
+      },
+      {
+        "type": "columns",
+        "children": [
+          [
+            {
+              "type": "tree",
+              "nodes": [
+                {
+                  "label": "1 Purpose and loads",
+                  "right": "p. 1",
+                  "children": [
+                    {
+                      "label": "1.1 Load cases",
+                      "right": "loads.xlsx",
+                      "state": "ok"
+                    }
+                  ]
+                },
+                {
+                  "label": "2 Bolt sizing",
+                  "right": "p. 2",
+                  "children": [
+                    {
+                      "label": "2.1 M6 torque check",
+                      "right": "9.9 N m",
+                      "state": "ok"
+                    },
+                    {
+                      "label": "2.2 Shear check",
+                      "right": "re-run needed",
+                      "state": "fail"
+                    }
+                  ]
+                },
+                {
+                  "label": "3 Plate stress (FEA)",
+                  "right": "p. 4",
+                  "children": [
+                    {
+                      "label": "3.1 Mesh and results",
+                      "right": "run 41 min ago",
+                      "state": "ok"
+                    }
+                  ]
+                },
+                {
+                  "label": "4 Revision history",
+                  "right": "rev C"
+                }
+              ]
+            },
+            {
+              "type": "toggle",
+              "label": "Report view: hide code, show results",
+              "on": true,
+              "note": "The calculations stay in the file; only their results show."
+            }
+          ],
+          [
+            {
+              "type": "doc",
+              "title": "2.2 Shear check",
+              "by": "claude",
+              "status": "stale",
+              "blocks": [
+                {
+                  "text": "Shear stress on the M6 bolt is 61 MPa at 8.4 kN, under the 120 MPa limit.",
+                  "refs": [
+                    "calc 2.2"
+                  ]
+                },
+                {
+                  "text": "The load case in loads.xlsx changed on 29 Oct. This number was written before that.",
+                  "refs": [
+                    "loads.xlsx"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "section",
+              "label": "Linked calculations",
+              "aside": "2",
+              "children": [
+                {
+                  "type": "table",
+                  "cols": [
+                    "Calculation",
+                    "Used in",
+                    "State"
+                  ],
+                  "rows": [
+                    [
+                      "torque check",
+                      "2.1",
+                      {
+                        "type": "pill",
+                        "text": "fresh",
+                        "tone": "ok"
+                      }
+                    ],
+                    [
+                      "shear check",
+                      "2.2",
+                      {
+                        "type": "pill",
+                        "text": "stale",
+                        "tone": "error"
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "source": "system",
+  "agent": "claude",
+  "chrome": {
+    "place": "bracket-mk2 : report",
+    "branch": "main",
+    "status": "1 stale",
+    "lang": "Markdown",
+    "files": [
+      "bracket-mk2/",
+      "  cad/",
+      "    bracket.py",
+      "  datasheets/",
+      "    M6-bolt.pdf",
+      "  fea/",
+      "    plate.inp",
+      "  loads.xlsx",
+      "  *report.md"
+    ],
+    "terminal": [
+      {
+        "you": "Load case 3 is now 8.4 kN. Fix loads.xlsx."
+      },
+      [
+        "edited loads.xlsx",
+        "case 3: 7.9 to 8.4 kN"
+      ],
+      [
+        "found linked calculations",
+        "2.1 torque, 2.2 shear"
+      ],
+      {
+        "you": "Update the report for the new load case."
+      },
+      [
+        "read loads.xlsx",
+        "load case changed 29 Oct"
+      ],
+      [
+        "re-ran 2.1 torque check",
+        "9.9 N m, fresh"
+      ],
+      "2.2 shear check is stale. Re-run it before the report goes out."
+    ],
+    "strip": "auto · 1 of 2 calculations stale",
+    "termHeight": 400
+  }
+}

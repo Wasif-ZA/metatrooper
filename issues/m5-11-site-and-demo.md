@@ -51,3 +51,8 @@ in git history before this change.
    `pages` workflow by hand from the Actions tab.
 3. **Waitlist:** make a Tally form and send its link to be embedded, or keep the "Watch releases on GitHub" button
    the page has now.
+
+Status 2026-11-24 (B4, on a8a3b642): M5-11b met. site/index.html has no img, video or .gif reference, so a missing
+GIF leaves no empty frame. M5-11c met: the grep finds only absence lines ("No installer yet", "There is no installer
+yet", "No installer, signing or auto-update yet"). M5-11a not run yet: page-check.py needs headless Chrome, and it is
+queued until M's suite releases HEAVY.lock. The hand-back (three GIFs, GitHub Pages, waitlist) is Wasif's.

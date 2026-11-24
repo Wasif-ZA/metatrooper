@@ -22,7 +22,7 @@ Read-only audit, 2026-10-31. 11 of 12 findings reproduced in scratch, never in t
 
 - [ ] FIX-R1a. check without --project spawns nothing for an untrusted project recipe, with or without --changed.
 - [ ] FIX-R1b. A test repo with an untrusted recipe naming ./evil.cmd leaves no marker.
-- [ ] FIX-R1c. check --project still runs project recipes.
+- [x] FIX-R1c. check --project still runs project recipes. (2026-11-24, B4 on a8a3b642: router/tests/test_project_packs_digest.py::test_check_project_runs_only_project_recipes_and_fails passes (py -3.12))
 
 ## Rules
 

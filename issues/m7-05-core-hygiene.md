@@ -47,14 +47,14 @@ Six small fixes in the core, each closing a way it says something false or keeps
 
 The first six are copied from `spec.md` and must not be reworded here.
 
-- [ ] M7-05a. A corpus of 20 real-shaped tokens and 200 harmless lines (git SHAs, UUIDs, base64 paths) masks 20 of 20 and at most 2 of 200, at under 50 microseconds per 200-character line.
+- [x] M7-05a. A corpus of 20 real-shaped tokens and 200 harmless lines (git SHAs, UUIDs, base64 paths) masks 20 of 20 and at most 2 of 200, at under 50 microseconds per 200-character line. (2026-11-24, B4: core/test/m7-05-token-mask.test.ts 6/6)
 - [ ] M7-05b. A reader opens a read transaction, then the core writes 100 rows and runs one checkpoint: one miss is counted and `troop ping` shows 1. After the reader ends, the `-wal` file is 0 bytes within 35 s.
 - [ ] M7-05c. With 3001 bound but not listening and 3002 listening, allocation returns 3003; a stubbed `EACCES` on 3003 gives 3004; 20 leases at once give 20 different ports.
 - [ ] M7-05d. A manifest with `(a+)+$` is refused at install, and the same pattern in an engine file's `state_titles`, `auth_error` and `auth_ok.stdout_regex` is refused at load. A valid rule on a 1 MB line returns in under 5 ms.
 - [ ] M7-05e. A `settings.json` whose MetaTrooper hook names a missing `event.js` is rewritten once with a `.bak`; a second core start changes 0 bytes; the user's other hooks parse to the same JSON. A dev checkout and an install recorded by a newer version are each left unchanged.
 - [ ] M7-05f. With the core stopped, a labelled fixture container whose session exited is removed at the next core start; a container for a live session is left running; a sandbox session's `docker inspect` shows `Init: true`. With the sandbox flag off, the core starts without calling `docker`. ("Sandbox flag off" here means no `session` row has `host = 'sandbox'`; see the report.)
-- [ ] M7-05g. A token printed in a terminal shows as `[token]` in the session's stored title and last line, in the core log and in a notification sink message; the same token is still in the raw pty stream.
-- [ ] M7-05h. Approvals still ask on every string that asked before: the M6-2 approval suite passes unchanged.
+- [x] M7-05g. A token printed in a terminal shows as `[token]` in the session's stored title and last line, in the core log and in a notification sink message; the same token is still in the raw pty stream. (2026-11-24, B4: core/test/m7-05-token-mask.test.ts: core log, notifyText, stored title and last line through a real pty; raw stream keeps the token)
+- [x] M7-05h. Approvals still ask on every string that asked before: the M6-2 approval suite passes unchanged. (2026-11-24, B4: core/test/m6-02-approvals.test.ts 13/13 unchanged after the change, and m7-05-token-mask.test.ts checks every old pattern still flags)
 - [ ] M7-05i. `writeAtomic`: a crash between write and rename (stubbed `renameSync` throwing) leaves the old `settings.json` byte for byte.
 - [ ] M7-05j. With no sandbox row, the core reaches `core.ping` without spawning a process named `docker` or `podman` (spawn spy). With one, `core.ping` answers before `docker ps` returns (a fake runtime that sleeps 10 s).
 - [ ] M7-05k. An engine file with a refused `last_line_regex` loads, its watcher rule is off, and the core log names the engine and the field once.

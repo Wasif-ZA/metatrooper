@@ -109,9 +109,11 @@ test('a click on an agent-drawn gate leaves every approval row pending', async t
 
   const showRes = await h.show({ spec });
   assert.equal(showRes.surface, 'screen');
-  assert.equal(showRes.status, 'partly');
+  assert.equal(showRes.status, 'drawn');
   const stored = await h.get('screen');
   assert.equal(stored.seq, 1);
+  // the drawn gate was stored without its action, actions or hash
+  assert.deepEqual(stored.spec.children[0], { type: 'gate', text: 'Approve dangerous action', why: initialRow.reason });
 
   const inboxBefore = inboxApprovals(h);
   assert.equal(inboxBefore.length, 1);
@@ -153,22 +155,21 @@ test('a click on an agent-drawn gate leaves every approval row pending', async t
   }
 });
 
-test('a drawn gate part is rejected, not drawn', async t => {
+test('a drawn gate part is stored inert and drawn', async t => {
   const h = harness(t);
-  const spec = { type: 'gate', text: 'Review', why: 'Needs approval' };
+  const spec = { type: 'gate', text: 'Review', why: 'Needs approval', actions: [{ label: 'Approve', event: 'approve' }], action: 'x', hash: 'abc' };
   const res = await h.show({ spec });
-  assert.equal(res.status, 'rejected');
-  assert.deepEqual(res.fellBack, [{ part: 'p1', type: 'gate', why: 'not drawn yet' }]);
+  assert.equal(res.status, 'drawn');
+  assert.deepEqual(res.fellBack, []);
 
   const stored = await h.get('screen');
-  assert.equal(stored.status, 'rejected');
-  assert.deepEqual(stored.spec, spec);
+  assert.equal(stored.status, 'drawn');
+  assert.deepEqual(stored.spec, { type: 'gate', text: 'Review', why: 'Needs approval' });
+  for (const k of ['actions', 'action', 'hash']) assert.equal(k in stored.spec, false);
 
   const expanded = expand(stored.spec);
-  assert.ok(isFallback(expanded.root));
-  assert.equal((expanded.root as any).fallback, true);
-  assert.equal((expanded.root as any).name, 'gate');
-  assert.equal((expanded.root as any).why, 'not drawn yet');
+  assert.equal(isFallback(expanded.root), false);
+  assert.deepEqual(expanded.fellBack, []);
 });
 
 test("a drawn screen from session-b cannot touch session-a's approval", async t => {
@@ -228,10 +229,12 @@ test("a drawn screen from session-b cannot touch session-a's approval", async t 
     spec,
   });
   assert.equal(showRes.surface, 'screen-b');
-  assert.equal(showRes.status, 'partly');
+  assert.equal(showRes.status, 'drawn');
   const stored = await h.get('screen-b');
   assert.equal(stored.seq, 1);
   assert.equal(stored.session_id, 'session-b');
+  // the drawn gate was stored without its action, actions or hash
+  assert.deepEqual(stored.spec.children[0], { type: 'gate', text: 'Approve dangerous action', why: initialRow.reason });
 
   const inboxBefore = inboxApprovals(h);
   assert.equal(inboxBefore.length, 1);

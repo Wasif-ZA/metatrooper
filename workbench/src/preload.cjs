@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('troop', {
   termAttach: (sessionId, cols, rows) => ipcRenderer.invoke('termAttach', sessionId, cols, rows),
   sessionDiff: (sessionId, scope) => ipcRenderer.invoke('sessionDiff', sessionId, scope),
   sessionDiffFile: (sessionId, file, scope) => ipcRenderer.invoke('sessionDiffFile', sessionId, file, scope),
+  reviewEstimate: (sessionId, engineId) => ipcRenderer.invoke('reviewEstimate', sessionId, engineId),
   filePaths: (files) => Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean),
   uiSettings: () => ipcRenderer.invoke('uiSettings'),
   setTheme: (name) => ipcRenderer.invoke('setTheme', name),

@@ -20,7 +20,7 @@ function fromPartition(name: string) {
     webRequest: { onBeforeRequest(fn: any) { const s = partitions.get(name); s.installs.request++; s.before = fn; } },
     setPermissionCheckHandler(fn: any) { this.installs.check++; this.check = fn; },
     setPermissionRequestHandler(fn: any) { this.installs.permission++; this.permission = fn; },
-    async clearStorageData() { this.clears++; },
+    async clearStorageData() { this.clears++; }, async clearCache() {}, async clearAuthCache() {},
   }));
   return partitions.get(name);
 }
@@ -135,6 +135,7 @@ test('closing lent and user panes preserves kept storage and closing ordinary ag
   const h = harness();
   try {
     h.internal.destroy('bp_agent_lent'); h.internal.destroy('bp_user'); h.internal.destroy('bp_agent_plain');
+    for (const x of [h.lent, h.user, h.ordinary]) x.wc.emit('destroyed');
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(h.lent.wc.session.clears, 0);
     assert.equal(h.ordinary.wc.session.clears, 1);

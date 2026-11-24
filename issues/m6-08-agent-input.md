@@ -16,3 +16,5 @@ Part of the MetaTrooper desk epic, Milestone 6. Priority: High. Effort: 1.5 CC d
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests where spec.md D65 lists this child.
 - No em dashes; comments say what the code does, not why.
+
+Status 2026-11-24 (B4): M6-08a is a hand run on each live CLI, listed with steps in status/HAND-RUNS.md (needs his accounts). Open.
