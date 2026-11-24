@@ -18,6 +18,7 @@ const ENGINE = `const { spawn } = require('node:child_process'); const fs = requ
 const out = process.env.M710_OUT; const id = process.env.TROOP_SESSION_ID;
 const b = spawn(process.execPath, ['-e', 'setInterval(()=>{},1e6)'], { detached: true, stdio: 'ignore', windowsHide: true });
 fs.writeFileSync(path.join(out, 'broker-' + id), String(b.pid)); b.unref();
+fs.writeFileSync(path.join(out, 'secret-' + id), process.env.TROOP_SESSION_SECRET || '');
 const cfg = process.argv.find((a) => a.startsWith('--mcp-config='));
 if (cfg && process.env.M710_RELAY === '1') {
   const { mcpServers } = JSON.parse(fs.readFileSync(cfg.slice(13), 'utf8'));
@@ -64,6 +65,8 @@ function relay(env: NodeJS.ProcessEnv, server = 'steps') {
   return { c, replies, send, reply };
 }
 
+const secretOf = async (s: { dir: string }, id: string) => await until(() => existsSync(join(s.dir, 'secret-' + id)) && readFileSync(join(s.dir, 'secret-' + id), 'utf8') || null, 10_000) as string;
+
 const INIT = { method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } };
 
 test('M7-10 sessions start through the native launcher, the core writes one launch event with the pty pid, and ouros MCP servers point at the exe', { skip: !native, timeout: 90_000 }, async () => {
@@ -109,7 +112,7 @@ test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
-    const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id });
+    const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id, TROOP_SESSION_SECRET: await secretOf(s, session_id) });
     try {
       r.send({ id: 1, ...INIT });
       assert.equal((await r.reply(1)).result.serverInfo.name, 'ouros-steps');
@@ -121,12 +124,12 @@ test('M7-10 the native ouros-steps relay saves steps, ignores notifications, and
       assert.equal(r.replies.length, 3, 'a notification gets no reply');
       const db = s.db();
       try { await until(() => db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind = 'core.steps'").get(session_id), 5000); } finally { db.close(); }
-      const u = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id }, 'ui');
+      const u = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id, TROOP_SESSION_SECRET: await secretOf(s, session_id) }, 'ui');
       try {
         u.send({ id: 1, ...INIT });
         assert.equal((await u.reply(1)).result.serverInfo.name, 'ouros-ui');
         u.send({ id: 2, method: 'tools/list' });
-        assert.deepEqual((await u.reply(2)).result.tools.map((t: any) => t.name), ['ouros_ui']);
+        assert.deepEqual((await u.reply(2)).result.tools.map((t: any) => t.name), ['ouros_ui', 'ouros_workspace', 'ouros_engine']);
       } finally { u.c.kill(); }
     } finally { r.c.kill(); }
   } finally { await s.done(); }
@@ -146,7 +149,7 @@ test('M7-10 metatrooper-desktop and metatrooper-browser answer through the relay
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
     for (const server of ['desktop', 'browser']) {
-      const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id }, server);
+      const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id, TROOP_SESSION_SECRET: await secretOf(s, session_id) }, server);
       try {
         r.send({ id: 1, ...INIT });
         assert.equal((await r.reply(1)).result.serverInfo.name, `metatrooper-${server}`);
@@ -167,7 +170,7 @@ test('M7-10 the relay answers a tool call with an MCP error while the core is do
   const s = await setup();
   try {
     const { session_id } = await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' });
-    const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id });
+    const r = relay({ ...s.iso.env, TROOP_SESSION_ID: session_id, TROOP_SESSION_SECRET: await secretOf(s, session_id) });
     try {
       r.send({ id: 1, ...INIT });
       await r.reply(1);
@@ -181,7 +184,16 @@ test('M7-10 the relay answers a tool call with an MCP error while the core is do
       assert.equal(r.c.exitCode, null, 'relay still running');
       await s.restart();
       r.send({ id: 3, method: 'tools/call', params: { name: 'steps_set', arguments: { items: [{ text: 'y', done: true }] } } });
-      assert.equal((await r.reply(3, 10_000)).result.content[0].text, 'saved 1 steps');
+      // secrets live in core memory only: the old relay reconnects, but its secret is gone with the old core
+      assert.equal((await r.reply(3, 10_000)).result.content[0].text, 'this process is not inside a cc session');
+      const again = (await s.req('session.launch', { project_id: s.project_id, engine_id: 'm710' })).session_id;
+      const r2 = relay({ ...s.iso.env, TROOP_SESSION_ID: again, TROOP_SESSION_SECRET: await secretOf(s, again) });
+      try {
+        r2.send({ id: 1, ...INIT });
+        await r2.reply(1);
+        r2.send({ id: 2, method: 'tools/call', params: { name: 'steps_set', arguments: { items: [{ text: 'y', done: true }] } } });
+        assert.equal((await r2.reply(2, 10_000)).result.content[0].text, 'saved 1 steps');
+      } finally { r2.c.kill(); }
     } finally { r.c.kill(); }
   } finally { await s.done(); }
 });
