@@ -41,9 +41,9 @@ test('M8-42 held: headless is refused as turned off with no process, electron wo
   };
   try {
     const hl = await run('headless');
-    // sync() swallows createHeadless's 'turned off' error, so navigate sees a pane that never opened
+    // sync() swallows createHeadless's 'turned off' error; pane() rethrows it from failed.why
     assert.match(hl.text, /isError":true/);
-    assert.match(hl.text, /pane is not open|turned off/);
+    assert.match(hl.text, /turned off/);
     assert.equal(hl.procs, 0, 'a chrome-headless-shell process started');
     const el = await run('electron');
     assert.doesNotMatch(el.text, /isError":true|"error"/, el.text);

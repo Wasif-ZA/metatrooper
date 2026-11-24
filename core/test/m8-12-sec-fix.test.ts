@@ -1,12 +1,14 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import os, { homedir, tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildMethods } from '../src/methods.ts';
 import { runAction } from '../src/plugins/actions.ts';
 import { unsafeGrant } from '../src/plugins/box.ts';
+import { installScreen } from '../src/plugins/manifest.ts';
 import { installPlugin } from '../src/plugins/store.ts';
 import { shimToken } from '../src/plugins/mcp.ts';
 import { issueSecret } from '../src/sessions/secret.ts';
@@ -133,4 +135,37 @@ test('mcp.resolve returns the project of a proven live session as project_dir, a
     assert.equal((await resolve(base, { ui: false })).project_dir, null);
     assert.equal((await resolve({ ...base, session_secret: 'nope' }, { ui: false })).project_dir, null);
   } finally { if (old === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = old; }
+});
+
+const win = process.platform === 'win32' ? false : 'needs Windows';
+
+test('install screen names an action started through node or powershell under Not sandboxed, not a shipped .js', { skip: win }, () => {
+  const m = { schema: 1, id: 'a', version: '1.0.0', name: 'A', actions: [
+    { id: 'viaNode', run: ['node', 'x.js'] }, { id: 'viaPs', run: ['powershell', '-File', 'x.ps1'] }, { id: 'shipped', run: ['bin/x.js'] },
+  ] } as never;
+  const line = installScreen(m, null).warnings.find((w) => w.startsWith('Not sandboxed:')) ?? '';
+  assert.match(line, /action viaNode/);
+  assert.match(line, /action viaPs/);
+  assert.doesNotMatch(line, /action shipped/);
+});
+
+test('unsafeGrant refuses UNC and device-prefix forms as a network or device path and allows a temp folder', () => {
+  for (const d of [String.raw`\\localhost\c$\Users\x`, String.raw`\\?\UNC\localhost\c$\x`, String.raw`\\?\C:\x`]) assert.match(unsafeGrant(d) ?? '', /network or device path/, d);
+  assert.equal(unsafeGrant(temp('ok')), null);
+});
+
+test('a shipped .js action is refused with "inside your user folder" when node is under the user folder', { skip: win }, async () => {
+  const dir = temp('plugin');
+  mkdirSync(join(dir, 'bin'), { recursive: true });
+  writeFileSync(join(dir, 'bin', 'x.js'), '');
+  const real = os.homedir;
+  os.homedir = () => dirname(process.execPath);
+  try {
+    const r = await runAction({
+      plugin: plugin(dir, [{ id: 'x', run: ['bin/x.js'], timeout_seconds: 5 }]),
+      actionId: 'x', input: {}, projectDir: temp('project'), run: { id: 'r', dir: join(temp('run'), 'run') }, secret: () => null,
+    });
+    assert.equal(r.ok, false);
+    assert.match((r as { error: { message: string } }).error.message, /inside your user folder/);
+  } finally { os.homedir = real; }
 });
