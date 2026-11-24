@@ -115,11 +115,13 @@ async function bundle(edit: (file: string, src: string) => string = (_f, s) => s
 
 const chatOf = (o: any = {}) => ({ items: [{ kind: 'text', text: 'Keep it?' }], ...o });
 function plainTable(plainAsk: any) {
-  const a: any = { id: 's', reason: 'asked a question' };
+  const a: any = { id: 's', reason: 'question' };
   assert.equal(plainAsk(a, a, chatOf()), true);
   assert.equal(plainAsk(a, a, chatOf({ items: [] })), true, 'an empty but loaded chat is loaded');
-  const p = { ...a, reason: 'permission' };
-  assert.equal(plainAsk(p, p, chatOf()), false, 'reason permission');
+  for (const reason of [null, undefined, 'permission', 'trust', 'stopped: x']) {
+    const p = { ...a, reason };
+    assert.equal(plainAsk(p, p, chatOf()), false, `reason ${reason} is not a question`);
+  }
   assert.equal(plainAsk(a, a, chatOf({ waiting: { id: 't' } })), false, 'a waiting tool');
   assert.equal(plainAsk(a, a, null), false, 'chat not loaded');
   assert.equal(plainAsk(a, a, undefined), false);
@@ -127,7 +129,7 @@ function plainTable(plainAsk: any) {
   assert.equal(plainAsk(a, a, { items: 'x' }), false, 'items not an array');
   assert.equal(plainAsk(a, { ...a }, chatOf()), false, 'ask is not x');
 }
-test('M8 review: plainAsk is true only for a loaded chat with no waiting tool on a non-permission wait of that same session', async () => {
+test('M8 review: plainAsk is true only for a loaded chat with no waiting tool on a question wait of that same session', async () => {
   plainTable((await bundle()).plainAsk);
 });
 
@@ -159,7 +161,7 @@ const ASK = { id: 's', project_id: 'p1', engine_id: 'claude', state: 'waiting_fo
 
 async function detailChecks(m: any) {
   // Not plain: only the status note, never an answer box, whatever the reason.
-  for (const x of [{ ...ASK, reason: 'permission' }, { ...ASK, reason: 'asked a question' }]) {
+  for (const x of [{ ...ASK, reason: 'permission' }, { ...ASK, reason: null }, { ...ASK, reason: 'question' }]) {
     const tree = detail(m, x).render(false);
     assert.equal(answerField(tree), null, 'no answer box when not plain');
     assert.match(String(note(tree)?.props.children), /allow or deny it in its terminal/);
@@ -184,10 +186,10 @@ const plainExpr = (src: string) => { const m = /<DetailAsk key=\{item\.id\} x=\{
 const pickPlain = (src: string) => { const m = /plain: (Array\.isArray\(res\?\.result\?\.items\) && !res\.result\.waiting)/.exec(src); assert.ok(m, 'said.plain from the chat result'); return m![1]; };
 function inboxChecks(src: string) {
   const f: any = new Function('item', 'said', 'return ' + plainExpr(src));
-  const item = { id: 's', state_at: 't2', reason: 'asked a question' };
+  const item = { id: 's', state_at: 't2', reason: 'question' };
   const said = (o: any = {}) => ({ id: 's', at: 't2', text: 'q', plain: true, ...o });
   assert.equal(f(item, said()), true);
-  assert.equal(f({ ...item, reason: 'permission' }, said()), false, 'permission reason');
+  for (const reason of [null, undefined, 'permission', 'trust', 'stopped: x']) assert.equal(!!f({ ...item, reason }, said()), false, `reason ${reason}`);
   assert.equal(!!f(item, said({ plain: false })), false, 'chat has a waiting tool');
   assert.equal(!!f(item, null), false, 'chat not loaded');
   assert.equal(!!f(item, said({ id: 'other' })), false, 'said is for another session');
@@ -199,6 +201,25 @@ function inboxChecks(src: string) {
 }
 test('M8 review: Needs you only treats the wait as plain for this session, this state_at, a loaded chat with no waiting tool', () => inboxChecks(inboxSrc));
 
+// B1 scenario: reason null or permission with a loaded chat whose waiting is false (a real Claude permission menu).
+test('M8 review: a null or permission reason with a loaded, non-waiting chat shows no answer box on Home or in Needs you and writes no termInput', async () => {
+  const m = await bundle();
+  const chat = chatOf({ waiting: false });
+  for (const reason of [null, 'permission']) {
+    const ask: any = { id: 's', reason };
+    assert.equal(m.plainAsk(ask, ask, chat), false, `Home plainAsk, reason ${reason}`);
+    const f: any = new Function('item', 'said', 'return ' + plainExpr(inboxSrc));
+    const item = { id: 's', state_at: 't2', reason };
+    assert.equal(!!f(item, { id: 's', at: 't2', text: 'q', plain: true }), false, `Needs you plain, reason ${reason}`);
+    const d = detail(m, { ...ASK, reason });
+    const tree = d.render(!!f(item, { id: 's', at: 't2', text: 'q', plain: true }));
+    assert.equal(answerField(tree), null);
+    assert.match(String(note(tree)?.props.children), /allow or deny it in its terminal/);
+    await flush();
+    assert.deepEqual(d.sent, []);
+  }
+});
+
 // Home: the Answer box and send are both gated by plainAsk.
 function homeChecks(src: string) {
   assert.match(src, /const send = async \(\) => \{\s*const t = answer\.trim\(\);\s*if \(!t \|\| !here \|\| !ask \|\| !plainAsk\(ask, x, chat\)\) return;\s*try \{ if \(!\(await troop\.termInput\(/);
@@ -209,13 +230,16 @@ test('M8 review: Home send and its Answer box are both gated by plainAsk, so no 
 test('M8 review mutants: plainAsk always true, DetailAsk send without the plain guard or the note, a loose inbox or Home gate are all caught', async () => {
   const bad = await bundle((f, s) => f.endsWith('home.jsx') ? mutate(s, 'export const plainAsk = (ask, x, chat) => ask.reason', 'export const plainAsk = (ask, x, chat) => true || ask.reason') : s);
   assert.throws(() => plainTable(bad.plainAsk));
+  const loose = await bundle((f, s) => f.endsWith('home.jsx') ? mutate(s, "ask.reason === 'question' && ask === x", "ask.reason !== 'permission' && ask === x") : s);
+  assert.throws(() => plainTable(loose.plainAsk));
   assert.throws(() => detailGuard(mutate(inboxSrc, 'if (!here || sending || !plain) return;', 'if (!here || sending) return;')));
   const noNote = await bundle((f, s) => f.endsWith('inbox.jsx') ? mutate(s, 'if (!plain) return <p', 'if (false) return <p') : s);
   await assert.rejects(detailChecks(noNote));
   assert.throws(() => inboxChecks(mutate(inboxSrc, ' && said?.at === item.state_at', '')));
   assert.throws(() => inboxChecks(mutate(inboxSrc, ' && said?.id === item.id', '')));
   assert.throws(() => inboxChecks(mutate(inboxSrc, ' && said.plain}', '}')));
-  assert.throws(() => inboxChecks(mutate(inboxSrc, "item.reason !== 'permission' && said", 'said')));
+  assert.throws(() => inboxChecks(mutate(inboxSrc, "item.reason === 'question' && said", 'said')));
+  assert.throws(() => inboxChecks(mutate(inboxSrc, "item.reason === 'question'", "item.reason !== 'permission'")));
   const home = read('ui/src/home.jsx');
   assert.throws(() => homeChecks(mutate(home, '!ask || !plainAsk(ask, x, chat)) return;', '!ask) return;')));
   assert.throws(() => homeChecks(mutate(home, '{ask && plainAsk(ask, x, chat) ? (', '{ask && !chat?.waiting ? (')));

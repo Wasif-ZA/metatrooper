@@ -434,7 +434,7 @@ test('M6-23b StopFailure stores a safe reason, exposes it in snapshots and clear
     }
     h.send('claude.Notification', { notification_type: 'agent_needs_input' });
     assert.equal(h.row().state, 'waiting_for_you');
-    assert.equal(h.row().wait_reason, null);
+    assert.equal(h.row().wait_reason, 'question');
   } finally {
     await h.close();
   }
@@ -480,7 +480,7 @@ test('M6-23 wait_reason replaces current reason on subsequent waiting events', a
   try {
     h2.send('claude.UserPromptSubmit');
     assert.equal(h2.send('claude.PermissionRequest', { tool_name: 'Bash', tool_use_id: 'tool-1' }), 'waiting_for_you');
-    assert.equal(h2.row().wait_reason, null);
+    assert.equal(h2.row().wait_reason, 'permission');
     assert.equal(h2.send('claude.StopFailure', { error_type: 'rate_limit' }), 'waiting_for_you');
     assert.equal(h2.row().wait_reason, 'stopped: rate_limit');
   } finally {

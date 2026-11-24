@@ -489,7 +489,7 @@ test('Home leaves Needs you notes and approvals to their own screen', () => {
 
 test('Home details card for the task: workspace, version control with PR and Merge, then lineage; no Needs you inside', async () => {
   homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'older';
-  const older = session('older', 'waiting_for_you', { reason: 'Keep the retry?' });
+  const older = session('older', 'waiting_for_you', { reason: 'question' });
   g.ui.snap.live = [older]; g.ui.snap.sessions = [older, session('kid', 'working', { parent_id: 'older' })];
   g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
   const h = harness(Home); h.draw();
@@ -680,7 +680,7 @@ test('Needs you breadcrumb names the task, with the session id as its tooltip', 
 });
 
 test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', async () => {
-  g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture' })];
+  g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture', reason: 'question' })];
   g.ui.snap.needs_you = [note('read-info', 'other', { read_at: 'read' }), note('unread-info', 'other'), note('read-needs', 'question', { read_at: 'read' }), note('unread-done', 'done'), note('unread-failed', 'failed'), note('unread-needs', 'question'), note('read-done', 'done', { read_at: 'read' }), note('read-failed', 'failed', { read_at: 'read' })];
   const h = harness(Inbox); const html = h.html();
   assert.match(html, /<h1 class="ou-ny-title">Needs you<\/h1>/);

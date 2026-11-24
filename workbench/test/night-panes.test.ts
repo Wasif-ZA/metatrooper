@@ -107,7 +107,7 @@ const text = (n: any): string => n == null || typeof n === 'boolean' ? '' : Arra
 const row = (id: string) => (n: any) => n.type === 'li' && n.props['data-id'] === id;
 const event = (extra: any = {}) => ({ key: '', ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, preventDefault() {}, stopPropagation() {}, target: { closest: () => null }, currentTarget: { focus() {} }, ...extra });
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(setImmediate); };
-const session = (id: string, question: string) => ({ id, state: 'waiting_for_you', project_id: 'p1', engine_id: 'synthetic', title: 'Synthetic task ' + id, last_line: question });
+const session = (id: string, question: string) => ({ id, state: 'waiting_for_you', project_id: 'p1', engine_id: 'synthetic', title: 'Synthetic task ' + id, last_line: question, reason: 'question' });
 const note = (id: string, kind: string) => ({ id, kind, text: 'Synthetic notice ' + id, at: '2026-11-10T00:00:00Z', ref: 's-a' });
 let projectSerial = 0;
 beforeEach(() => {
