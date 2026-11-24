@@ -1087,7 +1087,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         if (!proven || proven !== p.session_id) throw new RpcError(E.NEEDS_UI, 'engine.run needs the session_secret of the session it names, or a trusted UI connection');
         // an exited or isolated session runs no plugin action (sec review of e89efa8c, item 2)
         const live = db.prepare('SELECT state FROM session WHERE id = ?').get(proven) as { state: string } | undefined;
-        if (!live || live.state === 'exited' || (secret?.approval ?? approvalOf(proven)) === 'isolated') throw new RpcError(E.NEEDS_UI, 'engine.run needs a live session that is not isolated');
+        // an unknown profile (a core restart forgets it) is refused like isolated (N2)
+        const profile = secret?.approval ?? approvalOf(proven);
+        if (!live || live.state === 'exited' || !profile || profile === 'isolated') throw new RpcError(E.NEEDS_UI, 'engine.run needs a live session that is not isolated');
       }
       return runEngine(db, p, approvals);
     },

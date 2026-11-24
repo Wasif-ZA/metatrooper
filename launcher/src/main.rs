@@ -371,8 +371,8 @@ mod win {
         let name: Vec<u16> = format!("\\\\.\\pipe\\{}", env::var("METATROOPER_PIPE_PREFIX").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "metatrooper".into()))
             .encode_utf16().chain(Some(0)).collect();
         let hello = format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"mcp.stdio\",\"params\":{{\"server\":{},\"session_id\":{},\"pid\":{}}}}}\n",
-            quote(server), quote(&env::var("TROOP_SESSION_ID").unwrap_or_default()), process::id()
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"mcp.stdio\",\"params\":{{\"server\":{},\"session_id\":{},\"session_secret\":{},\"pid\":{}}}}}\n",
+            quote(server), quote(&env::var("TROOP_SESSION_ID").unwrap_or_default()), quote(&env::var("TROOP_SESSION_SECRET").unwrap_or_default()), process::id()
         ).into_bytes();
         let stdout = Arc::new(Mutex::new(()));
         let mut connection: Option<(PipeIo, Arc<Mutex<Connection>>)> = None;
