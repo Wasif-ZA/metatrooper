@@ -6,6 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Approvals } from '../src/approvals.ts';
 import { openCoreDb } from '../src/store/db.ts';
 import { getSecret, scrubSecretValues, setBrowserSecret } from '../src/secrets.ts';
 import { importLogins, listLogins, loginOrigin, parseLoginCsv, previewLogins, removeLogin, type LoginRow } from '../src/browser/login-import.ts';
@@ -145,4 +146,33 @@ test('N logins save with one powershell call and N uncached names scrub with one
     syncBuiltinESMExports();
     f.close();
   }
+});
+
+// protects=an imported login never gets an origin for localhost, *.localhost, a trailing-dot or single-label host, or an IP
+// fails_when=loginOrigin accepts any of them, or previewLogins does not skip them; a normal https host stops working
+// no_claim=punycode and IPv6 forms
+test('loopback and single-label https hosts have no login origin and are skipped', () => {
+  for (const u of ['https://localhost:3000', 'https://app.localhost', 'https://localhost.', 'https://LOCALHOST', 'https://intranet', 'https://127.0.0.1']) assert.equal(loginOrigin(u), null, u);
+  assert.equal(loginOrigin('https://a.example.com'), 'https://a.example.com');
+  const p = previewLogins([row('https://localhost:3000', 'alice', 'secret-pass-1'), row('https://app.localhost', 'alice', 'secret-pass-2'), row('https://intranet', 'alice', 'secret-pass-3')], new Map());
+  for (const x of p) { assert.ok(x.skip, x.name ?? 'skipped'); assert.equal(x.name, null); }
+});
+
+// protects=a saved login for a loopback origin is never typed, even when the page really is at that origin
+// fails_when=Approvals.check lets the login secret through to https://localhost:3000
+// no_claim=logins saved from other names
+test('a saved login for a loopback origin is refused for typing', async () => {
+  const f = fixture();
+  try {
+    setBrowserSecret(f.db, 'login_old', 'https://localhost:3000', 'old-pass-1234');
+    const at = new Date().toISOString();
+    const proj = join(f.home, 'proj');
+    mkdirSync(proj);
+    f.db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', proj, 'p', at, at);
+    f.db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+    f.db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p1', 'e1', 'pty', 'working', ?, ?)").run(at, at);
+    const r = await new Approvals(f.db, 50).check({ session_id: 's1', surface: 'browser', target: 'https://localhost:3000', action: 'type', args: { ref: 'e1', text: '{{secret:login_old}}' }, control: { automation_id: 'p', name: 'Password', role: 'textbox' }, password: true });
+    assert.equal(r.decision, 'deny');
+    assert.match((r as { reason: string }).reason, /loopback/);
+  } finally { f.close(); }
 });

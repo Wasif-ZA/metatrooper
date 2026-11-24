@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, linkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { knownSecretValues, setBrowserSecret } from '../src/secrets.ts';
 import { Approvals, uploadProblem } from '../src/approvals.ts';
 import { PRESETS } from '../src/browser/grants.ts';
 import { TOOLS } from '../src/hook/browser-tools.ts';
@@ -139,6 +140,7 @@ test('an upload with a risky, hidden or missing control is denied and writes no 
       [{ automation_id: '', name: 'Pay now', role: 'button' }, false, /risky control/],
       [{ automation_id: '', name: 'Choose file', role: 'button' }, true, /hidden/],
       [null, false, /needs a control/],
+      [{ automation_id: '', name: '', role: 'button' }, false, /needs a control/],
     ];
     for (const [control, hidden, want] of cases) {
       const r = await approvals.check(up([f.a], control, hidden));
@@ -191,4 +193,35 @@ test('the workbench re-checks upload paths before sending', () => {
   assert.ok(row >= 0 && check > row && block.endsWith('spendUpload(ap)'), 'uploadProblem after the approval row check, before spendUpload');
   const shim = readFileSync(new URL('../src/hook/mcp-shim.ts', import.meta.url), 'utf8');
   assert.match(shim, /engine\.run[^\n]*waitMs: 2_147_483_647/);
+});
+
+test('the upload card shows token-looking file names whole and hides only saved secret values', async () => {
+  const f = fixture();
+  const home = mkdtempSync(join(tmpdir(), 'm849-home-'));
+  const vars = { HOME: home, USERPROFILE: home, METATROOPER_HOME: join(home, 'mt'), METATROOPER_FAKE_DPAPI: '1' };
+  const previous = new Map(Object.keys(vars).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, vars);
+  const { db } = upDb(f);
+  const approvals = new Approvals(db, 5000, knownSecretValues);
+  try {
+    setBrowserSecret(db, 'api_pw', 'https://a.example.com', 'hunter22xyz');
+    const names = ['token=prod.env', 'a1b2c3d4e5f60718293a4b5c6d7e8f90.env', 'prod-hunter22xyz.env'];
+    const paths = names.map((n) => { const p = join(f.project, n); writeFileSync(p, 'x'); return p; });
+    const first = approvals.check({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1:8080', action: 'upload', args: { ref: 'e1', paths }, control: { automation_id: '', name: 'Choose file', role: 'button' } });
+    let row: { id: string; summary: string } | undefined;
+    for (let i = 0; i < 100 && !row; i++) { row = db.prepare("SELECT id, summary FROM approval WHERE status = 'waiting'").get() as typeof row; if (!row) await new Promise((r) => setTimeout(r, 10)); }
+    assert.ok(row);
+    const s = row.summary;
+    assert.ok(s.includes('token=prod.env'), s);
+    assert.ok(s.includes('a1b2c3d4e5f60718293a4b5c6d7e8f90.env'), s);
+    assert.ok(!s.includes('hunter22xyz'), s);
+    assert.ok(s.includes('prod-[secret].env'), s);
+    approvals.resolve({ approval_id: row.id, decision: 'reject' });
+    await first;
+  } finally {
+    db.close();
+    for (const [k, v] of previous) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    rmSync(home, { recursive: true, force: true });
+    rmSync(f.root, { recursive: true, force: true });
+  }
 });

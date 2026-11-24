@@ -317,6 +317,41 @@ test('M8-49 a direct upload call without an approval sends nothing', options, as
   }
 });
 
+// protects=a direct browser.upload that names no control, or one from another origin, is refused and sends nothing, even with a valid approval
+// fails_when=the call is not -32030 with must name the control, or the page shows a file
+// no_claim=a wrong control name (panes.ts compares it with the live control)
+test('M8-49 a direct upload without the control it was approved for sends nothing', options, async () => {
+  const h: Harness = await boot();
+  const srv = await served(fileInputPage);
+  try {
+    const [a] = projectFiles(h);
+    const s = await h.session(srv.url, 'debug', srv.port);
+    await h.openWorkbench();
+    const snap = await s.job([['snap', 'browser.snapshot', { pane_id: s.pane }]]);
+    const ref = refOf(String(snap.steps.snap.reply.result?.text ?? ''), 'files');
+    const { result, asked } = await approveUntilDone(h, s.sid, s.job([['up', 'mcp.call', { name: 'upload', arguments: { pane_id: s.pane, ref, paths: [a] } }]]));
+    assert.notEqual(result.steps.up.reply.result.isError, true);
+    const id = asked[0].id;
+    const db = new DatabaseSync(join(h.iso.home, 'troop.db'));
+    try { db.prepare('DELETE FROM meta WHERE key = ?').run(`upload_used:${id}`); } finally { db.close(); }
+    const clear: Step = ['clear', 'browser.evaluate', { pane_id: s.pane, expression: `(document.getElementById('out').textContent = '', 'cleared')` }];
+    const r = await s.job([
+      clear,
+      ['none', 'browser.upload', { pane_id: s.pane, ref, paths: [a], approval_id: id }],
+      ['other', 'browser.upload', { pane_id: s.pane, ref, paths: [a], approval_id: id, expect: { name: '', automation_id: '', origin: 'http://example.test', hidden: false, password: false } }],
+      outText(s),
+    ]);
+    for (const k of ['none', 'other']) {
+      assert.equal(r.steps[k].reply.error?.code, -32030, JSON.stringify(r.steps[k].reply));
+      assert.match(String(r.steps[k].reply.error?.message), /must name the control/);
+    }
+    assert.match(JSON.stringify(r.steps.out.reply), /out=\[\]/, 'a file reached the page');
+  } finally {
+    srv.close();
+    await h.done();
+  }
+});
+
 // protects=an upload with a path outside the project folder is refused before any approval and sends nothing
 // fails_when=an approval row is written, the call succeeds, or the page shows a file
 // no_claim=the size and count limits (core test)
