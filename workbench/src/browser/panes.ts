@@ -285,7 +285,7 @@ export class PaneManager {
   /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
   private walking = new Set<string>();
   /** Consecutive setup failures per pane row; from the second one on, the next rebuild waits (1 s doubling, 60 s cap). */
-  private failed = new Map<string, { n: number; until: number }>();
+  private failed = new Map<string, { n: number; until: number; why?: string }>();
   /** Each visible pane cursor's last drawn point, by pane id then session. */
   private marks = new Map<string, Map<string, { x: number; y: number; at: number }>>();
   private glides = 0;
@@ -440,7 +440,11 @@ export class PaneManager {
   /** An agent pane on chrome-headless-shell: the same Pane, its debugger and webContents backed by a pipe (headless.ts). */
   private async createHeadless(row: PaneRow, exe: string): Promise<void> {
     // held: CDP Fetch does not pause WebSocket handshakes, so a page could reach blocked addresses (B2 review of abc6cbae, H1); off until a cc proxy checks them
-    if (HEADLESS_HELD) throw new ToolError(-32601, `the chrome-headless-shell engine is turned off: ${HEADLESS_HELD}; set browser.agent_engine back to electron`);
+    if (HEADLESS_HELD) {
+      const held = new ToolError(-32601, `the chrome-headless-shell engine is turned off: ${HEADLESS_HELD}; set browser.agent_engine back to electron`);
+      this.failed.set(row.id, { n: 1, until: 0, why: held.message });
+      throw held;
+    }
     if (!this.headless || this.headless.closed) this.headless = new HeadlessBrowser(exe);
     let pane: Pane | undefined;
     const blocked = (url: string, reason: string) => {
@@ -456,7 +460,7 @@ export class PaneManager {
     await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
       if (this.panes.get(row.id) === pane) this.destroy(row.id);
       const n = (this.failed.get(row.id)?.n ?? 0) + 1;
-      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0, why: e instanceof ToolError ? e.message : undefined });
       throw e;
     });
   }
@@ -478,7 +482,7 @@ export class PaneManager {
     await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
       if (this.panes.get(row.id) === pane) this.destroy(row.id);
       const n = (this.failed.get(row.id)?.n ?? 0) + 1;
-      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0, why: e instanceof ToolError ? e.message : undefined });
       throw e;
     });
   }
@@ -960,7 +964,7 @@ export class PaneManager {
 
   private pane(id: string): Pane {
     const p = this.panes.get(id);
-    if (!p) throw new ToolError(-32002, 'pane is not open in the workbench');
+    if (!p) throw new ToolError(-32002, this.failed.get(id)?.why ?? 'pane is not open in the workbench');
     return p;
   }
 

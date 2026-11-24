@@ -14,7 +14,7 @@ const src = readFileSync(resolve(import.meta.dirname, '..', 'src', 'browser', 'p
 test('M8-42 held: HEADLESS_HELD is set and createHeadless throws before it builds the browser', () => {
   assert.match(src, /const HEADLESS_HELD = '[^']+'/, 'HEADLESS_HELD is empty');
   const body = src.slice(src.indexOf('private async createHeadless('));
-  const thrown = body.indexOf('if (HEADLESS_HELD) throw');
+  const thrown = body.indexOf('if (HEADLESS_HELD)');
   const built = body.indexOf('new HeadlessBrowser');
   assert.ok(thrown >= 0 && built > thrown, 'the HEADLESS_HELD throw does not come before new HeadlessBrowser');
 });

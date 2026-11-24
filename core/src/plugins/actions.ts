@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { resolveCommand } from '../hook/resolve.ts';
@@ -139,6 +140,8 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
   // node in the box cannot list the folders above the script, so it skips resolving the main path (--preserve-symlinks-main)
   if (process.platform === 'win32' && req.plugin.source !== 'builtin' && shipped) {
     if (/\.(cmd|bat)$/i.test(shipped)) return Promise.resolve(fail(`not run: ${path.basename(shipped)} would run through cmd.exe, which cannot be boxed; ship an .exe or a .js`));
+    // the box can read node only where Windows lets app containers read (Program Files); a node under the user folder (nvm, volta, scoop) cannot start (N6)
+    if (/\.(m?js|cjs)$/i.test(shipped) && path.resolve(plan.file).toLowerCase().startsWith(path.resolve(os.homedir()).toLowerCase() + path.sep)) return Promise.resolve(fail(`not run: node is at ${plan.file}, inside your user folder, which the plugin sandbox cannot read; install node for all users or ship an .exe`));
     const has = (x: string) => req.plugin.permissions.includes(x);
     // the box writes only its tmp folder, so it cannot forge or unredact the run log beside it (item 8)
     const tmp = path.join(req.run.dir, 'tmp');

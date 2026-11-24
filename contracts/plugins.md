@@ -48,7 +48,7 @@ write its `CC_PLUGIN_DATA` folder and its own temp folder, and reach the interne
 `writes: external`. One container per plugin, server, project and grant set, so a grant never carries to another
 project; a grant is an allow entry on the folder that stays after the run. No compiler means the server does not
 start. A server started through a tool on PATH (npx, node, uvx) is not boxed, and the install screen names it under
-"Not sandboxed". Plugin actions have no runner since M6-1 and are not boxed.
+"Not sandboxed". A plugin action whose `run[0]` is a file inside the plugin folder is boxed the same way (a `.js` runs node inside the box; a `.cmd` or `.bat` is refused). An action started through a tool on PATH (`node`, `powershell`, `npm`) runs as you and the install screen names it under "Not sandboxed".
 
 Shipped files (M8-14d): install records the SHA-256 of every file in the plugin folder (links and `.git` left out). A
 stdio server starts only while they match; a changed or new file, or a `{{plugin_dir}}` argument outside the folder,

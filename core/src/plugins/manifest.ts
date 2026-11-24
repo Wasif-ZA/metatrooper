@@ -194,7 +194,9 @@ export function installScreen(m: Manifest, previous: string[] | null, pluginDir?
   ];
   if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and cc does not block it.');
   const loose = (m.mcp ?? []).filter((s) => s.transport !== 'http' && !(process.platform === 'win32' && (s.command ?? '').startsWith('{{plugin_dir}}'))).map((s) => s.id);
-  if (loose.length) warnings.push(`Not sandboxed: ${loose.join(', ')} (started through a tool on your PATH).`);
+  // an action whose program is not a file the plugin ships runs as you, like an npx server (B2 review of f4a98bef, N3)
+  const looseActions = (m.actions ?? []).filter((a) => !(process.platform === 'win32' && /[\\/]/.test(a.run?.[0] ?? '') && !/\.(cmd|bat)$/i.test(a.run?.[0] ?? ''))).map((a) => `action ${a.id}`);
+  if (loose.length || looseActions.length) warnings.push(`Not sandboxed: ${[...loose, ...looseActions].join(', ')} (started through a tool on your PATH).`);
   const storeWarning = (m.permissions ?? []).some((p) => p.startsWith('secrets:')) ? secretStoreWarning() : null;
   if (storeWarning) warnings.push(storeWarning);
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');
