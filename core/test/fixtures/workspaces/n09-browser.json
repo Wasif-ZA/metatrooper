@@ -1,0 +1,53 @@
+{
+ "name": "linkkit",
+ "place": "Rye and Crumb",
+ "rail": ["files", "search", "git", "debug", "agents", "ext", "todo"],
+ "layout": {
+  "split": "row",
+  "sizes": [38, 62],
+  "children": [
+   {
+    "view": "agent",
+    "chat": {
+     "you": "Check that the pre-order form works on the order page.",
+     "say": "I opened localhost:3000/order in a tab you can see. The form sends and shows a thank-you. The submit button is small on a phone. You pointed at it, so I will make it bigger.",
+     "log": [
+      ["opened localhost:3000/order", "ok"],
+      ["filled the form", "name, loaf, date"],
+      ["pressed Pre-order", "thank-you shown"],
+      ["resized to a phone", "button is 28px high"]
+     ],
+     "strip": ["claude", "Rye and Crumb"],
+     "hint": "Ask or give an instruction"
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "browser",
+       "url": "localhost:3000/order",
+       "control": "Claude is using this tab",
+       "title": "Rye and Crumb",
+       "lines": [
+        "Order bread",
+        "Pick a loaf and a day. Collect from the shop.",
+        { "t": "Pre-order", "sel": true },
+        "Sourdough, 6 left",
+        "Rye loaf, 4 left"
+       ],
+       "pick": {
+        "selector": "button.preorder-submit",
+        "rows": [["Height", "28px"], ["Width", "96px"], ["Text", "Pre-order"]],
+        "note": "Make this button bigger"
+       }
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true
+}

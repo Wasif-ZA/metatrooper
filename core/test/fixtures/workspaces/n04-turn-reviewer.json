@@ -1,0 +1,103 @@
+{
+ "name": "Agent thread",
+ "place": "linkkit",
+ "rail": ["files", "search", "git", "debug", "agents", "ext", "todo"],
+ "layout": {
+  "split": "row",
+  "sizes": [21, 49, 30],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "agentlist",
+       "title": "Agents",
+       "groups": [
+        {
+         "label": "linkkit",
+         "rows": [
+          { "title": "Rate limit /shorten", "engine": "claude", "when": "3m", "state": "done", "cur": true },
+          { "title": "Review: rate limit", "engine": "codex", "when": "1m", "state": "done", "child": true },
+          { "title": "Fix expired links", "engine": "gemini", "when": "1h", "state": "done" }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      { "type": "msg", "who": "you", "text": "Add a per-key rate limit to /shorten. 60 requests a minute, 429 after that." },
+      { "type": "msg", "who": "claude", "text": "Done. Each API key gets 60 requests a minute. The 61st gets a 429 with a Retry-After header." },
+      { "type": "worked", "title": "Ran 6 commands", "aside": "all passed" },
+      { "type": "worked", "title": "Changed 2 files", "aside": "+16 −1" },
+      {
+       "type": "childrun",
+       "engine": "codex",
+       "title": "Review: rate limit",
+       "state": "finished",
+       "findings": [
+        { "who": "Both", "tone": "agree", "text": "The limit counts per key, not per address. This is what you asked for." },
+        { "who": "Codex only", "tone": "only", "text": "Old keys are never removed from memory. A busy server slowly fills up." },
+        { "who": "Disagree", "tone": "split", "text": "Codex wants a shared store. Claude says one server is fine for now." }
+       ]
+      },
+      { "type": "msg", "who": "claude", "text": "I added cleanup for old keys, so memory stays flat. I kept the in-memory store and noted the shared store in the PR." },
+      { "type": "worked", "title": "Changed 1 file", "aside": "+9 −0" },
+      {
+       "type": "composer",
+       "placeholder": "Ask or steer",
+       "chips": [
+        { "icon": "spark", "label": "Claude Opus" },
+        { "icon": "shield", "label": "Ask before risky actions", "end": true }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "linediff",
+       "path": "src/limit.ts",
+       "add": "+25",
+       "del": "−1",
+       "lines": [
+        { "k": "ctx", "n": 3, "t": "const WINDOW_MS = 60_000;" },
+        { "k": "del", "n": 4, "t": "const MAX = 100;" },
+        { "k": "add", "n": 4, "t": "const MAX = 60;" },
+        { "k": "ctx", "n": 5, "t": "" },
+        { "k": "add", "n": 6, "t": "const hits = new Map<string, number[]>();" },
+        { "k": "add", "n": 7, "t": "" },
+        { "k": "add", "n": 8, "t": "export function allow(key: string, now = Date.now()) {" },
+        { "k": "add", "n": 9, "t": "  const recent = (hits.get(key) ?? []).filter(t => now - t < WINDOW_MS);" },
+        { "k": "add", "n": 10, "t": "  if (recent.length >= MAX) return false;" },
+        { "k": "add", "n": 11, "t": "  hits.set(key, [...recent, now]);" },
+        { "k": "add", "n": 12, "t": "  return true;" },
+        { "k": "add", "n": 13, "t": "}" }
+       ]
+      },
+      {
+       "type": "kv",
+       "rows": [
+        ["Tests", "41 passed"],
+        ["Reviewer", "codex, finished"],
+        ["Branch", "ouros/rate-limit"]
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true
+}

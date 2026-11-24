@@ -1,0 +1,110 @@
+{
+ "name": "Wall",
+ "place": "3 projects",
+ "wall": true,
+ "rail": ["files", "search", "git", "debug", "agents", "ext", "todo"],
+ "usage": [
+  { "text": "58% 5h", "pct": 58, "color": "#c9b8a8" },
+  { "text": "31% week", "pct": 31, "color": "#7b9cf0" }
+ ],
+ "layout": {
+  "split": "row",
+  "sizes": [22, 78],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "agentlist",
+       "title": "All agents",
+       "groups": [
+        {
+         "label": "linkkit",
+         "aside": "3",
+         "rows": [
+          { "title": "Rate limit /shorten", "engine": "claude", "when": "now", "state": "working", "cur": true },
+          { "title": "Review: rate limit", "engine": "codex", "when": "2m", "state": "done", "child": true },
+          { "title": "Fix expired links", "engine": "gemini", "when": "1m", "state": "needs" }
+         ]
+        },
+        {
+         "label": "docs-site",
+         "aside": "2",
+         "rows": [
+          { "title": "Update API page", "engine": "claude", "when": "4m", "state": "working" },
+          { "title": "Fix broken links", "engine": "codex", "when": "1h", "state": "done" }
+         ]
+        },
+        {
+         "label": "billing",
+         "aside": "2",
+         "rows": [
+          { "title": "Invoice export", "engine": "codex", "when": "9m", "state": "working" },
+          { "title": "Tax rounding bug", "engine": "claude", "when": "2h", "state": "done" }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "split": "col",
+    "sizes": [50, 50],
+    "children": [
+     {
+      "split": "row",
+      "sizes": [50, 50],
+      "children": [
+       {
+        "view": "agent",
+        "chat": {
+         "you": "Add a per-key rate limit to /shorten.",
+         "say": "Writing the limiter in src/limit.ts, then wiring it into the route.",
+         "log": [["Read", "src/routes/shorten.ts"], ["Edited", "src/limit.ts +14"], ["Ran", "npm test, 38 passed"]],
+         "now": ["Editing", "src/routes/shorten.ts"],
+         "strip": ["linkkit", "claude opus", "working"],
+         "hint": "Ask or steer while it works"
+        }
+       },
+       {
+        "view": "agent",
+        "chat": {
+         "you": "Expired links still redirect. Fix it.",
+         "say": "I need to know what an expired link should do. Show a 410 page, or redirect to the home page?",
+         "log": [["Read", "src/routes/redirect.ts"], ["Found", "expiry is never checked"]],
+         "strip": ["linkkit", "gemini", "needs you"],
+         "hint": "Answer to continue"
+        }
+       }
+      ]
+     },
+     {
+      "split": "row",
+      "sizes": [50, 50],
+      "children": [
+       {
+        "view": "agent",
+        "chat": {
+         "you": "Document the new /v2/links endpoints.",
+         "say": "Drafting the page from the route files.",
+         "log": [["Read", "src/routes/links.ts"], ["Wrote", "docs/api/links.md"]],
+         "now": ["Checking", "example requests"],
+         "strip": ["docs-site", "claude opus", "working"],
+         "hint": "Ask or steer while it works"
+        }
+       },
+       {
+        "view": "terminal"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "system": true,
+ "pendingDemo": "gemini asks what an expired link should do"
+}

@@ -1,0 +1,169 @@
+{
+ "name": "Home",
+ "mode": "home",
+ "place": "Rye and Crumb",
+ "rail": [],
+ "layout": {
+  "split": "row",
+  "sizes": [
+   20,
+   80
+  ],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "nav",
+       "items": [
+        {
+         "icon": "home",
+         "label": "Home",
+         "on": true
+        },
+        {
+         "icon": "inbox",
+         "label": "Needs you",
+         "count": "1",
+         "needs": true
+        },
+        {
+         "icon": "loop",
+         "label": "Runs by itself",
+         "count": "2"
+        },
+        {
+         "icon": "plug",
+         "label": "Add-ons"
+        }
+       ]
+      },
+      {
+       "type": "agentlist",
+       "title": "Your work",
+       "groups": [
+        {
+         "label": "Rye and Crumb",
+         "rows": [
+          {
+           "title": "Bakery website",
+           "engine": "claude",
+           "when": "2m",
+           "state": "needs"
+          },
+          {
+           "title": "Flour order email",
+           "engine": "claude",
+           "when": "1h",
+           "state": "done"
+          }
+         ]
+        },
+        {
+         "label": "Personal",
+         "rows": [
+          {
+           "title": "Exam revision plan",
+           "engine": "gemini",
+           "when": "4h",
+           "state": "done"
+          },
+          {
+           "title": "Trip to Japan",
+           "engine": "claude",
+           "when": "2d",
+           "state": "idle"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "hero",
+       "title": "What do you want to make?",
+       "sub": "Say it in your own words. Ouros sets up the right workspace and asks before anything leaves your computer."
+      },
+      {
+       "type": "composer",
+       "big": true,
+       "placeholder": "A website for my bakery, with opening hours and pre-orders",
+       "chips": [
+        {
+         "icon": "folder",
+         "label": "Rye and Crumb"
+        },
+        {
+         "icon": "shield",
+         "label": "Ask me first",
+         "end": true
+        }
+       ]
+      },
+      {
+       "type": "starters",
+       "cols": 3,
+       "items": [
+        {
+         "icon": "globe",
+         "title": "Build a website",
+         "sub": "Pages, photos, a contact form"
+        },
+        {
+         "icon": "film",
+         "title": "Cut a video",
+         "sub": "Footage in, short clips out"
+        },
+        {
+         "icon": "chart",
+         "title": "Make sense of a spreadsheet",
+         "sub": "Charts and a plain summary"
+        },
+        {
+         "icon": "doc",
+         "title": "Write a report",
+         "sub": "With sources you can check"
+        },
+        {
+         "icon": "cal",
+         "title": "Plan my week",
+         "sub": "From your calendar and notes"
+        },
+        {
+         "icon": "code",
+         "title": "Write code",
+         "sub": "Opens the full IDE"
+        }
+       ]
+      },
+      {
+       "type": "rows",
+       "label": "Waiting on you",
+       "items": [
+        {
+         "letter": "R",
+         "title": "Bakery website is ready to go live",
+         "sub": "Claude wants to publish to ryeandcrumb.example",
+         "state": "needs",
+         "action": "See it",
+         "primary": true
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true,
+ "pendingDemo": "claude wants to publish your bakery website"
+}

@@ -1,0 +1,83 @@
+{
+ "name": "New agent",
+ "place": "linkkit",
+ "rail": ["files", "search", "git", "debug", "agents", "ext", "todo"],
+ "layout": {
+  "split": "row",
+  "sizes": [21, 79],
+  "children": [
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "nav",
+       "items": [
+        { "icon": "plus", "label": "New agent", "on": true },
+        { "icon": "inbox", "label": "Needs you" },
+        { "icon": "search", "label": "Search" }
+       ]
+      },
+      {
+       "type": "agentlist",
+       "title": "Agents",
+       "groups": [
+        {
+         "label": "linkkit",
+         "rows": [
+          { "title": "Rate limit /shorten", "engine": "claude", "when": "6m", "state": "working" },
+          { "title": "Fix expired links", "engine": "codex", "when": "1h", "state": "done" },
+          { "title": "Add click counts", "engine": "gemini", "when": "3h", "state": "done" }
+         ]
+        },
+        {
+         "label": "docs-site",
+         "rows": [
+          { "title": "Update API page", "engine": "claude", "when": "1d", "state": "idle" }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "view": "kit",
+    "part": {
+     "type": "page",
+     "children": [
+      {
+       "type": "hero",
+       "title": "What should the agents do?",
+       "sub": "Describe the task. An agent works in its own copy of the code, so your branch stays clean."
+      },
+      {
+       "type": "composer",
+       "big": true,
+       "text": "Add a per-key rate limit to POST /shorten. 60 requests a minute, return 429 after that. Add tests.",
+       "chips": [
+        { "icon": "folder", "label": "linkkit" },
+        { "icon": "tree", "label": "New worktree" },
+        { "icon": "branch", "label": "Branch from", "value": "main" },
+        { "icon": "spark", "label": "Claude Opus" },
+        { "icon": "shield", "label": "Ask before risky actions", "end": true }
+       ]
+      },
+      {
+       "type": "starters",
+       "label": "Or start from a task",
+       "cols": 3,
+       "items": [
+        { "icon": "bolt", "title": "Fix a failing test", "sub": "Finds the cause, fixes it, runs the suite" },
+        { "icon": "code", "title": "Add an endpoint", "sub": "Route, validation and tests" },
+        { "icon": "search", "title": "Review my branch", "sub": "A second engine checks the diff" }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "system": true
+}
