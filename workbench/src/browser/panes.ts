@@ -133,6 +133,8 @@ const FOCUSED = `(() => {
 const GESTURE_MS = 5000;
 /** Tools a headless pane refuses by name (M8-42 row 2): they need the user's window, the user's sign-in or a native chooser. */
 const HEADLESS_REFUSED = new Set(['handoff', 'upload', 'glide']);
+/** Why the headless engine is held, or '' once its WebSockets are checked. */
+const HEADLESS_HELD = 'its WebSocket connections are not checked yet';
 const PICK_RAW = 64 * 1024;
 const POPUP_PREFS = { sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false, spellcheck: false };
 
@@ -436,6 +438,8 @@ export class PaneManager {
 
   /** An agent pane on chrome-headless-shell: the same Pane, its debugger and webContents backed by a pipe (headless.ts). */
   private async createHeadless(row: PaneRow, exe: string): Promise<void> {
+    // held: CDP Fetch does not pause WebSocket handshakes, so a page could reach blocked addresses (B2 review of abc6cbae, H1); off until a cc proxy checks them
+    if (HEADLESS_HELD) throw new ToolError(-32601, `the chrome-headless-shell engine is turned off: ${HEADLESS_HELD}; set browser.agent_engine back to electron`);
     if (!this.headless || this.headless.closed) this.headless = new HeadlessBrowser(exe);
     let pane: Pane | undefined;
     const blocked = (url: string, reason: string) => {

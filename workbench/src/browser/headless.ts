@@ -170,6 +170,12 @@ export class HeadlessTab extends EventEmitter {
       const url = String(p.targetInfo.url ?? '');
       void this.browser.send('Target.closeTarget', { targetId: p.targetInfo.targetId }).catch(() => {});
       this.onBlocked(url || 'a new window', 'a new window appeared despite the block, so it was closed');
+      return;
+    }
+    // a shared worker is not attached by the page's auto-attach, so its requests would pass unchecked (H2)
+    if (!m.sessionId && m.method === 'Target.targetCreated' && p.targetInfo?.browserContextId === this.contextId && p.targetInfo.type === 'shared_worker') {
+      void this.browser.send('Target.closeTarget', { targetId: p.targetInfo.targetId }).catch(() => {});
+      this.kill('a shared worker started, which this engine cannot check');
     }
   };
 
@@ -184,7 +190,7 @@ export class HeadlessTab extends EventEmitter {
       await this.browser.send('Runtime.runIfWaitingForDebugger', {}, child);
     } catch (e) {
       this.kill(`a ${type || 'child'} could not be guarded: ${(e as Error).message}`);
-      void this.browser.send('Target.detachFromTarget', { sessionId: child }, parent).catch(() => {});
+      void this.browser.send('Runtime.evaluate', { expression: 'close()' }, child).catch(() => {});
     }
   }
 
@@ -203,6 +209,9 @@ export class HeadlessTab extends EventEmitter {
     if (this.dead) return;
     this.dead = why;
     this.browser.off('event', this.onEvent);
+    // a dead tab must stop running, not just stop being driven (B2 review of abc6cbae, H3)
+    void this.browser.send('Target.closeTarget', { targetId: this.targetId }).catch(() => {});
+    void this.browser.send('Target.disposeBrowserContext', { browserContextId: this.contextId }).catch(() => {});
     this.dbg.emit('detach', {}, why);
     this.emit('dead', why);
   }
