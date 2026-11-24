@@ -5,6 +5,8 @@ import { homeDir } from '../paths.js';
 
 export const BROWSER_SECRETS = 'core-browser';
 export const SECRET_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+/** An imported username (M8-50): the only secret that may be typed into a field that is not a password field, still only on its origin. Its prefix cannot collide with a password's login_ name. */
+export const isUsernameSecret = (name        )          => /^loginuser_[A-Za-z0-9_]{1,54}$/.test(name);
 /** The whole of a `type` text that names a browser secret: `{{secret:NAME}}`. */
 export const SECRET_PLACEHOLDER = /^\{\{secret:([A-Za-z][A-Za-z0-9_]{0,63})\}\}$/;
 

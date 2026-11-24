@@ -13,6 +13,8 @@ import { E, RpcError, toRpcError } from './errors.js';
                               
               
                  
+                                                                                                                                
+                   
  
 
                                                                                                         
@@ -29,9 +31,9 @@ export const NOT_QUEUED = new Set([
   'auth.signIn', 'auth.status', 'auth.signOut',
   'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'session.live-text', 'engines.check',
   'session.search',
-  'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve', 'notify.sink.set',
+  'plugin.preview', 'plugin.install', 'plugin.secret.set', 'browser.logins.preview', 'browser.logins.import', 'mcp.resolve', 'notify.sink.set',
   'session.launch', 'session.resume', 'session.wait', 'session.read', 'session.chat', 'session.send', 'session.list', 'session.owners', 'worktree.create',
-  'approval.check', 'approval.resolve', 'ui.show', 'ui.get', 'ui.data', 'workspace.change', 'workspace.get',
+  'approval.check', 'approval.resolve', 'ui.show', 'ui.get', 'ui.data', 'workspace.change', 'workspace.get', 'engine.run',
 ]);
 
 export function isQueueable(method        )          {

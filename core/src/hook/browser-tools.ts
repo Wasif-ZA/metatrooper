@@ -21,7 +21,7 @@ export const TOOLS: Array<{ name: string; description: string; inputSchema: Reco
   { name: 'find', description: 'Snapshot lines containing the query, each with its ref, path and neighbouring lines; cheaper than snapshot.', inputSchema: { type: 'object', properties: { ...pane, ...budget, query: { type: 'string' } }, required: ['query'] } },
   { name: 'click', description: 'Click the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
   { name: 'handoff', description: 'Give the pane to the user (a login, a captcha, a choice only they can make); the tile shows the reason and a Give back button. Every other browser tool fails with "the user has the pane" until they give it back.', inputSchema: { type: 'object', properties: { ...pane, reason: { type: 'string' } }, required: ['reason'] } },
-  { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff. text "{{secret:NAME}}" fills a secret the user saved, only into a password field on the origin saved with it; you never see the value.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
+  { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff. text "{{secret:NAME}}" fills a secret the user saved, only into a password field on the origin saved with it; you never see the value. Logins the user imported are named from the site host with every character that is not a letter or digit turned into _: {{secret:login_<host>}} is the password, {{secret:loginuser_<host>}} the username (that one may go into the username field), for example login_accounts_example_com; a second account on a host ends _2.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
   { name: 'key', description: 'Press a key or chord on the focused element, e.g. "Enter", "Tab", "Control+A".', inputSchema: { type: 'object', properties: { ...pane, keys: { type: 'string' } }, required: ['keys'] } },
   { name: 'select', description: 'Choose an option in a select element. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
@@ -32,6 +32,7 @@ export const TOOLS: Array<{ name: string; description: string; inputSchema: Reco
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'batch', description: `Run up to ${BATCH_MAX} steps in order in one call, each {tool, args} with tool one of ${BATCH_TOOLS.join(', ')}; pane_id applies to every step unless the step gives its own. Refs come from a snapshot you took before; a batch takes no snapshot. Each step is approved and audited as a single call. stop_on_error (default true): after a failed step the rest read skipped. Returns {steps: [{step, tool, status ok|error|skipped, text}], page}, page being the url, title and changes of the last step that ran.`, inputSchema: { type: 'object', properties: { ...pane, steps: { type: 'array', minItems: 1, maxItems: BATCH_MAX, items: { type: 'object', properties: { tool: { type: 'string', enum: BATCH_TOOLS }, args: { type: 'object' } }, required: ['tool'] } }, stop_on_error: { type: 'boolean', default: true } }, required: ['steps'] } },
   { name: 'export_test', description: 'A Playwright test file replaying the actions this session has run successfully so far. Typed text is never included.', inputSchema: { type: 'object', properties: { ...pane } } },
+  { name: 'upload', description: 'Attach files from this project to a file input (ref), or to the file chooser a button (ref) opens; no native dialog opens. paths are absolute paths of files inside the project folder, at most 10. The user is asked every time, with each file named.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 10 } }, required: ['ref', 'paths'] } },
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
@@ -41,7 +42,7 @@ export async function browserToolList(browser: WorkbenchPipe) {
 }
 
 export function browserTools({ core, workbench: browser }: ToolOptions): (name: string, args: Record<string, unknown>) => Promise<object> {
-  const CHECKED = new Set(['click', 'type', 'select', 'key']);
+  const CHECKED = new Set(['click', 'type', 'select', 'key', 'upload']);
   const CONTROL_CHANGED = -32035;
 
   /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
@@ -54,6 +55,7 @@ export function browserTools({ core, workbench: browser }: ToolOptions): (name: 
       const d = await browser.call('browser.describe', { ...args, tool: name });
       if (d.error) return stopped(d.error);
       const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
+      // an upload is bound to its paths and its control by the hash, which the workbench checks again
       const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
       const out = await core('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, GATE_WAIT_MS);
       if (out.error) return stopped(out.error);
@@ -62,7 +64,7 @@ export function browserTools({ core, workbench: browser }: ToolOptions): (name: 
       if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action', instruction: v.instruction });
       if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
       if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
-      const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
+      const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password }, ...(name === 'upload' ? { approval_id: (v as { approval_id?: string }).approval_id } : {}) });
       // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
       if (r.error?.code !== CONTROL_CHANGED) return r;
     }

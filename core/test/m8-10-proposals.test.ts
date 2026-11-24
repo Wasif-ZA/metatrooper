@@ -41,7 +41,7 @@ test('a redraw of the same surface does not count twice', t => {
 
 test('an unknown part nested inside a table cell or columns still counts', t => {
   const { db, draw } = harness(t);
-  draw('s1', { type: 'table', columns: ['a'], rows: [[{ type: 'gauge', value: 1 }]] });
+  draw('s1', { type: 'table', cols: ['a'], rows: [[{ type: 'gauge', value: 1 }]] });
   draw('s2', { type: 'columns', children: [[{ type: 'gauge', value: 2 }], [{ type: 'text', text: 'x' }]] });
   draw('s3', { type: 'gauge', value: 3 });
   assert.deepEqual(catalogueProposals(db), [{ part: 'gauge', props: ['value'], surfaces: ['s1', 's2', 's3'] }]);

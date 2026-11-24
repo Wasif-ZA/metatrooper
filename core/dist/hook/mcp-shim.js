@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.js';
 import { createDecoder, encode } from '../pipe/framing.js';
 import { resolveCommand } from './resolve.js';
-import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.js';
+import { ENGINE_TOOL, STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.js';
 
                     
                   
@@ -100,13 +100,14 @@ async function serveUi()                {
   const { serveMcp } = await import('./mcp-stdio.js');
   const { findSession } = await import('./workbench-pipe.js');
   const { call } = await import('../pipe/client.js');
-  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
+  serveMcp('ouros-ui', [UI_TOOL, WORKSPACE_TOOL, ENGINE_TOOL], async (name, args) => {
     const fail = (text        ) => ({ content: [{ type: 'text', text }], isError: true });
-    if (name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
+    if (name !== 'ouros_ui' && name !== 'ouros_workspace' && name !== 'ouros_engine') return fail(`unknown tool ${name}`);
     const sessionId = process.env.TROOP_SESSION_ID || findSession();
     if (!sessionId) return fail('this process is not inside a cc session');
     const d = args.data                                       ;
-    const out = name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
+    const out = name === 'ouros_engine' ? await call('engine.run', { session_id: sessionId, session_secret: process.env.TROOP_SESSION_SECRET ?? '', engine: args.engine, action: args.action, input: args.input, surface: args.surface }, { waitMs: 2_147_483_647 })
+      : name === 'ouros_workspace' ? await call('workspace.change', { session_id: sessionId, op: args.op, workspace: args.workspace, name: args.name })
       : d && typeof d === 'object' && args.spec === undefined ? await call('ui.data', { session_id: sessionId, surface: args.surface, path: d.path, value: d.value }) : await call('ui.show', { session_id: sessionId, surface: args.surface, title: args.title, zone: args.zone, catalogue: args.catalogue, spec: args.spec });
     if (out.kind !== 'reply') return fail('the cc core is offline; nothing changed');
     if (out.reply.error) return fail(out.reply.error.message);
@@ -122,7 +123,7 @@ async function main()                {
   if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id> <token>');
   let r          ;
   try {
-    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token }))            ;
+    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token, session_secret: process.env.TROOP_SESSION_SECRET ?? '' }))            ;
   } catch (e) {
     return refuse(`${(e         ).message}; ${serverId} from ${pluginId} did not start`);
   }
@@ -146,7 +147,8 @@ async function main()                {
   if (r.box) {
     const { boxArgv, containerName } = await import('../plugins/box.js');
     const { homeDir } = await import('../paths.js');
-    const grants = [...r.box.grants, `${r.box.project} ${process.cwd()}`];
+    if (!r.project_dir) return refuse(`${serverId} from ${pluginId} is boxed and needs the project of a live cc session; it did not start`);
+    const grants = [...r.box.grants, `${r.box.project} ${r.project_dir}`];
     const tmp = path.join(homeDir(), 'plugin-tmp', containerName(pluginId, [serverId, ...grants].join('|')));
     try {
       const b = boxArgv({ name: path.basename(tmp), net: r.box.net, grants }, resolved[0], [...resolved.slice(1), ...args], tmp);
@@ -154,6 +156,8 @@ async function main()                {
     } catch (e) {
       return refuse(`${(e         ).message}; ${serverId} from ${pluginId} did not start`);
     }
+    const keep = new Set(['SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATH', 'PATHEXT', 'LOCALAPPDATA', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', ...Object.keys(r.env), ...Object.keys(r.refs)].map((k) => k.toUpperCase()));
+    for (const k of Object.keys(env)) if (!keep.has(k.toUpperCase())) delete env[k];
     env.TEMP = env.TMP = tmp;
     args.length = 0;
   }

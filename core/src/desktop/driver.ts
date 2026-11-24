@@ -614,6 +614,10 @@ export class Desktop {
       const sessionId = await this.bind(p);
       return this.read(sessionId, hwndOf(p.window), 'screenshot');
     } });
+    m.set('desktop.locate', { handler: async (p) => {
+      const sessionId = await this.bind(p);
+      return this.read(sessionId, hwndOf(p.window), 'locate', { ref: str(p, 'ref') });
+    } });
     m.set('desktop.find', { handler: async (p) => {
       const sessionId = await this.bind(p);
       return this.read(sessionId, hwndOf(p.window), 'find_text', { text: str(p, 'text') });

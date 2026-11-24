@@ -6,13 +6,13 @@ import type { CommandRunner } from '../pipe/commands.ts';
 import { toRpcError } from '../pipe/errors.ts';
 import { ulid } from '../time.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { appendEvent } from '../events/append.ts';
 import { buildPayload } from '../redact.ts';
 import { mcpReply } from './mcp-stdio.ts';
-import { STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
+import { proveSecret } from '../sessions/secret.ts';
+import { ENGINE_TOOL, STEPS_TOOL, UI_TOOL, WORKSPACE_TOOL } from './ouros-tools.ts';
 
-export interface McpHello { server?: unknown; session_id?: unknown; pid?: unknown }
+export interface McpHello { server?: unknown; session_id?: unknown; session_secret?: unknown; pid?: unknown }
 
 export type McpHandler = ((hello: McpHello, msg: Parameters<typeof mcpReply>[3]) => Promise<object | null>) & { close?: (hello: McpHello) => void };
 
@@ -25,13 +25,9 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
       return msg?.id !== undefined ? { jsonrpc: '2.0', id: msg.id, error: { code: -32603, message: `unknown ouros server ${server}` } } : null;
     }
     if (!sessions.has(hello)) {
-      let session = typeof hello.session_id === 'string' && hello.session_id ? hello.session_id : null;
-      if (!session && typeof hello.pid === 'number' && Number.isInteger(hello.pid) && hello.pid > 0) {
-        const rows = db.prepare('SELECT id, pid FROM session WHERE pid IS NOT NULL AND ended_at IS NULL').all() as Array<{ id: string; pid: number }>;
-        const byPid = new Map(rows.map((row) => [row.pid, row.id]));
-        session = ancestors(hello.pid, await parentTableAsync()).map((pid) => byPid.get(pid)).find(Boolean) ?? null;
-      }
-      if (session) sessions.set(hello, session);
+      // the session is the one the relay proves with its secret; a session_id or pid in the hello is never trusted (B2 review of f4a98bef, N1)
+      const proven = typeof hello.session_secret === 'string' && hello.session_secret ? proveSecret(hello.session_secret) : null;
+      if (proven) sessions.set(hello, proven.session);
     }
     if (server === 'desktop' || server === 'browser') {
       let bridge = bridges.get(hello);
@@ -52,9 +48,9 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
       const { workbench, tools } = bridge;
       return mcpReply(`metatrooper-${server}`, server === 'desktop' ? DESKTOP_TOOLS : () => browserToolList(workbench), async (name, args) => screenResult(await tools(name, args)), msg);
     }
-    return mcpReply(`ouros-${server}`, server === 'steps' ? [STEPS_TOOL] : [UI_TOOL, WORKSPACE_TOOL], async (name, args) => {
+    return mcpReply(`ouros-${server}`, server === 'steps' ? [STEPS_TOOL] : [UI_TOOL, WORKSPACE_TOOL, ENGINE_TOOL], async (name, args) => {
       const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
-      if (server === 'steps' ? name !== 'steps_set' : name !== 'ouros_ui' && name !== 'ouros_workspace') return fail(`unknown tool ${name}`);
+      if (server === 'steps' ? name !== 'steps_set' : name !== 'ouros_ui' && name !== 'ouros_workspace' && name !== 'ouros_engine') return fail(`unknown tool ${name}`);
       if (server === 'steps' && !Array.isArray(args.items)) return fail('items must be an array of {text, done}');
       const session = sessions.get(hello);
       if (!session) return fail('this process is not inside a cc session');
@@ -63,6 +59,10 @@ export function coreMcpStdio(db: DatabaseSync, runner: CommandRunner): McpHandle
           const payload = buildPayload('core.steps', args) as { items: unknown[] };
           appendEvent('core.steps', session, payload, db);
           return { content: [{ type: 'text', text: `saved ${payload.items.length} steps` }] };
+        }
+        if (name === 'ouros_engine') {
+          const result = await runner.call({ id: ulid(), method: 'engine.run', params: { session_id: session, engine: args.engine, action: args.action, input: args.input, surface: args.surface }, origin: 'cli' }, { ui: false, origin: 'cli', session });
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
         }
         if (name === 'ouros_workspace') {
           const result = await runner.call({ id: ulid(), method: 'workspace.change', params: { session_id: session, op: args.op, workspace: args.workspace, name: args.name }, origin: 'cli' }, { ui: false, origin: 'cli' });

@@ -128,8 +128,8 @@ export function Part({ p }) {
 }
 
 /** Draws an agent's spec from the catalogue only; every part is checked before it draws, and a bad one becomes a text box. */
-export function Drawn({ spec, onEvent, zone = 'tab', data }) {
-  const { root } = expand(spec, zone, data);
+export function Drawn({ spec, onEvent, zone = 'tab', data, templates }) {
+  const { root } = expand(spec, zone, data, templates);
   const [missing, setMissing] = useState([]);
   const vals = useRef({}).current;
   const need = useRef(new Set()).current;

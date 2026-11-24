@@ -41,7 +41,7 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEC_BYTES) throw new RpcError(E.INVALID_PARAMS, `spec is over ${MAX_SPEC_BYTES / 1024} KB`);
   const owner = db.prepare('SELECT session_id FROM ui_surface WHERE id = ?').get(surface) as { session_id: string } | undefined;
   if (owner && owner.session_id !== sessionId) throw new RpcError(E.VALIDATION, 'that surface belongs to another session; pick a different surface id');
-  const { root, fellBack, waiting = [] } = expand(spec, 'tab', readData(surface));
+  const { root, fellBack, waiting = [] } = expand(spec, 'tab', readData(surface), loadTemplates(row.project_id));
   const status = isFallback(root) ? 'rejected' : fellBack.length ? 'partly' : 'drawn';
   db.prepare(
     `INSERT INTO ui_surface (id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at)
@@ -54,7 +54,42 @@ export function showSurface(db: DatabaseSync, p: Record<string, unknown>): UiRes
 export function getSurface(db: DatabaseSync, id: string): Record<string, unknown> {
   const r = db.prepare('SELECT id, session_id, project_id, zone, title, catalogue, spec, status, seq, updated_at FROM ui_surface WHERE id = ?').get(id) as (Record<string, unknown> & { spec: string }) | undefined;
   if (!r) throw new RpcError(E.NOT_FOUND, 'surface not found');
-  return { ...r, spec: JSON.parse(r.spec), data: readData(id) };
+  const spec = JSON.parse(r.spec);
+  return { ...r, spec, data: readData(id), templates: usedTemplates(spec, loadTemplates(String(r.project_id))) };
+}
+
+/** Only the templates a spec names in its use parts, and those they name in turn, so ui.get stays small. */
+export function usedTemplates(spec: unknown, all: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const walk = (x: unknown, depth: number): void => {
+    if (depth > 4 || !x || typeof x !== 'object') return;
+    if (Array.isArray(x)) { for (const y of x) walk(y, depth); return; }
+    const o = x as Record<string, unknown>;
+    if (o.type === 'use' && typeof o.template === 'string' && Object.hasOwn(all, o.template) && !Object.hasOwn(out, o.template)) { out[o.template] = all[o.template]; walk(all[o.template], depth + 1); }
+    for (const v of Object.values(o)) walk(v, depth);
+  };
+  walk(spec, 0);
+  return out;
+}
+
+/** The folder of one project's templates; templates and assets belong to one workspace (M8-09d). */
+export const templatesDir = (projectId: string) => path.join(homeDir(), 'templates', projectId.replace(/[^A-Za-z0-9_-]/g, '_'));
+
+/** One project's templates (ouros-spec 6a): <home>/templates/<project>/<name>.json, each a saved screen with {{gaps}}; at most 200, 256 KB each. */
+export function loadTemplates(projectId: string): Record<string, unknown> {
+  const dir = templatesDir(projectId);
+  const out: Record<string, unknown> = {};
+  let names: string[] = [];
+  try { names = fs.readdirSync(dir).filter((f) => /^[A-Za-z0-9._-]{1,64}\.json$/.test(f)).sort().slice(0, 200); } catch { return out; }
+  for (const f of names) {
+    try {
+      const file = path.join(dir, f);
+      if (fs.statSync(file).size > MAX_SPEC_BYTES) continue;
+      const t = JSON.parse(fs.readFileSync(file, 'utf8'));
+      out[f.slice(0, -5)] = t && typeof t === 'object' && 'spec' in t ? t.spec : t;
+    } catch {}
+  }
+  return out;
 }
 
 export const MAX_DATA_BYTES = 64 * 1024;

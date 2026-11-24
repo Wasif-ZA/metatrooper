@@ -59,6 +59,7 @@ try {
     Remove-Item -LiteralPath (Join-Path $output 'resources/default_app.asar') -Force
     Copy-Items $repo $appDir @('contracts', 'engines', 'plugins', 'router', 'sandbox', 'skills', 'LICENSE', 'THIRD_PARTY_NOTICES.md')
     Copy-Items (Join-Path $repo 'workbench') (Join-Path $appDir 'workbench') @('src', 'renderer', 'build', 'package.json')
+    Copy-Items (Join-Path $repo 'workbench/ui/src') (Join-Path $appDir 'workbench/ui/src') @('workspaces')
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'launcher/build.ps1')
     if ($LASTEXITCODE -ne 0) { throw "launcher/build.ps1 failed (exit $LASTEXITCODE); a release needs the Rust toolchain" }
     if (-not (Test-Path -LiteralPath (Join-Path $repo 'core/bin/metatrooper-launch.exe'))) { throw 'core/bin/metatrooper-launch.exe missing after the launcher build' }

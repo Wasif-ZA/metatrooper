@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
@@ -12,10 +14,44 @@ import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 import { scrubbedCaption } from '../cursor-glide.ts';
 import { exportTest, type Step } from '../../../core/src/browser/export-test.ts';
+import { actionHash, uploadProblem } from '../../../core/src/approvals.ts';
+import { normalOrigin } from '../../../core/src/browser/secret-origin.ts';
 
-const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
+const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'upload', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
-const CHECKED = new Set(['click', 'type', 'select', 'key']);
+const CHECKED = new Set(['click', 'type', 'select', 'key', 'upload']);
+// approvals already spent on an upload; each approves exactly one
+/** Marks an upload approval spent in the database; false when it was spent before or cannot be recorded (fail closed). */
+function spendUpload(approvalId: string): boolean {
+  let w: DatabaseSync | null = null;
+  try {
+    w = openWriterDb();
+    return !!w && w.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run(`upload_used:${approvalId}`, new Date().toISOString()).changes === 1;
+  } catch {
+    return false;
+  } finally {
+    w?.close();
+  }
+}
+
+/** Copies approved upload files into a fresh workbench folder and returns the copies' paths; each copy must be a plain file of at most 100 MB. */
+function copyForUpload(paths: string[], projectDir: string): string[] {
+  const root = fs.realpathSync(projectDir);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-upload-'));
+  // ponytail: removed after 30 min, long enough for a page to read or submit it; tie it to the pane's next navigation if pages hold files longer
+  setTimeout(() => fs.rmSync(dir, { recursive: true, force: true }), 30 * 60_000).unref();
+  return paths.map((f, i) => {
+    const to = path.join(dir, String(i), path.basename(f));
+    fs.mkdirSync(path.dirname(to));
+    const real = fs.realpathSync(f);
+    const rel = path.relative(root, real);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`${path.basename(f)} moved outside the project`);
+    fs.copyFileSync(real, to, fs.constants.COPYFILE_EXCL);
+    const st = fs.lstatSync(to);
+    if (!st.isFile() || st.size > 100 * 1024 * 1024) throw new Error(`${path.basename(f)} is not a plain file of at most 100 MB`);
+    return to;
+  });
+}
 
 type Bound = { kind: 'session'; sessionId: string; grant: string | null } | { kind: 'core' } | null;
 
@@ -185,8 +221,10 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         owned.push({ id: paneId } as PaneRow);
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
-      if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, 'an agent may drive only its own agent panes, not a user pane; to use the user\'s sign-in, ask them to lend the site (navigate with signed_in: true)');
-      if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
+      // ids are not listed: pane ids read as secrets to the output redactor
+      const own = owned.length === 1 ? 'leave pane_id out to use your own pane' : owned.length ? 'call panes for your pane ids' : 'leave pane_id out of navigate and cc opens your own pane';
+      if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, `an agent may drive only its own agent panes, not a user pane (${own}); to use the user's sign-in, ask them to lend the site (navigate with signed_in: true)`);
+      if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, `pane not owned by the calling session (${own})`);
       if (tool === 'outcome') {
         const status = typeof params.status === 'string' ? params.status : '';
         if (!CHECKED.has(String(params.tool)) || !/^error -?\d{1,6}$/.test(status)) return fail(id, -32602, 'outcome takes a checked tool (click, type, select or key) and an error status');
@@ -200,6 +238,25 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const sessionId = bound.sessionId;
       let status = 'ok';
       const origin = deps.panes.origin(paneId);
+      if (tool === 'upload') {
+        // a direct call that skipped the core's approval check finds no approved row bound to these exact paths and this origin
+        const ap = typeof params.approval_id === 'string' ? params.approval_id : '';
+        const row = ap ? db.prepare("SELECT action_hash, decided_at FROM approval WHERE id = ? AND session_id = ? AND surface = 'browser' AND action = 'upload' AND status = 'approved'").get(ap, sessionId) as { action_hash: string; decided_at: string } | undefined : undefined;
+        const { expect, approval_id: _a, ...args } = params;
+        // the control the hash binds is the one the MCP server described; panes.ts refuses the call if the live control differs from expect
+        if (!expect || typeof expect !== 'object' || normalOrigin(String(expect.origin ?? '')) !== normalOrigin(origin || '')) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: an upload must name the control it was approved for'); }
+        const { origin: _o, hidden: _h, password: _p, ...control } = expect as Record<string, string>;
+        const want = actionHash({ session_id: sessionId, surface: 'browser', target: origin || 'about:blank', action: 'upload', args, control: control as any });
+        if (!row || row.action_hash !== want || !(Date.now() - Date.parse(row.decided_at) < 120_000)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
+        // the paths are checked again here: a folder in the project could have become a link since the approval
+        const proj = db.prepare('SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as { path: string } | undefined;
+        const moved = proj ? uploadProblem(params.paths, proj.path) : 'this session has no project';
+        if (moved) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, `not sent: ${moved}`); }
+        // spent in the database, so a restart cannot replay it
+        if (!spendUpload(ap)) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, 'not sent: the user did not approve this upload'); }
+        // the page gets copies taken now, so a file swapped for a link after this check is never read
+        try { params.paths = copyForUpload(params.paths as string[], proj!.path); } catch (e) { void audit(sessionId, { tool, pane: paneId, origin, status: 'error -32030' }); return fail(id, -32030, `not sent: ${(e as Error).message}`); }
+      }
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
         record(sessionId, tool, params);

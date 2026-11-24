@@ -15,6 +15,7 @@ export interface ActionSpec {
   input_schema?: Record<string, unknown>;
   output_schema?: Record<string, unknown>;
   timeout_seconds?: number;
+  binds?: { from: string; to: string };
 }
 
 export interface McpSpec {
@@ -192,8 +193,10 @@ export function installScreen(m: Manifest, previous: string[] | null, pluginDir?
     'Plugins run as you. A server whose program ships inside the plugin runs in a Windows sandbox (its own folder, the project, and the internet only with network); one started through npx, node or another tool on your PATH is not sandboxed. Secrets, browser and clipboard are enforced for all.',
   ];
   if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and cc does not block it.');
-  const loose = (m.mcp ?? []).filter((s) => s.transport !== 'http' && !(s.command ?? '').startsWith('{{plugin_dir}}')).map((s) => s.id);
-  if (loose.length) warnings.push(`Not sandboxed: ${loose.join(', ')} (started through a tool on your PATH).`);
+  const loose = (m.mcp ?? []).filter((s) => s.transport !== 'http' && !(process.platform === 'win32' && (s.command ?? '').startsWith('{{plugin_dir}}'))).map((s) => s.id);
+  // an action whose program is not a file the plugin ships runs as you, like an npx server (B2 review of f4a98bef, N3)
+  const looseActions = (m.actions ?? []).filter((a) => !(process.platform === 'win32' && /[\\/]/.test(a.run?.[0] ?? '') && !/\.(cmd|bat)$/i.test(a.run?.[0] ?? ''))).map((a) => `action ${a.id}`);
+  if (loose.length || looseActions.length) warnings.push(`Not sandboxed: ${[...loose, ...looseActions].join(', ')} (started through a tool on your PATH).`);
   const storeWarning = (m.permissions ?? []).some((p) => p.startsWith('secrets:')) ? secretStoreWarning() : null;
   if (storeWarning) warnings.push(storeWarning);
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');
@@ -204,7 +207,7 @@ export function installScreen(m: Manifest, previous: string[] | null, pluginDir?
     engines: (m.engines ?? []).map((e) => ({ id: e.id, command: e.command, roles: e.roles })),
     mcp_servers: (m.mcp ?? []).map((s) => s.transport === 'http'
       ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'cc (header secret)' : 'the engine', writes: mcpWrites(s) }
-      : { id: s.id, sandboxed: (s.command ?? '').startsWith('{{plugin_dir}}'), command: [(pluginDir === undefined ? s.command : s.command?.replaceAll('{{plugin_dir}}', () => pluginDir)), ...(s.args ?? []).map((a) => (pluginDir === undefined ? a : a.replaceAll('{{plugin_dir}}', () => pluginDir)))].join(' '), engines: s.engines, writes: mcpWrites(s) }),
+      : { id: s.id, sandboxed: process.platform === 'win32' && (s.command ?? '').startsWith('{{plugin_dir}}'), command: [(pluginDir === undefined ? s.command : s.command?.replaceAll('{{plugin_dir}}', () => pluginDir)), ...(s.args ?? []).map((a) => (pluginDir === undefined ? a : a.replaceAll('{{plugin_dir}}', () => pluginDir)))].join(' '), engines: s.engines, writes: mcpWrites(s) }),
     warnings,
   };
 }

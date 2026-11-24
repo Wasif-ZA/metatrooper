@@ -185,7 +185,8 @@
         "destination_field": { "type": "string", "description": "Input field naming where an external action sends things (account, channel, recipient). Part of the gate action_hash." },
         "input_schema": { "type": "object", "description": "JSON Schema for the action input." },
         "output_schema": { "type": "object", "description": "JSON Schema for outputs." },
-        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 7200, "default": 600 }
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 7200, "default": 600 },
+        "binds": { "type": "object", "additionalProperties": false, "required": ["from", "to"], "description": "M8-12: when ouros_engine names a surface, the output at `from` (a JSON pointer into outputs) fills the surface data path `to` (M8-08), so the agent does not resend the screen.", "properties": { "from": { "type": "string", "pattern": "^(/[^/]+)*$" }, "to": { "type": "string", "pattern": "^(/[^/]+)+$" } } }
       },
       "allOf": [
         { "if": { "required": ["external"], "properties": { "external": { "const": true } } }, "then": { "required": ["destination_field"] } }

@@ -863,3 +863,7 @@ dialog:has(.astryx-command-palette-input) { animation: ou-palette-in var(--motio
 .ou-hm-reviewhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; color: var(--body); font-size: 12.5px; }
 .ou-hm-review[data-state="failed"] .ou-hm-reviewtitle { color: var(--st-bad, var(--del)); }
 .ou-hm-reviewnote { margin: 4px 0 0; color: var(--body); font-size: 12px; white-space: pre-wrap; }
+.ou-logins { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ou-logins-rows { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow: auto; }
+.ou-logins-acts { display: flex; gap: 8px; }
+.ou-logins-row { display: flex; align-items: center; gap: 12px; }

@@ -12,6 +12,8 @@ export interface Request {
 export interface CallContext {
   ui: boolean;
   origin: string;
+  /** A session an in-process caller already proved (the MCP server finds it from the process tree); never taken from params. */
+  session?: string;
 }
 
 export type Handler = (params: Record<string, unknown>, ctx: CallContext) => unknown | Promise<unknown>;
@@ -28,9 +30,9 @@ export const NOT_QUEUED = new Set([
   'auth.signIn', 'auth.status', 'auth.signOut',
   'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'session.live-text', 'engines.check',
   'session.search',
-  'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve', 'notify.sink.set',
+  'plugin.preview', 'plugin.install', 'plugin.secret.set', 'browser.logins.preview', 'browser.logins.import', 'mcp.resolve', 'notify.sink.set',
   'session.launch', 'session.resume', 'session.wait', 'session.read', 'session.chat', 'session.send', 'session.list', 'session.owners', 'worktree.create',
-  'approval.check', 'approval.resolve', 'ui.show', 'ui.get', 'ui.data', 'workspace.change', 'workspace.get',
+  'approval.check', 'approval.resolve', 'ui.show', 'ui.get', 'ui.data', 'workspace.change', 'workspace.get', 'engine.run',
 ]);
 
 export function isQueueable(method: string): boolean {

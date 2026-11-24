@@ -12,6 +12,7 @@ import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import { Automations } from './automations.jsx';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { marked } from 'marked';
 
 export const settingsStore = createStore({ data: null, section: 'general' });
@@ -72,7 +73,7 @@ const SECTIONS = [
   ] }, { title: 'Browser', rows: [
     { read: (s) => (s.browser.allow_origins.length ? s.browser.allow_origins.join(', ') : 'None'), label: 'Sites agents may open without asking' },
     { lent: true, label: 'Sites where agents may use my sign-in', hint: 'This project only. An agent on one of these sites acts as you. It is asked for per site in Needs you.' },
-  ] }] },
+  ] }], body: Logins },
   { id: 'automations', label: 'Automations', note: 'A check script runs on a timer in this project. An agent is started only when the script exits with code 1.', groups: [], body: Automations },
   { id: 'addons', label: 'Add-ons', note: 'Agents and plugins cc can start.', groups: [{ rows: [
     { run: () => { settingsView.close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
@@ -94,6 +95,63 @@ const SECTIONS = [
     { run: () => { void undoVscodeImport().then(() => settingsView.close()); }, button: 'Undo', label: 'Undo the VS Code import', hint: 'Puts your theme back as it was before the import.' },
   ] }] },
 ];
+
+/** M8-50: logins from a password file you exported from your browser. The file stays in the main process; this screen sees origins and usernames only. */
+export function Logins() {
+  const [saved, setSaved] = useState(null);
+  const [pick, setPick] = useState(null);
+  const [ticks, setTicks] = useState({});
+  const [said, setSaid] = useState('');
+  const load = async () => { const out = await api.call('browser.logins.list', {}); setSaved(out.kind === 'reply' && out.reply.result ? out.reply.result.logins : []); };
+  useEffect(() => { void load(); }, []);
+  const choose = async () => {
+    setSaid('');
+    const r = await api.loginsPick();
+    if (!r) return;
+    if (r.error) { setSaid(r.error); return; }
+    setPick(r);
+    const usable = r.rows.filter((x) => !x.skip);
+    setTicks(Object.fromEntries(usable.map((x) => [x.i, usable.length <= 20 && !x.exists])));
+  };
+  const run = async () => {
+    const picks = Object.entries(ticks).filter(([, on]) => on).map(([i]) => ({ i: Number(i), replace: true }));
+    const r = await api.loginsImport(pick.token, picks);
+    setPick(null);
+    setSaid(r.error ? `${r.error}${r.deleted ? ' The exported file was deleted.' : ''}` : `Saved ${r.imported} login${r.imported === 1 ? '' : 's'}${r.skipped.length ? `, skipped ${r.skipped.length}` : ''}.${r.deleted ? ' The exported file was deleted.' : ' The exported file was kept; delete it yourself.'}`);
+    await load();
+  };
+  const cancel = async () => {
+    const r = await api.loginsCancel(pick.token);
+    setPick(null);
+    setSaid(r?.deleted ? 'Nothing saved. The exported file was deleted.' : 'Nothing saved. The exported file was kept; delete it yourself.');
+  };
+  const remove = async (names) => { for (const name of names) await api.call('browser.logins.remove', { name }); await load(); };
+  const skipped = pick ? pick.rows.filter((x) => x.skip).length : 0;
+  return (
+    <section className="ou-sgroup ou-logins">
+      <h2>Imported logins</h2>
+      <p className="ou-note">Export your saved passwords from your browser to a CSV file, then pick it here. cc keeps each login for its own site. An agent can type it there but never read it. cc never opens your browser's own password store.</p>
+      {pick ? (
+        <div className="ou-logins-pick">
+          <Text>{pick.file}: {pick.rows.length - skipped} usable{skipped ? `, ${skipped} skipped (not https, or too short)` : ''}. Tick what to save.</Text>
+          <div className="ou-logins-rows">
+            {pick.rows.filter((x) => !x.skip).map((x) => (
+              <CheckboxInput key={x.i} size="sm" label={`${x.origin}  ${x.username || '(no username)'}${x.exists ? '  (replaces the saved one)' : ''}`} value={Boolean(ticks[x.i])} onChange={(on) => setTicks({ ...ticks, [x.i]: on })} />
+            ))}
+          </div>
+          <span className="ou-logins-acts"><Button size="sm" variant="primary" label="Save ticked logins" onClick={() => void run()} /><Button size="sm" variant="secondary" label="Cancel" onClick={() => void cancel()} /></span>
+        </div>
+      ) : <Button size="sm" variant="secondary" label="Import from a password file" onClick={() => void choose()} />}
+      {said ? <Text color="secondary">{said}</Text> : null}
+      {saved && saved.length ? (
+        <div className="ou-logins-saved">
+          {saved.map((x) => <div key={x.name} className="ou-logins-row"><Text>{x.origin}</Text><Text color="secondary">{x.user ? 'with username' : 'password only'}</Text><Button size="sm" variant="ghost" label="Remove" onClick={() => void remove([x.name])} /></div>)}
+          <Button size="sm" variant="secondary" label="Remove all" onClick={() => void remove(saved.map((x) => x.name))} />
+        </div>
+      ) : saved ? <Text color="secondary">No imported logins.</Text> : null}
+    </section>
+  );
+}
 
 export function Notices() {
   const [text, setText] = useState(undefined);

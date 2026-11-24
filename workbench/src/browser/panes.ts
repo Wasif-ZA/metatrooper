@@ -9,6 +9,7 @@ import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/sr
 import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { challengeOf, plainUserAgent } from './challenge.ts';
+import { HeadlessBrowser, HeadlessContents, HeadlessTab, headlessView, NO_OVERLAY } from './headless.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 import { settings } from '../../../core/src/settings.ts';
 
@@ -16,7 +17,7 @@ import { settings } from '../../../core/src/settings.ts';
 const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
-import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
+import { BROWSER_SECRETS, browserSecretOrigin, isUsernameSecret, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 import { awaitArrived, planGlide, scrubbedCaption, type Mode } from '../cursor-glide.ts';
 import { sessionColour } from '../colour.ts';
 
@@ -130,6 +131,10 @@ const FOCUSED = `(() => {
   }
 })()`;
 const GESTURE_MS = 5000;
+/** Tools a headless pane refuses by name (M8-42 row 2): they need the user's window, the user's sign-in or a native chooser. */
+const HEADLESS_REFUSED = new Set(['handoff', 'upload', 'glide']);
+/** Why the headless engine is held, or '' once its WebSockets are checked. */
+const HEADLESS_HELD = 'its WebSocket connections are not checked yet';
 const PICK_RAW = 64 * 1024;
 const POPUP_PREFS = { sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false, spellcheck: false };
 
@@ -181,6 +186,10 @@ interface Pane {
   typed: Set<number>;
   ready: Promise<void>;
   dialog: Dialog | null;
+  /** Set while an upload waits for the file chooser a click opens (M8-49 row 2). */
+  onChooser?: (backendNodeId: number) => void;
+  /** True while an upload runs on this pane: a second one is refused, so choosers and interception never cross. */
+  uploading?: boolean;
   onDialog: ((d: Dialog) => void) | null;
   /** The URL whose load error or crash the pane is showing, or null. */
   errorFor: string | null;
@@ -191,6 +200,8 @@ interface Pane {
   pickStack: number[];
   /** The reason the agent gave when it handed the pane to the user, or null while the agent has it. */
   handoff: string | null;
+  /** Set on a chrome-headless-shell pane (M8-42): no view in the window, and no lending, handoff, upload or glide. */
+  headless?: boolean;
   /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
   secretOnPage: boolean;
   /** An agent `evaluate` ran in the page now loaded; its listeners can outlive it, so no secret is filled until the main frame navigates. */
@@ -274,7 +285,7 @@ export class PaneManager {
   /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
   private walking = new Set<string>();
   /** Consecutive setup failures per pane row; from the second one on, the next rebuild waits (1 s doubling, 60 s cap). */
-  private failed = new Map<string, { n: number; until: number }>();
+  private failed = new Map<string, { n: number; until: number; why?: string }>();
   /** Each visible pane cursor's last drawn point, by pane id then session. */
   private marks = new Map<string, Map<string, { x: number; y: number; at: number }>>();
   private glides = 0;
@@ -418,7 +429,45 @@ export class PaneManager {
     await this.userNavigate(id, url);
   }
 
+  private headless: HeadlessBrowser | null = null;
+
+  /** The headless binary for this row, or null: agent panes that are not lent only, and only when the setting names a binary. */
+  private headlessExe(row: PaneRow): string | null {
+    const b = settings().browser as { agent_engine?: string; headless_path?: string };
+    return row.id.startsWith(AGENT_PANE) && !row.lent && b.agent_engine === 'chrome-headless-shell' && b.headless_path ? b.headless_path : null;
+  }
+
+  /** An agent pane on chrome-headless-shell: the same Pane, its debugger and webContents backed by a pipe (headless.ts). */
+  private async createHeadless(row: PaneRow, exe: string): Promise<void> {
+    // held: CDP Fetch does not pause WebSocket handshakes, so a page could reach blocked addresses (B2 review of abc6cbae, H1); off until a cc proxy checks them
+    if (HEADLESS_HELD) {
+      const held = new ToolError(-32601, `the chrome-headless-shell engine is turned off: ${HEADLESS_HELD}; set browser.agent_engine back to electron`);
+      this.failed.set(row.id, { n: 1, until: 0, why: held.message });
+      throw held;
+    }
+    if (!this.headless || this.headless.closed) this.headless = new HeadlessBrowser(exe);
+    let pane: Pane | undefined;
+    const blocked = (url: string, reason: string) => {
+      this.hooks.probe({ kind: 'blocked', pane: row.id, url, reason });
+      if (pane) this.log(pane, 'blocked', `cc blocked ${url}: ${reason}`);
+    };
+    const tab = await HeadlessTab.open(this.headless, plainUserAgent(electronSession.defaultSession.getUserAgent()), (url) => checkUrl(url, pane ? this.paneCtx(pane) : this.policy({ ...row })), blocked, (url) => { if (pane) void this.load(pane, url).catch(() => {}); });
+    const view = headlessView(new HeadlessContents(tab)) as unknown as WebContentsView;
+    pane = { row, view, overlay: NO_OVERLAY as unknown as WebContentsView, dbg: tab.dbg as unknown as Debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false, docs: new Map(), headless: true };
+    this.panes.set(row.id, pane);
+    this.wireContents(pane);
+    pane.ready = this.setUp(pane);
+    await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
+      if (this.panes.get(row.id) === pane) this.destroy(row.id);
+      const n = (this.failed.get(row.id)?.n ?? 0) + 1;
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0, why: e instanceof ToolError ? e.message : undefined });
+      throw e;
+    });
+  }
+
   private async create(row: PaneRow, userUrl?: string): Promise<void> {
+    const exe = this.headlessExe(row);
+    if (exe) return this.createHeadless(row, exe);
     const ses = this.guardPartition(row);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
@@ -433,7 +482,7 @@ export class PaneManager {
     await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
       if (this.panes.get(row.id) === pane) this.destroy(row.id);
       const n = (this.failed.get(row.id)?.n ?? 0) + 1;
-      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0, why: e instanceof ToolError ? e.message : undefined });
       throw e;
     });
   }
@@ -715,6 +764,10 @@ export class PaneManager {
       dropFrame(pane.refs, params.frameId);
       return;
     }
+    if (method === 'Page.fileChooserOpened') {
+      if (typeof params.backendNodeId === 'number') pane.onChooser?.(params.backendNodeId);
+      return;
+    }
     if (method === 'Page.javascriptDialogOpening') {
       pane.dialog = { type: params.type, message: whole(String(params.message ?? '')).slice(0, 2000) };
       this.log(pane, 'dialog', `${params.type} dialog: ${pane.dialog.message}`);
@@ -825,7 +878,7 @@ export class PaneManager {
     for (const w of pane.popups) if (!w.isDestroyed()) w.close();
     for (const [k, a] of this.asking) if (a.pane === id) { this.asking.delete(k); a.cb(false); }
     try { pane.dbg.detach(); } catch {}
-    if (!this.win.isDestroyed()) {
+    if (!this.win.isDestroyed() && !pane.headless) {
       this.win.contentView.removeChildView(pane.view);
       try { this.win.contentView.removeChildView(pane.overlay); } catch {}
     }
@@ -911,7 +964,7 @@ export class PaneManager {
 
   private pane(id: string): Pane {
     const p = this.panes.get(id);
-    if (!p) throw new ToolError(-32002, 'pane is not open in the workbench');
+    if (!p) throw new ToolError(-32002, this.failed.get(id)?.why ?? 'pane is not open in the workbench');
     return p;
   }
 
@@ -1265,6 +1318,8 @@ export class PaneManager {
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
+    if (pane.headless && (HEADLESS_REFUSED.has(name) || a.signed_in === true)) throw new ToolError(-32601, `${a.signed_in === true ? 'signed_in' : name} is not supported on the chrome-headless-shell engine; use an electron pane`);
+    if (pane.headless && pane.crashed === null && (pane.view.webContents as unknown as HeadlessContents).tab.dead) pane.crashed = `the headless page ended: ${(pane.view.webContents as unknown as HeadlessContents).tab.dead}`;
     if (pane.handoff) throw handedOff(pane);
     if (name === 'handoff') {
       if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');
@@ -1303,7 +1358,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (!saved) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
     const d = await this.describeControl(pane, { ref, tool: 'type' });
     if (d.origin !== saved) throw new ToolError(-32037, `secret ${name} is saved for another origin; nothing was typed`);
-    if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
+    if (!d.password && !isUsernameSecret(name)) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
     const value = getSecret(BROWSER_SECRETS, name);
     if (!value) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
     // saved again meanwhile: the value read may not be the one saved for the origin checked
@@ -1369,6 +1424,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (el.result?.value?.child !== false) {
       const own = normalOrigin(String(el.result?.value?.origin ?? ''));
       if (!own) throw new ToolError(-32030, 'not sent: the control is in a frame whose origin cannot be established');
+      if (a.tool === 'upload' && own !== normalOrigin(origin)) throw new ToolError(-32030, 'not sent: upload into a frame from another site is not supported');
       origin = own;
     }
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
@@ -1578,6 +1634,46 @@ ame, after checking the ref's field is a password field on the origin saved with
           }
           return { ok: true };
         });
+      }
+      case 'upload': {
+        const files = Array.isArray(a.paths) ? a.paths.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0) : [];
+        if (!files.length || files.length !== (a.paths as unknown[]).length) throw new ToolError(-32602, 'paths must be a list of file paths');
+        if (pane.uploading) throw new ToolError(-32030, 'not sent: another upload is still running on this pane');
+        pane.uploading = true;
+        return this.answer(pane, session, async () => {
+          const node = this.node(pane, a.ref);
+          const d = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: node.backendNodeId });
+          const attrs: string[] = d?.node?.attributes ?? [];
+          const fileInput = d?.node?.nodeName === 'INPUT' && attrs.some((v, i) => i % 2 === 0 && v.toLowerCase() === 'type' && String(attrs[i + 1]).toLowerCase() === 'file');
+          let target = node.backendNodeId;
+          if (fileInput) {
+            await recheck();
+            this.notPaused(a, pane);
+          } else {
+            // the chooser the button opens is caught by the debugger, so no native dialog ever shows
+            await this.cmd(pane, 'Page.setInterceptFileChooserDialog', { enabled: true });
+            try {
+              const opened = new Promise<number>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new ToolError(-32602, 'that control opened no file chooser')), 5000);
+                pane.onChooser = (id) => { clearTimeout(timer); resolve(id); };
+              });
+              opened.catch(() => {});
+              const p = await this.target(pane, a.ref, a);
+              await this.clickAt(pane, p.x, p.y, recheck, a, p.size);
+              target = await opened;
+            } finally {
+              pane.onChooser = undefined;
+              await this.cmd(pane, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+            }
+            // the chooser's input must sit on the origin the person approved, not in another frame of the page
+            const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: target });
+            const at = await this.cmd(pane, 'Runtime.callFunctionOn', { objectId: object?.objectId, returnByValue: true, functionDeclaration: 'function () { const w = this.ownerDocument && this.ownerDocument.defaultView; return w ? String(w.origin) : ""; }' });
+            const want = normalOrigin(String(a.expect?.origin ?? ''));
+            if (!want || normalOrigin(String(at.result?.value ?? '')) !== want) throw new ToolError(-32030, 'not sent: the file chooser opened in a frame from another site');
+          }
+          await this.cmd(pane, 'DOM.setFileInputFiles', { files, backendNodeId: target });
+          return { ok: true, files: files.length };
+        }).finally(() => { pane.uploading = false; });
       }
       case 'select':
         return this.answer(pane, session, async () => {

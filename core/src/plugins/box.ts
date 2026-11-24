@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { coreDir, homeDir } from '../paths.ts';
@@ -9,6 +10,7 @@ import { coreDir, homeDir } from '../paths.ts';
 export interface Box { name: string; net: boolean; grants: string[] }
 
 const SOURCE = path.join(coreDir, 'src', 'plugins', 'boxrun.cs');
+const CSC = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
 
 /** The AppContainer profile for one plugin in one project with one set of grants, so a grant never carries to another project. */
 export function containerName(pluginId: string, key: string): string {
@@ -22,17 +24,16 @@ export function winQuote(arg: string): string {
   return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`;
 }
 
-/** Builds boxrun.exe from its source with the .NET Framework compiler on first use; null when there is no compiler. */
+/** Builds boxrun.exe from its source with the .NET Framework compiler at its fixed Windows path on first use; null when there is no compiler. */
 export function launcher(): string | null {
   const src = fs.readFileSync(SOURCE);
   const exe = path.join(homeDir(), 'bin', `boxrun-${crypto.createHash('sha256').update(src).digest('hex').slice(0, 12)}.exe`);
   if (fs.existsSync(exe)) return exe;
-  const csc = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
-  if (!fs.existsSync(csc)) return null;
+  if (!fs.existsSync(CSC)) return null;
   fs.mkdirSync(path.dirname(exe), { recursive: true });
   const tmp = `${exe}.${process.pid}.tmp.exe`;
   try {
-    execFileSync(csc, ['-nologo', `-out:${tmp}`, SOURCE], { stdio: 'pipe', windowsHide: true, timeout: 60_000 });
+    execFileSync(CSC, ['-nologo', `-out:${tmp}`, SOURCE], { stdio: 'pipe', windowsHide: true, timeout: 60_000 });
     fs.renameSync(tmp, exe);
   } catch {
     fs.rmSync(tmp, { force: true });
@@ -40,11 +41,37 @@ export function launcher(): string | null {
   return fs.existsSync(exe) ? exe : null;
 }
 
+/** Why a folder must never be granted to a box: a line break in its name, a drive root, your user folder or a folder above it, or the cc home or a folder above it. */
+export function unsafeGrant(dir: string, profile = os.homedir(), ccHome = homeDir()): string | null {
+  if (/[\r\n]/.test(dir)) return 'a folder name with a line break';
+  // \\server\share and \\?\ forms can name a refused folder through an admin share (B2 review of f4a98bef, N5)
+  if (/^[\\/]{2}/.test(dir)) return `${dir}, a network or device path`;
+  // a junction, an 8.3 name or a \\?\ form can name a refused folder; the ACL write follows it, so the real path is checked too (sec review of e89efa8c, item 6)
+  let real = dir;
+  try { real = fs.realpathSync.native(dir); } catch {}
+  if (real !== dir) {
+    const why = unsafeGrant(real, profile, ccHome);
+    if (why) return `${dir} (really ${real}): ${why}`;
+  }
+  const norm = (p: string) => path.resolve(p).replace(/[\\/]+$/, '').toLowerCase();
+  const d = norm(dir);
+  const atOrBelow = (a: string, b: string) => a === b || a.startsWith(b + path.sep);
+  if (norm(path.parse(path.resolve(dir)).root) === d) return `${dir}, a drive root`;
+  if (atOrBelow(norm(profile), d)) return `${dir}, which is or holds your user folder`;
+  if (atOrBelow(norm(ccHome), d)) return `${dir}, which is or holds the cc home`;
+  return null;
+}
+
 /** boxrun's argv for `file args` inside `box`; the grant list is written next to its temp folder. Throws when the box cannot start, never runs unconfined. */
 export function boxArgv(box: Box, file: string, args: string[], tmpDir: string, exe = launcher()): { file: string; args: string[] } {
   if (!exe) throw new Error('the plugin sandbox needs the .NET Framework compiler (csc.exe), which this PC does not have');
+  if (/\.(cmd|bat)$/i.test(file) || /(^|[\\/])cmd\.exe$/i.test(file)) throw new Error('a boxed program cannot be a .cmd or .bat script; the plugin must ship a program');
+  for (const g of box.grants) {
+    const why = unsafeGrant(g.slice(2));
+    if (why) throw new Error(`the box will not grant ${why}`);
+  }
   fs.mkdirSync(tmpDir, { recursive: true });
   const grantFile = path.join(path.dirname(tmpDir), `${path.basename(tmpDir)}.grants`);
   fs.writeFileSync(grantFile, [...box.grants, `w ${tmpDir}`].join('\n') + '\n');
-  return { file: exe, args: [box.name, box.net ? '1' : '0', grantFile, [file, ...args].map(winQuote).join(' ')] };
+  return { file: exe, args: [box.name, box.net ? '1' : '0', grantFile, path.resolve(file), [file, ...args].map(winQuote).join(' ')] };
 }

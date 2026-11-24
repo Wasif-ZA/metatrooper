@@ -98,8 +98,8 @@ test('Undo restores the last layout and My usual the default, one key each', t =
   assert.equal(usualWorkspace('project').current, null);
 });
 
-// A full Electron render of Ide() is out of scope; the gate and status bar are checked in the source.
-test('a waiting gate shows with the agent panel hidden', () => {
+// A full Electron render of Ide() is out of scope; the live check was done in an isolated instance on 2026-11-24 (captures orch1124/b3/m8-11-dev2.png).
+test('the layout branch keeps StatusBar, Asks and the banner in ide.jsx', () => {
   const src = readFileSync(new URL('../ui/src/ide.jsx', import.meta.url), 'utf8');
   const start = src.indexOf('if (layout) {');
   assert.ok(start > 0);
@@ -112,6 +112,20 @@ test('a waiting gate shows with the agent panel hidden', () => {
   const html = renderToStaticMarkup(React.createElement(WorkspaceBanner));
   assert.ok(html.includes('could not be built'));
   assert.ok(html.includes('a pane is empty'));
+});
+
+test('Ctrl+Z does nothing after a refused layout or a dismissed banner', () => {
+  const calls: any[] = [];
+  (globalThis as any).api = { call: async (method: string) => { calls.push(method); return { kind: 'reply', reply: { result: null } }; } };
+  const run = (applied: boolean, seenAt: string | null) => {
+    calls.length = 0;
+    wsStore.set({ pid: 'p1', seenAt, ws: { project_id: 'p1', current: example('dev'), undo: 1, last: { applied, at: 't', setter: 'claude (abc)', asked: '', reasons: [] } } });
+    workspaceKey({ ctrlKey: true, altKey: false, shiftKey: false, key: 'z', target: { closest: () => null }, preventDefault: () => {} });
+    return [...calls];
+  };
+  assert.deepEqual(run(false, null), []);
+  assert.deepEqual(run(true, 't'), []);
+  assert.deepEqual(run(true, null), ['workspace.undo']);
 });
 
 test('all 8 persona layouts load', t => {

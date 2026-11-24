@@ -42,3 +42,19 @@ export const WORKSPACE_TOOL: ToolDef = {
   },
   annotations: { readOnlyHint: false, destructiveHint: false },
 };
+
+export const ENGINE_TOOL: ToolDef = {
+  name: 'ouros_engine',
+  description: 'Run one action of an installed cc plugin (an engine such as whisper) in this project. cc checks the plugin is installed, enabled, not blocked and unchanged since it was approved, then runs the action with only its approved permissions; a program the plugin ships runs in a Windows sandbox. Give surface (one you drew with ouros_ui) and the action fills that screen through its binds, so you do not resend the screen. An action that leaves this machine (publish, send, deploy) waits until the user approves it in cc; you may wait a while. Returns {status: ok|failed, outputs, error, bound, run}.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      engine: { type: 'string', description: 'The plugin id.' },
+      action: { type: 'string', description: 'The action id from the plugin manifest.' },
+      input: { type: 'object', description: 'The action input, checked against its input_schema.' },
+      surface: { type: 'string', description: 'A surface id you drew, for the action binds.' },
+    },
+    required: ['engine', 'action'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};

@@ -16,7 +16,7 @@ import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { defaultApproval, heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
-import { proveSecret } from './sessions/secret.ts';
+import { proveSecret, approvalOf } from './sessions/secret.ts';
 import { parseChat, parseEngineChat } from './sessions/chat.ts';
 import { engineFile } from './meter.ts';
 import { buildHandoff, gatherHandoff, handoffTranscript } from './sessions/handoff.ts';
@@ -50,6 +50,10 @@ import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 import { decide, setReviewers } from './reviews.ts';
 import { catalogueProposals, getSurface, setSurfaceData, showSurface, surfaceEvent } from './surfaces.ts';
 import { blockReason } from './plugins/blocklist.ts';
+import { importLogins, listLogins, parseLoginCsv, previewLogins, removeLogin } from './browser/login-import.ts';
+import { runEngine } from './plugins/engine-run.ts';
+import { keepTemplate, proposeTemplates } from './templates.ts';
+import { answerProposal, getProfile, proposeChange, undoChange } from './profile.ts';
 import { changeWorkspace, getWorkspace, undoWorkspace, usualWorkspace } from './workspace.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -149,7 +153,14 @@ export const METHODS: MethodDecl[] = [
   { name: 'ui.get', params: '{surface}', result: '{id, session_id, project_id, zone, title, catalogue, spec, data, status, seq, updated_at}; -32002 when it does not exist' },
   { name: 'ui.data', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, surface, path, value}', result: '{surface, seq}; sets the value at a JSON pointer in the surface data (M8-08); a prop written {"bind": "/path"} takes it and the screen redraws with no parts resent. Only the session that drew the surface; data stays under 64 KB. Called by the `ouros_ui` MCP tool with `data`' },
   { name: 'ui.event', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{surface, seq, event, context?: {[key]: string | number | boolean}}', result: '{delivered, to: session | inbox | null, dropped?: stale | repeat, seq, typed?}: a click on a drawn screen goes to the session that drew it as one `[ouros-ui] {surface, seq, event, context}` line, typed into its terminal with Enter, so an idle agent acts on it now. While the session is starting, waiting on a person, or holds what the user typed into it since its last state change, `typed` is false: an engine with hooks gets the line from its UserPromptSubmit hook, any other has it pasted without Enter. Dropped when `seq` is not the current seq of the surface or the same event was already sent for that seq. When the session has exited or has no open terminal the line becomes a needs-you item. Nothing about it expires with time. Only the workbench calls it' },
-  { name: 'catalogue.proposals', params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
+  { name: 'catalogue.proposals', needsUi: true, params: '{}', result: '{proposals: [{part, props, surfaces}]}; an unknown part 3 or more drawn screens fell back on, with the props they sent and the screens that asked (M8-10a). Only shown; a part joins the catalogue only by a cc release with its tests' },
+  { name: 'profile.get', params: '{}', result: '{profile: {density, theme, hide, reading}, pending, waiting, history}; the learned profile (M8-07): one proposal is shown at a time, applied changes newest first' },
+  { name: 'profile.propose', errors: [E.VALIDATION], params: '{change: {key: density | theme | reading | hide | show, value}, why?}', result: 'as profile.get; queues a change, which waits behind the one shown and changes nothing until answered yes; hiding a gate, choice, handback, pipe or layout part is refused' },
+  { name: 'profile.answer', needsUi: true, errors: [E.NOT_FOUND], params: '{id, yes: boolean}', result: 'as profile.get; yes applies the shown proposal and lists it with Undo, no drops it' },
+  { name: 'profile.undo', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: 'as profile.get; the profile returns to before that change' },
+  { name: 'templates.proposals', needsUi: true, params: '{}', result: '{proposals: [{project_id, name, template, surfaces, sessions, kept, why?}]}; per project; a screen drawn with one shape by 3 or more sessions, its differing values as {{gN}} gaps; kept only when replay holds: filling the template with each past screen gives that screen back (M8-06a,b)' },
+  { name: 'templates.keep', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{name, project_id?}', result: '{name, file}; saves a proposal the person said yes to into <home>/templates/<project>, where use parts find it; refused when it loses on replay' },
+  { name: 'engine.run', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, session_secret?, engine, action, input?, surface?}', result: '{status: ok | failed, outputs?, error?, bound?, run}; a caller that is not the UI proves session_id with its session_secret; runs one action of an installed, enabled plugin in the session project by the action process contract (plugins.md); a binary the plugin ships runs in the AppContainer box. With `surface` (one this session drew), the action `binds` fill that surface data path (M8-12). An `external` action waits for a real gate (an approval row, surface engine, asked every time, naming the destination) and runs only when approved; -32003 otherwise. Called by the `ouros_engine` MCP tool' },
   { name: 'workspace.change', errors: [E.INVALID_PARAMS, E.NOT_FOUND, E.VALIDATION], params: '{session_id, op?: set | save | restore | example, workspace?, name?}', result: '{project_id, current, usual, undo, saved, examples, last: {applied, reasons, setter, asked, at}}; set checks a whole layout (ouros-spec 6c) and applies it, or leaves the old one and lists the reasons in `last`; save names the current layout; restore applies a saved one; example applies a shipped layout from workbench/ui/src/workspaces. The setter is the calling session, never the `by` inside the layout. Called by the `ouros_workspace` MCP tool' },
   { name: 'workspace.get', params: '{project_id}', result: '{project_id, current, usual, undo, saved, last}; current is null for your usual layout' },
   { name: 'workspace.undo', needsUi: true, errors: [E.VALIDATION], params: '{project_id}', result: 'as workspace.get; the layout before the last change (Ctrl Z)' },
@@ -164,8 +175,12 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{plugin_id, on: boolean}', result: '{enabled}; persists the switch; a disabled plugin contributes no engines, MCP servers or actions to new sessions until it is turned on again' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
+  { name: 'browser.logins.preview', needsUi: true, errors: [E.INVALID_PARAMS], params: '{text}', result: '{rows: [{i, origin, username, name, exists, skip}]}; reads a password CSV the person exported from their browser (url, username, password columns; 5 MB, 5,000 rows) and says what an import would do. No password is returned (M8-50)' },
+  { name: 'browser.logins.import', needsUi: true, errors: [E.INVALID_PARAMS], params: '{text, picks: [{i, replace?}]}', result: '{imported, origins, skipped: [{i, why}]}; saves each ticked https (or loopback http) login as origin-bound browser secrets NAME and NAME_user that the browser type tool fills and an agent never reads; a saved login is replaced only when ticked; at most 500 browser secrets; one line in logs/logins.log with the count and origins (M8-50)' },
+  { name: 'browser.logins.list', needsUi: true, params: '{}', result: '{logins: [{name, origin, user}]}; the imported logins, never a value' },
+  { name: 'browser.logins.remove', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name}', result: '{}; removes an imported login and its username' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
-  { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
+  { name: 'mcp.resolve', params: '{plugin_id, server_id, token, session_secret?}', result: '{command, args, env, refs, missing, project_dir} for the MCP shim (project_dir: the project of the proven session, or null), refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
   { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names, token}', result: '{}; raises a `missing-secret` needs-you item per name' },
   { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
   { name: 'notify.sink.list', stable: true, params: '{}', result: '{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination' },
@@ -195,7 +210,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'desktop.windows', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid}', result: "{windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued" },
   { name: 'desktop.describe', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, ref?}', result: '{grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}; `token` is opaque and names the element itself; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program top-level window over the target centre, else empty (M6-18); -32030 "window not granted; ask the user to give it to you"' },
   { name: 'desktop.snapshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, max_nodes?}', result: '{text, nodes}: the UI Automation tree with refs' },
-  { name: 'desktop.screenshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window}', result: '{data_base64, mime, width, height}: JPEG, no side over 1,568 px' },
+  { name: 'desktop.screenshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window}', result: '{data_base64, mime, width, height, origin_px, scale}: JPEG, no side over 1,568 px; screen pixel = origin_px + image pixel / scale' },
+  { name: 'desktop.locate', errors: [E.PANE_NOT_OWNED, E.INVALID_PARAMS], params: '{session_id, pid, window, ref}', result: '{screen_rect_px, window_rect_px, dpi, monitor: {device, rect_px, primary}}: where a control is on screen in physical pixels, read only (M8-49 row 4)' },
   { name: 'desktop.check', errors: [E.PANE_NOT_OWNED, E.INVALID_PARAMS], params: '{session_id, pid, window, checks}', result: '{passed, results: [{passed, actual}]}; up to 8 title or control value checks, run with no model' },
   { name: 'desktop.find', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, text}', result: '{found}: whether a node Name or value contains `text`' },
   { name: 'desktop.action.verify', errors: [E.NOT_FOUND, E.PANE_NOT_OWNED], params: '{session_id, pid, action_hash}', result: '{confirmed}; reads a held action predeclared exact title postcondition' },
@@ -1045,6 +1061,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  const csvText = (p: Record<string, unknown>) => { if (typeof p.text !== 'string') throw new RpcError(E.INVALID_PARAMS, 'text must be the CSV text'); try { return parseLoginCsv(p.text); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); } };
+  m.set('browser.logins.preview', { needsUi: true, handler: (p) => ({ rows: previewLogins(csvText(p)) }) });
+  m.set('browser.logins.import', {
+    needsUi: true,
+    handler: (p) => {
+      if (!Array.isArray(p.picks) || p.picks.some((x) => !x || typeof x !== 'object' || !Number.isInteger((x as { i: unknown }).i))) throw new RpcError(E.INVALID_PARAMS, 'picks must be [{i, replace?}]');
+      return importLogins(db, csvText(p), p.picks as Array<{ i: number; replace?: boolean }>);
+    },
+  });
+  m.set('browser.logins.list', { needsUi: true, handler: () => ({ logins: listLogins() }) });
+  m.set('browser.logins.remove', { needsUi: true, handler: (p) => { try { removeLogin(str(p, 'name')); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); } return {}; } });
   m.set('browser.secret.set', {
     handler: (p) => {
       if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');
@@ -1061,7 +1088,29 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('ui.show', { handler: (p) => showSurface(db, p) });
   m.set('ui.get', { handler: (p) => getSurface(db, str(p, 'surface')) });
   m.set('ui.data', { handler: (p) => setSurfaceData(db, p) });
-  m.set('catalogue.proposals', { handler: () => ({ proposals: catalogueProposals(db) }) });
+  m.set('catalogue.proposals', { needsUi: true, handler: () => ({ proposals: catalogueProposals(db) }) });
+  m.set('profile.get', { handler: () => getProfile() });
+  m.set('profile.propose', { handler: (p) => proposeChange(p.change, p.why) });
+  m.set('profile.answer', { needsUi: true, handler: (p) => answerProposal(p.id, p.yes) });
+  m.set('profile.undo', { needsUi: true, handler: (p) => undoChange(p.id) });
+  m.set('templates.proposals', { needsUi: true, handler: () => ({ proposals: proposeTemplates(db) }) });
+  m.set('templates.keep', { needsUi: true, handler: (p) => keepTemplate(db, p.name, p.project_id) });
+  m.set('engine.run', {
+    handler: (p, ctx) => {
+      // a direct pipe call proves the session it names (B1 review of fa77f07e, point 4)
+      if (!ctx?.ui) {
+        const secret = typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret) : null;
+        const proven = ctx?.session ?? secret?.session;
+        if (!proven || proven !== p.session_id) throw new RpcError(E.NEEDS_UI, 'engine.run needs the session_secret of the session it names, or a trusted UI connection');
+        // an exited or isolated session runs no plugin action (sec review of e89efa8c, item 2)
+        const live = db.prepare('SELECT state FROM session WHERE id = ?').get(proven) as { state: string } | undefined;
+        // an unknown profile (a core restart forgets it) is refused like isolated (N2)
+        const profile = secret?.approval ?? approvalOf(proven);
+        if (!live || live.state === 'exited' || !profile || profile === 'isolated') throw new RpcError(E.NEEDS_UI, 'engine.run needs a live session that is not isolated');
+      }
+      return runEngine(db, p, approvals);
+    },
+  });
   m.set('workspace.change', { handler: (p) => changeWorkspace(db, p) });
   m.set('workspace.get', { handler: (p) => getWorkspace(str(p, 'project_id')) });
   m.set('workspace.undo', { needsUi: true, handler: (p) => undoWorkspace(str(p, 'project_id')) });
@@ -1078,7 +1127,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('mcp.resolve', {
     handler: (p) => {
       checkShimToken(str(p, 'plugin_id'), str(p, 'token'));
-      return resolveMcpServerAsync(db, str(p, 'plugin_id'), str(p, 'server_id'));
+      // a boxed server is granted the project of the session the shim proves, never its own cwd (sec review of e89efa8c, item 7)
+      const proven = typeof p.session_secret === 'string' && p.session_secret ? proveSecret(p.session_secret) : null;
+      const project = proven ? (db.prepare("SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ? AND s.state != 'exited'").get(proven.session) as { path: string } | undefined) : undefined;
+      return resolveMcpServerAsync(db, str(p, 'plugin_id'), str(p, 'server_id')).then((r) => ({ ...r, project_dir: project?.path ?? null }));
     },
   });
 

@@ -137,8 +137,5 @@ test('browser server: explicit bp_ pane_id fails with -32030', async (t) => {
 
   const reply = await client.call('browser.snapshot', { pane_id: 'bp_user_1' });
   assert.equal(reply.error?.code, -32030);
-  assert.equal(
-    reply.error?.message,
-    "an agent may drive only its own agent panes, not a user pane; to use the user's sign-in, ask them to lend the site (navigate with signed_in: true)",
-  );
+  assert.match(reply.error?.message ?? '', /^an agent may drive only its own agent panes, not a user pane \((leave pane_id out to use your own pane|call panes for your pane ids|leave pane_id out of navigate and cc opens your own pane)\); to use the user's sign-in, ask them to lend the site \(navigate with signed_in: true\)$/);
 });

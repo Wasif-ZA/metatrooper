@@ -8,14 +8,15 @@ export const UNAVAILABLE = 'desktop not available: the cc workbench is closed';
 const CONTROL_CHANGED = -32035;
 
 const win = { window: { type: 'integer', description: 'A window handle from windows.' } };
-const READ_ONLY = new Set(['windows', 'snapshot', 'screenshot', 'wait_for', 'verify', 'check']);
+const READ_ONLY = new Set(['windows', 'snapshot', 'screenshot', 'locate', 'wait_for', 'verify', 'check']);
 const verifyTitle = { verify_title: { type: 'string', description: 'Optional exact window title expected after this action. Must differ before dispatch; verify can later clear an unresolved outcome when this title is read.' } };
 export const TOOLS            = [
   { name: 'verify', description: 'Read the predeclared title postcondition of a held action and clear it only if it passes.', inputSchema: { type: 'object', properties: { action_hash: { type: 'string' } }, required: ['action_hash'] } },
   { name: 'check', description: 'Checks a window title or control values with no model and returns each actual value.', inputSchema: { type: 'object', properties: { ...win, checks: { type: 'array', maxItems: 8, items: { type: 'object', properties: { kind: { type: 'string', enum: ['title', 'value'] }, ref: { type: 'string' }, op: { type: 'string', enum: ['equals', 'contains', 'not_contains'] }, expected: { type: 'string' } }, required: ['kind', 'op', 'expected'] } } }, required: ['window', 'checks'] } },
   { name: 'windows', description: 'List the desktop windows the user gave this session, and the windows they own (dialogs, menus).', inputSchema: { type: 'object', properties: {} } },
   { name: 'snapshot', description: 'UI Automation tree of a window as text; each node carries [ref=e12]. Refs last until the next snapshot of that window.', inputSchema: { type: 'object', properties: { ...win, max_nodes: { type: 'integer', default: 400 } }, required: ['window'] } },
-  { name: 'screenshot', description: 'JPEG of one window, even when covered; no side over 1,568 px.', inputSchema: { type: 'object', properties: { ...win }, required: ['window'] } },
+  { name: 'screenshot', description: 'JPEG of one window, even when covered; no side over 1,568 px. A text part gives origin_px and scale: screen pixel = origin_px + image pixel / scale.', inputSchema: { type: 'object', properties: { ...win }, required: ['window'] } },
+  { name: 'locate', description: 'Where the control with this ref is on screen, read only: {screen_rect_px, window_rect_px, dpi, monitor} in physical pixels. Clicks still go by ref.', inputSchema: { type: 'object', properties: { ...win, ref: { type: 'string' } }, required: ['window', 'ref'] } },
   { name: 'click', description: 'Click the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, ref: { type: 'string' } }, required: ['window', 'ref'] } },
   { name: 'type', description: 'Replace the text of the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, ref: { type: 'string' }, text: { type: 'string' } }, required: ['window', 'ref', 'text'] } },
   { name: 'key', description: 'Press a key in the window, e.g. "Enter", "Tab", "Escape". Control and Shift chords are refused: a posted modifier never reaches the app.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, keys: { type: 'string' } }, required: ['window', 'keys'] } },
@@ -104,14 +105,15 @@ export function desktopTools({ sessionId, pid, core, workbench }             )  
     const r = name === 'windows' ? await core('desktop.windows', me)
       : name === 'snapshot' ? await core('desktop.snapshot', { ...me, window: args.window, max_nodes: args.max_nodes })
       : name === 'screenshot' ? await core('desktop.screenshot', { ...me, window: args.window })
+      : name === 'locate' ? await core('desktop.locate', { ...me, window: args.window, ref: args.ref })
       : name === 'check' ? await core('desktop.check', { ...me, window: args.window, checks: args.checks })
       : name === 'verify' ? await core('desktop.action.verify', { ...me, action_hash: args.action_hash })
       : name === 'wait_for' ? await waitFor(args, session_id)
       : name === 'request_takeover' ? await requestTakeover(args, me)
       : await input(name, args, session_id);
     if (r.error) return { ...fail(r.error.message), userNote: r.error.instruction };
-    const result = r.result                                                                      ;
-    if (name === 'screenshot' && result?.data_base64) return { content: [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }] };
+    const result = r.result                                                                                                            ;
+    if (name === 'screenshot' && result?.data_base64) return { content: [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }, ...(result.origin_px ? [{ type: 'text', text: JSON.stringify({ origin_px: result.origin_px, scale: result.scale }) }] : [])] };
     if ((name === 'snapshot' || name === 'request_takeover') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
     return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
   }

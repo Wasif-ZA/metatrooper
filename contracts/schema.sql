@@ -76,7 +76,8 @@ CREATE TABLE session (
   outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')), -- set when the session exits
   prompt        TEXT,
   priority      TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent')),
-  approval      TEXT
+  approval      TEXT,
+  secret_hash   TEXT                            -- sha256 of the launch secret (never the secret), so a running session keeps its proof after a core restart
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
@@ -191,7 +192,7 @@ CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
 CREATE TABLE approval (
   id           TEXT PRIMARY KEY,               -- 'ap_<ulid>'
   session_id   TEXT NOT NULL REFERENCES session(id),
-  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop')),
+  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop','engine')),
   target       TEXT NOT NULL,                  -- browser: origin; desktop: grant id
   control      TEXT,                           -- canonical JSON {automation_id, name, role}, redacted; NULL when no control
   action       TEXT NOT NULL,                  -- tool name: click, type, key, select, scroll, navigate

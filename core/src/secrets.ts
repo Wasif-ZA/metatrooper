@@ -83,6 +83,45 @@ function encrypt(pluginId: string, name: string, value: string): string {
       : linuxBlob(pluginId, name, value);
 }
 
+const DPAPI_ENCRYPT = 'ConvertTo-SecureString -String $x -AsPlainText -Force | ConvertFrom-SecureString';
+const DPAPI_DECRYPT =
+  '$s = Get-Content -Raw -LiteralPath $x | ConvertTo-SecureString; ' +
+  '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))))';
+
+/** Windows: one powershell spawn for many items (one spawn costs about 0.33 s); items go in on stdin as base64 lines, never on the command line. */
+function dpapiMany(script: string, items: string[]): string[] {
+  const input = items.map((s) => Buffer.from(s, 'utf8').toString('base64')).join('\n') + '\n';
+  const out = powershell(`$ErrorActionPreference = 'Stop'; ($v -split "\`n" | Where-Object { $_.Trim() } | ForEach-Object { $x = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_.Trim())); ${script} }) -join "\`n"`, input, true);
+  const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length !== items.length) throw new Error('powershell failed: a batch item was not processed');
+  return lines;
+}
+
+/** Encrypts several values in one spawn on Windows; one at a time elsewhere. */
+function encryptMany(pluginId: string, items: Array<{ name: string; value: string }>): string[] {
+  if (items.length > 1 && process.platform === 'win32' && !fakeDpapi()) return dpapiMany(DPAPI_ENCRYPT, items.map((x) => x.value));
+  return items.map((x) => encrypt(pluginId, x.name, x.value));
+}
+
+/** Decrypts every named secret not yet cached in one spawn on Windows, so the first scrub after a big import is not one spawn per secret; a failure is left to the per-secret read, which reports it. */
+function prefetch(pluginId: string, names: string[]): void {
+  if (process.platform !== 'win32' || fakeDpapi()) return;
+  const todo = names
+    .map((name) => ({ key: `${pluginId}/${name}`, file: secretPath(pluginId, name) }))
+    .map((x) => ({ ...x, stamp: fileStamp(x.file) }))
+    .filter((x) => x.stamp && !(cache.has(x.key) && stamps.get(x.key) === x.stamp));
+  if (todo.length < 2) return;
+  let values: string[];
+  try { values = dpapiMany(DPAPI_DECRYPT, todo.map((x) => x.file)).map((b) => Buffer.from(b, 'base64').toString('utf8')); } catch { return; }
+  todo.forEach((x, i) => {
+    if (fileStamp(x.file) !== x.stamp) return;
+    const hit = cache.get(x.key);
+    if (hit !== undefined && hit !== values[i]) retired.add(hit);
+    cache.set(x.key, values[i]);
+    stamps.set(x.key, x.stamp);
+  });
+}
+
 /** Writes through a temp file and a rename, so a failed write leaves the old file whole (D9). */
 function writePrivate(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
@@ -190,15 +229,37 @@ export function deleteSecrets(db: DatabaseSync, pluginId: string): void {
 
 /** Saves a browser secret: the value in the DPAPI store under plugin id `core-browser`, its origin in plain text beside it. */
 export function setBrowserSecret(db: DatabaseSync, name: string, origin: string, value: string): void {
+  setBrowserSecrets(db, [{ name, origin, value }]);
+}
+
+/** Saves several browser secrets with one DPAPI spawn on Windows; each is written as setBrowserSecret writes it, in order, and onSaved names each one once it is in place. */
+export function setBrowserSecrets(_db: DatabaseSync, items: Array<{ name: string; origin: string; value: string }>, onSaved?: (k: number) => void): void {
+  const origins = items.map((x) => checkBrowserSecret(x.name, x.origin, x.value));
+  const blobs = encryptMany(BROWSER_SECRETS, items);
+  for (let k = 0; k < items.length; k++) {
+    try {
+      writeBrowserSecret(items[k].name, origins[k], items[k].value, blobs[k]);
+    } catch (e) {
+      for (let j = k + 1; j < items.length; j++) dropKeyring(BROWSER_SECRETS, items[j].name, blobs[j]);
+      throw e;
+    }
+    onSaved?.(k);
+  }
+}
+
+function checkBrowserSecret(name: string, origin: string, value: string): string {
   const o = normalOrigin(origin);
   if (!SECRET_NAME.test(name)) throw new Error('name must be letters, digits and _, starting with a letter');
   if (!o) throw new Error('origin must be an http or https URL');
   if (!value) throw new Error('value is required');
   if (value.length < MIN_SECRET_LENGTH) throw new Error(`value must be at least ${MIN_SECRET_LENGTH} characters, or output scrubbing cannot catch it`);
+  return o;
+}
+
+function writeBrowserSecret(name: string, o: string, value: string, blob: string): void {
   const file = secretPath(BROWSER_SECRETS, name);
   const oFile = originFile(name);
   const old = readBlob(file);
-  const blob = encrypt(BROWSER_SECRETS, name, value);
   const next = `${oFile}.${process.pid}.new`;
   // both old files are held until both new ones are in place; no origin while the value changes, since a fill reads the origin before and after the value and needs both to agree
   const held = [file, oFile].map((f) => ({ f, h: `${f}.${process.pid}.old`, had: fs.existsSync(f), moved: false }));
@@ -237,6 +298,7 @@ export function scrubSecretValues(): string[] {
     const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.dpapi')).map((f) => f.slice(0, -'.dpapi'.length)) : [];
     savedNames = { stamp, names };
   }
+  prefetch(BROWSER_SECRETS, savedNames.names);
   for (const name of savedNames.names) {
     if (getSecret(BROWSER_SECRETS, name) === null) throw new Error('saved secret unavailable for scrubbing');
   }

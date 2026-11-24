@@ -90,6 +90,13 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   ui.data                 {session_id, surface, path, value}
   ui.event                {surface, seq, event, context?: {[key]: string | number | boolean}}
   catalogue.proposals     {}
+  profile.get             {}
+  profile.propose         {change: {key: density | theme | reading | hide | show, value}, why?}
+  profile.answer          {id, yes: boolean}
+  profile.undo            {id}
+  templates.proposals     {}
+  templates.keep          {name, project_id?}
+  engine.run              {session_id, session_secret?, engine, action, input?, surface?}
   workspace.change        {session_id, op?: set | save | restore | example, workspace?, name?}
   workspace.get           {project_id}
   workspace.undo          {project_id}
@@ -104,8 +111,12 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   plugin.remove           {plugin_id}
   plugin.enable           {plugin_id, on: boolean}
   plugin.secret.set       {plugin_id, name, value}
+  browser.logins.preview  {text}
+  browser.logins.import   {text, picks: [{i, replace?}]}
+  browser.logins.list     {}
+  browser.logins.remove   {name}
   browser.secret.set      {name, origin, value}
-  mcp.resolve             {plugin_id, server_id, token}
+  mcp.resolve             {plugin_id, server_id, token, session_secret?}
   mcp.missing             {plugin_id, names, token}
   notify.sink.set         {kind, dest, name?, id?, kinds?, enabled?}  (stable)
   notify.sink.list        {}  (stable)
@@ -136,6 +147,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   desktop.describe        {session_id, pid, window, ref?}
   desktop.snapshot        {session_id, pid, window, max_nodes?}
   desktop.screenshot      {session_id, pid, window}
+  desktop.locate          {session_id, pid, window, ref}
   desktop.check           {session_id, pid, window, checks}
   desktop.find            {session_id, pid, window, text}
   desktop.action.verify   {session_id, pid, action_hash}

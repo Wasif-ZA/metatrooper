@@ -153,6 +153,7 @@ const catalogueParts = [
   { type: 'calendar', days: [], events: [] }, { type: 'image', asset: 'asset:synthetic', alt: 'A' }, { type: 'use', template: 'hello' },
 ];
 const undrawn = ['use'];
+const whyUndrawn = (t: string) => (t === 'use' ? 'no template called hello' : 'not drawn yet');
 for (const part of catalogueParts) {
   const draws = !undrawn.includes(part.type);
   test(`catalogue ${part.type} is checked then ${draws ? 'expanded for drawing' : 'marked not drawn yet'}`, () => {
@@ -163,9 +164,9 @@ for (const part of catalogueParts) {
       assert.equal(out.root.type, part.type);
       assert.equal(isFallback(out.root), false);
     } else {
-      assert.deepEqual(out.fellBack, [{ part: 'p1', type: part.type, why: 'not drawn yet' }]);
+      assert.deepEqual(out.fellBack, [{ part: 'p1', type: part.type, why: whyUndrawn(part.type) }]);
       assert.equal(isFallback(out.root), true);
-      assert.equal(out.root.why, 'not drawn yet');
+      assert.equal(out.root.why, whyUndrawn(part.type));
     }
   });
 }
@@ -238,3 +239,41 @@ for (const type of ['columns', 'grid', 'fold', 'tabs']) {
     if (type === 'tabs') assert.deepEqual(out.root.tabs[1], { label: 'Good', children: [last] });
   });
 }
+
+test('a filled template is re-checked and a fourth nesting level is cut', () => {
+  const use = (template: string, data: any = {}) => ({ type: 'use', template, data });
+  const a = { type: 'page', children: [{ type: 'text', text: 'Morning {{who}}' }, { type: 'log', lines: '{{lines}}' }] };
+  const ok = expand(use('a', { who: 'Wasif', lines: ['x', 'y'] }), 'tab', {}, { a });
+  assert.deepEqual(ok.fellBack, []);
+  assert.equal(ok.root.children[0].text, 'Morning Wasif');
+  assert.deepEqual(ok.root.children[1].lines, ['x', 'y']);
+
+  const bad = expand(use('a', { who: 'W', lines: 7 }), 'tab', {}, { a });
+  assert.equal(bad.fellBack.length, 1);
+  assert.equal(bad.fellBack[0].type, 'log');
+  assert.equal(isFallback(bad.root.children[1]), true);
+
+  const chain = {
+    t1: { type: 'page', children: [{ type: 'text', text: 'one' }, use('t2')] },
+    t2: { type: 'page', children: [{ type: 'text', text: 'two' }, use('t3')] },
+    t3: { type: 'page', children: [{ type: 'text', text: 'three' }, use('t4')] },
+    t4: { type: 'page', children: [{ type: 'text', text: 'four' }] },
+  };
+  const deep = expand(use('t1'), 'tab', {}, chain);
+  const l1 = deep.root, l2 = l1.children[1], l3 = l2.children[1], l4 = l3.children[1];
+  assert.deepEqual([l1, l2, l3].map(p => p.children[0].text), ['one', 'two', 'three']);
+  assert.equal(isFallback(l4), true);
+  assert.equal(l4.why, 'templates nest deeper than 3');
+  assert.equal(deep.fellBack.length, 1);
+
+  const loop = expand(use('s'), 'tab', {}, { s: { type: 'page', children: [use('s')] } });
+  assert.equal(loop.fellBack.length, 1);
+  assert.equal(loop.fellBack[0].why, 'templates nest deeper than 3');
+
+  const none = expand(use('x'), 'tab', {}, {});
+  assert.equal(isFallback(none.root), true);
+  assert.equal(none.root.why, 'no template called x');
+
+  const obj = expand(use('g', { who: { a: 1 } }), 'tab', {}, { g: { type: 'text', text: 'Hi {{who}}!' } });
+  assert.equal(obj.root.text, 'Hi !');
+});
