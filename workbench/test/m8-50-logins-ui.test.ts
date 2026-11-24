@@ -56,3 +56,43 @@ test('preload exposes loginsPick and loginsImport', () => {
   assert.match(pre, /loginsPick:[^\n]*invoke\('loginsPick'\)/);
   assert.match(pre, /loginsImport:[^\n]*invoke\('loginsImport'/);
 });
+
+// protects=Cancel in the window offers to delete the exported file, and a held file never outlives 10 minutes
+// fails_when=loginsCancel is not exposed, bypasses trusted on(), keeps the token, skips offerDelete, or the 10 minute timer goes
+// no_claim=runtime behaviour of the timers
+test('loginsCancel drops the token and offers to delete; held files expire after 10 minutes', () => {
+  const pre = readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8');
+  assert.match(pre, /loginsCancel:[^\n]*invoke\('loginsCancel'/);
+  const h = handler('loginsCancel');
+  assert.match(h, /takeLoginFile\(token\)/);
+  assert.match(h, /offerDelete\(held\.file/);
+  const take = main.match(/const takeLoginFile = [\s\S]*?\n  \};/)?.[0] ?? '';
+  assert.match(take, /clearTimeout\(held\.timer\)/);
+  assert.match(take, /loginFiles\.delete\(/);
+  assert.match(main, /on = \(channel[\s\S]{0,200}?if \(!trusted\(e\)\) throw/);
+  assert.ok(!/ipcMain\.handle\('loginsCancel'/.test(main), 'registered through on(), not ipcMain.handle');
+  assert.match(handler('loginsPick'), /timer: setTimeout\(\(\) => loginFiles\.delete\(token\), 10 \* 60_000\)/);
+});
+
+// protects=the import waits as long as its size needs and the file is offered for deletion on every outcome
+// fails_when=the wait is a fixed default, offerDelete is skipped on an error or offline outcome, or the path used is not the real one
+// no_claim=the core's actual speed
+test('loginsImport waits by size, offers delete on every outcome; loginsPick uses the real path', () => {
+  const h = handler('loginsImport');
+  assert.match(h, /const n = Array\.isArray\(picks\) \? picks\.length : 0/);
+  assert.match(h, /Math\.min\(60_000 \+ 2_000 \* n, 20 \* 60_000\)/);
+  const offer = h.indexOf('offerDelete(held.file');
+  const fail = h.indexOf('if (!ok) return');
+  assert.ok(offer > 0 && fail > offer, 'offerDelete runs before the error and offline return');
+  assert.match(h, /const ok = out\.kind === 'reply' && !out\.reply\.error/);
+  assert.match(h, /the core did not answer in time/);
+  assert.match(h, /offerDelete\(held\.file, ok\)/);
+  const pick = handler('loginsPick');
+  assert.match(pick, /const file = fs\.realpathSync\(picked\)/);
+  assert.match(pick, /statSync\(file\)/);
+  assert.match(pick, /readFileSync\(file,/);
+  assert.match(pick, /loginFiles\.set\(token, \{ file,/);
+  assert.ok(!/readFileSync\(picked/.test(pick) && !/statSync\(picked/.test(pick));
+  assert.match(main, /fs\.rmSync\(file\)/);
+  assert.match(main, /async function callUi\(method: string, params: Record<string, unknown>, waitMs\?: number\)/);
+});

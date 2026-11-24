@@ -41,10 +41,10 @@ test('a Chrome, Edge or Firefox password export parses, and other files are refu
   assert.throws(() => parseLoginCsv('url,username,password\n' + 'x'.repeat(5 * 1024 * 1024 + 1)), /5 MB/);
 });
 
-// protects=only https and loopback http logins are importable and each skip carries a reason
-// fails_when=loginOrigin accepts http on a public host, ftp or an IP, or a short password is kept, or the preview carries a password
+// protects=only https logins are importable (http localhost is refused too) and each skip carries a reason
+// fails_when=loginOrigin accepts http on any host, ftp or an IP, or a short password is kept, or the preview carries a password
 // no_claim=IPv6 loopback
-test('only https and loopback http logins are kept and every skip says why', () => {
+test('only https logins are kept, http localhost is skipped, and every skip says why', () => {
   const f = fixture();
   try {
     const rows = [
@@ -57,11 +57,12 @@ test('only https and loopback http logins are kept and every skip says why', () 
     ];
     assert.equal(loginOrigin('http://example.com'), null);
     const p = previewLogins(rows);
-    assert.deepEqual(p.map((x) => x.skip !== null), [true, true, true, true, false, false]);
+    assert.deepEqual(p.map((x) => x.skip !== null), [true, true, true, true, false, true]);
     for (const x of p.slice(0, 4)) assert.ok(x.skip && x.skip.length > 5);
     assert.match(p[3].skip!, /shorter/);
     assert.equal(p[4].origin, 'https://a.example');
-    assert.equal(p[5].origin, 'http://localhost:3000');
+    assert.equal(p[5].origin, null);
+    assert.equal(p[5].skip, 'not an https site');
     const json = JSON.stringify(p);
     for (const r of rows) assert.ok(!json.includes(r.password), r.password);
   } finally { f.close(); }
