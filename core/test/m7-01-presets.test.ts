@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PRESETS, isPreset, smallestPreset } from '../src/browser/grants.ts';
 
-// The tool sets come from the M7-01 spec (Change 1) and contracts/browser-tools.md (version 3), not from the code.
+// The tool sets come from M7-01 and M8-49's addition of upload to act, not from the code.
 const LOOK = ['panes', 'navigate', 'snapshot', 'screenshot', 'scroll', 'read', 'find', 'handoff', 'export_test'];
-const ACT_ADDED = ['back', 'click', 'type', 'key', 'select', 'wait_for', 'dialog', 'batch'];
+const ACT_ADDED = ['back', 'click', 'type', 'key', 'select', 'upload', 'wait_for', 'dialog', 'batch'];
 const DEBUG_ADDED = ['console', 'network', 'evaluate'];
 const ACT = [...LOOK, ...ACT_ADDED];
 const DEBUG = [...ACT, ...DEBUG_ADDED];
@@ -27,10 +27,10 @@ test('M7-01a look holds exactly the 9 tools the spec names', () => {
   assert.deepEqual(toolsOf('look'), sorted(LOOK));
 });
 
-// protects=act is look plus the eight input and wait tools, and nothing from debug
+// protects=act is look plus the nine input and wait tools, and nothing from debug
 // fails_when=act is missing a tool from the spec, or it includes console, network or evaluate
 // no_claim=page_call, which the WebMCP spike excluded from M7
-test('M7-01a act holds look plus back, click, type, key, select, wait_for, dialog and batch', () => {
+test('M7-01a act holds look plus back, click, type, key, select, upload, wait_for, dialog and batch', () => {
   assert.deepEqual(toolsOf('act'), sorted(ACT));
   for (const tool of DEBUG_ADDED) assert.ok(!toolsOf('act').includes(tool), `act must not hold ${tool}`);
 });
@@ -40,7 +40,7 @@ test('M7-01a act holds look plus back, click, type, key, select, wait_for, dialo
 // no_claim=that debug equals every tool the MCP server advertises (the server list is not read here)
 test('M7-01a debug holds act plus console, network and evaluate', () => {
   assert.deepEqual(toolsOf('debug'), sorted(DEBUG));
-  assert.equal(DEBUG.length, 20);
+  assert.equal(DEBUG.length, 21);
 });
 
 // protects=each preset holds the one before it, so a grant only ever adds tools

@@ -74,6 +74,7 @@ function createHarness() {
       },
     },
     render: () => {},
+    vscodeOnce: async () => {},
     save: () => {},
     setView: () => {},
   };

@@ -30,13 +30,12 @@ export class HeadlessBrowser extends EventEmitter {
     super();
     if (!path.isAbsolute(exe) || !fs.existsSync(exe)) throw new Error(`the headless browser is not at ${exe}`);
     this.profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-headless-'));
-    this.proc = spawn(exe, ['--remote-debugging-pipe', `--user-data-dir=${this.profile}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync', '--disable-background-networking', '--mute-audio', '--block-new-web-contents'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true });
+    this.proc = spawn(exe, ['--remote-debugging-pipe', `--user-data-dir=${this.profile}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync', '--disable-background-networking', '--mute-audio', '--block-new-web-contents'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true }).on('error', (e) => this.shut(`the headless browser failed: ${e.message}`));
     this.out = this.proc.stdio[3] as Writable;
     const input = this.proc.stdio[4] as Readable;
     input.on('data', (d: Buffer) => this.onData(d));
     const end = (why: string) => this.shut(why);
     this.proc.on('exit', (code) => end(`the headless browser exited (${code})`));
-    this.proc.on('error', (e) => end(`the headless browser failed: ${e.message}`));
     this.out.on('error', () => end('the pipe to the headless browser broke'));
   }
 

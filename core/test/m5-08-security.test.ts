@@ -93,14 +93,31 @@ for (const [table, check] of [['comment', "kind IN ('element','diff-line','file'
   });
 }
 
+test('M5-08a rebuild keeps an extra column and its data', () => {
+  const { dir, db } = fixture();
+  try {
+    const create = schema.slice(schema.indexOf('CREATE TABLE session ('), schema.indexOf('\n);', schema.indexOf('CREATE TABLE session (')) + 3);
+    db.exec('DROP TABLE session');
+    db.exec(create.replace("'external'", "'obsolete'").replace('CREATE TABLE session (', 'CREATE TABLE session (\n note TEXT,'));
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, note) VALUES ('s1','p1','e1','pty','working','2026-10-09T00:00:00.000Z','2026-10-09T00:00:00.000Z','keep')").run();
+    allowSandbox(db);
+    assert.match((db.prepare("SELECT sql FROM sqlite_master WHERE name = 'session'").get() as any).sql, /'external'/);
+    assert.equal((db.prepare('SELECT note FROM session WHERE id = ?').get('s1') as any).note, 'keep');
+  } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('M5-08a rebuild failure rolls back table and data', () => {
   const { dir, db } = fixture();
   try {
     const create = schema.slice(schema.indexOf('CREATE TABLE session ('), schema.indexOf('\n);', schema.indexOf('CREATE TABLE session (')) + 3);
     db.exec('DROP TABLE session');
-    db.exec(create.replace("'external'", "'obsolete'").replace('\n);', ',\n note TEXT\n);'));
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, note) VALUES ('s1','p1','e1','pty','working','2026-10-09T00:00:00.000Z','2026-10-09T00:00:00.000Z','keep')").run();
-    allowSandbox(db);
+    const stale = create.replace("'external'", "'obsolete'").replace('CREATE TABLE session (', 'CREATE TABLE session (\n note TEXT,');
+    db.exec(stale);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, note) VALUES ('s1','p1','e1','obsolete','working','2026-10-09T00:00:00.000Z','2026-10-09T00:00:00.000Z','keep')").run();
+    const before = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'session'").get();
+    assert.throws(() => allowSandbox(db), /CHECK constraint failed/);
+    assert.deepEqual(db.prepare("SELECT sql FROM sqlite_master WHERE name = 'session'").get(), before);
+    assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'session_v2'").get(), undefined);
     assert.equal((db.prepare('SELECT note FROM session WHERE id = ?').get('s1') as any).note, 'keep');
   } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
 });

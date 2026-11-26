@@ -91,7 +91,8 @@ test('round 4: pill tabs with icons, a chevron on every step row, an amber appro
 
 test('the answer box hides while the chat shows its own approval card', () => {
   const src = readFileSync(new URL('../ui/src/home.jsx', import.meta.url), 'utf8');
-  assert.match(src, /chat\?\.waiting/);
+  assert.match(src, /export const plainAsk = \(ask, x, chat\) => ask\.reason === 'question' && ask === x && Array\.isArray\(chat\?\.items\) && !chat\.waiting;/);
+  assert.match(src, /\{ask && plainAsk\(ask, x, chat\) \? \(/);
 });
 
 function loadView(saved: Record<string, string>) {
